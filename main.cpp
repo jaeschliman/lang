@@ -1,3 +1,9 @@
+/*
+
+ g++ main.cpp -Werror -std=c++11 && ./a.out
+
+*/
+
 #include <iostream>
 #include <string>
 
@@ -9,19 +15,26 @@ typedef int64_t s64;
 
 typedef enum {
   Simple,
-  ByteArray
+  ByteArray,
+  PtrArray
 } ObjectType;
 
 typedef enum {
-  Class,
-  Cons,
   String,
   Symbol
 } BAOType;
 
+typedef enum {
+  Class,
+  Cons
+} PAOType;
+
 struct Header {
   ObjectType object_type;
-  BAOType type;
+  union {
+    BAOType bao_type;
+    PAOType pao_type;
+  };
 };
   
 struct Object {
@@ -44,6 +57,11 @@ typedef enum {
 
 struct Ptr {
   u64 value;
+};
+
+struct PtrArrayObject : Object {
+  uint length;
+  Ptr  data[];
 };
 
 bool isFixnum(Ptr self) {
@@ -75,7 +93,7 @@ Ptr toPtr(s64 value) {
 ByteArrayObject *alloc_bao(BAOType ty, uint len) {
   ByteArrayObject* obj = (ByteArrayObject *)malloc(sizeof(Header) + (sizeof(uint)) + len);
   obj->header.object_type = ByteArray;
-  obj->header.type = ty;
+  obj->header.bao_type = ty;
   obj->length = len;
   return obj;
 }
@@ -109,9 +127,10 @@ Ptr make_symbol(const char* str) {
 Ptr make_number(s64 value) { return toPtr(value); }
 
 std::ostream &operator<<(std::ostream &os, Object *obj) { 
-  if (obj->header.object_type == ByteArray) {
+  auto otype = obj->header.object_type;
+  if (otype == ByteArray) {
     const ByteArrayObject *vobj = (const ByteArrayObject*)(obj);
-    switch(vobj->header.type) {
+    switch(vobj->header.bao_type) {
     case String:
       os << "\"";
       for (uint i = 0; i < vobj->length; i++) {
@@ -124,6 +143,10 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
         os << vobj->data[i];
       }
       return os;
+    }
+  } else if (otype == PtrArray) {
+    const PtrArrayObject *vobj = (const PtrArrayObject*)(obj);
+    switch(vobj->header.pao_type) {
     case Class:
       return os << "#<A Class>";
     case Cons:

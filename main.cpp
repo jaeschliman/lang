@@ -9,7 +9,7 @@ typedef int64_t s64;
 
 typedef enum {
   Simple,
-  VariableLength,
+  ByteArray
 } ObjectType;
 
 typedef enum {
@@ -17,22 +17,21 @@ typedef enum {
   Cons,
   String,
   Symbol
-} VLType;
+} BAOType;
 
 struct Header {
   ObjectType object_type;
-  VLType type;
+  BAOType type;
 };
   
 struct Object {
   Header header;
 };
 
-struct VLObject : Object {
+struct ByteArrayObject : Object {
   uint length;
   char data[];
 };
-
 
 #define EXTRACT_PTR_MASK 0xFFFFFFFFFFFFFFF0
 #define TAG_MASK 0b111
@@ -50,7 +49,7 @@ struct Ptr {
 bool isFixnum(Ptr self) {
   return (self.value & TAG_MASK) == 0;
 }
-bool isReference(Ptr self) {
+bool isObject(Ptr self) {
   return (self.value & TAG_MASK) == 0b1;
 }
 Object *toObject(Ptr self) {
@@ -73,21 +72,20 @@ Ptr toPtr(s64 value) {
   return p;
 }
 
-
-VLObject *alloc_vlo(VLType ty, uint len) {
-  VLObject* obj = (VLObject *)malloc(sizeof(Header) + (sizeof(uint)) + len);
-  obj->header.object_type = VariableLength;
+ByteArrayObject *alloc_bao(BAOType ty, uint len) {
+  ByteArrayObject* obj = (ByteArrayObject *)malloc(sizeof(Header) + (sizeof(uint)) + len);
+  obj->header.object_type = ByteArray;
   obj->header.type = ty;
   obj->length = len;
   return obj;
 }
 
-void free_vlo(VLObject *obj) {
+void free_bao(ByteArrayObject *obj) {
   free(obj);
 }
 
 Ptr make_string(const char* str) {
-  VLObject *obj = alloc_vlo(String, strlen(str));
+  ByteArrayObject *obj = alloc_bao(String, strlen(str));
   const char *from = str;
   char *to = &(obj->data[0]);
   while(*from != 0) {
@@ -98,7 +96,7 @@ Ptr make_string(const char* str) {
 }
 
 Ptr make_symbol(const char* str) {
-  VLObject *obj = alloc_vlo(Symbol, strlen(str));
+  ByteArrayObject *obj = alloc_bao(Symbol, strlen(str));
   const char *from = str;
   char *to = &(obj->data[0]);
   while(*from != 0) {
@@ -108,9 +106,11 @@ Ptr make_symbol(const char* str) {
   return toPtr(obj);
 }
 
+Ptr make_number(s64 value) { return toPtr(value); }
+
 std::ostream &operator<<(std::ostream &os, Object *obj) { 
-  if (obj->header.object_type == VariableLength) {
-    const VLObject *vobj = (const VLObject*)(obj);
+  if (obj->header.object_type == ByteArray) {
+    const ByteArrayObject *vobj = (const ByteArrayObject*)(obj);
     switch(vobj->header.type) {
     case String:
       os << "\"";
@@ -134,7 +134,7 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
 }
 
 std::ostream &operator<<(std::ostream &os, Ptr p) { 
-  if (isReference(p)) {
+  if (isObject(p)) {
     return os << (toObject(p));
   } else if (isFixnum(p)) {
     return os << (toS64(p));

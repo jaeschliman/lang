@@ -91,7 +91,8 @@ Ptr toPtr(s64 value) {
 }
 
 ByteArrayObject *alloc_bao(BAOType ty, uint len) {
-  ByteArrayObject* obj = (ByteArrayObject *)malloc(sizeof(Header) + (sizeof(uint)) + len);
+  auto byte_count = sizeof(Header) + (sizeof(uint)) + len;
+  ByteArrayObject* obj = (ByteArrayObject *)malloc(byte_count);
   obj->header.object_type = ByteArray;
   obj->header.bao_type = ty;
   obj->length = len;
@@ -99,6 +100,19 @@ ByteArrayObject *alloc_bao(BAOType ty, uint len) {
 }
 
 void free_bao(ByteArrayObject *obj) {
+  free(obj);
+}
+
+PtrArrayObject *alloc_pao(PAOType ty, uint len) {
+  auto byte_count = sizeof(Header) + (sizeof(uint)) + (len * sizeof(Ptr));
+  PtrArrayObject* obj = (PtrArrayObject *)malloc(byte_count);
+  obj->header.object_type = ByteArray;
+  obj->header.pao_type = ty;
+  obj->length = len;
+  return obj;
+}
+
+void free_pao(PtrArrayObject *obj) {
   free(obj);
 }
 

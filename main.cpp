@@ -180,13 +180,34 @@ std::ostream &operator<<(std::ostream &os, Ptr p) {
   }
 }
 
+typedef void *(*compiled)();
+
+void *my_arg_grabber() {
+  asm(
+      "addq %rsi, %rdi\n"
+      "movq %rdi, %rax\n"
+      "popq %rbp\n"
+      "ret\n"
+      );
+
+  // to silence the warnings
+  return 0;
+}
+
+void my_arg_setter(u64 a, u64 b) {
+  //  asm("" :: "rsi"(a), "rdi"(b));
+}
 
 int main() {
   // cout << make_string("hello, world");
   // cout << make_symbol("nil");
   // cout << toPtr(42);
-  cout << toPtr(-42);
-  cout << "\n";
+  // cout << toPtr(-42);
+  // cout << "\n";
+  compiled fn = &my_arg_grabber;
+  my_arg_setter(45, -3);
+  cout << ((s64)((*fn)()));
+  puts("\n");
   return 0;
 }
 

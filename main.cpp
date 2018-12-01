@@ -12,11 +12,13 @@ using namespace std;
 typedef unsigned int uint;
 typedef uint64_t u64;
 typedef int64_t s64;
+typedef uint8_t u8;
 
 typedef enum {
   Simple,
+  RawPointer,
   ByteArray,
-  PtrArray
+  PtrArray,
 } ObjectType;
 
 typedef enum {
@@ -62,6 +64,10 @@ struct Ptr {
 struct PtrArrayObject : Object {
   uint length;
   Ptr  data[];
+};
+
+struct RawPointerObject : Object {
+  void *pointer;
 };
 
 bool isFixnum(Ptr self) {
@@ -140,6 +146,13 @@ Ptr make_symbol(const char* str) {
 
 Ptr make_number(s64 value) { return toPtr(value); }
 
+Ptr make_raw_pointer(void* ptr) {
+  RawPointerObject *obj = (RawPointerObject *)malloc(sizeof RawPointer);
+  obj->header.object_type = RawPointer;
+  obj->pointer = ptr;
+  return toPtr(obj);
+}
+
 std::ostream &operator<<(std::ostream &os, Object *obj) { 
   auto otype = obj->header.object_type;
   if (otype == ByteArray) {
@@ -198,16 +211,140 @@ void my_arg_setter(u64 a, u64 b) {
   //  asm("" :: "rsi"(a), "rdi"(b));
 }
 
+/* ---------------------------------------- */
+
+Ptr print_object(Ptr *stack) {
+  Ptr object = *stack;
+  cout << object << endl;
+  return  object;
+}
+
+typedef Ptr (*CCallFunction)(Ptr*);
+
+struct VM {
+  Ptr *stack;
+  const char* error;
+};
+
+enum OpCode {
+  END = 0,
+  RET = 1,
+  PUSHLIT = 2,
+  POP = 3,
+  FFI_CALL = 4,
+  CALL0 = 5,
+  CALL1 = 6,
+  CALL2 = 7,
+};
+
+struct ByteCode {
+  u8 *bytes;
+  Ptr literals[128];
+};
+
+void vm_push(VM* vm, Ptr value) {
+  *(++vm->stack) = value;
+}
+
+Ptr vm_pop(VM* vm) {
+  return *(vm->stack--);
+}
+
+void vm_ffi_call(VM* vm) {
+  Ptr ptr = vm_pop(vm);
+  if (!isObject(ptr)) {
+    vm->error = "integer is not a pointer";
+    return;
+  }
+  Object *top = toObject(ptr);
+  if (top->header.object_type != RawPointer) {
+    vm->error = "not a pointer";
+    return;
+  }
+  RawPointerObject *po = (RawPointerObject *)top;
+  CCallFunction fn = (CCallFunction)(po->pointer);
+  Ptr result = (*fn)(vm->stack);
+  vm_push(vm, result);
+}
+
+
+void vm_interp(VM* vm, ByteCode* bc) {
+  u8 *curr = bc->bytes;
+  u8 instr;
+  while ((instr = *curr)) {
+    switch (instr){
+    case PUSHLIT: {
+      u8 idx = *(++curr);
+      Ptr it = bc->literals[idx];
+      vm_push(vm, it);
+      break;
+    }
+    case FFI_CALL:
+      vm_ffi_call(vm);
+      if (vm->error) return;
+      break;
+    default:
+      vm->error = "unexpected BC";
+      return;
+    }
+    ++curr;
+  }
+}
+
+void check() {
+  VM vm;
+  ByteCode bc;
+
+  Ptr *stack_mem = (Ptr *)malloc(1024 * sizeof(Ptr));
+  vm.stack = stack_mem;
+
+  u8* bc_mem = (u8 *)malloc(1024);
+
+  {
+    u8 *curr = bc_mem;
+#define B(l) *curr++ = l
+    B(PUSHLIT); B(0);
+    B(PUSHLIT); B(1);
+    B(FFI_CALL);
+    B(END);
+#undef B
+  }
+
+  bc.bytes = bc_mem;
+  bc.literals[0] = make_string("hello, world");
+  bc.literals[1] = make_raw_pointer((void*)&print_object);
+
+  {
+    vm_interp(&vm, &bc);
+  }
+  
+  free(stack_mem);
+  free(bc_mem);
+  if (vm.error) {
+    puts(vm.error);
+  } else {
+    puts("no error");
+  }
+}
+
+
+
+
+/* ---------------------------------------- */
+
 int main() {
-  // cout << make_string("hello, world");
-  // cout << make_symbol("nil");
-  // cout << toPtr(42);
-  // cout << toPtr(-42);
-  // cout << "\n";
+  /*
+  cout << make_string("hello, world");
+  cout << make_symbol("nil");
+  cout << toPtr(42);
+  cout << toPtr(-42);
+  cout << "\n";
   compiled fn = &my_arg_grabber;
   my_arg_setter(45, -3);
   cout << ((s64)((*fn)()));
   puts("\n");
+  */
+  check();
   return 0;
 }
 

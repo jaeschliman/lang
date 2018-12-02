@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <string>
+#include <map>
 
 using namespace std;
 
@@ -13,6 +14,7 @@ typedef unsigned int uint;
 typedef uint64_t u64;
 typedef int64_t s64;
 typedef uint8_t u8;
+typedef int8_t s8;
 
 typedef enum {
   Simple,
@@ -213,18 +215,13 @@ void my_arg_setter(u64 a, u64 b) {
 
 /* ---------------------------------------- */
 
-Ptr print_object(Ptr *stack) {
-  Ptr object = *stack;
-  cout << object << endl;
-  return  object;
-}
-
-typedef Ptr (*CCallFunction)(Ptr*);
-
 struct VM {
   Ptr *stack;
   const char* error;
 };
+
+typedef Ptr (*CCallFunction)(VM*);
+
 
 enum OpCode {
   END = 0,
@@ -232,9 +229,9 @@ enum OpCode {
   PUSHLIT = 2,
   POP = 3,
   FFI_CALL = 4,
-  CALL0 = 5,
-  CALL1 = 6,
-  CALL2 = 7,
+  BR_IF_ZERO = 5,
+  BR_IF_NOT_ZERO = 6,
+  DUP = 7
 };
 
 struct ByteCode {
@@ -263,7 +260,7 @@ void vm_ffi_call(VM* vm) {
   }
   RawPointerObject *po = (RawPointerObject *)top;
   CCallFunction fn = (CCallFunction)(po->pointer);
-  Ptr result = (*fn)(vm->stack);
+  Ptr result = (*fn)(vm);
   vm_push(vm, result);
 }
 
@@ -272,8 +269,10 @@ void vm_interp(VM* vm, ByteCode* bc) {
   u8 *curr = bc->bytes;
   u8 instr;
   while ((instr = *curr)) {
-    // cout << "got instr: " << (uint)instr << endl;
     switch (instr){
+    case POP:
+      vm_pop(vm);
+      break;
     case PUSHLIT: {
       u8 idx = *(++curr);
       Ptr it = bc->literals[idx];
@@ -284,13 +283,37 @@ void vm_interp(VM* vm, ByteCode* bc) {
       vm_ffi_call(vm);
       if (vm->error) return;
       break;
+    case BR_IF_ZERO: {
+      auto it = vm_pop(vm);
+      u8 jump = *(++curr);
+      if ((u64)it.value == 0) {
+        curr = bc->bytes + (jump - 1); //-1 to acct for pc advancing
+      } 
+      break;
+    }
+    case BR_IF_NOT_ZERO: {
+      auto it = vm_pop(vm);
+      u8 jump = *(++curr);
+      if ((u64)it.value != 0) {
+        curr = bc->bytes + (jump - 1); //-1 to acct for pc advancing
+      } 
+      break;
+    }
+    case DUP: {
+      auto it = vm_pop(vm);
+      vm_push(vm, it);
+      vm_push(vm, it);
+      break;
+    }
     default:
       vm->error = "unexpected BC";
       return;
     }
+    if (vm->error) return;
     ++curr;
   }
 }
+
 
 class ByteCodeBuilder {
 private:
@@ -298,9 +321,13 @@ private:
   u64 bc_index;
   u8 lit_index;
   ByteCode *bc;
+  map<string, u64> *labelsMap;
   ByteCodeBuilder* pushOp(u8 op) {
     bc->bytes[bc_index++] = op;
     return this;
+  }
+  u64 currentAddress() {
+    return bc_index;
   }
 public:
   ByteCodeBuilder() {
@@ -309,6 +336,11 @@ public:
     bc_mem = (u8 *)malloc(1024);
     bc = new ByteCode();
     bc->bytes = bc_mem;
+    labelsMap = new map<string, u64>;
+  }
+  ByteCodeBuilder* dup() {
+    pushOp(DUP);
+    return this;
   }
   ByteCodeBuilder* pushLit(Ptr literal) {
     bc->literals[lit_index] = literal;
@@ -322,15 +354,50 @@ public:
       ->pushLit(make_raw_pointer((void *)fn))
       ->pushOp(FFI_CALL);
   }
+  ByteCodeBuilder* label(const char *name) {
+    string key = name;
+    (*labelsMap)[key] = currentAddress();
+    return this;
+  }
+  ByteCodeBuilder* branchIfZero(const char *name) {
+    string key = name;
+    auto addr = (*labelsMap)[key];
+    pushOp(BR_IF_ZERO);
+    pushOp(addr);
+    return this;
+  }
+  ByteCodeBuilder* branchIfNotZero(const char *name) {
+    string key = name;
+    auto addr = (*labelsMap)[key];
+    pushOp(BR_IF_NOT_ZERO);
+    pushOp(addr);
+    return this;
+  }
+  ByteCodeBuilder* pop(){
+    pushOp(POP);
+    return this;
+  }
   ByteCode *build() {
-    this->pushOp(END);
-    // u8 *curr = bc->bytes;
-    // int code;
-    // while ((code = *curr)) { cout << "BC: " << code << endl; curr++; }
+    pushOp(END);
     return bc;
   }
 };
 
+Ptr print_object(VM *vm) {
+  Ptr object = vm_pop(vm);
+  cout << object << endl;
+  return  object;
+}
+
+Ptr decrement_object(VM *vm) {
+  Ptr object = vm_pop(vm);
+  if (!isFixnum(object)) {
+    vm->error = "argument is not a fixnum";
+    return object;
+  }
+  s64 n = toS64(object);
+  return toPtr(n - 1);
+}
 
 void check() {
   VM vm;
@@ -339,8 +406,16 @@ void check() {
   vm.stack = stack_mem;
 
   auto bc = (new ByteCodeBuilder())
+    ->pushLit(make_number(3))
+    ->label("loop_start")
     ->pushLit(make_string("hello, world"))
     ->FFICall(&print_object)
+    ->pop()
+    ->FFICall(&decrement_object)
+    // ->FFICall(&print_object)
+    ->dup()
+    ->branchIfNotZero("loop_start")
+    ->pop()
     ->build();
 
   vm_interp(&vm, bc);

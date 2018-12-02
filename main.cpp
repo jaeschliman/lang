@@ -235,8 +235,8 @@ enum OpCode {
 };
 
 struct ByteCode {
-  u8 *bytes;
-  Ptr literals[128];
+  u64 *bytes;
+  Ptr literals[1024];
 };
 
 void vm_push(VM* vm, Ptr value) {
@@ -266,15 +266,15 @@ void vm_ffi_call(VM* vm) {
 
 
 void vm_interp(VM* vm, ByteCode* bc) {
-  u8 *curr = bc->bytes;
-  u8 instr;
+  u64 *curr = bc->bytes;
+  u64 instr;
   while ((instr = *curr)) {
     switch (instr){
     case POP:
       vm_pop(vm);
       break;
     case PUSHLIT: {
-      u8 idx = *(++curr);
+      u64 idx = *(++curr);
       Ptr it = bc->literals[idx];
       vm_push(vm, it);
       break;
@@ -285,7 +285,7 @@ void vm_interp(VM* vm, ByteCode* bc) {
       break;
     case BR_IF_ZERO: {
       auto it = vm_pop(vm);
-      u8 jump = *(++curr);
+      u64 jump = *(++curr);
       if ((u64)it.value == 0) {
         curr = bc->bytes + (jump - 1); //-1 to acct for pc advancing
       } 
@@ -293,7 +293,7 @@ void vm_interp(VM* vm, ByteCode* bc) {
     }
     case BR_IF_NOT_ZERO: {
       auto it = vm_pop(vm);
-      u8 jump = *(++curr);
+      u64 jump = *(++curr);
       if ((u64)it.value != 0) {
         curr = bc->bytes + (jump - 1); //-1 to acct for pc advancing
       } 
@@ -317,9 +317,9 @@ void vm_interp(VM* vm, ByteCode* bc) {
 
 class ByteCodeBuilder {
 private:
-  u8* bc_mem;
+  u64* bc_mem;
   u64 bc_index;
-  u8 lit_index;
+  u64 lit_index;
   ByteCode *bc;
   map<string, u64> *labelsMap;
   ByteCodeBuilder* pushOp(u8 op) {
@@ -333,7 +333,7 @@ public:
   ByteCodeBuilder() {
     bc_index = 0;
     lit_index = 0;
-    bc_mem = (u8 *)malloc(1024);
+    bc_mem = (u64 *)malloc(1024 * sizeof(u64));
     bc = new ByteCode();
     bc->bytes = bc_mem;
     labelsMap = new map<string, u64>;

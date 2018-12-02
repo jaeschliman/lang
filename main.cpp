@@ -272,6 +272,7 @@ void vm_interp(VM* vm, ByteCode* bc) {
   u8 *curr = bc->bytes;
   u8 instr;
   while ((instr = *curr)) {
+    // cout << "got instr: " << (uint)instr << endl;
     switch (instr){
     case PUSHLIT: {
       u8 idx = *(++curr);
@@ -291,35 +292,60 @@ void vm_interp(VM* vm, ByteCode* bc) {
   }
 }
 
+class ByteCodeBuilder {
+private:
+  u8* bc_mem;
+  u64 bc_index;
+  u8 lit_index;
+  ByteCode *bc;
+  ByteCodeBuilder* pushOp(u8 op) {
+    bc->bytes[bc_index++] = op;
+    return this;
+  }
+public:
+  ByteCodeBuilder() {
+    bc_index = 0;
+    lit_index = 0;
+    bc_mem = (u8 *)malloc(1024);
+    bc = new ByteCode();
+    bc->bytes = bc_mem;
+  }
+  ByteCodeBuilder* pushLit(Ptr literal) {
+    bc->literals[lit_index] = literal;
+    pushOp(PUSHLIT);
+    pushOp(lit_index);
+    lit_index++;
+    return this;
+  }
+  ByteCodeBuilder* FFICall(CCallFunction fn) {
+    return this
+      ->pushLit(make_raw_pointer((void *)fn))
+      ->pushOp(FFI_CALL);
+  }
+  ByteCode *build() {
+    this->pushOp(END);
+    // u8 *curr = bc->bytes;
+    // int code;
+    // while ((code = *curr)) { cout << "BC: " << code << endl; curr++; }
+    return bc;
+  }
+};
+
+
 void check() {
   VM vm;
-  ByteCode bc;
 
   Ptr *stack_mem = (Ptr *)malloc(1024 * sizeof(Ptr));
   vm.stack = stack_mem;
 
-  u8* bc_mem = (u8 *)malloc(1024);
+  auto bc = (new ByteCodeBuilder())
+    ->pushLit(make_string("hello, world"))
+    ->FFICall(&print_object)
+    ->build();
 
-  {
-    u8 *curr = bc_mem;
-#define B(l) *curr++ = l
-    B(PUSHLIT); B(0);
-    B(PUSHLIT); B(1);
-    B(FFI_CALL);
-    B(END);
-#undef B
-  }
-
-  bc.bytes = bc_mem;
-  bc.literals[0] = make_string("hello, world");
-  bc.literals[1] = make_raw_pointer((void*)&print_object);
-
-  {
-    vm_interp(&vm, &bc);
-  }
+  vm_interp(&vm, bc);
   
   free(stack_mem);
-  free(bc_mem);
   if (vm.error) {
     puts(vm.error);
   } else {

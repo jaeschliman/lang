@@ -215,10 +215,41 @@ void my_arg_setter(u64 a, u64 b) {
 
 /* ---------------------------------------- */
 
+struct Frame {
+  Ptr* prev_stack;
+  Frame* prev_frame;
+  u64 argc;
+  Ptr argv[];
+};
+
+
 struct VM {
   Ptr *stack;
+  Frame *frame;
   const char* error;
 };
+
+void vm_pop_stack_frame(VM* vm) {
+  auto nf = vm->frame->prev_frame;
+  if (!nf) {
+    vm->error = "nowhere to return to";
+    return;
+  }
+  vm->stack = nf->prev_stack;
+  vm->frame = nf->prev_frame;
+}
+
+void vm_push_stack_frame(VM* vm, u64 argc) {
+  u64 *top = &vm->stack->value;
+  uint offset = (sizeof(Frame) / sizeof(u64));
+  top -= offset;
+  Frame *new_frame = (Frame *)top;
+  new_frame->prev_frame = vm->frame;
+  new_frame->prev_stack = vm->stack;
+  new_frame->argc = argc;
+  vm->stack = (Ptr*)(void *)new_frame;
+  vm->frame = new_frame;
+}
 
 typedef Ptr (*CCallFunction)(VM*);
 
@@ -235,7 +266,7 @@ enum OpCode {
 };
 
 struct ByteCode {
-  u64 *bytes;
+  u64 *code;
   Ptr literals[1024];
 };
 
@@ -266,7 +297,7 @@ void vm_ffi_call(VM* vm) {
 
 
 void vm_interp(VM* vm, ByteCode* bc) {
-  u64 *curr = bc->bytes;
+  u64 *curr = bc->code;
   u64 instr;
   while ((instr = *curr)) {
     switch (instr){
@@ -287,7 +318,7 @@ void vm_interp(VM* vm, ByteCode* bc) {
       auto it = vm_pop(vm);
       u64 jump = *(++curr);
       if ((u64)it.value == 0) {
-        curr = bc->bytes + (jump - 1); //-1 to acct for pc advancing
+        curr = bc->code + (jump - 1); //-1 to acct for pc advancing
       } 
       break;
     }
@@ -295,7 +326,7 @@ void vm_interp(VM* vm, ByteCode* bc) {
       auto it = vm_pop(vm);
       u64 jump = *(++curr);
       if ((u64)it.value != 0) {
-        curr = bc->bytes + (jump - 1); //-1 to acct for pc advancing
+        curr = bc->code + (jump - 1); //-1 to acct for pc advancing
       } 
       break;
     }
@@ -323,7 +354,10 @@ private:
   ByteCode *bc;
   map<string, u64> *labelsMap;
   ByteCodeBuilder* pushOp(u8 op) {
-    bc->bytes[bc_index++] = op;
+    return pushU64(op);
+  }
+  ByteCodeBuilder* pushU64(u64 it) {
+    bc->code[bc_index++] = it;
     return this;
   }
   u64 currentAddress() {
@@ -335,7 +369,7 @@ public:
     lit_index = 0;
     bc_mem = (u64 *)malloc(1024 * sizeof(u64));
     bc = new ByteCode();
-    bc->bytes = bc_mem;
+    bc->code = bc_mem;
     labelsMap = new map<string, u64>;
   }
   ByteCodeBuilder* dup() {
@@ -363,14 +397,14 @@ public:
     string key = name;
     auto addr = (*labelsMap)[key];
     pushOp(BR_IF_ZERO);
-    pushOp(addr);
+    pushU64(addr);
     return this;
   }
   ByteCodeBuilder* branchIfNotZero(const char *name) {
     string key = name;
     auto addr = (*labelsMap)[key];
     pushOp(BR_IF_NOT_ZERO);
-    pushOp(addr);
+    pushU64(addr);
     return this;
   }
   ByteCodeBuilder* pop(){
@@ -404,6 +438,9 @@ void check() {
 
   Ptr *stack_mem = (Ptr *)malloc(1024 * sizeof(Ptr));
   vm.stack = stack_mem;
+  vm.frame = 0;
+
+  vm_push_stack_frame(&vm, 0);
 
   auto bc = (new ByteCodeBuilder())
     ->pushLit(make_number(3))

@@ -215,9 +215,16 @@ void my_arg_setter(u64 a, u64 b) {
 
 /* ---------------------------------------- */
 
+struct ByteCode {
+  u64 *code;
+  Ptr literals[1024];
+};
+
 struct Frame {
   Ptr* prev_stack;
   Frame* prev_frame;
+  ByteCode* prev_fn;
+  u64* prev_pc;
   u64 argc;
   Ptr argv[];
 };
@@ -226,29 +233,37 @@ struct Frame {
 struct VM {
   Ptr *stack;
   Frame *frame;
+  u64 *pc;
+  ByteCode *bc;
   const char* error;
 };
 
 void vm_pop_stack_frame(VM* vm) {
-  auto nf = vm->frame->prev_frame;
-  if (!nf) {
+  auto fr = vm->frame;
+  if (!fr->prev_frame) {
     vm->error = "nowhere to return to";
     return;
   }
-  vm->stack = nf->prev_stack;
-  vm->frame = nf->prev_frame;
+  vm->bc = fr->prev_fn;
+  vm->pc = fr->prev_pc;
+  vm->stack = fr->prev_stack - vm->frame->argc;
+  vm->frame = fr->prev_frame;
 }
 
-void vm_push_stack_frame(VM* vm, u64 argc) {
+void vm_push_stack_frame(VM* vm, u64 argc, ByteCode*fn) {
   u64 *top = &vm->stack->value;
   uint offset = (sizeof(Frame) / sizeof(u64));
   top -= offset;
   Frame *new_frame = (Frame *)top;
   new_frame->prev_frame = vm->frame;
   new_frame->prev_stack = vm->stack;
+  new_frame->prev_fn = vm->bc;
+  new_frame->prev_pc = vm->pc;
   new_frame->argc = argc;
   vm->stack = (Ptr*)(void *)new_frame;
   vm->frame = new_frame;
+  vm->bc = fn;
+  vm->pc = fn->code;
 }
 
 typedef Ptr (*CCallFunction)(VM*);
@@ -262,13 +277,10 @@ enum OpCode {
   FFI_CALL = 4,
   BR_IF_ZERO = 5,
   BR_IF_NOT_ZERO = 6,
-  DUP = 7
+  DUP = 7,
+  CALL = 8
 };
 
-struct ByteCode {
-  u64 *code;
-  Ptr literals[1024];
-};
 
 void vm_push(VM* vm, Ptr value) {
   *(++vm->stack) = value;
@@ -296,17 +308,16 @@ void vm_ffi_call(VM* vm) {
 }
 
 
-void vm_interp(VM* vm, ByteCode* bc) {
-  u64 *curr = bc->code;
+void vm_interp(VM* vm) {
   u64 instr;
-  while ((instr = *curr)) {
+  while ((instr = *vm->pc)) {
     switch (instr){
     case POP:
       vm_pop(vm);
       break;
     case PUSHLIT: {
-      u64 idx = *(++curr);
-      Ptr it = bc->literals[idx];
+      u64 idx = *(++vm->pc);
+      Ptr it = vm->bc->literals[idx];
       vm_push(vm, it);
       break;
     }
@@ -316,17 +327,17 @@ void vm_interp(VM* vm, ByteCode* bc) {
       break;
     case BR_IF_ZERO: {
       auto it = vm_pop(vm);
-      u64 jump = *(++curr);
+      u64 jump = *(++vm->pc);
       if ((u64)it.value == 0) {
-        curr = bc->code + (jump - 1); //-1 to acct for pc advancing
+        vm->pc = vm->bc->code + (jump - 1); //-1 to acct for pc advancing
       } 
       break;
     }
     case BR_IF_NOT_ZERO: {
       auto it = vm_pop(vm);
-      u64 jump = *(++curr);
+      u64 jump = *(++vm->pc);
       if ((u64)it.value != 0) {
-        curr = bc->code + (jump - 1); //-1 to acct for pc advancing
+        vm->pc = vm->bc->code + (jump - 1); //-1 to acct for pc advancing
       } 
       break;
     }
@@ -336,12 +347,25 @@ void vm_interp(VM* vm, ByteCode* bc) {
       vm_push(vm, it);
       break;
     }
+    case CALL: {
+      u64 argc = *(++vm->pc);
+      ByteCode *next = (ByteCode *)(*(++vm->pc));
+      vm_push_stack_frame(vm, argc, next);
+      vm->pc--; // or, could insert a NOOP at start of each fn...
+      break;
+    }
+    case RET: {
+      auto it = vm_pop(vm);
+      vm_pop_stack_frame(vm);
+      vm_push(vm, it);
+      break;
+    }
     default:
       vm->error = "unexpected BC";
       return;
     }
     if (vm->error) return;
-    ++curr;
+    ++vm->pc;
   }
 }
 
@@ -407,8 +431,25 @@ public:
     pushU64(addr);
     return this;
   }
+  ByteCodeBuilder* call(u64 argc, ByteCode* bc) {
+    pushOp(CALL);
+    pushU64(argc);
+    u64 it = (u64) bc;
+    pushU64(it);
+    return this;
+  }
+  ByteCodeBuilder* selfcall(u64 argc) {
+    pushOp(CALL);
+    pushU64(argc);
+    pushU64((u64)bc);
+    return this;
+  }
   ByteCodeBuilder* pop(){
     pushOp(POP);
+    return this;
+  }
+  ByteCodeBuilder* ret() {
+    pushOp(RET);
     return this;
   }
   ByteCode *build() {
@@ -440,22 +481,27 @@ void check() {
   vm.stack = stack_mem;
   vm.frame = 0;
 
-  vm_push_stack_frame(&vm, 0);
+  auto returnHelloWorld = (new ByteCodeBuilder())
+    ->pushLit(make_string("hello, world"))
+    ->ret()
+    ->build();
 
   auto bc = (new ByteCodeBuilder())
     ->pushLit(make_number(3))
     ->label("loop_start")
-    ->pushLit(make_string("hello, world"))
+    ->call(0, returnHelloWorld)
     ->FFICall(&print_object)
     ->pop()
     ->FFICall(&decrement_object)
-    // ->FFICall(&print_object)
     ->dup()
     ->branchIfNotZero("loop_start")
     ->pop()
     ->build();
 
-  vm_interp(&vm, bc);
+
+  vm_push_stack_frame(&vm, 0, bc);
+
+  vm_interp(&vm);
   
   free(stack_mem);
   if (vm.error) {

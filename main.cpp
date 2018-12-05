@@ -246,21 +246,33 @@ void vm_pop_stack_frame(VM* vm) {
   }
   vm->bc = fr->prev_fn;
   vm->pc = fr->prev_pc;
-  vm->stack = fr->prev_stack - vm->frame->argc;
+  vm->stack = fr->prev_stack + fr->argc;
   vm->frame = fr->prev_frame;
+
+  // cout << "return stack frome to :" << vm->stack << endl;
 }
 
 void vm_push_stack_frame(VM* vm, u64 argc, ByteCode*fn) {
-  u64 *top = &vm->stack->value;
+
   uint offset = (sizeof(Frame) / sizeof(u64));
-  top -= offset;
+  u64 *top = &((vm->stack - offset)->value);
   Frame *new_frame = (Frame *)top;
-  new_frame->prev_frame = vm->frame;
+
+  // cout << "pushing stack frame from: " << vm->stack << endl;
+  // cout << "  argc = " << argc << endl;
+  // cout << "  offset = " << offset << endl;
+  // cout << "  top = " << top << endl;
+  // cout << "  &ps = " << &new_frame->prev_stack << endl;
+  // cout << "  &ps = " << &new_frame->prev_fn << endl;
+  // cout << "  &ps = " << &new_frame->prev_pc << endl;
+  // cout << "  &ps = " << &new_frame->argc << endl;
+
   new_frame->prev_stack = vm->stack;
+  new_frame->prev_frame = vm->frame;
   new_frame->prev_fn = vm->bc;
   new_frame->prev_pc = vm->pc;
   new_frame->argc = argc;
-  vm->stack = (Ptr*)(void *)new_frame;
+  vm->stack = (Ptr*)(void *)new_frame; // - 100; // STACK_PADDING
   vm->frame = new_frame;
   vm->bc = fn;
   vm->pc = fn->code;
@@ -278,20 +290,22 @@ enum OpCode {
   BR_IF_ZERO = 5,
   BR_IF_NOT_ZERO = 6,
   DUP = 7,
-  CALL = 8
+  CALL = 8,
+  LOAD_ARG = 9
 };
 
 
 void vm_push(VM* vm, Ptr value) {
-  *(++vm->stack) = value;
+  *(--vm->stack) = value;
 }
 
 Ptr vm_pop(VM* vm) {
-  return *(vm->stack--);
+  return *(vm->stack++);
 }
 
 void vm_ffi_call(VM* vm) {
   Ptr ptr = vm_pop(vm);
+  // cout << "ffi calling: " << ptr << endl;
   if (!isObject(ptr)) {
     vm->error = "integer is not a pointer";
     return;
@@ -304,6 +318,7 @@ void vm_ffi_call(VM* vm) {
   RawPointerObject *po = (RawPointerObject *)top;
   CCallFunction fn = (CCallFunction)(po->pointer);
   Ptr result = (*fn)(vm);
+  // cout << " ffi call returned: " << result << endl;
   vm_push(vm, result);
 }
 
@@ -358,6 +373,15 @@ void vm_interp(VM* vm) {
       auto it = vm_pop(vm);
       vm_pop_stack_frame(vm);
       vm_push(vm, it);
+      // cout << "returning: " << it << endl;
+      break;
+    }
+    case LOAD_ARG: {
+      u64 idx = *(++vm->pc);
+      u64 argc = vm->frame->argc;
+      auto it = vm->frame->argv[argc - (idx + 1)];
+      vm_push(vm, it);
+      // cout << "loading arg "<< idx << ": " << it << endl;
       break;
     }
     default:
@@ -452,6 +476,11 @@ public:
     pushOp(RET);
     return this;
   }
+  ByteCodeBuilder* loadArg(u64 index) {
+    pushOp(LOAD_ARG);
+    pushU64(index);
+    return this;
+  }
   ByteCode *build() {
     pushOp(END);
     return bc;
@@ -477,12 +506,20 @@ Ptr decrement_object(VM *vm) {
 void check() {
   VM vm;
 
-  Ptr *stack_mem = (Ptr *)malloc(1024 * sizeof(Ptr));
-  vm.stack = stack_mem;
+  auto count = 1024;
+  Ptr *stack_mem = (Ptr *)malloc(count * sizeof(Ptr));
+  vm.stack = stack_mem + (count - 1);
   vm.frame = 0;
+
 
   auto returnHelloWorld = (new ByteCodeBuilder())
     ->pushLit(make_string("hello, world"))
+    ->ret()
+    ->build();
+
+  auto dec = (new ByteCodeBuilder())
+    ->loadArg(0)
+    ->FFICall(&decrement_object)
     ->ret()
     ->build();
 
@@ -496,10 +533,14 @@ void check() {
     ->dup()
     ->branchIfNotZero("loop_start")
     ->pop()
+    ->pushLit(make_number(43))
+    ->call(1, dec)
+    ->FFICall(&print_object)
     ->build();
 
 
   vm_push_stack_frame(&vm, 0, bc);
+  vm.frame->prev_frame = 0;
 
   vm_interp(&vm);
   

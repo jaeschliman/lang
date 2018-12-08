@@ -526,6 +526,22 @@ Ptr decrement_object(VM *vm) {
   return toPtr(n - 1);
 }
 
+Ptr mul_objects(VM *vm) {
+  Ptr objectA = vm_pop(vm);
+  if (!isFixnum(objectA)) {
+    vm->error = "argument A is not a fixnum";
+    return objectA;
+  }
+  Ptr objectB = vm_pop(vm);
+  if (!isFixnum(objectB)) {
+    vm->error = "argument B is not a fixnum";
+    return objectB;
+  }
+  s64 a = toS64(objectA);
+  s64 b = toS64(objectB);
+  return toPtr(a * b);
+}
+
 void check() {
   VM vm;
 
@@ -551,6 +567,13 @@ void check() {
     ->ret()
     ->build();
 
+  auto mul = (new ByteCodeBuilder())
+    ->loadArg(0)
+    ->loadArg(1)
+    ->FFICall(&mul_objects)
+    ->ret()
+    ->build();
+
   auto bc = (new ByteCodeBuilder())
     ->pushLit(make_number(3))
     ->label("loop_start")
@@ -569,6 +592,10 @@ void check() {
     ->pushLit(make_string("skip me"))
     ->call(1, print)
     ->label("exit")
+    ->pushLit(make_number(10))
+    ->pushLit(make_number(20))
+    ->call(2, mul)
+    ->call(1, print)
     ->pushLit(make_string("done!"))
     ->call(1, print)
     ->build();

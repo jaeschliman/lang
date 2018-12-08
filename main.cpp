@@ -31,12 +31,34 @@ typedef int64_t s64;
 typedef uint8_t u8;
 typedef int8_t s8;
 
+enum ObjectType : u64 {
+  ByteCode_ObjectType,
+  RawPointer_ObjectType,
+  ByteArray_ObjectType,
+  U64Array_ObjectType,
+  PtrArray_ObjectType,
+  StdObject_ObjectType
+};
+
+struct Header {
+  ObjectType object_type;
+};
+  
+struct Object {
+  Header header;
+};
+
+struct U64ArrayObject : Object {
+  u64 length;
+  u64 data[];
+};
+
 struct Ptr {
   u64 value;
 };
 
-struct ByteCode {
-  u64 *code;
+struct ByteCode : Object {
+  U64ArrayObject *code;
   Ptr literals[1024];
 };
 
@@ -76,52 +98,20 @@ void * vm_alloc(VM *vm, u64 bytes) {
 /* -------------------------------------------------- */
 
 typedef enum {
-  RawPointer,
-  ByteArray,
-  PtrArray,
-  StdObject
-} ObjectType;
-
-typedef enum {
   String,
   Symbol
 } BAOType;
 
 typedef enum {} PAOType;
 
-struct Header {
-  // TODO: forcing these to u64s leads to RT errors...
-  union {
-    ObjectType object_type;
-    // u64 _unused_0;
-  };
-  union {
-    // u64 _unused_1;
-    BAOType bao_type;
-    PAOType pao_type;
-  };
-};
-  
-struct Object {
-  Header header;
-};
-
 struct ByteArrayObject : Object {
+  BAOType bao_type;
   uint length;
   char data[];
 };
 
-#define EXTRACT_PTR_MASK 0xFFFFFFFFFFFFFFF0
-#define TAG_MASK 0b111
-#define TAG_BITS 3
-
-typedef enum {
-  Fixnum,
-  Pointer
-} PtrType;
-
-
 struct PtrArrayObject : Object {
+  PAOType pao_type;
   uint length;
   Ptr  data[];
 };
@@ -135,6 +125,10 @@ struct StandardObject : Object {
   u64 ivar_count;
   Ptr ivars[];
 };
+
+#define EXTRACT_PTR_MASK 0xFFFFFFFFFFFFFFF0
+#define TAG_MASK 0b111
+#define TAG_BITS 3
 
 bool isFixnum(Ptr self) {
   return (self.value & TAG_MASK) == 0;
@@ -162,30 +156,43 @@ Ptr toPtr(s64 value) {
   return p;
 }
 
-ByteArrayObject *alloc_bao(VM *vm, BAOType ty, uint len) {
-  auto byte_count = sizeof(ByteArrayObject) + len;
-  ByteArrayObject* obj = (ByteArrayObject *)vm_alloc(vm, byte_count);
-  obj->header.object_type = ByteArray;
-  obj->header.bao_type = ty;
+U64ArrayObject *alloc_u64ao(VM *vm, uint len) {
+  auto byte_count = sizeof(U64ArrayObject) + (len * sizeof(u64));
+  U64ArrayObject* obj = (U64ArrayObject *)vm_alloc(vm, byte_count);
+  obj->header.object_type = ByteArray_ObjectType;
   obj->length = len;
   return obj;
 }
 
+ByteCode *alloc_bytecode(VM *vm) {
+  auto byte_count = sizeof(ByteCode);
+  ByteCode *obj = (ByteCode *)vm_alloc(vm, byte_count);
+  obj->header.object_type = ByteCode_ObjectType;
+  return obj;
+}
+
+ByteArrayObject *alloc_bao(VM *vm, BAOType ty, uint len) {
+  auto byte_count = sizeof(ByteArrayObject) + len;
+  ByteArrayObject* obj = (ByteArrayObject *)vm_alloc(vm, byte_count);
+  obj->header.object_type = ByteArray_ObjectType;
+  obj->bao_type = ty;
+  obj->length = len;
+  return obj;
+}
 
 PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   auto byte_count = sizeof(PtrArrayObject) + (len * sizeof(Ptr));
   PtrArrayObject* obj = (PtrArrayObject *)vm_alloc(vm, byte_count);
-  obj->header.object_type = ByteArray;
-  obj->header.pao_type = ty;
+  obj->header.object_type = ByteArray_ObjectType;
+  obj->pao_type = ty;
   obj->length = len;
   return obj;
 }
 
-
 StandardObject *alloc_standard_object(VM *vm, StandardObject *klass, u64 ivar_count) {
   auto byte_count = (sizeof(StandardObject)) + ivar_count * (sizeof(Ptr));
   auto result = (StandardObject *)vm_alloc(vm, byte_count);
-  result->header.object_type = StdObject;
+  result->header.object_type = StdObject_ObjectType;
   result->klass = klass;
   result->ivar_count = ivar_count;
   return result;
@@ -201,6 +208,12 @@ Ptr standard_object_set_ivar(StandardObject *object, u64 idx, Ptr value) {
   return object->ivars[idx] = value;
 }
 
+Ptr make_bytecode(VM *vm, u64 code_len) {
+  auto bc = alloc_bytecode(vm);
+  auto code = alloc_u64ao(vm, code_len);
+  bc->code = code;
+  return toPtr(bc);
+}
 
 Ptr make_string(VM *vm, const char* str) {
   ByteArrayObject *obj = alloc_bao(vm, String, strlen(str));
@@ -227,8 +240,8 @@ Ptr make_symbol(VM *vm, const char* str) {
 Ptr make_number(s64 value) { return toPtr(value); }
 
 Ptr make_raw_pointer(VM *vm, void* ptr) {
-  RawPointerObject *obj = (RawPointerObject *)vm_alloc(vm, sizeof RawPointer);
-  obj->header.object_type = RawPointer;
+  RawPointerObject *obj = (RawPointerObject *)vm_alloc(vm, sizeof RawPointer_ObjectType);
+  obj->header.object_type = RawPointer_ObjectType;
   obj->pointer = ptr;
   return toPtr(obj);
 }
@@ -244,9 +257,9 @@ enum {
 
 std::ostream &operator<<(std::ostream &os, Object *obj) { 
   auto otype = obj->header.object_type;
-  if (otype == ByteArray) {
+  if (otype == ByteArray_ObjectType) {
     const ByteArrayObject *vobj = (const ByteArrayObject*)(obj);
-    switch(vobj->header.bao_type) {
+    switch(vobj->bao_type) {
     case String:
       os << "\"";
       for (uint i = 0; i < vobj->length; i++) {
@@ -260,11 +273,11 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
       }
       return os;
     }
-  } else if (otype == PtrArray) {
+  } else if (otype == PtrArray_ObjectType) {
     // const PtrArrayObject *vobj = (const PtrArrayObject*)(obj);
-    cout << "#<Pointer Array Object>";
+    cout << "#<Ptr Array Object>";
     return os;
-  } else if (otype == StdObject) {
+  } else if (otype == StdObject_ObjectType) {
     auto sobj = (StandardObject *)obj;
     auto name = standard_object_get_ivar(sobj->klass, BaseClassName);
     cout << "#<A " << toObject(name) << ">";
@@ -373,7 +386,7 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCode*fn) {
   vm->stack = (Ptr*)(void *)new_frame; // - 100; // STACK_PADDING
   vm->frame = new_frame;
   vm->bc = fn;
-  vm->pc = fn->code;
+  vm->pc = fn->code->data;
 }
 
 typedef Ptr (*CCallFunction)(VM*);
@@ -409,7 +422,7 @@ void vm_ffi_call(VM* vm) {
     return;
   }
   Object *top = toObject(ptr);
-  if (top->header.object_type != RawPointer) {
+  if (top->header.object_type != RawPointer_ObjectType) {
     vm->error = "not a pointer";
     return;
   }
@@ -442,7 +455,7 @@ void vm_interp(VM* vm) {
       auto it = vm_pop(vm);
       u64 jump = *(++vm->pc);
       if ((u64)it.value == 0) {
-        vm->pc = vm->bc->code + (jump - 1); //-1 to acct for pc advancing
+        vm->pc = vm->bc->code->data + (jump - 1); //-1 to acct for pc advancing
       } 
       break;
     }
@@ -450,7 +463,7 @@ void vm_interp(VM* vm) {
       auto it = vm_pop(vm);
       u64 jump = *(++vm->pc);
       if ((u64)it.value != 0) {
-        vm->pc = vm->bc->code + (jump - 1); //-1 to acct for pc advancing
+        vm->pc = vm->bc->code->data + (jump - 1); //-1 to acct for pc advancing
       } 
       break;
     }
@@ -507,11 +520,11 @@ private:
     return pushU64(op);
   }
   ByteCodeBuilder* pushU64(u64 it) {
-    bc->code[bc_index++] = it;
+    bc_mem[bc_index++] = it;
     return this;
   }
   u64* pushEmptyRef() {
-    auto location = bc->code + bc_index;
+    auto location = bc_mem + bc_index;
     pushU64(0);
     return location;
   }
@@ -536,9 +549,8 @@ public:
     this->vm = vm;
     bc_index = 0;
     lit_index = 0;
-    bc_mem = (u64 *)malloc(1024 * sizeof(u64));
-    bc = new ByteCode();
-    bc->code = bc_mem;
+    bc = (ByteCode *)toObject(make_bytecode(vm, 1024));
+    bc_mem = bc->code->data;
     labelsMap = new map<string, u64>;
     branchLocations = new vector<branch_entry>;
   }

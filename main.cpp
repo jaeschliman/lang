@@ -574,6 +574,22 @@ void check() {
     ->ret()
     ->build();
 
+  auto factorial = (new ByteCodeBuilder())
+    ->loadArg(0)
+    ->branchIfZero("return1")
+    ->loadArg(0)
+    ->call(1, dec)
+    ->dup()
+    ->branchIfZero("return1")
+    ->selfcall(1)
+    ->loadArg(0)
+    ->call(2, mul)
+    ->ret()
+    ->label("return1")
+    ->pushLit(make_number(1))
+    ->ret()
+    ->build();
+
   auto bc = (new ByteCodeBuilder())
     ->pushLit(make_number(3))
     ->label("loop_start")
@@ -595,6 +611,9 @@ void check() {
     ->pushLit(make_number(10))
     ->pushLit(make_number(20))
     ->call(2, mul)
+    ->call(1, print)
+    ->pushLit(make_number(10))
+    ->call(1, factorial)
     ->call(1, print)
     ->pushLit(make_string("done!"))
     ->call(1, print)

@@ -31,6 +31,50 @@ typedef int64_t s64;
 typedef uint8_t u8;
 typedef int8_t s8;
 
+struct Ptr {
+  u64 value;
+};
+
+struct ByteCode {
+  u64 *code;
+  Ptr literals[1024];
+};
+
+struct Frame {
+  Ptr* prev_stack;
+  Frame* prev_frame;
+  ByteCode* prev_fn;
+  u64* prev_pc;
+  u64 argc;
+  Ptr argv[];
+};
+
+struct VM {
+  Ptr *stack;
+  void* heap_mem;
+  void* heap_end;
+  u64 heap_size_in_bytes;
+  Frame *frame;
+  u64 *pc;
+  ByteCode *bc;
+  const char* error;
+};
+
+void * vm_alloc(VM *vm, u64 bytes) {
+  // return malloc(bytes);
+  auto result = (void *)vm->heap_end;
+  static_assert(sizeof(u64) == sizeof(void *), "right pointer size");
+  assert(((u64)result & 0b1111) == 0);
+  auto rounded = ((bytes >> 4) << 4);
+  u64 bump = rounded == bytes ? rounded : rounded + 16;
+  vm->heap_end = ((u8*)vm->heap_end) + bump;
+  assert(((u64)vm->heap_end & 0b1111) == 0);
+  // cout << " alloc: bytes = " << bytes << " bump = " << bump << " end = " << vm->heap_end << endl;
+  return result;
+}
+
+/* -------------------------------------------------- */
+
 typedef enum {
   RawPointer,
   ByteArray,
@@ -76,9 +120,6 @@ typedef enum {
   Pointer
 } PtrType;
 
-struct Ptr {
-  u64 value;
-};
 
 struct PtrArrayObject : Object {
   uint length;
@@ -121,35 +162,29 @@ Ptr toPtr(s64 value) {
   return p;
 }
 
-ByteArrayObject *alloc_bao(BAOType ty, uint len) {
+ByteArrayObject *alloc_bao(VM *vm, BAOType ty, uint len) {
   auto byte_count = sizeof(ByteArrayObject) + len;
-  ByteArrayObject* obj = (ByteArrayObject *)malloc(byte_count);
+  ByteArrayObject* obj = (ByteArrayObject *)vm_alloc(vm, byte_count);
   obj->header.object_type = ByteArray;
   obj->header.bao_type = ty;
   obj->length = len;
   return obj;
 }
 
-void free_bao(ByteArrayObject *obj) {
-  free(obj);
-}
 
-PtrArrayObject *alloc_pao(PAOType ty, uint len) {
+PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   auto byte_count = sizeof(PtrArrayObject) + (len * sizeof(Ptr));
-  PtrArrayObject* obj = (PtrArrayObject *)malloc(byte_count);
+  PtrArrayObject* obj = (PtrArrayObject *)vm_alloc(vm, byte_count);
   obj->header.object_type = ByteArray;
   obj->header.pao_type = ty;
   obj->length = len;
   return obj;
 }
 
-void free_pao(PtrArrayObject *obj) {
-  free(obj);
-}
 
-StandardObject *alloc_standard_object(StandardObject *klass, u64 ivar_count) {
+StandardObject *alloc_standard_object(VM *vm, StandardObject *klass, u64 ivar_count) {
   auto byte_count = (sizeof(StandardObject)) + ivar_count * (sizeof(Ptr));
-  auto result = (StandardObject *)malloc(byte_count);
+  auto result = (StandardObject *)vm_alloc(vm, byte_count);
   result->header.object_type = StdObject;
   result->klass = klass;
   result->ivar_count = ivar_count;
@@ -167,8 +202,8 @@ Ptr standard_object_set_ivar(StandardObject *object, u64 idx, Ptr value) {
 }
 
 
-Ptr make_string(const char* str) {
-  ByteArrayObject *obj = alloc_bao(String, strlen(str));
+Ptr make_string(VM *vm, const char* str) {
+  ByteArrayObject *obj = alloc_bao(vm, String, strlen(str));
   const char *from = str;
   char *to = &(obj->data[0]);
   while(*from != 0) {
@@ -178,8 +213,8 @@ Ptr make_string(const char* str) {
   return toPtr(obj);
 }
 
-Ptr make_symbol(const char* str) {
-  ByteArrayObject *obj = alloc_bao(Symbol, strlen(str));
+Ptr make_symbol(VM *vm, const char* str) {
+  ByteArrayObject *obj = alloc_bao(vm, Symbol, strlen(str));
   const char *from = str;
   char *to = &(obj->data[0]);
   while(*from != 0) {
@@ -191,8 +226,8 @@ Ptr make_symbol(const char* str) {
 
 Ptr make_number(s64 value) { return toPtr(value); }
 
-Ptr make_raw_pointer(void* ptr) {
-  RawPointerObject *obj = (RawPointerObject *)malloc(sizeof RawPointer);
+Ptr make_raw_pointer(VM *vm, void* ptr) {
+  RawPointerObject *obj = (RawPointerObject *)vm_alloc(vm, sizeof RawPointer);
   obj->header.object_type = RawPointer;
   obj->pointer = ptr;
   return toPtr(obj);
@@ -228,12 +263,14 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
   } else if (otype == PtrArray) {
     // const PtrArrayObject *vobj = (const PtrArrayObject*)(obj);
     cout << "#<Pointer Array Object>";
+    return os;
   } else if (otype == StdObject) {
     auto sobj = (StandardObject *)obj;
     auto name = standard_object_get_ivar(sobj->klass, BaseClassName);
     cout << "#<A " << toObject(name) << ">";
+    return os;
   }
-  return os << "don't know how to print object.";
+  return os << "don't know how to print object: " << otype << (void*)obj << endl;
 }
 
 std::ostream &operator<<(std::ostream &os, Ptr p) { 
@@ -249,12 +286,11 @@ std::ostream &operator<<(std::ostream &os, Ptr p) {
 
 /* ---------------------------------------- */
 
-StandardObject *make_standard_object(StandardObject *klass, Ptr*ivars) {
+StandardObject *make_standard_object(VM *vm, StandardObject *klass, Ptr*ivars) {
   auto ivar_count_object = standard_object_get_ivar(klass, BaseClassIvarCount);
-  cout << " ivar count object: " << ivar_count_object << endl;
   assert(isFixnum(ivar_count_object));
   auto ivar_count = toS64(ivar_count_object);
-  auto result = alloc_standard_object(klass, ivar_count);
+  auto result = alloc_standard_object(vm, klass, ivar_count);
   for (auto i = 0; i < ivar_count; i++) {
     standard_object_set_ivar(result, i, ivars[i]);
   }
@@ -284,42 +320,18 @@ typedef void *(*compiled)();
 
 /* ---------------------------------------- */
 
-struct ByteCode {
-  u64 *code;
-  Ptr literals[1024];
-};
-
-struct Frame {
-  Ptr* prev_stack;
-  Frame* prev_frame;
-  ByteCode* prev_fn;
-  u64* prev_pc;
-  u64 argc;
-  Ptr argv[];
-};
-
-
-struct VM {
-  Ptr *stack;
-  Frame *frame;
-  u64 *pc;
-  ByteCode *bc;
-  const char* error;
-};
-
-/* -------------------------------------------------- */
 
 StandardObject *Base;
 StandardObject *Cons;
-void initialize_classes()
+void initialize_classes(VM *vm)
 
 {
-  Base = alloc_standard_object(0, BaseClassEnd);
+  Base = alloc_standard_object(vm, 0, BaseClassEnd);
   Base->klass = Base;
-  standard_object_set_ivar(Base, BaseClassName, make_string("Base"));
+  standard_object_set_ivar(Base, BaseClassName, make_string(vm, "Base"));
   standard_object_set_ivar(Base, BaseClassIvarCount, make_number(2));
-  Ptr slots[] = {make_string("Base"), make_number(2)};
-  Cons = make_standard_object(Base, slots);
+  Ptr slots[] = {make_string(vm, "Cons"), make_number(2)};
+  Cons = make_standard_object(vm, Base, slots);
 }
 
 /* -------------------------------------------------- */
@@ -483,6 +495,7 @@ typedef tuple<u64*, string> branch_entry;
 
 class ByteCodeBuilder {
 private:
+  VM* vm;
   u64* bc_mem;
   u64 bc_index;
   u64 lit_index;
@@ -519,7 +532,8 @@ private:
     return bc_index;
   }
 public:
-  ByteCodeBuilder() {
+  ByteCodeBuilder(VM* vm) {
+    this->vm = vm;
     bc_index = 0;
     lit_index = 0;
     bc_mem = (u64 *)malloc(1024 * sizeof(u64));
@@ -541,7 +555,7 @@ public:
   }
   ByteCodeBuilder* FFICall(CCallFunction fn) {
     return this
-      ->pushLit(make_raw_pointer((void *)fn))
+      ->pushLit(make_raw_pointer(vm, (void *)fn))
       ->pushOp(FFI_CALL);
   }
   ByteCodeBuilder* label(const char *name) {
@@ -625,40 +639,50 @@ Ptr mul_objects(VM *vm) {
 }
 
 void check() {
-  VM vm;
+  VM *vm;
+  vm = (VM *)malloc(sizeof(VM));
 
-  auto count = 1024;
+  auto count = 1024 * 100;
   Ptr *stack_mem = (Ptr *)malloc(count * sizeof(Ptr));
-  vm.stack = stack_mem + (count - 1);
-  vm.frame = 0;
+  vm->stack = stack_mem + (count - 1);
 
-  initialize_classes();
+  auto heap_size_in_mb = 50;
+  auto heap_size_in_bytes = heap_size_in_mb * 1024 * 1024;
+  auto heap_mem = malloc(heap_size_in_bytes);
+  memset(heap_mem, 0, heap_size_in_bytes);
+  vm->heap_mem = heap_mem;
+  vm->heap_end = heap_mem;
+  vm->heap_size_in_bytes = heap_size_in_bytes;
 
-  auto returnHelloWorld = (new ByteCodeBuilder())
-    ->pushLit(make_string("hello, world"))
+  vm->frame = 0;
+
+  initialize_classes(vm);
+
+  auto returnHelloWorld = (new ByteCodeBuilder(vm))
+    ->pushLit(make_string(vm, "hello, world"))
     ->ret()
     ->build();
 
-  auto dec = (new ByteCodeBuilder())
+  auto dec = (new ByteCodeBuilder(vm))
     ->loadArg(0)
     ->FFICall(&decrement_object)
     ->ret()
     ->build();
 
-  auto print = (new ByteCodeBuilder())
+  auto print = (new ByteCodeBuilder(vm))
     ->loadArg(0)
     ->FFICall(&print_object)
     ->ret()
     ->build();
 
-  auto mul = (new ByteCodeBuilder())
+  auto mul = (new ByteCodeBuilder(vm))
     ->loadArg(0)
     ->loadArg(1)
     ->FFICall(&mul_objects)
     ->ret()
     ->build();
 
-  auto factorial = (new ByteCodeBuilder())
+  auto factorial = (new ByteCodeBuilder(vm))
     ->loadArg(0)
     ->branchIfZero("return1")
     ->loadArg(0)
@@ -674,7 +698,7 @@ void check() {
     ->ret()
     ->build();
 
-  auto bc = (new ByteCodeBuilder())
+  auto bc = (new ByteCodeBuilder(vm))
     ->pushLit(make_number(3))
     ->label("loop_start")
     ->call(0, returnHelloWorld)
@@ -689,7 +713,7 @@ void check() {
     ->call(1, print)
     ->pushLit(make_number(0))
     ->branchIfZero("exit")
-    ->pushLit(make_string("skip me"))
+    ->pushLit(make_string(vm, "skip me"))
     ->call(1, print)
     ->label("exit")
     ->pushLit(make_number(10))
@@ -699,20 +723,20 @@ void check() {
     ->pushLit(make_number(10))
     ->call(1, factorial)
     ->call(1, print)
-    ->pushLit(make_string("done!"))
+    ->pushLit(make_string(vm, "done!"))
     ->call(1, print)
     ->build();
 
 
-  vm_push_stack_frame(&vm, 0, bc);
-  vm.frame->prev_frame = 0;
-  vm.frame->argc = 0;
+  vm_push_stack_frame(vm, 0, bc);
+  vm->frame->prev_frame = 0;
+  vm->frame->argc = 0;
 
-  vm_interp(&vm);
+  vm_interp(vm);
   
   free(stack_mem);
-  if (vm.error) {
-    puts(vm.error);
+  if (vm->error) {
+    puts(vm->error);
   } else {
     puts("no error");
   }

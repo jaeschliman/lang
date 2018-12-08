@@ -1,12 +1,16 @@
 /*
 
- g++ main.cpp -Werror -std=c++11 && ./a.out
+ g++ main.cpp -Werror -std=c++14 && ./a.out
+ 
+(setq flycheck-clang-language-standard "c++14")
 
 */
 
 #include <iostream>
 #include <string>
 #include <map>
+#include <vector>
+#include <tuple>
 
 using namespace std;
 
@@ -393,6 +397,7 @@ void vm_interp(VM* vm) {
   }
 }
 
+typedef tuple<u64*, string> branch_entry;
 
 class ByteCodeBuilder {
 private:
@@ -401,12 +406,32 @@ private:
   u64 lit_index;
   ByteCode *bc;
   map<string, u64> *labelsMap;
+  vector<branch_entry> *branchLocations;
+
   ByteCodeBuilder* pushOp(u8 op) {
     return pushU64(op);
   }
   ByteCodeBuilder* pushU64(u64 it) {
     bc->code[bc_index++] = it;
     return this;
+  }
+  u64* pushEmptyRef() {
+    auto location = bc->code + bc_index;
+    pushU64(0);
+    return location;
+  }
+  ByteCodeBuilder* pushJumpLocation(const char* name) {
+    auto location = pushEmptyRef();
+    branchLocations->push_back(make_tuple(location,name));
+    return this;
+  }
+  void fixupJumpLocations() {
+    for (branch_entry it : *branchLocations) {
+      auto loc = get<0>(it);
+      auto lbl = get<1>(it);
+      auto tgt = (*labelsMap)[lbl];
+      *loc = tgt;
+    }
   }
   u64 currentAddress() {
     return bc_index;
@@ -419,6 +444,7 @@ public:
     bc = new ByteCode();
     bc->code = bc_mem;
     labelsMap = new map<string, u64>;
+    branchLocations = new vector<branch_entry>;
   }
   ByteCodeBuilder* dup() {
     pushOp(DUP);
@@ -442,17 +468,13 @@ public:
     return this;
   }
   ByteCodeBuilder* branchIfZero(const char *name) {
-    string key = name;
-    auto addr = (*labelsMap)[key];
     pushOp(BR_IF_ZERO);
-    pushU64(addr);
+    pushJumpLocation(name);
     return this;
   }
   ByteCodeBuilder* branchIfNotZero(const char *name) {
-    string key = name;
-    auto addr = (*labelsMap)[key];
     pushOp(BR_IF_NOT_ZERO);
-    pushU64(addr);
+    pushJumpLocation(name);
     return this;
   }
   ByteCodeBuilder* call(u64 argc, ByteCode* bc) {
@@ -483,6 +505,7 @@ public:
   }
   ByteCode *build() {
     pushOp(END);
+    fixupJumpLocations();
     return bc;
   }
 };
@@ -536,11 +559,19 @@ void check() {
     ->pushLit(make_number(43))
     ->call(1, dec)
     ->FFICall(&print_object)
+    ->pushLit(make_number(0))
+    ->branchIfZero("exit")
+    ->pushLit(make_string("skip me"))
+    ->FFICall(&print_object)
+    ->label("exit")
+    ->pushLit(make_string("done!"))
+    ->FFICall(&print_object)
     ->build();
 
 
   vm_push_stack_frame(&vm, 0, bc);
   vm.frame->prev_frame = 0;
+  vm.frame->argc = 0;
 
   vm_interp(&vm);
   

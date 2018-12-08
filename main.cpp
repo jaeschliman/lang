@@ -534,7 +534,6 @@ void check() {
   vm.stack = stack_mem + (count - 1);
   vm.frame = 0;
 
-
   auto returnHelloWorld = (new ByteCodeBuilder())
     ->pushLit(make_string("hello, world"))
     ->ret()
@@ -546,26 +545,32 @@ void check() {
     ->ret()
     ->build();
 
+  auto print = (new ByteCodeBuilder())
+    ->loadArg(0)
+    ->FFICall(&print_object)
+    ->ret()
+    ->build();
+
   auto bc = (new ByteCodeBuilder())
     ->pushLit(make_number(3))
     ->label("loop_start")
     ->call(0, returnHelloWorld)
-    ->FFICall(&print_object)
+    ->call(1, print)
     ->pop()
-    ->FFICall(&decrement_object)
+    ->call(1, dec)
     ->dup()
     ->branchIfNotZero("loop_start")
     ->pop()
     ->pushLit(make_number(43))
     ->call(1, dec)
-    ->FFICall(&print_object)
+    ->call(1, print)
     ->pushLit(make_number(0))
     ->branchIfZero("exit")
     ->pushLit(make_string("skip me"))
-    ->FFICall(&print_object)
+    ->call(1, print)
     ->label("exit")
     ->pushLit(make_string("done!"))
-    ->FFICall(&print_object)
+    ->call(1, print)
     ->build();
 
 

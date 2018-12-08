@@ -4,8 +4,19 @@
  
 (setq flycheck-clang-language-standard "c++14")
 
+TODO: stack traces
+TODO: move allocations into vm-managed heap
+TODO: lisp reader
+TODO: expression compiler
+TODO: lambda compiler
+TODO: lambdas + closures compiler
+TODO: move stack memory into vm-managed heap
+TODO: garbage collection
+TODO: dump/restore image
+
 */
 
+#include <cassert>
 #include <iostream>
 #include <string>
 #include <map>
@@ -21,10 +32,10 @@ typedef uint8_t u8;
 typedef int8_t s8;
 
 typedef enum {
-  Simple,
   RawPointer,
   ByteArray,
   PtrArray,
+  StdObject
 } ObjectType;
 
 typedef enum {
@@ -32,14 +43,16 @@ typedef enum {
   Symbol
 } BAOType;
 
-typedef enum {
-  Class,
-  Cons
-} PAOType;
+typedef enum {} PAOType;
 
 struct Header {
-  ObjectType object_type;
+  // TODO: forcing these to u64s leads to RT errors...
   union {
+    ObjectType object_type;
+    // u64 _unused_0;
+  };
+  union {
+    // u64 _unused_1;
     BAOType bao_type;
     PAOType pao_type;
   };
@@ -76,6 +89,12 @@ struct RawPointerObject : Object {
   void *pointer;
 };
 
+struct StandardObject : Object {
+  StandardObject *klass;
+  u64 ivar_count;
+  Ptr ivars[];
+};
+
 bool isFixnum(Ptr self) {
   return (self.value & TAG_MASK) == 0;
 }
@@ -103,7 +122,7 @@ Ptr toPtr(s64 value) {
 }
 
 ByteArrayObject *alloc_bao(BAOType ty, uint len) {
-  auto byte_count = sizeof(Header) + (sizeof(uint)) + len;
+  auto byte_count = sizeof(ByteArrayObject) + len;
   ByteArrayObject* obj = (ByteArrayObject *)malloc(byte_count);
   obj->header.object_type = ByteArray;
   obj->header.bao_type = ty;
@@ -116,7 +135,7 @@ void free_bao(ByteArrayObject *obj) {
 }
 
 PtrArrayObject *alloc_pao(PAOType ty, uint len) {
-  auto byte_count = sizeof(Header) + (sizeof(uint)) + (len * sizeof(Ptr));
+  auto byte_count = sizeof(PtrArrayObject) + (len * sizeof(Ptr));
   PtrArrayObject* obj = (PtrArrayObject *)malloc(byte_count);
   obj->header.object_type = ByteArray;
   obj->header.pao_type = ty;
@@ -127,6 +146,26 @@ PtrArrayObject *alloc_pao(PAOType ty, uint len) {
 void free_pao(PtrArrayObject *obj) {
   free(obj);
 }
+
+StandardObject *alloc_standard_object(StandardObject *klass, u64 ivar_count) {
+  auto byte_count = (sizeof(StandardObject)) + ivar_count * (sizeof(Ptr));
+  auto result = (StandardObject *)malloc(byte_count);
+  result->header.object_type = StdObject;
+  result->klass = klass;
+  result->ivar_count = ivar_count;
+  return result;
+}
+
+Ptr standard_object_get_ivar(StandardObject *object, u64 idx) {
+  assert(idx < object->ivar_count);
+  return object->ivars[idx];
+}
+
+Ptr standard_object_set_ivar(StandardObject *object, u64 idx, Ptr value) {
+  assert(idx < object->ivar_count);
+  return object->ivars[idx] = value;
+}
+
 
 Ptr make_string(const char* str) {
   ByteArrayObject *obj = alloc_bao(String, strlen(str));
@@ -159,6 +198,15 @@ Ptr make_raw_pointer(void* ptr) {
   return toPtr(obj);
 }
 
+
+/* ---------------------------------------- */
+
+enum {
+  BaseClassName = 0,
+  BaseClassIvarCount = 1,
+  BaseClassEnd = 2
+};
+
 std::ostream &operator<<(std::ostream &os, Object *obj) { 
   auto otype = obj->header.object_type;
   if (otype == ByteArray) {
@@ -178,13 +226,12 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
       return os;
     }
   } else if (otype == PtrArray) {
-    const PtrArrayObject *vobj = (const PtrArrayObject*)(obj);
-    switch(vobj->header.pao_type) {
-    case Class:
-      return os << "#<A Class>";
-    case Cons:
-      return os << "#<A Cons>";
-    }
+    // const PtrArrayObject *vobj = (const PtrArrayObject*)(obj);
+    cout << "#<Pointer Array Object>";
+  } else if (otype == StdObject) {
+    auto sobj = (StandardObject *)obj;
+    auto name = standard_object_get_ivar(sobj->klass, BaseClassName);
+    cout << "#<A " << toObject(name) << ">";
   }
   return os << "don't know how to print object.";
 }
@@ -199,23 +246,41 @@ std::ostream &operator<<(std::ostream &os, Ptr p) {
   }
 }
 
+
+/* ---------------------------------------- */
+
+StandardObject *make_standard_object(StandardObject *klass, Ptr*ivars) {
+  auto ivar_count_object = standard_object_get_ivar(klass, BaseClassIvarCount);
+  cout << " ivar count object: " << ivar_count_object << endl;
+  assert(isFixnum(ivar_count_object));
+  auto ivar_count = toS64(ivar_count_object);
+  auto result = alloc_standard_object(klass, ivar_count);
+  for (auto i = 0; i < ivar_count; i++) {
+    standard_object_set_ivar(result, i, ivars[i]);
+  }
+  return result;
+}
+
+/* ---------------------------------------- */
+
+
 typedef void *(*compiled)();
 
-void *my_arg_grabber() {
-  asm(
-      "addq %rsi, %rdi\n"
-      "movq %rdi, %rax\n"
-      "popq %rbp\n"
-      "ret\n"
-      );
-
-  // to silence the warnings
-  return 0;
-}
-
-void my_arg_setter(u64 a, u64 b) {
-  //  asm("" :: "rsi"(a), "rdi"(b));
-}
+//  void *my_arg_grabber() {
+//    asm(
+//        "addq %rsi, %rdi\n"
+//        "movq %rdi, %rax\n"
+//        "popq %rbp\n"
+//        "ret\n"
+//        );
+//  
+//    // to silence the warnings
+//    return 0;
+//  }
+//  
+//  void my_arg_setter(u64 a, u64 b) {
+//    //  asm("" :: "rsi"(a), "rdi"(b));
+//  }
 
 /* ---------------------------------------- */
 
@@ -241,6 +306,23 @@ struct VM {
   ByteCode *bc;
   const char* error;
 };
+
+/* -------------------------------------------------- */
+
+StandardObject *Base;
+StandardObject *Cons;
+void initialize_classes()
+
+{
+  Base = alloc_standard_object(0, BaseClassEnd);
+  Base->klass = Base;
+  standard_object_set_ivar(Base, BaseClassName, make_string("Base"));
+  standard_object_set_ivar(Base, BaseClassIvarCount, make_number(2));
+  Ptr slots[] = {make_string("Base"), make_number(2)};
+  Cons = make_standard_object(Base, slots);
+}
+
+/* -------------------------------------------------- */
 
 void vm_pop_stack_frame(VM* vm) {
   auto fr = vm->frame;
@@ -549,6 +631,8 @@ void check() {
   Ptr *stack_mem = (Ptr *)malloc(count * sizeof(Ptr));
   vm.stack = stack_mem + (count - 1);
   vm.frame = 0;
+
+  initialize_classes();
 
   auto returnHelloWorld = (new ByteCodeBuilder())
     ->pushLit(make_string("hello, world"))

@@ -20,6 +20,7 @@ TODO: dump/restore image
 #include <iostream>
 #include <string>
 #include <map>
+#include <unordered_map>
 #include <vector>
 #include <tuple>
 
@@ -71,6 +72,8 @@ struct Frame {
   Ptr argv[];
 };
 
+struct Globals;
+
 struct VM {
   Ptr *stack;
   void* heap_mem;
@@ -80,6 +83,7 @@ struct VM {
   u64 *pc;
   ByteCode *bc;
   const char* error;
+  Globals *globals;
 };
 
 void * vm_alloc(VM *vm, u64 bytes) {
@@ -333,18 +337,37 @@ typedef void *(*compiled)();
 
 /* ---------------------------------------- */
 
+struct Globals {
+  StandardObject *Base, *Cons, *Fixnum, *Symbol;
+  unordered_map<string, Ptr> *symtab;
+};
 
-StandardObject *Base;
-StandardObject *Cons;
+auto make_base_class(VM *vm, const char* name, u64 ivar_count) {
+  Ptr slots[] = {make_string(vm,name), make_number(ivar_count)};
+  return make_standard_object(vm, vm->globals->Base, slots);
+}
+
 void initialize_classes(VM *vm)
-
 {
-  Base = alloc_standard_object(vm, 0, BaseClassEnd);
+  auto Base = alloc_standard_object(vm, 0, BaseClassEnd);
   Base->klass = Base;
   standard_object_set_ivar(Base, BaseClassName, make_string(vm, "Base"));
   standard_object_set_ivar(Base, BaseClassIvarCount, make_number(2));
-  Ptr slots[] = {make_string(vm, "Cons"), make_number(2)};
-  Cons = make_standard_object(vm, Base, slots);
+  auto g = vm->globals;
+  g->Base = Base;
+  g->Cons = make_base_class(vm, "Cons", 2);
+  g->Fixnum = make_base_class(vm, "Fixnum", 0);
+  g->Symbol = make_base_class(vm, "Symbol", 0);
+}
+
+Ptr intern(VM *vm, string name) {
+  auto tab = vm->globals->symtab;
+  if (tab->find(name) == tab->end()) tab->insert(make_pair(name, make_symbol(vm, name.c_str())));
+  return tab->find(name)->second;
+}
+
+bool ptr_eq(Ptr a, Ptr b) {
+  return a.value == b.value;
 }
 
 /* -------------------------------------------------- */
@@ -668,6 +691,8 @@ void check() {
 
   vm->frame = 0;
 
+  vm->globals = (Globals *)malloc(sizeof(Globals));
+  vm->globals->symtab = new unordered_map<string, Ptr>;
   initialize_classes(vm);
 
   auto returnHelloWorld = (new ByteCodeBuilder(vm))
@@ -743,6 +768,9 @@ void check() {
   vm_push_stack_frame(vm, 0, bc);
   vm->frame->prev_frame = 0;
   vm->frame->argc = 0;
+
+  assert(ptr_eq(intern(vm, "nil"), intern(vm, "nil")));
+  cout << " nil is: " << intern(vm, "nil") << endl;
 
   vm_interp(vm);
   

@@ -5,7 +5,8 @@
 (setq flycheck-clang-language-standard "c++14")
 
 TODO: stack traces
-TODO: move allocations into vm-managed heap
+DONE: move allocations into vm-managed heap
+TODO: lists (incl printing)
 TODO: lisp reader
 TODO: expression compiler
 TODO: lambda compiler
@@ -99,6 +100,8 @@ void * vm_alloc(VM *vm, u64 bytes) {
   return result;
 }
 
+VM *CURRENT_DEBUG_VM;
+
 /* -------------------------------------------------- */
 
 typedef enum {
@@ -135,12 +138,18 @@ struct StandardObject : Object {
 #define EXTRACT_PTR_MASK 0xFFFFFFFFFFFFFFF0
 #define TAG_MASK 0b111
 #define TAG_BITS 3
+#define FIXNUM_TAG 0b000
+#define OBJECT_TAG 0b001
+#define NIL toPtr((Object *)0)
 
 bool isFixnum(Ptr self) {
-  return (self.value & TAG_MASK) == 0;
+  return (self.value & TAG_MASK) == FIXNUM_TAG;
 }
 bool isObject(Ptr self) {
-  return (self.value & TAG_MASK) == 0b1;
+  return (self.value & TAG_MASK) == OBJECT_TAG;
+}
+bool isNil(Ptr self) {
+  return (self.value == OBJECT_TAG);
 }
 Object *toObject(Ptr self) {
   return (Object *)(self.value & EXTRACT_PTR_MASK);
@@ -270,8 +279,11 @@ Ptr make_array(VM *vm, u64 len, Ptr objs[]) {
 enum {
   BaseClassName = 0,
   BaseClassIvarCount = 1,
-  BaseClassEnd = 2
+  BaseClassDebugPrint = 2,
+  BaseClassEnd = 3
 };
+
+typedef void(*DebugPrintFunction)(std::ostream &os, Ptr p);
 
 std::ostream &operator<<(std::ostream &os, Ptr p);
 
@@ -307,14 +319,26 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
   } else if (otype == StdObject_ObjectType) {
     auto sobj = (StandardObject *)obj;
     auto name = standard_object_get_ivar(sobj->klass, BaseClassName);
-    cout << "#<A " << toObject(name) << ">";
+    auto pr_obj = standard_object_get_ivar(sobj->klass, BaseClassDebugPrint);
+    if (isObject(pr_obj)) {
+      Object *vobj = toObject(pr_obj);
+      if (vobj->header.object_type == RawPointer_ObjectType) {
+        auto rp  = (RawPointerObject *)vobj;
+        auto fn = (DebugPrintFunction)rp->pointer;
+        fn(os, toPtr(obj));
+        return os;
+      }
+    }
+    cout << "#<A " << toObject(name) << " " << (void*)obj << ">";
     return os;
   }
   return os << "don't know how to print object: " << otype << (void*)obj << endl;
 }
 
 std::ostream &operator<<(std::ostream &os, Ptr p) { 
-  if (isObject(p)) {
+  if (isNil(p)) {
+    return os << "nil";
+  } else if (isObject(p)) {
     return os << (toObject(p));
   } else if (isFixnum(p)) {
     return os << (toS64(p));
@@ -335,6 +359,11 @@ StandardObject *make_standard_object(VM *vm, StandardObject *klass, Ptr*ivars) {
     standard_object_set_ivar(result, i, ivars[i]);
   }
   return result;
+}
+
+bool isStdObj(Ptr p) {
+  if (isNil(p)) return false;
+  return isObject(p) && (toObject(p)->header.object_type == StdObject_ObjectType);
 }
 
 /* ---------------------------------------- */
@@ -366,19 +395,76 @@ struct Globals {
 };
 
 auto make_base_class(VM *vm, const char* name, u64 ivar_count) {
-  Ptr slots[] = {make_string(vm,name), make_number(ivar_count)};
+  Ptr slots[] = {make_string(vm,name), make_number(ivar_count), toPtr((u64)0)};
   return make_standard_object(vm, vm->globals->Base, slots);
 }
+
+/* ---------------------------------------- */
+
+bool consp(VM *vm, Ptr p) {
+  if (!isStdObj(p)) return false;
+  auto obj = (StandardObject *)toObject(p);
+  auto res = (void *)obj->klass == (void *)vm->globals->Cons;
+  return res;
+}
+
+Ptr car(VM *vm, Ptr p) {
+  if (isNil(p)) return NIL;
+  assert(consp(vm, p));
+  return standard_object_get_ivar((StandardObject *)toObject(p), 0);
+}
+
+Ptr cdr(VM *vm, Ptr p) {
+  if (isNil(p)) return NIL;
+  assert(consp(vm, p));
+  return standard_object_get_ivar((StandardObject *)toObject(p), 1);
+}
+
+Ptr cons(VM *vm, Ptr car, Ptr cdr) {
+  auto obj = make_standard_object(vm, vm->globals->Cons, (Ptr[]){car, cdr});
+  auto res = toPtr(obj);
+  assert(consp(vm, res));
+  return res;
+}
+
+Ptr make_list(VM *vm, u64 len, Ptr* ptrs) {
+  if (len == 0) return NIL;
+  // TODO: iterative solution
+  return cons(vm, *ptrs, make_list(vm, len - 1, ptrs + 1));
+}
+
+void debug_print_list(ostream &os, Ptr p) {
+  VM *vm = CURRENT_DEBUG_VM;
+  os << "(";
+  auto a = car(vm, p);
+  os << a;
+  p = cdr(vm, p);
+  while (!isNil(p)) {
+    if (consp(vm, p)) {
+      os << " " << car(vm, p);
+      p = cdr(vm, p);
+    } else {
+      os << " . " << p;
+      break;
+    }
+  }
+  os << ")";
+}
+
+
+/* ---------------------------------------- */
 
 void initialize_classes(VM *vm)
 {
   auto Base = alloc_standard_object(vm, 0, BaseClassEnd);
   Base->klass = Base;
   standard_object_set_ivar(Base, BaseClassName, make_string(vm, "Base"));
-  standard_object_set_ivar(Base, BaseClassIvarCount, make_number(2));
+  standard_object_set_ivar(Base, BaseClassIvarCount, make_number(BaseClassEnd));
   auto g = vm->globals;
   g->Base = Base;
   g->Cons = make_base_class(vm, "Cons", 2);
+  standard_object_set_ivar(g->Cons, BaseClassDebugPrint,
+                           make_raw_pointer(vm, (void*)&debug_print_list));
   g->Fixnum = make_base_class(vm, "Fixnum", 0);
   g->Symbol = make_base_class(vm, "Symbol", 0);
 }
@@ -444,7 +530,7 @@ Ptr read(VM *vm, const char **remaining, const char *end) {
         while(input != end && is_wschar(*input)) input++;
       }
       // TODO: make a list
-      auto res = make_array(vm, items.size(), &items[0]);
+      auto res = make_list(vm, items.size(), &items[0]);
       if (*input == ')') input++;
       *remaining = input;
       return res;
@@ -794,6 +880,8 @@ void check() {
   vm->globals = (Globals *)malloc(sizeof(Globals));
   vm->globals->symtab = new unordered_map<string, Ptr>;
   initialize_classes(vm);
+
+  CURRENT_DEBUG_VM = vm;
 
   auto returnHelloWorld = (new ByteCodeBuilder(vm))
     ->pushLit(make_string(vm, "hello, world"))

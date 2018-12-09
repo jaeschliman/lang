@@ -569,7 +569,6 @@ Ptr read(VM *vm, const char **remaining, const char *end) {
         items.push_back(item);
         while(input != end && is_wschar(*input)) input++;
       }
-      // TODO: make a list
       auto res = make_list(vm, items.size(), &items[0]);
       if (*input == ')') input++;
       *remaining = input;
@@ -730,8 +729,13 @@ void vm_interp(VM* vm) {
     }
     case CALL: {
       u64 argc = *(++vm->pc);
-      ByteCode *next = (ByteCode *)(*(++vm->pc));
-      vm_push_stack_frame(vm, argc, next);
+      auto fn = vm_pop(vm);
+      if (!isBytecode(fn)) {
+        vm->error = "value is not bytecode";
+        break;
+      }
+      auto bc = (ByteCode *)toObject(fn);
+      vm_push_stack_frame(vm, argc, bc);
       vm->pc--; // or, could insert a NOOP at start of each fn...
       break;
     }
@@ -840,18 +844,19 @@ public:
     pushJumpLocation(name);
     return this;
   }
-  auto call(u64 argc, ByteCode* bc) {
+  auto call(u64 argc) {
     pushOp(CALL);
     pushU64(argc);
-    u64 it = (u64) bc;
-    pushU64(it);
+    return this;
+  }
+  auto call(u64 argc, ByteCode* bc) {
+    pushLit(toPtr(bc));
+    call(argc);
     return this;
   }
   auto selfcall(u64 argc) {
-    pushOp(CALL);
-    pushU64(argc);
-    // TODO: should be a pushLit
-    pushU64((u64)bc);
+    pushLit(toPtr(bc));
+    call(argc);
     return this;
   }
   auto pop(){

@@ -883,6 +883,11 @@ public:
     pushOp(LOAD_GLOBAL);
     return this;
   }
+  auto call(u64 argc, const char *name) {
+    loadGlobal(name);
+    call(argc);
+    return this;
+  }
   ByteCode *build() {
     pushOp(END);
     fixupJumpLocations();
@@ -966,6 +971,8 @@ void check() {
     ->ret()
     ->build();
 
+  set_global(vm, "print", toPtr(print));
+
   auto mul = (new ByteCodeBuilder(vm))
     ->loadArg(0)
     ->loadArg(1)
@@ -1015,7 +1022,7 @@ void check() {
     ->call(1, factorial)
     ->call(1, print)
     ->loadGlobal("test-symbol")
-    ->call(1, print)
+    ->call(1, "print")
     ->pushLit(make_string(vm, "done!"))
     ->call(1, print)
     ->build();

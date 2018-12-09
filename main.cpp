@@ -10,6 +10,7 @@ DONE: lists (incl printing)
 DONE: lisp reader
 TODO: expression compiler
 TODO: lambda compiler
+TODO: if compiler
 TODO: lambdas + closures compiler
 TODO: move stack memory into vm-managed heap
 TODO: garbage collection
@@ -202,6 +203,16 @@ ByteArrayObject *alloc_bao(VM *vm, BAOType ty, uint len) {
   obj->bao_type = ty;
   obj->length = len;
   return obj;
+}
+
+bool isByteArrayObject(Ptr it) {
+  return isObject(it) && toObject(it)->header.object_type == ByteArray_ObjectType;
+}
+
+bool isSymbol(Ptr it) {
+  if (!isByteArrayObject(it)) return false;
+  auto bao = (ByteArrayObject *)toObject(it);
+  return bao->bao_type == Symbol;
 }
 
 PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
@@ -872,8 +883,11 @@ public:
     pushU64(index);
     return this;
   }
-  auto loadGlobal(const char *name) {
-    auto sym = intern(vm, name);
+  auto loadGlobal(Ptr sym) {
+    if (!isSymbol(sym)) {
+      cout << " ERROR: " << sym << " is not a symbol.";
+      assert(false);
+    }
     auto pair = assoc(vm, sym, vm->globals->env);
     if (!consp(vm, pair)) {
       cout << " ERROR: " << sym << " is not defined in the global environment.";
@@ -882,6 +896,10 @@ public:
     pushLit(pair);
     pushOp(LOAD_GLOBAL);
     return this;
+  }
+  auto loadGlobal(const char *name) {
+    auto sym = intern(vm, name);
+    return loadGlobal(sym);
   }
   auto call(u64 argc, const char *name) {
     loadGlobal(name);
@@ -894,6 +912,42 @@ public:
     return bc;
   }
 };
+
+/* -------------------------------------------------- */
+
+void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it);
+
+void emit_call(VM *vm, ByteCodeBuilder *builder, Ptr it) {
+  auto fn = car(vm, it);
+  auto args = cdr(vm, it);
+  auto argc = 0;
+  while (!isNil(args)) {
+    assert(consp(vm, args));
+    argc++;
+    emit_expr(vm, builder, car(vm, args));
+    args = cdr(vm, args);
+  }
+  emit_expr(vm, builder, fn);
+  builder->call(argc);
+}
+
+void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it) {
+  if (isSymbol(it)) {
+    builder->loadGlobal(it);
+  } else if (consp(vm, it)) {
+    emit_call(vm, builder, it);
+  } else {
+    builder->pushLit(it);
+  }
+}
+
+auto compile_toplevel_expression(VM *vm, Ptr it) {
+  auto builder = new ByteCodeBuilder(vm);
+  emit_expr(vm, builder, it);
+  return builder->build();
+}
+
+/* -------------------------------------------------- */
 
 Ptr print_object(VM *vm) {
   Ptr object = vm_pop(vm);
@@ -980,6 +1034,8 @@ void check() {
     ->ret()
     ->build();
 
+  set_global(vm, "mul", toPtr(mul));
+
   auto factorial = (new ByteCodeBuilder(vm))
     ->loadArg(0)
     ->branchIfZero("return1")
@@ -996,7 +1052,7 @@ void check() {
     ->ret()
     ->build();
 
-  auto bc = (new ByteCodeBuilder(vm))
+  auto tests = (new ByteCodeBuilder(vm))
     ->pushLit(make_number(3))
     ->label("loop_start")
     ->call(0, returnHelloWorld)
@@ -1025,12 +1081,10 @@ void check() {
     ->call(1, "print")
     ->pushLit(make_string(vm, "done!"))
     ->call(1, print)
+    ->ret()
     ->build();
 
-
-  vm_push_stack_frame(vm, 0, bc);
-  vm->frame->prev_frame = 0;
-  vm->frame->argc = 0;
+  set_global(vm, "tests", toPtr(tests));
 
   assert(ptr_eq(intern(vm, "nil"), intern(vm, "nil")));
   cout << " nil is: " << intern(vm, "nil") << endl;
@@ -1056,6 +1110,13 @@ void check() {
     cout << read(vm, "150") << endl;
     cout << read(vm, "(1 2 3 4 5 a b c d e)") << endl;
   }
+
+  auto test_expr = read(vm, "(print 255)");
+  auto test_bc   = compile_toplevel_expression(vm, test_expr);
+
+  vm_push_stack_frame(vm, 0, test_bc);
+  vm->frame->prev_frame = 0;
+  vm->frame->argc = 0;
 
   vm_interp(vm);
   

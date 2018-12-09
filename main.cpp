@@ -230,15 +230,19 @@ Ptr make_string(VM *vm, const char* str) {
   return toPtr(obj);
 }
 
-Ptr make_symbol(VM *vm, const char* str) {
-  ByteArrayObject *obj = alloc_bao(vm, Symbol, strlen(str));
+Ptr make_symbol(VM *vm, const char* str, u64 len) {
+  ByteArrayObject *obj = alloc_bao(vm, Symbol, len);
   const char *from = str;
   char *to = &(obj->data[0]);
-  while(*from != 0) {
+  while(len--) {
     *to = *from;
     to++; from++;
   }
   return toPtr(obj);
+}
+
+Ptr make_symbol(VM *vm, const char* str) {
+  return make_symbol(vm, str, strlen(str));
 }
 
 Ptr make_number(s64 value) { return toPtr(value); }
@@ -360,14 +364,56 @@ void initialize_classes(VM *vm)
   g->Symbol = make_base_class(vm, "Symbol", 0);
 }
 
-Ptr intern(VM *vm, string name) {
+Ptr intern(VM *vm, const char* cstr, int len) {
+  string name = string(cstr, len);
   auto tab = vm->globals->symtab;
-  if (tab->find(name) == tab->end()) tab->insert(make_pair(name, make_symbol(vm, name.c_str())));
-  return tab->find(name)->second;
+  if (tab->find(name) == tab->end()) {
+    auto sym = make_symbol(vm, cstr, len);
+    tab->insert(make_pair(name, sym));   
+  }
+  auto res = tab->find(name)->second;
+  return res;
+}
+
+Ptr intern(VM *vm, string name) {
+  auto str = name.c_str();
+  return intern(vm, str, strlen(str));
 }
 
 bool ptr_eq(Ptr a, Ptr b) {
   return a.value == b.value;
+}
+
+/* -------------------------------------------------- */
+
+auto is_symchar(char ch) {
+  return ch >= 'a' && ch <= 'z';
+}
+auto is_digitchar(char ch) {
+  return ch >= '0' && ch <= '9';
+}
+auto is_symbodychar(char ch) {
+  return is_symchar(ch) || is_digitchar(ch);
+}
+auto is_wschar(char ch) {
+  return !(is_symchar(ch) || is_digitchar(ch));
+}
+
+Ptr read(VM *vm, const char* input) {
+  while (*input) {
+    while(*input && is_wschar(*input)) input++;
+    if (is_symchar(*input)) {
+      const char* start = input;
+      int len = 1;
+      while(is_symbodychar(*(++input))) {
+       len++; 
+      }
+      auto result = intern(vm, start, len);
+      return result;
+    } 
+    input++;
+  }
+  return toPtr((u64)0);
 }
 
 /* -------------------------------------------------- */
@@ -618,6 +664,7 @@ public:
   ByteCodeBuilder* selfcall(u64 argc) {
     pushOp(CALL);
     pushU64(argc);
+    // TODO: should be a pushLit
     pushU64((u64)bc);
     return this;
   }
@@ -771,6 +818,10 @@ void check() {
 
   assert(ptr_eq(intern(vm, "nil"), intern(vm, "nil")));
   cout << " nil is: " << intern(vm, "nil") << endl;
+  assert(ptr_eq(intern(vm, "nil"),
+                read(vm, " nil ")));
+  assert(ptr_eq(intern(vm, "nil"),
+                read(vm, " nil")));
 
   vm_interp(vm);
   
@@ -781,9 +832,6 @@ void check() {
     puts("no error");
   }
 }
-
-
-
 
 /* ---------------------------------------- */
 

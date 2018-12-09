@@ -106,7 +106,9 @@ typedef enum {
   Symbol
 } BAOType;
 
-typedef enum {} PAOType;
+typedef enum {
+  Array
+} PAOType;
 
 struct ByteArrayObject : Object {
   BAOType bao_type;
@@ -187,7 +189,7 @@ ByteArrayObject *alloc_bao(VM *vm, BAOType ty, uint len) {
 PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   auto byte_count = sizeof(PtrArrayObject) + (len * sizeof(Ptr));
   PtrArrayObject* obj = (PtrArrayObject *)vm_alloc(vm, byte_count);
-  obj->header.object_type = ByteArray_ObjectType;
+  obj->header.object_type = PtrArray_ObjectType;
   obj->pao_type = ty;
   obj->length = len;
   return obj;
@@ -254,6 +256,14 @@ Ptr make_raw_pointer(VM *vm, void* ptr) {
   return toPtr(obj);
 }
 
+Ptr make_array(VM *vm, u64 len, Ptr objs[]) {
+  auto array = alloc_pao(vm, Array, len);
+  for (u64 i = 0; i < len; i++) {
+    array->data[i] = objs[i];
+  }
+  return toPtr(array);
+}
+
 
 /* ---------------------------------------- */
 
@@ -262,6 +272,8 @@ enum {
   BaseClassIvarCount = 1,
   BaseClassEnd = 2
 };
+
+std::ostream &operator<<(std::ostream &os, Ptr p);
 
 std::ostream &operator<<(std::ostream &os, Object *obj) { 
   auto otype = obj->header.object_type;
@@ -282,8 +294,15 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
       return os;
     }
   } else if (otype == PtrArray_ObjectType) {
-    // const PtrArrayObject *vobj = (const PtrArrayObject*)(obj);
-    cout << "#<Ptr Array Object>";
+    const PtrArrayObject *vobj = (const PtrArrayObject*)(obj);
+    os << "[";
+    if (vobj->length > 0) {
+      cout << vobj->data[0];
+    }
+    for (uint i = 1; i < vobj->length; i++) {
+      cout << " " << vobj->data[i];
+    }
+    os << "]";
     return os;
   } else if (otype == StdObject_ObjectType) {
     auto sobj = (StandardObject *)obj;
@@ -395,11 +414,14 @@ auto is_digitchar(char ch) {
 auto is_symbodychar(char ch) {
   return is_symchar(ch) || is_digitchar(ch);
 }
+auto is_parens(char ch) {
+  return ch == '(' || ch == ')';
+}
 auto is_wschar(char ch) {
-  return !(is_symchar(ch) || is_digitchar(ch));
+  return !(is_symchar(ch) || is_digitchar(ch) || is_parens(ch));
 }
 
-Ptr read(VM *vm, const char* input) {
+Ptr read(VM *vm, const char* input, const char**remaining) {
   while (*input) {
     while(*input && is_wschar(*input)) input++;
     if (is_symchar(*input)) {
@@ -409,11 +431,39 @@ Ptr read(VM *vm, const char* input) {
        len++; 
       }
       auto result = intern(vm, start, len);
+      *remaining = input;
       return result;
-    } 
+    } else if (*input == '(') {
+      input++;
+      while(*input && is_wschar(*input)) input++;
+      vector<Ptr> items;
+      while(*input && *input != ')') {
+        auto item = read(vm, input, &input);
+        items.push_back(item);
+        while(*input && is_wschar(*input)) input++;
+      }
+      // TODO: make a list
+      auto res = make_array(vm, items.size(), &items[0]);
+      if (*input == ')') input++;
+      *remaining = input;
+      return res;
+    } else if (is_digitchar(*input)) {
+      u64 num = *input - '0';
+      input++;
+      while(is_digitchar(*input)) {
+        num *= 10;
+        num += *input - '0';
+        input++;
+      }
+      *remaining = input;
+      return toPtr(num);
+    }
     input++;
   }
   return toPtr((u64)0);
+}
+Ptr read(VM *vm, const char* input) {
+  return read(vm, input, &input);
 }
 
 /* -------------------------------------------------- */
@@ -822,6 +872,24 @@ void check() {
                 read(vm, " nil ")));
   assert(ptr_eq(intern(vm, "nil"),
                 read(vm, " nil")));
+
+  {
+    const char *input = "(hello world)";
+    cout << read(vm, input) << endl;
+    cout << read(vm, input) << endl;
+  }
+
+  {
+    const char *input = "(lambda (x) x)";
+    cout << read(vm, input) << endl;
+  }
+
+  {
+    cout << read(vm, "5") << endl;
+    cout << read(vm, "15") << endl;
+    cout << read(vm, "150") << endl;
+    cout << read(vm, "(1 2 3 4 5 a b c d e)") << endl;
+  }
 
   vm_interp(vm);
   

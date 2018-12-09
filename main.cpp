@@ -421,13 +421,14 @@ auto is_wschar(char ch) {
   return !(is_symchar(ch) || is_digitchar(ch) || is_parens(ch));
 }
 
-Ptr read(VM *vm, const char* input, const char**remaining) {
-  while (*input) {
-    while(*input && is_wschar(*input)) input++;
+Ptr read(VM *vm, const char **remaining, const char *end) {
+  const char *input = *remaining;
+  while (input != end) {
+    while(input != end && is_wschar(*input)) input++;
     if (is_symchar(*input)) {
       const char* start = input;
       int len = 1;
-      while(is_symbodychar(*(++input))) {
+      while(input != end && is_symbodychar(*(++input))) {
        len++; 
       }
       auto result = intern(vm, start, len);
@@ -435,12 +436,12 @@ Ptr read(VM *vm, const char* input, const char**remaining) {
       return result;
     } else if (*input == '(') {
       input++;
-      while(*input && is_wschar(*input)) input++;
+      while(input != end && is_wschar(*input)) input++;
       vector<Ptr> items;
-      while(*input && *input != ')') {
-        auto item = read(vm, input, &input);
+      while(input != end && *input != ')') {
+        auto item = read(vm, &input, end);
         items.push_back(item);
-        while(*input && is_wschar(*input)) input++;
+        while(input != end && is_wschar(*input)) input++;
       }
       // TODO: make a list
       auto res = make_array(vm, items.size(), &items[0]);
@@ -462,8 +463,10 @@ Ptr read(VM *vm, const char* input, const char**remaining) {
   }
   return toPtr((u64)0);
 }
+
 Ptr read(VM *vm, const char* input) {
-  return read(vm, input, &input);
+  auto len = strlen(input);
+  return read(vm, &input, input+len);
 }
 
 /* -------------------------------------------------- */

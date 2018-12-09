@@ -6,13 +6,14 @@
 
 TODO: stack traces
 DONE: move allocations into vm-managed heap
-TODO: lists (incl printing)
-TODO: lisp reader
+DONE: lists (incl printing)
+DONE: lisp reader
 TODO: expression compiler
 TODO: lambda compiler
 TODO: lambdas + closures compiler
 TODO: move stack memory into vm-managed heap
 TODO: garbage collection
+TODO: continuations / exceptions / signals
 TODO: dump/restore image
 
 */
@@ -58,6 +59,10 @@ struct U64ArrayObject : Object {
 struct Ptr {
   u64 value;
 };
+
+bool ptr_eq(Ptr a, Ptr b) {
+  return a.value == b.value;
+}
 
 struct ByteCode : Object {
   U64ArrayObject *code;
@@ -169,6 +174,10 @@ Ptr toPtr(s64 value) {
   Ptr p;
   p.value = value << TAG_BITS;
   return p;
+}
+
+bool isBytecode(Ptr it) {
+  return isObject(it) && toObject(it)->header.object_type == ByteCode_ObjectType;
 }
 
 U64ArrayObject *alloc_u64ao(VM *vm, uint len) {
@@ -392,6 +401,7 @@ typedef void *(*compiled)();
 struct Globals {
   StandardObject *Base, *Cons, *Fixnum, *Symbol;
   unordered_map<string, Ptr> *symtab;
+  Ptr env;
 };
 
 auto make_base_class(VM *vm, const char* name, u64 ivar_count) {
@@ -414,10 +424,20 @@ Ptr car(VM *vm, Ptr p) {
   return standard_object_get_ivar((StandardObject *)toObject(p), 0);
 }
 
+void set_car(VM *vm, Ptr cons, Ptr value) {
+  assert(consp(vm, cons));
+  standard_object_set_ivar((StandardObject *)toObject(cons), 0, value);
+}
+
 Ptr cdr(VM *vm, Ptr p) {
   if (isNil(p)) return NIL;
   assert(consp(vm, p));
   return standard_object_get_ivar((StandardObject *)toObject(p), 1);
+}
+
+void set_cdr(VM *vm, Ptr cons, Ptr value) {
+  assert(consp(vm, cons));
+  standard_object_set_ivar((StandardObject *)toObject(cons), 1, value);
 }
 
 Ptr cons(VM *vm, Ptr car, Ptr cdr) {
@@ -425,6 +445,26 @@ Ptr cons(VM *vm, Ptr car, Ptr cdr) {
   auto res = toPtr(obj);
   assert(consp(vm, res));
   return res;
+}
+
+Ptr assoc(VM *vm, Ptr item, Ptr alist) {
+  while (!isNil(alist)) {
+    auto pair = car(vm, alist);
+    if (ptr_eq(car(vm, pair), item)) return pair;
+    alist = cdr(vm, alist);
+  }
+  return NIL;
+}
+
+void set_assoc(VM *vm, Ptr *alistref, Ptr item, Ptr value) {
+  auto existing = assoc(vm, item, *alistref);
+  if (isNil(existing)) {
+    auto pair = cons(vm, item, value);
+    auto newalist = cons(vm, pair, *alistref);
+    *alistref = newalist;
+  } else {
+    set_cdr(vm, existing, value);
+  }
 }
 
 Ptr make_list(VM *vm, u64 len, Ptr* ptrs) {
@@ -485,8 +525,8 @@ Ptr intern(VM *vm, string name) {
   return intern(vm, str, strlen(str));
 }
 
-bool ptr_eq(Ptr a, Ptr b) {
-  return a.value == b.value;
+void set_global(VM *vm, const char* name, Ptr value) {
+  set_assoc(vm, &vm->globals->env, intern(vm, name), value);
 }
 
 /* -------------------------------------------------- */
@@ -610,7 +650,8 @@ enum OpCode {
   BR_IF_NOT_ZERO = 6,
   DUP = 7,
   CALL = 8,
-  LOAD_ARG = 9
+  LOAD_ARG = 9,
+  LOAD_GLOBAL = 10
 };
 
 
@@ -653,6 +694,12 @@ void vm_interp(VM* vm) {
       u64 idx = *(++vm->pc);
       Ptr it = vm->bc->literals[idx];
       vm_push(vm, it);
+      break;
+    }
+    case LOAD_GLOBAL: {
+      // assumes it comes after a pushlit of a cell in the env alist.
+      auto it = vm_pop(vm);
+      vm_push(vm, cdr(vm, it));
       break;
     }
     case FFI_CALL:
@@ -762,62 +809,73 @@ public:
     labelsMap = new map<string, u64>;
     branchLocations = new vector<branch_entry>;
   }
-  ByteCodeBuilder* dup() {
+  auto dup() {
     pushOp(DUP);
     return this;
   }
-  ByteCodeBuilder* pushLit(Ptr literal) {
+  auto pushLit(Ptr literal) {
     bc->literals[lit_index] = literal;
     pushOp(PUSHLIT);
     pushOp(lit_index);
     lit_index++;
     return this;
   }
-  ByteCodeBuilder* FFICall(CCallFunction fn) {
+  auto FFICall(CCallFunction fn) {
     return this
       ->pushLit(make_raw_pointer(vm, (void *)fn))
       ->pushOp(FFI_CALL);
   }
-  ByteCodeBuilder* label(const char *name) {
+  auto label(const char *name) {
     string key = name;
     (*labelsMap)[key] = currentAddress();
     return this;
   }
-  ByteCodeBuilder* branchIfZero(const char *name) {
+  auto branchIfZero(const char *name) {
     pushOp(BR_IF_ZERO);
     pushJumpLocation(name);
     return this;
   }
-  ByteCodeBuilder* branchIfNotZero(const char *name) {
+  auto branchIfNotZero(const char *name) {
     pushOp(BR_IF_NOT_ZERO);
     pushJumpLocation(name);
     return this;
   }
-  ByteCodeBuilder* call(u64 argc, ByteCode* bc) {
+  auto call(u64 argc, ByteCode* bc) {
     pushOp(CALL);
     pushU64(argc);
     u64 it = (u64) bc;
     pushU64(it);
     return this;
   }
-  ByteCodeBuilder* selfcall(u64 argc) {
+  auto selfcall(u64 argc) {
     pushOp(CALL);
     pushU64(argc);
     // TODO: should be a pushLit
     pushU64((u64)bc);
     return this;
   }
-  ByteCodeBuilder* pop(){
+  auto pop(){
     pushOp(POP);
     return this;
   }
-  ByteCodeBuilder* ret() {
+  auto ret() {
     pushOp(RET);
     return this;
   }
-  ByteCodeBuilder* loadArg(u64 index) {
+  auto loadArg(u64 index) {
     pushOp(LOAD_ARG);
     pushU64(index);
+    return this;
+  }
+  auto loadGlobal(const char *name) {
+    auto sym = intern(vm, name);
+    auto pair = assoc(vm, sym, vm->globals->env);
+    if (!consp(vm, pair)) {
+      cout << " ERROR: " << sym << " is not defined in the global environment.";
+      assert(false);
+    }
+    pushLit(pair);
+    pushOp(LOAD_GLOBAL);
     return this;
   }
   ByteCode *build() {
@@ -879,9 +937,12 @@ void check() {
 
   vm->globals = (Globals *)malloc(sizeof(Globals));
   vm->globals->symtab = new unordered_map<string, Ptr>;
+  vm->globals->env = NIL;
   initialize_classes(vm);
 
   CURRENT_DEBUG_VM = vm;
+
+  set_global(vm, "test-symbol", make_string(vm, "test-value"));
 
   auto returnHelloWorld = (new ByteCodeBuilder(vm))
     ->pushLit(make_string(vm, "hello, world"))
@@ -947,6 +1008,8 @@ void check() {
     ->call(1, print)
     ->pushLit(make_number(10))
     ->call(1, factorial)
+    ->call(1, print)
+    ->loadGlobal("test-symbol")
     ->call(1, print)
     ->pushLit(make_string(vm, "done!"))
     ->call(1, print)

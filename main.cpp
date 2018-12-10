@@ -561,7 +561,7 @@ auto is_wschar(char ch) {
   return !(is_symchar(ch) || is_digitchar(ch) || is_parens(ch));
 }
 
-Ptr read(VM *vm, const char **remaining, const char *end) {
+Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
   const char *input = *remaining;
   while (input != end) {
     while(input != end && is_wschar(*input)) input++;
@@ -579,7 +579,7 @@ Ptr read(VM *vm, const char **remaining, const char *end) {
       while(input != end && is_wschar(*input)) input++;
       vector<Ptr> items;
       while(input != end && *input != ')') {
-        auto item = read(vm, &input, end);
+        auto item = read(vm, &input, end, done);
         items.push_back(item);
         while(input != end && is_wschar(*input)) input++;
       }
@@ -600,12 +600,26 @@ Ptr read(VM *vm, const char **remaining, const char *end) {
     }
     input++;
   }
-  return toPtr((u64)0);
+  return done;
 }
 
 Ptr read(VM *vm, const char* input) {
   auto len = strlen(input);
-  return read(vm, &input, input+len);
+  return read(vm, &input, input+len, NIL);
+}
+
+Ptr read_all(VM *vm, const char* input) {
+  auto done = cons(vm, NIL, NIL);
+  auto len = strlen(input);
+  vector<Ptr> items;
+  auto end = input + len;
+  auto item = read(vm, &input, end, done);
+  while (!ptr_eq(item, done)) {
+    items.push_back(item);
+    item = read(vm, &input, end, done);
+  }
+  auto res = make_list(vm, items.size(), &items[0]);
+  return res;
 }
 
 /* -------------------------------------------------- */
@@ -750,7 +764,7 @@ void vm_interp(VM* vm) {
       }
       auto bc = (ByteCode *)toObject(fn);
       vm_push_stack_frame(vm, argc, bc);
-      vm->pc--; // or, could insert a NOOP at start of each fn...
+      vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
       break;
     }
     case RET: {
@@ -1103,19 +1117,24 @@ void run_string(const char* str) {
 
   CURRENT_DEBUG_VM = vm;
 
-  auto expr = read(vm, str);
-  auto bc   = compile_toplevel_expression(vm, expr);
+  auto exprs = read_all(vm, str);
 
-  vm_push_stack_frame(vm, 0, bc);
-  vm->frame->prev_frame = 0;
-  vm->frame->argc = 0;
+  while (!isNil(exprs)) {
+    auto expr = car(vm, exprs);
+    auto bc = compile_toplevel_expression(vm, expr);
 
-  vm_interp(vm);
+    vm_push_stack_frame(vm, 0, bc);
+    vm->frame->prev_frame = 0;
+    vm->frame->argc = 0;
+
+    vm_interp(vm);
   
-  if (vm->error) {
-    puts(vm->error);
-  } else {
-    puts("no error");
+    if (vm->error) {
+      puts("ERROR: ");
+      puts(vm->error);
+      return;
+    }
+    exprs = cdr(vm, exprs);
   }
 
   // TODO: clean up
@@ -1273,7 +1292,7 @@ void check() {
 /* ---------------------------------------- */
 
 int main() {
-  run_string("(print ((lambda (x y) y) 5 4))");
+  run_string("(print ((lambda (x y) y) 5 4)) (print 5)");
   return 0;
 }
 

@@ -351,6 +351,9 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
     }
     cout << "#<A " << toObject(name) << " " << (void*)obj << ">";
     return os;
+  } else if (otype == ByteCode_ObjectType) {
+    cout << "#<ByteCode " << (void*)obj << ">";
+    return os;
   }
   return os << "don't know how to print object: " << otype << (void*)obj << endl;
 }
@@ -915,27 +918,99 @@ public:
 
 /* -------------------------------------------------- */
 
-void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it);
+enum VariableScope {
+  VariableScope_Global,
+  VariableScope_Argument
+};
 
-void emit_call(VM *vm, ByteCodeBuilder *builder, Ptr it) {
+struct VariableInfo {
+  VariableScope scope;
+  u64 index;
+};
+
+struct CompilerEnv {
+  CompilerEnv *prev;
+  unordered_map<u64, VariableInfo> info;
+};
+
+auto compiler_env_info(CompilerEnv *env, Ptr sym) {
+  if (!env) return (VariableInfo){ VariableScope_Global, 0 };
+  auto existing = env->info.find(sym.value);
+  if (existing == env->info.end()) {
+    auto outer = compiler_env_info(env->prev, sym);
+    if (outer.scope == VariableScope_Argument) {
+      cout << "  ERROR: closed over variables not yet implemented: " << sym << endl;
+      assert(false);
+    }
+    return outer;
+  }
+  return existing->second;
+}
+
+void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env);
+
+void emit_call(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
   auto fn = car(vm, it);
   auto args = cdr(vm, it);
   auto argc = 0;
   while (!isNil(args)) {
     assert(consp(vm, args));
     argc++;
-    emit_expr(vm, builder, car(vm, args));
+    emit_expr(vm, builder, car(vm, args), env);
     args = cdr(vm, args);
   }
-  emit_expr(vm, builder, fn);
+  emit_expr(vm, builder, fn, env);
   builder->call(argc);
 }
 
-void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it) {
+void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env) {
+  CompilerEnv env;
+  env.prev = p_env;
+  it = cdr(vm, it);
+  auto args = car(vm, it);
+  u64 idx = 0;
+  while (!isNil(args)) {
+    auto arg = car(vm, args);
+    assert(isSymbol(arg));
+    env.info[arg.value] = (VariableInfo){VariableScope_Argument, idx++};
+    args = cdr(vm, args);
+  }
+  auto builder = new ByteCodeBuilder(vm);
+  auto body = cdr(vm, it);
+  if (isNil(body)) {
+    builder->pushLit(NIL);
+    return;
+  }
+  assert(consp(vm, body));
+  while(!isNil(body)) {
+    auto expr = car(vm, body);
+    emit_expr(vm, builder, expr, &env);
+    body = cdr(vm, body);
+  }
+  builder->ret();
+  p_builder->pushLit(toPtr(builder->build()));
+}
+
+void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
   if (isSymbol(it)) {
-    builder->loadGlobal(it);
+    auto info = compiler_env_info(env, it);
+    if (info.scope == VariableScope_Global) {
+      builder->loadGlobal(it);
+    } else if (info.scope == VariableScope_Argument) {
+      builder->loadArg(info.index);
+    } else {
+      assert(false);
+    }
   } else if (consp(vm, it)) {
-    emit_call(vm, builder, it);
+    auto fst = car(vm, it);
+    if (isSymbol(fst)) {
+      auto lambda = intern(vm, "lambda");
+      if (ptr_eq(lambda, fst)) {
+        emit_lambda(vm, builder, it, env);
+        return;
+      }
+    }
+    emit_call(vm, builder, it, env);
   } else {
     builder->pushLit(it);
   }
@@ -943,7 +1018,7 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it) {
 
 auto compile_toplevel_expression(VM *vm, Ptr it) {
   auto builder = new ByteCodeBuilder(vm);
-  emit_expr(vm, builder, it);
+  emit_expr(vm, builder, it, nullptr);
   return builder->build();
 }
 
@@ -1111,7 +1186,10 @@ void check() {
     cout << read(vm, "(1 2 3 4 5 a b c d e)") << endl;
   }
 
-  auto test_expr = read(vm, "(print 255)");
+  // auto test_expr = read(vm, "(print (mul 255 10))");
+  // auto test_expr = read(vm, "(print ((lambda (x) x) 5))");
+  // auto test_expr = read(vm, "(print ((lambda (x y) (mul x y)) 5 4))");
+  auto test_expr = read(vm, "(print ((lambda (x y) y) 5 4))");
   auto test_bc   = compile_toplevel_expression(vm, test_expr);
 
   vm_push_stack_frame(vm, 0, test_bc);

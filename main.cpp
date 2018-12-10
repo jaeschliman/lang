@@ -1056,6 +1056,71 @@ Ptr mul_objects(VM *vm) {
   return toPtr(a * b);
 }
 
+void initialize_global_environment(VM *vm) {
+
+  auto print = (new ByteCodeBuilder(vm))
+    ->loadArg(0)
+    ->FFICall(&print_object)
+    ->ret()
+    ->build();
+
+  set_global(vm, "print", toPtr(print));
+  
+  auto mul = (new ByteCodeBuilder(vm))
+    ->loadArg(0)
+    ->loadArg(1)
+    ->FFICall(&mul_objects)
+    ->ret()
+    ->build();
+
+  set_global(vm, "mul", toPtr(mul));
+
+}
+
+void run_string(const char* str) {
+  VM *vm;
+  vm = (VM *)malloc(sizeof(VM));
+
+  auto count = 1024 * 100;
+  Ptr *stack_mem = (Ptr *)malloc(count * sizeof(Ptr));
+  vm->stack = stack_mem + (count - 1);
+
+  auto heap_size_in_mb = 50;
+  auto heap_size_in_bytes = heap_size_in_mb * 1024 * 1024;
+  auto heap_mem = malloc(heap_size_in_bytes);
+  memset(heap_mem, 0, heap_size_in_bytes);
+  vm->heap_mem = heap_mem;
+  vm->heap_end = heap_mem;
+  vm->heap_size_in_bytes = heap_size_in_bytes;
+
+  vm->frame = 0;
+
+  vm->globals = (Globals *)malloc(sizeof(Globals));
+  vm->globals->symtab = new unordered_map<string, Ptr>;
+  vm->globals->env = NIL;
+  initialize_classes(vm);
+  initialize_global_environment(vm);
+
+  CURRENT_DEBUG_VM = vm;
+
+  auto expr = read(vm, str);
+  auto bc   = compile_toplevel_expression(vm, expr);
+
+  vm_push_stack_frame(vm, 0, bc);
+  vm->frame->prev_frame = 0;
+  vm->frame->argc = 0;
+
+  vm_interp(vm);
+  
+  if (vm->error) {
+    puts(vm->error);
+  } else {
+    puts("no error");
+  }
+
+  // TODO: clean up
+}
+
 void check() {
   VM *vm;
   vm = (VM *)malloc(sizeof(VM));
@@ -1078,6 +1143,7 @@ void check() {
   vm->globals->symtab = new unordered_map<string, Ptr>;
   vm->globals->env = NIL;
   initialize_classes(vm);
+  initialize_global_environment(vm);
 
   CURRENT_DEBUG_VM = vm;
 
@@ -1094,23 +1160,6 @@ void check() {
     ->ret()
     ->build();
 
-  auto print = (new ByteCodeBuilder(vm))
-    ->loadArg(0)
-    ->FFICall(&print_object)
-    ->ret()
-    ->build();
-
-  set_global(vm, "print", toPtr(print));
-
-  auto mul = (new ByteCodeBuilder(vm))
-    ->loadArg(0)
-    ->loadArg(1)
-    ->FFICall(&mul_objects)
-    ->ret()
-    ->build();
-
-  set_global(vm, "mul", toPtr(mul));
-
   auto factorial = (new ByteCodeBuilder(vm))
     ->loadArg(0)
     ->branchIfZero("return1")
@@ -1120,7 +1169,7 @@ void check() {
     ->branchIfZero("return1")
     ->selfcall(1)
     ->loadArg(0)
-    ->call(2, mul)
+    ->call(2, "mul")
     ->ret()
     ->label("return1")
     ->pushLit(make_number(1))
@@ -1131,7 +1180,7 @@ void check() {
     ->pushLit(make_number(3))
     ->label("loop_start")
     ->call(0, returnHelloWorld)
-    ->call(1, print)
+    ->call(1, "print")
     ->pop()
     ->call(1, dec)
     ->dup()
@@ -1139,23 +1188,23 @@ void check() {
     ->pop()
     ->pushLit(make_number(43))
     ->call(1, dec)
-    ->call(1, print)
+    ->call(1, "print")
     ->pushLit(make_number(0))
     ->branchIfZero("exit")
     ->pushLit(make_string(vm, "skip me"))
-    ->call(1, print)
+    ->call(1, "print")
     ->label("exit")
     ->pushLit(make_number(10))
     ->pushLit(make_number(20))
-    ->call(2, mul)
-    ->call(1, print)
+    ->call(2, "mul")
+    ->call(1, "print")
     ->pushLit(make_number(10))
     ->call(1, factorial)
-    ->call(1, print)
+    ->call(1, "print")
     ->loadGlobal("test-symbol")
     ->call(1, "print")
     ->pushLit(make_string(vm, "done!"))
-    ->call(1, print)
+    ->call(1, "print")
     ->ret()
     ->build();
 
@@ -1198,18 +1247,16 @@ void check() {
 
   vm_interp(vm);
   
-  free(stack_mem);
   if (vm->error) {
     puts(vm->error);
   } else {
     puts("no error");
   }
+
+  free(stack_mem);
 }
 
-/* ---------------------------------------- */
-
-int main() {
-  /*
+/*
   cout << make_string("hello, world");
   cout << make_symbol("nil");
   cout << toPtr(42);
@@ -1219,8 +1266,14 @@ int main() {
   my_arg_setter(45, -3);
   cout << ((s64)((*fn)()));
   puts("\n");
-  */
   check();
+
+*/
+
+/* ---------------------------------------- */
+
+int main() {
+  run_string("(print ((lambda (x y) y) 5 4))");
   return 0;
 }
 

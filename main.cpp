@@ -97,7 +97,6 @@ struct VM {
 };
 
 void * vm_alloc(VM *vm, u64 bytes) {
-  // return malloc(bytes);
   auto result = (void *)vm->heap_end;
   static_assert(sizeof(u64) == sizeof(void *), "right pointer size");
   assert(((u64)result & 0b1111) == 0);
@@ -1113,28 +1112,29 @@ void initialize_global_environment(VM *vm) {
 
 void run_string(const char* str) {
   VM *vm;
-  vm = (VM *)malloc(sizeof(VM));
+  vm = (VM *)calloc(sizeof(VM), 1);
 
   auto count = 1024 * 100;
-  Ptr *stack_mem = (Ptr *)malloc(count * sizeof(Ptr));
+  Ptr *stack_mem = (Ptr *)calloc(sizeof(Ptr), count);
   vm->stack = stack_mem + (count - 1);
 
   auto heap_size_in_mb = 50;
   auto heap_size_in_bytes = heap_size_in_mb * 1024 * 1024;
-  auto heap_mem = malloc(heap_size_in_bytes);
-  memset(heap_mem, 0, heap_size_in_bytes);
+  auto heap_mem = calloc(heap_size_in_bytes, 1);
   vm->heap_mem = heap_mem;
   vm->heap_end = heap_mem;
   vm->heap_size_in_bytes = heap_size_in_bytes;
 
   vm->frame = 0;
+  vm->error = 0;
 
-  vm->globals = (Globals *)malloc(sizeof(Globals));
+  vm->globals = (Globals *)calloc(sizeof(Globals), 1);
   vm->globals->symtab = new unordered_map<string, Ptr>;
   vm->globals->env = NIL;
   initialize_classes(vm);
   initialize_global_environment(vm);
 
+  // purely for debug printing
   CURRENT_DEBUG_VM = vm;
 
   auto exprs = read_all(vm, str);
@@ -1150,7 +1150,7 @@ void run_string(const char* str) {
     vm_interp(vm);
   
     if (vm->error) {
-      puts("ERROR: ");
+      puts("VM ERROR: ");
       puts(vm->error);
       return;
     }

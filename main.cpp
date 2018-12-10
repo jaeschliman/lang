@@ -8,10 +8,10 @@ TODO: stack traces
 DONE: move allocations into vm-managed heap
 DONE: lists (incl printing)
 DONE: lisp reader
-TODO: expression compiler
-TODO: lambda compiler
-TODO: if compiler
+DONE: expression compiler
+DONE: lambda compiler
 TODO: lambdas + closures compiler
+TODO: if compiler
 TODO: move stack memory into vm-managed heap
 TODO: garbage collection
 TODO: continuations / exceptions / signals
@@ -560,8 +560,17 @@ auto is_symbodychar(char ch) {
 auto is_parens(char ch) {
   return ch == '(' || ch == ')';
 }
+auto is_q(char ch) {
+  return ch == '\'';
+}
 auto is_wschar(char ch) {
-  return !(is_symchar(ch) || is_digitchar(ch) || is_parens(ch));
+  return !(is_symchar(ch) || is_digitchar(ch) || is_parens(ch) || is_q(ch));
+}
+
+auto quote_form(VM *vm, Ptr it) {
+  auto res = cons(vm, it, NIL);
+  auto q = intern(vm, "quote");
+  return cons(vm, q, res);
 }
 
 Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
@@ -576,6 +585,11 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
        len++; 
       }
       auto result = intern(vm, start, len);
+      *remaining = input;
+      return result;
+    } else if (*input == '\'') {
+      input++;
+      auto result = quote_form(vm, read(vm, &input, end, done));
       *remaining = input;
       return result;
     } else if (*input == '(') {
@@ -1019,9 +1033,14 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
   } else if (consp(vm, it)) {
     auto fst = car(vm, it);
     if (isSymbol(fst)) {
+      auto quote = intern(vm, "quote");
       auto lambda = intern(vm, "lambda");
       if (ptr_eq(lambda, fst)) {
         emit_lambda(vm, builder, it, env);
+        return;
+      } else if (ptr_eq(quote, fst)) {
+        auto item = car(vm, cdr(vm, it));
+        builder->pushLit(item);
         return;
       }
     }

@@ -10,7 +10,9 @@ DONE: lists (incl printing)
 DONE: lisp reader
 DONE: expression compiler
 DONE: lambda compiler
-TODO: lambdas + closures compiler
+DONE: lambdas + closures compiler
+TODO: def or define or something
+TODO: tests!
 TODO: if compiler
 TODO: move stack memory into vm-managed heap
 TODO: garbage collection
@@ -78,6 +80,7 @@ struct Frame {
   Frame* prev_frame;
   ByteCode* prev_fn;
   u64* prev_pc;
+  Ptr closed_over;
   u64 argc;
   Ptr argv[];
 };
@@ -118,7 +121,8 @@ typedef enum {
 } BAOType;
 
 typedef enum {
-  Array
+  Array,
+  Closure
 } PAOType;
 
 struct ByteArrayObject : Object {
@@ -183,6 +187,11 @@ bool isBytecode(Ptr it) {
   return isObject(it) && toObject(it)->header.object_type == ByteCode_ObjectType;
 }
 
+ByteCode *toBytecode(Ptr it) {
+  assert(isBytecode(it));
+  return (ByteCode*)toObject(it);
+}
+
 U64ArrayObject *alloc_u64ao(VM *vm, uint len) {
   auto byte_count = sizeof(U64ArrayObject) + (len * sizeof(u64));
   U64ArrayObject* obj = (U64ArrayObject *)vm_alloc(vm, byte_count);
@@ -224,6 +233,19 @@ PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   obj->pao_type = ty;
   obj->length = len;
   return obj;
+}
+
+bool isPtrArrayObject(Ptr it) {
+  return isObject(it) && toObject(it)->header.object_type == PtrArray_ObjectType;
+}
+
+PtrArrayObject *toPtrArrayObject(Ptr it) {
+  assert(isPtrArrayObject(it));
+  return (PtrArrayObject *)toObject(it);
+}
+
+bool isArray(Ptr it) {
+  return isPtrArrayObject(it) && (toPtrArrayObject(it))->pao_type == Array;
 }
 
 StandardObject *alloc_standard_object(VM *vm, StandardObject *klass, u64 ivar_count) {
@@ -293,6 +315,40 @@ Ptr make_array(VM *vm, u64 len, Ptr objs[]) {
     array->data[i] = objs[i];
   }
   return toPtr(array);
+}
+
+Ptr array_get(Ptr array, u64 index) {
+  auto a = toPtrArrayObject(array);
+  assert(index < a->length);
+  return a->data[index];
+}
+
+void array_set(Ptr array, u64 index, Ptr value) {
+  auto a = toPtrArrayObject(array);
+  assert(index < a->length);
+  a->data[index] = value;
+}
+
+Ptr make_closure(VM *vm, Ptr code, Ptr env) {
+  assert(isBytecode(code));
+  assert(isNil(env) || isPtrArrayObject(env));
+  auto it = alloc_pao(vm, Closure, 2); 
+  auto c = toPtr(it);
+  array_set(c, 0, code);
+  array_set(c, 1, env);
+  return c;
+}
+
+bool isClosure(Ptr it) {
+  return isPtrArrayObject(it) && (toPtrArrayObject(it))->pao_type == Closure;
+}
+
+ByteCode *closure_code(Ptr closure) {
+  return toBytecode(array_get(closure, 0));
+}
+
+Ptr closure_env(Ptr closure) {
+  return array_get(closure, 1);
 }
 
 
@@ -369,6 +425,15 @@ std::ostream &operator<<(std::ostream &os, Ptr p) {
     return os << (toS64(p));
   } else {
     return os << "don't know how to print ptr.";
+  }
+}
+
+void vm_dump_args(VM *vm) {
+  auto f = vm->frame;
+  auto c = f->argc;
+  cout << " dumping args:" << endl;
+  while(c--) {
+    cout << "  argument: " << f->argv[c] << endl;
   }
 }
 
@@ -657,7 +722,13 @@ void vm_pop_stack_frame(VM* vm) {
   // cout << "return stack frome to :" << vm->stack << endl;
 }
 
+void vm_push_stack_frame(VM* vm, u64 argc, ByteCode*fn, Ptr closed_over);
+
 void vm_push_stack_frame(VM* vm, u64 argc, ByteCode*fn) {
+  vm_push_stack_frame(vm, argc, fn, NIL);
+};
+
+void vm_push_stack_frame(VM* vm, u64 argc, ByteCode*fn, Ptr closed_over) {
 
   uint offset = (sizeof(Frame) / sizeof(u64));
   u64 *top = &((vm->stack - offset)->value);
@@ -672,6 +743,7 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCode*fn) {
   // cout << "  &ps = " << &new_frame->prev_pc << endl;
   // cout << "  &ps = " << &new_frame->argc << endl;
 
+  new_frame->closed_over = closed_over;
   new_frame->prev_stack = vm->stack;
   new_frame->prev_frame = vm->frame;
   new_frame->prev_fn = vm->bc;
@@ -696,7 +768,10 @@ enum OpCode {
   DUP = 7,
   CALL = 8,
   LOAD_ARG = 9,
-  LOAD_GLOBAL = 10
+  LOAD_GLOBAL = 10,
+  LOAD_CLOSURE = 11,
+  BUILD_CLOSURE = 12,
+  PUSH_CLOSURE_ENV = 13
 };
 
 void vm_push(VM* vm, Ptr value) {
@@ -726,6 +801,17 @@ void vm_ffi_call(VM* vm) {
   vm_push(vm, result);
 }
 
+auto vm_load_closure_value(VM *vm, u64 slot, u64 depth) {
+  auto curr = vm->frame->closed_over;
+  while (depth) {
+    assert(!isNil(curr));
+    curr = array_get(curr, 0);
+    depth--;
+  }
+  assert(!isNil(curr));
+  return array_get(curr, slot+1);
+}
+
 void vm_interp(VM* vm) {
   u64 instr;
   while ((instr = *vm->pc)) {
@@ -743,6 +829,32 @@ void vm_interp(VM* vm) {
       // assumes it comes after a pushlit of a cell in the env alist.
       auto it = vm_pop(vm);
       vm_push(vm, cdr(vm, it));
+      break;
+    }
+    case LOAD_CLOSURE: {
+      u64 slot  = *(++vm->pc);
+      u64 depth = *(++vm->pc);
+      auto it = vm_load_closure_value(vm, slot, depth);
+      vm_push(vm, it);
+      break;
+    }
+    case BUILD_CLOSURE: {
+      auto lambda = vm_pop(vm);
+      auto array = vm->frame->closed_over;
+      auto closure = make_closure(vm, lambda, array);
+      vm_push(vm, closure);
+      break;
+    }
+    case PUSH_CLOSURE_ENV: {
+      u64 count = *(++vm->pc);
+      auto array = toPtr(alloc_pao(vm, Array, count + 1));
+      array_set(array, 0, vm->frame->closed_over);
+      while (count--) {
+        auto it = vm_pop(vm);
+        // cout << " setting closure val " << it << endl;
+        array_set(array, count + 1, it);
+      }
+      vm->frame->closed_over = array;
       break;
     }
     case FFI_CALL:
@@ -774,13 +886,22 @@ void vm_interp(VM* vm) {
     case CALL: {
       u64 argc = *(++vm->pc);
       auto fn = vm_pop(vm);
-      if (!isBytecode(fn)) {
-        vm->error = "value is not bytecode";
+      if (!(isBytecode(fn) || isClosure(fn))) {
+        vm->error = "value is not bytecode or closure";
         break;
       }
-      auto bc = (ByteCode *)toObject(fn);
-      vm_push_stack_frame(vm, argc, bc);
-      vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
+      if (isClosure(fn)) {
+        auto bc = closure_code(fn);
+        auto env = closure_env(fn);
+        // cout << "pushing code: " << bc << endl;
+        // cout << "pushing env:  " << env << endl;
+        vm_push_stack_frame(vm, argc, bc, env);
+        vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
+      } else {
+        auto bc = (ByteCode *)toObject(fn);
+        vm_push_stack_frame(vm, argc, bc);
+        vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
+      }
       break;
     }
     case RET: {
@@ -795,7 +916,8 @@ void vm_interp(VM* vm) {
       u64 argc = vm->frame->argc;
       auto it = vm->frame->argv[argc - (idx + 1)];
       vm_push(vm, it);
-      // cout << "loading arg "<< idx << ": " << it << endl;
+      // cout << " loading arg "<< idx << ": " << it << endl;
+      // vm_dump_args(vm);
       break;
     }
     default:
@@ -934,6 +1056,19 @@ public:
     auto sym = intern(vm, name);
     return loadGlobal(sym);
   }
+  auto loadClosure(u64 slot, u64 depth) {
+    pushOp(LOAD_CLOSURE);
+    pushU64(slot);
+    pushU64(depth);
+    return this;
+  }
+  auto buildClosure() {
+    pushOp(BUILD_CLOSURE);
+  }
+  auto pushClosureEnv(u64 count) {
+    pushOp(PUSH_CLOSURE_ENV);
+    pushU64(count);
+  }
   auto call(u64 argc, const char *name) {
     loadGlobal(name);
     call(argc);
@@ -1051,22 +1186,21 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env)
   auto closed_count = env->closed_over->size();
   auto has_closure = env->has_closure;
   if (has_closure) {
-    cout << " closing over " << closed_count << " arguments." << endl;
+    auto builder = new ByteCodeBuilder(vm);
+    // cout << " closing over " << closed_count << " arguments." << endl;
+    // cout << "   form  = " << it << endl;
     for (auto raw: *env->closed_over) {
       Ptr ptr = {raw};
-      cout << " would close over: " << ptr << endl;
+      auto info = compiler_env_info(env, ptr);
+      // cout << "  closing over: " << ptr  << " idx: " << info.argument_index << endl;
+      builder->loadArg(info.argument_index);
     }
-    // TODO: need to construct some kind of closure fields in
-    //       ByteCode, based on arguments, (e.g. a linked list of
-    //       arrays, pointing back up to previous fields) and cons up
-    //       a ByteCode-like object that accepts the expected
-    //       arguments, includes the closure fields as a literal, and
-    //       then calls the 'original' function with the closure as an
-    //       extra argument.
-    //
-    //       looks like most of this will be done in Byte Code...
-    //
-    assert(false);
+    builder->pushClosureEnv(closed_count);
+    auto body = cdr(vm, cdr(vm, it));
+    emit_lambda_body(vm, builder, body, env);
+    builder->ret();
+    p_builder->pushLit(toPtr(builder->build()));
+    p_builder->buildClosure();
   } else {
     emit_flat_lambda(vm, p_builder, it, env);
   }
@@ -1080,7 +1214,10 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
     } else if (info.scope == VariableScope_Argument) {
       builder->loadArg(info.argument_index);
     } else if (info.scope == VariableScope_Closure) {
-      assert(false);
+      auto index = info.closure_index;
+      auto depth = info.closure_level;
+      // cout << " closure scope, " << index << " " << depth << endl;
+      builder->loadClosure(index, depth);
     } else {
       assert(false);
     }
@@ -1112,9 +1249,10 @@ void mark_variable_for_closure(VM *vm, Ptr sym, CompilerEnv *env, u64 level) {
     auto info = &existing->second;
     if (info->scope == VariableScope_Closure) return;
     info->scope = VariableScope_Closure;
-    info->closure_level = level - 1;
+    info->closure_level = level;
     info->closure_index = env->closed_over->size();
     env->closed_over->push_back(sym.value);
+    env->has_closure = true;
   } else {
     auto info = compiler_env_info(env->prev, sym);
     if (info.scope != VariableScope_Global) env->has_closure = true;

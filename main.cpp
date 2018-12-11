@@ -1160,21 +1160,21 @@ void run_string(const char* str) {
   // TODO: clean up
 }
 
-const char *read_file(string path) {
+const char *read_file_contents(string path) {
   ifstream istream(path);
   stringstream buffer;
   buffer << istream.rdbuf(); 
   auto str = buffer.str();
   // TODO: does this require freeing later?
   auto cstr = str.c_str();
-  auto len = strlen(cstr);
-  auto mem = (char *)malloc(len);
+  auto len = strlen(cstr) + 1;
+  auto mem = (char *)calloc(len, 1);
   strcpy(mem, (char *)cstr);
   return (const char *)mem;
 }
 
 auto run_file(string path) {
-  auto contents = read_file(path);
+  auto contents = read_file_contents(path);
   run_string(contents);
   // TODO: free contents
 }

@@ -950,7 +950,8 @@ public:
 
 enum VariableScope {
   VariableScope_Global,
-  VariableScope_Argument
+  VariableScope_Argument,
+  VariableScope_Closure,
 };
 
 struct VariableInfo {
@@ -992,7 +993,10 @@ auto compiler_env_info(CompilerEnv *env, Ptr sym) {
   if (existing == env->info->end()) {
     auto outer = compiler_env_info(env->prev, sym);
     if (outer.scope == VariableScope_Argument) {
-      cout << "  ERROR: closed over variables not yet implemented: " << sym << endl;
+      cout << "  ERROR: variable should have been marked for closure: " << sym << endl;
+      assert(false);
+    } else if (outer.scope == VariableScope_Closure) {
+      cout << " Closure scope not yet implemented: " << sym << endl; 
       assert(false);
     }
     return outer;
@@ -1065,6 +1069,18 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
   }
 }
 
+void mark_variable_for_closure(VM *vm, Ptr sym, CompilerEnv *env, u64 level) {
+  if (!env) return;
+  auto existing = env->info->find(sym.value);
+  if (existing != env->info->end()) {
+    if (level == 0) return;
+    auto info = &existing->second;
+    info->scope = VariableScope_Closure;
+  } else {
+    mark_variable_for_closure(vm, sym, env->prev, level + 1);
+  }
+}
+
 void mark_closed_over_variables(VM *vm, Ptr it, CompilerEnv* env);
 
 void mark_lambda_closed_over_variables(VM *vm, Ptr it, CompilerEnv *p_env) {
@@ -1079,10 +1095,20 @@ void mark_lambda_closed_over_variables(VM *vm, Ptr it, CompilerEnv *p_env) {
     env->info->insert(make_pair(arg.value, info));
     args = cdr(vm, args);
   }
+  auto body = cdr(vm, it);
+  if (isNil(body)) return;
+  assert(consp(vm, body));
+  while(!isNil(body)) {
+    auto expr = car(vm, body);
+    mark_closed_over_variables(vm, expr, env);
+    body = cdr(vm, body);
+  }
 }
 
 void mark_closed_over_variables(VM *vm, Ptr it, CompilerEnv* env) {
-  if (consp(vm, it)) {
+  if (isSymbol(it)) {
+    mark_variable_for_closure(vm, it, env, 0);
+  } else if (consp(vm, it)) {
     auto fst = car(vm, it);
     if (isSymbol(fst) && ptr_eq(intern(vm, "lambda"), fst)) {
       mark_lambda_closed_over_variables(vm, it, env);

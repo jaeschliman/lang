@@ -3,3 +3,4 @@
 (print 42)
 (print '(hello))
 
+(print ((lambda (x y) y) 10 11))

@@ -958,15 +958,38 @@ struct VariableInfo {
   u64 index;
 };
 
+// TODO: would be nicer to represent this in the VM itself.
 struct CompilerEnv {
   CompilerEnv *prev;
-  unordered_map<u64, VariableInfo> info;
+  unordered_map<u64, VariableInfo> *info;
+  unordered_map<u64, CompilerEnv*> *sub_envs;
+  CompilerEnv(CompilerEnv * parent_env) {
+    prev = parent_env;
+    info = new unordered_map<u64, VariableInfo>();
+    sub_envs = new unordered_map<u64, CompilerEnv*>();
+  }
+  ~CompilerEnv() {
+    delete info;
+    for (auto pair : *sub_envs) {
+      delete pair.second;
+    }
+    delete sub_envs;
+  }
 };
+
+auto compiler_env_get_subenv(CompilerEnv *env, Ptr it) {
+  auto key = it.value;
+  if (env->sub_envs->find(key) == env->sub_envs->end()) {
+    auto created = new CompilerEnv(env);
+    env->sub_envs->insert(make_pair(key, created));
+  }
+  return env->sub_envs->find(key)->second;
+}
 
 auto compiler_env_info(CompilerEnv *env, Ptr sym) {
   if (!env) return (VariableInfo){ VariableScope_Global, 0 };
-  auto existing = env->info.find(sym.value);
-  if (existing == env->info.end()) {
+  auto existing = env->info->find(sym.value);
+  if (existing == env->info->end()) {
     auto outer = compiler_env_info(env->prev, sym);
     if (outer.scope == VariableScope_Argument) {
       cout << "  ERROR: closed over variables not yet implemented: " << sym << endl;
@@ -994,17 +1017,8 @@ void emit_call(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
 }
 
 void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env) {
-  CompilerEnv env;
-  env.prev = p_env;
+  CompilerEnv *env = compiler_env_get_subenv(p_env, it);
   it = cdr(vm, it);
-  auto args = car(vm, it);
-  u64 idx = 0;
-  while (!isNil(args)) {
-    auto arg = car(vm, args);
-    assert(isSymbol(arg));
-    env.info[arg.value] = (VariableInfo){VariableScope_Argument, idx++};
-    args = cdr(vm, args);
-  }
   auto builder = new ByteCodeBuilder(vm);
   auto body = cdr(vm, it);
   if (isNil(body)) {
@@ -1014,7 +1028,7 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env)
   assert(consp(vm, body));
   while(!isNil(body)) {
     auto expr = car(vm, body);
-    emit_expr(vm, builder, expr, &env);
+    emit_expr(vm, builder, expr, env);
     body = cdr(vm, body);
   }
   builder->ret();
@@ -1051,9 +1065,44 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
   }
 }
 
+void mark_closed_over_variables(VM *vm, Ptr it, CompilerEnv* env);
+
+void mark_lambda_closed_over_variables(VM *vm, Ptr it, CompilerEnv *p_env) {
+  CompilerEnv *env = compiler_env_get_subenv(p_env, it);
+  it = cdr(vm, it);
+  auto args = car(vm, it);
+  u64 idx = 0;
+  while (!isNil(args)) {
+    auto arg = car(vm, args);
+    assert(isSymbol(arg));
+    auto info = (VariableInfo){VariableScope_Argument, idx++};
+    env->info->insert(make_pair(arg.value, info));
+    args = cdr(vm, args);
+  }
+}
+
+void mark_closed_over_variables(VM *vm, Ptr it, CompilerEnv* env) {
+  if (consp(vm, it)) {
+    auto fst = car(vm, it);
+    if (isSymbol(fst) && ptr_eq(intern(vm, "lambda"), fst)) {
+      mark_lambda_closed_over_variables(vm, it, env);
+    } else if (isSymbol(fst) && ptr_eq(intern(vm, "quote"), fst)) {
+      // do nothing
+    }  else {
+      while(!isNil(it)) {
+        mark_closed_over_variables(vm, car(vm, it), env);
+        it = cdr(vm, it);
+      }
+    }
+  }
+}
+
 auto compile_toplevel_expression(VM *vm, Ptr it) {
+  auto env = new CompilerEnv(nullptr);
   auto builder = new ByteCodeBuilder(vm);
-  emit_expr(vm, builder, it, nullptr);
+  mark_closed_over_variables(vm, it, env);
+  emit_expr(vm, builder, it, env);
+  delete env;
   return builder->build();
 }
 

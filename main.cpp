@@ -956,7 +956,9 @@ enum VariableScope {
 
 struct VariableInfo {
   VariableScope scope;
-  u64 index;
+  u64 argument_index;
+  u64 closure_index;
+  u64 closure_level;
 };
 
 // TODO: would be nicer to represent this in the VM itself.
@@ -964,13 +966,18 @@ struct CompilerEnv {
   CompilerEnv *prev;
   unordered_map<u64, VariableInfo> *info;
   unordered_map<u64, CompilerEnv*> *sub_envs;
+  vector<u64> *closed_over;
+  bool has_closure;
   CompilerEnv(CompilerEnv * parent_env) {
     prev = parent_env;
     info = new unordered_map<u64, VariableInfo>();
     sub_envs = new unordered_map<u64, CompilerEnv*>();
+    closed_over = new vector<u64>();
+    has_closure = false;
   }
   ~CompilerEnv() {
     delete info;
+    delete closed_over;
     for (auto pair : *sub_envs) {
       delete pair.second;
     }
@@ -988,15 +995,12 @@ auto compiler_env_get_subenv(CompilerEnv *env, Ptr it) {
 }
 
 auto compiler_env_info(CompilerEnv *env, Ptr sym) {
-  if (!env) return (VariableInfo){ VariableScope_Global, 0 };
+  if (!env) return (VariableInfo){ VariableScope_Global, 0, 0, 0 };
   auto existing = env->info->find(sym.value);
   if (existing == env->info->end()) {
     auto outer = compiler_env_info(env->prev, sym);
     if (outer.scope == VariableScope_Argument) {
       cout << "  ERROR: variable should have been marked for closure: " << sym << endl;
-      assert(false);
-    } else if (outer.scope == VariableScope_Closure) {
-      cout << " Closure scope not yet implemented: " << sym << endl; 
       assert(false);
     }
     return outer;
@@ -1020,11 +1024,7 @@ void emit_call(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
   builder->call(argc);
 }
 
-void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env) {
-  CompilerEnv *env = compiler_env_get_subenv(p_env, it);
-  it = cdr(vm, it);
-  auto builder = new ByteCodeBuilder(vm);
-  auto body = cdr(vm, it);
+void emit_lambda_body(VM *vm, ByteCodeBuilder *builder, Ptr body, CompilerEnv *env) {
   if (isNil(body)) {
     builder->pushLit(NIL);
     return;
@@ -1035,8 +1035,41 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env)
     emit_expr(vm, builder, expr, env);
     body = cdr(vm, body);
   }
+}
+
+void emit_flat_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv *env) {
+  it = cdr(vm, it);
+  auto builder = new ByteCodeBuilder(vm);
+  auto body = cdr(vm, it);
+  emit_lambda_body(vm, builder, body, env);
   builder->ret();
   p_builder->pushLit(toPtr(builder->build()));
+}
+
+void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env) {
+  CompilerEnv *env = compiler_env_get_subenv(p_env, it);
+  auto closed_count = env->closed_over->size();
+  auto has_closure = env->has_closure;
+  if (has_closure) {
+    cout << " closing over " << closed_count << " arguments." << endl;
+    for (auto raw: *env->closed_over) {
+      Ptr ptr = {raw};
+      cout << " would close over: " << ptr << endl;
+    }
+    // TODO: need to construct some kind of closure fields in
+    //       ByteCode, based on arguments, (e.g. a linked list of
+    //       arrays, pointing back up to previous fields) and cons up
+    //       a ByteCode-like object that accepts the expected
+    //       arguments, includes the closure fields as a literal, and
+    //       then calls the 'original' function with the closure as an
+    //       extra argument.
+    //
+    //       looks like most of this will be done in Byte Code...
+    //
+    assert(false);
+  } else {
+    emit_flat_lambda(vm, p_builder, it, env);
+  }
 }
 
 void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
@@ -1045,7 +1078,9 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
     if (info.scope == VariableScope_Global) {
       builder->loadGlobal(it);
     } else if (info.scope == VariableScope_Argument) {
-      builder->loadArg(info.index);
+      builder->loadArg(info.argument_index);
+    } else if (info.scope == VariableScope_Closure) {
+      assert(false);
     } else {
       assert(false);
     }
@@ -1075,8 +1110,14 @@ void mark_variable_for_closure(VM *vm, Ptr sym, CompilerEnv *env, u64 level) {
   if (existing != env->info->end()) {
     if (level == 0) return;
     auto info = &existing->second;
+    if (info->scope == VariableScope_Closure) return;
     info->scope = VariableScope_Closure;
+    info->closure_level = level - 1;
+    info->closure_index = env->closed_over->size();
+    env->closed_over->push_back(sym.value);
   } else {
+    auto info = compiler_env_info(env->prev, sym);
+    if (info.scope != VariableScope_Global) env->has_closure = true;
     mark_variable_for_closure(vm, sym, env->prev, level + 1);
   }
 }
@@ -1091,7 +1132,7 @@ void mark_lambda_closed_over_variables(VM *vm, Ptr it, CompilerEnv *p_env) {
   while (!isNil(args)) {
     auto arg = car(vm, args);
     assert(isSymbol(arg));
-    auto info = (VariableInfo){VariableScope_Argument, idx++};
+    auto info = (VariableInfo){VariableScope_Argument, idx++, 0, 0};
     env->info->insert(make_pair(arg.value, info));
     args = cdr(vm, args);
   }

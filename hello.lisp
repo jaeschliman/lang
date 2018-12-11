@@ -6,5 +6,12 @@
 (print ((lambda (x y) y) 10 11))
 
 (lambda (x)
-  (lambda (y)
+  (lambda ()
     (print x)))
+
+(lambda (x y)
+  (lambda (z)
+    (print x)
+    (print y)
+    (print z)))
+

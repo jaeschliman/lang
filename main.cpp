@@ -574,13 +574,13 @@ auto quote_form(VM *vm, Ptr it) {
 
 Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
   const char *input = *remaining;
-  while (input != end) {
-    while(input != end && is_wschar(*input)) input++;
-    if (input == end) break;
+  while (input < end) {
+    while(input < end && is_wschar(*input)) input++;
+    if (input >= end) break;
     if (is_symchar(*input)) {
       const char* start = input;
       int len = 1;
-      while(input != end && is_symbodychar(*(++input))) {
+      while(input < end && is_symbodychar(*(++input))) {
        len++; 
       }
       auto result = intern(vm, start, len);
@@ -593,12 +593,12 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
       return result;
     } else if (*input == '(') {
       input++;
-      while(input != end && is_wschar(*input)) input++;
+      while(input < end && is_wschar(*input)) input++;
       vector<Ptr> items;
-      while(input != end && *input != ')') {
+      while(input < end && *input != ')') {
         auto item = read(vm, &input, end, done);
         items.push_back(item);
-        while(input != end && is_wschar(*input)) input++;
+        while(input < end && is_wschar(*input)) input++;
       }
       auto res = make_list(vm, items.size(), &items[0]);
       if (*input == ')') input++;
@@ -607,7 +607,7 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
     } else if (is_digitchar(*input)) {
       u64 num = *input - '0';
       input++;
-      while(is_digitchar(*input)) {
+      while(input < end && is_digitchar(*input)) {
         num *= 10;
         num += *input - '0';
         input++;
@@ -631,9 +631,11 @@ Ptr read_all(VM *vm, const char* input) {
   vector<Ptr> items;
   auto end = input + len;
   auto item = read(vm, &input, end, done);
-  while (!ptr_eq(item, done)) {
+  while (input < end && !ptr_eq(item, done)) {
+    assert(input < end);
     items.push_back(item);
     item = read(vm, &input, end, done);
+    assert(input <= end);
   }
   auto res = make_list(vm, items.size(), &items[0]);
   return res;

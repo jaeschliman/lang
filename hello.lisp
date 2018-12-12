@@ -4,14 +4,16 @@
 (print ((lambda (x y) x) 10 11))
 (print ((lambda (x y) y) 10 11))
 
+(print '(* < > >= @))
+
 (
 (
 
 (lambda (x)
-  (print 'beforeclosure)
+  (print 'before-closure)
   (lambda ()
     (print x)
-    (print 'afterclosure)
+    (print 'after-closure)
     ))
   'closure)
 
@@ -25,7 +27,7 @@
     (print x)
     (print y)
     (print z)))
-'xvalue 'yvalue
+'x-value 'y-value
 )
-'zvalue
+'z-value
 )

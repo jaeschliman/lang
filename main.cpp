@@ -611,25 +611,32 @@ void set_global(VM *vm, const char* name, Ptr value) {
 }
 
 /* -------------------------------------------------- */
+#include "./chars.cpp"
 
-auto is_symchar(char ch) {
-  return ch >= 'a' && ch <= 'z';
-}
 auto is_digitchar(char ch) {
   return ch >= '0' && ch <= '9';
 }
+auto is_symchar(char ch) {
+  u8 idx = ch;
+  return character_table[idx] & character_sym_start;
+}
 auto is_symbodychar(char ch) {
-  return is_symchar(ch) || is_digitchar(ch);
+  u8 idx = ch;
+  u8 flags = character_sym_start | character_digit | character_sym_body;
+  return character_table[idx] & flags;
 }
 auto is_parens(char ch) {
-  return ch == '(' || ch == ')';
+  u8 idx = ch;
+  return character_table[idx] & character_bracket;
 }
 auto is_q(char ch) {
   return ch == '\'';
 }
 auto is_wschar(char ch) {
-  return !(is_symchar(ch) || is_digitchar(ch) || is_parens(ch) || is_q(ch));
+  u8 idx = ch;
+  return !(character_table[idx]);
 }
+/* -------------------------------------------------- */
 
 auto quote_form(VM *vm, Ptr it) {
   auto res = cons(vm, it, NIL);

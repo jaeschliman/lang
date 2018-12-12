@@ -12,6 +12,17 @@
  'hello
  )
 
+(set-symbol-value 'x 10)
+(print x)
+
+(set-symbol-value 'make-adder (lambda (amount) (lambda (x) (add x amount))))
+(set-symbol-value 'add1 (make-adder 1))
+(set-symbol-value 'add2 (make-adder 2))
+(print (add1 10))
+(print (add2 20))
+(print (add1 11))
+(print (add2 21))
+
 ;; things that would be easier to read with definitions
 ((
 

@@ -606,8 +606,13 @@ Ptr intern(VM *vm, string name) {
   return intern(vm, str, strlen(str));
 }
 
+void set_global(VM *vm, Ptr sym, Ptr value) {
+  assert(isSymbol(sym));
+  set_assoc(vm, &vm->globals->env, sym, value);
+}
+
 void set_global(VM *vm, const char* name, Ptr value) {
-  set_assoc(vm, &vm->globals->env, intern(vm, name), value);
+  set_global(vm, intern(vm, name), value);
 }
 
 /* -------------------------------------------------- */
@@ -1349,6 +1354,22 @@ Ptr decrement_object(VM *vm) {
   return toPtr(n - 1);
 }
 
+Ptr add_objects(VM *vm) {
+  Ptr objectA = vm_pop(vm);
+  if (!isFixnum(objectA)) {
+    vm->error = "argument A is not a fixnum";
+    return objectA;
+  }
+  Ptr objectB = vm_pop(vm);
+  if (!isFixnum(objectB)) {
+    vm->error = "argument B is not a fixnum";
+    return objectB;
+  }
+  s64 a = toS64(objectA);
+  s64 b = toS64(objectB);
+  return toPtr(a + b);
+}
+
 Ptr mul_objects(VM *vm) {
   Ptr objectA = vm_pop(vm);
   if (!isFixnum(objectA)) {
@@ -1365,6 +1386,17 @@ Ptr mul_objects(VM *vm) {
   return toPtr(a * b);
 }
 
+Ptr set_global_object(VM *vm) {
+  Ptr val = vm_pop(vm);
+  Ptr sym = vm_pop(vm);
+  if (!isSymbol(sym)) {
+    vm->error = "argument is not a symbol";
+    return val;
+  }
+  set_global(vm, sym, val);
+  return sym;
+}
+
 
 void add_primitive_function(VM *vm, const char *name, CCallFunction fn, u64 argc) {
   auto builder = new ByteCodeBuilder(vm);
@@ -1379,7 +1411,9 @@ void add_primitive_function(VM *vm, const char *name, CCallFunction fn, u64 argc
 
 void initialize_global_environment(VM *vm) {
   add_primitive_function(vm, "print", &print_object, 1);
+  add_primitive_function(vm, "add", &add_objects, 2);
   add_primitive_function(vm, "mul", &mul_objects, 2);
+  add_primitive_function(vm, "set-symbol-value", &set_global_object, 2);
 }
 
 void run_string(const char* str) {

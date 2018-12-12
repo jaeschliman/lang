@@ -886,22 +886,16 @@ void vm_interp(VM* vm) {
     case CALL: {
       u64 argc = *(++vm->pc);
       auto fn = vm_pop(vm);
-      if (!(isBytecode(fn) || isClosure(fn))) {
-        vm->error = "value is not bytecode or closure";
+      if (!isClosure(fn)) {
+        vm->error = "value is not a closure";
         break;
       }
-      if (isClosure(fn)) {
-        auto bc = closure_code(fn);
-        auto env = closure_env(fn);
-        // cout << "pushing code: " << bc << endl;
-        // cout << "pushing env:  " << env << endl;
-        vm_push_stack_frame(vm, argc, bc, env);
-        vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
-      } else {
-        auto bc = (ByteCode *)toObject(fn);
-        vm_push_stack_frame(vm, argc, bc);
-        vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
-      }
+      auto bc = closure_code(fn);
+      auto env = closure_env(fn);
+      // cout << "pushing code: " << bc << endl;
+      // cout << "pushing env:  " << env << endl;
+      vm_push_stack_frame(vm, argc, bc, env);
+      vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
       break;
     }
     case RET: {
@@ -1016,7 +1010,7 @@ public:
     return this;
   }
   auto call(u64 argc, ByteCode* bc) {
-    pushLit(toPtr(bc));
+    pushLit(make_closure(vm, toPtr(bc), NIL));
     call(argc);
     return this;
   }
@@ -1178,7 +1172,9 @@ void emit_flat_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv *e
   auto body = cdr(vm, it);
   emit_lambda_body(vm, builder, body, env);
   builder->ret();
-  p_builder->pushLit(toPtr(builder->build()));
+  auto bc = toPtr(builder->build());
+  auto closure = make_closure(vm, bc, NIL);
+  p_builder->pushLit(closure);
 }
 
 void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env) {
@@ -1345,25 +1341,21 @@ Ptr mul_objects(VM *vm) {
   return toPtr(a * b);
 }
 
+
+void add_primitive_function(VM *vm, const char *name, CCallFunction fn, u64 argc) {
+  auto builder = new ByteCodeBuilder(vm);
+  for (u64 arg = 0; arg < argc; arg++) builder->loadArg(arg);
+  auto bc = builder
+    ->FFICall(fn)
+    ->ret()
+    ->build();
+  auto closure = make_closure(vm, toPtr(bc), NIL);
+  set_global(vm, name, closure);
+}
+
 void initialize_global_environment(VM *vm) {
-
-  auto print = (new ByteCodeBuilder(vm))
-    ->loadArg(0)
-    ->FFICall(&print_object)
-    ->ret()
-    ->build();
-
-  set_global(vm, "print", toPtr(print));
-  
-  auto mul = (new ByteCodeBuilder(vm))
-    ->loadArg(0)
-    ->loadArg(1)
-    ->FFICall(&mul_objects)
-    ->ret()
-    ->build();
-
-  set_global(vm, "mul", toPtr(mul));
-
+  add_primitive_function(vm, "print", &print_object, 1);
+  add_primitive_function(vm, "mul", &mul_objects, 2);
 }
 
 void run_string(const char* str) {

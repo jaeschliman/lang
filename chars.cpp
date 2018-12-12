@@ -71,7 +71,7 @@ char character_table[] = {
  /*  56  8                            */ CH | DG,
  /*  57  9                            */ CH | DG,
  /*  58  :                            */ CH | SS,
- /*  59  ;                            */ WS,
+ /*  59  ;                            */ CH,
  /*  60  <                            */ CH | SS,
  /*  61  =                            */ CH | SS,
  /*  62  >                            */ CH | SS,

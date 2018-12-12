@@ -636,6 +636,11 @@ auto is_wschar(char ch) {
   u8 idx = ch;
   return !(character_table[idx]);
 }
+
+auto is_nlchar(char ch) {
+  return ch == 10 || ch == 13;
+}
+
 /* -------------------------------------------------- */
 
 auto quote_form(VM *vm, Ptr it) {
@@ -644,10 +649,23 @@ auto quote_form(VM *vm, Ptr it) {
   return cons(vm, q, res);
 }
 
+void eat_ws(const char **remaining, const char *end) {
+  auto input = *remaining;
+  while (input < end) {
+    while(input < end && is_wschar(*input)) input++;
+    if (*input == ';') { // eat comments
+      while (input < end && !is_nlchar(*input)) input++;
+    } else {
+      break;
+    }
+  }
+  *remaining = input;
+}
+
 Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
   const char *input = *remaining;
   while (input < end) {
-    while(input < end && is_wschar(*input)) input++;
+    eat_ws(&input, end);
     if (input >= end) break;
     if (is_symchar(*input)) {
       const char* start = input;
@@ -665,12 +683,11 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
       return result;
     } else if (*input == '(') {
       input++;
-      while(input < end && is_wschar(*input)) input++;
       vector<Ptr> items;
       while(input < end && *input != ')') {
         auto item = read(vm, &input, end, done);
         items.push_back(item);
-        while(input < end && is_wschar(*input)) input++;
+        eat_ws(&input, end);
       }
       auto res = make_list(vm, items.size(), &items[0]);
       if (*input == ')') input++;

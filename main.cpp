@@ -11,8 +11,11 @@ DONE: lisp reader
 DONE: expression compiler
 DONE: lambda compiler
 DONE: lambdas + closures compiler
-TODO: def or define or something
-TODO: tests!
+DONE: def or define or something
+TODO: booleans?
+TODO: tests! (something like an assert)
+TODO: bounds checking for heap allocation
+TODO: memory usage report function
 TODO: if compiler
 TODO: move stack memory into vm-managed heap
 TODO: garbage collection

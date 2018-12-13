@@ -1198,15 +1198,14 @@ void emit_lambda_body(VM *vm, ByteCodeBuilder *builder, Ptr body, CompilerEnv *e
   }
 }
 
-void emit_flat_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv *env) {
+auto emit_flat_lambda(VM *vm, Ptr it, CompilerEnv *env) {
   it = cdr(vm, it);
   auto builder = new ByteCodeBuilder(vm);
   auto body = cdr(vm, it);
   emit_lambda_body(vm, builder, body, env);
   builder->ret();
   auto bc = toPtr(builder->build());
-  auto closure = make_closure(vm, bc, NIL);
-  p_builder->pushLit(closure);
+  return make_closure(vm, bc, NIL);
 }
 
 void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env) {
@@ -1230,7 +1229,8 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env)
     p_builder->pushLit(toPtr(builder->build()));
     p_builder->buildClosure();
   } else {
-    emit_flat_lambda(vm, p_builder, it, env);
+    auto closure = emit_flat_lambda(vm, it, env);
+    p_builder->pushLit(closure);
   }
 }
 
@@ -1446,6 +1446,10 @@ void run_string(const char* str) {
   // purely for debug printing
   CURRENT_DEBUG_VM = vm;
 
+  // so we have a root frame
+  auto bc = (new ByteCodeBuilder(vm))->build();
+  vm_push_stack_frame(vm, 0, bc);
+
   auto exprs = read_all(vm, str);
 
   while (!isNil(exprs)) {
@@ -1453,16 +1457,17 @@ void run_string(const char* str) {
     auto bc = compile_toplevel_expression(vm, expr);
 
     vm_push_stack_frame(vm, 0, bc);
-    vm->frame->prev_frame = 0;
-    vm->frame->argc = 0;
 
     vm_interp(vm);
+
+    vm_pop_stack_frame(vm);
   
     if (vm->error) {
       puts("VM ERROR: ");
       puts(vm->error);
       return;
     }
+
     exprs = cdr(vm, exprs);
   }
 

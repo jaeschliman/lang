@@ -19,7 +19,7 @@ TODO: read string
 TODO: tests! (something like an assert)
 TODO: bounds checking for heap allocation
 TODO: memory usage report function
-TODO: if compiler
+DONE: if compiler
 TODO: move stack memory into vm-managed heap
 TODO: garbage collection
 TODO: continuations / exceptions / signals
@@ -562,6 +562,14 @@ void set_cdr(VM *vm, Ptr cons, Ptr value) {
   standard_object_set_ivar((StandardObject *)toObject(cons), 1, value);
 }
 
+Ptr nth_or_nil(VM *vm, Ptr p, u64 idx) {
+  assert(idx >= 0);
+  if (isNil(p)) return NIL;
+  if (idx == 0) return car(vm, p);
+  else return nth_or_nil(vm, cdr(vm, p), idx - 1);
+}
+
+
 Ptr cons(VM *vm, Ptr car, Ptr cdr) {
   auto obj = make_standard_object(vm, vm->globals->Cons, (Ptr[]){car, cdr});
   auto res = objToPtr(obj);
@@ -1079,6 +1087,8 @@ private:
   ByteCode *bc;
   map<string, u64> *labelsMap;
   vector<branch_entry> *branchLocations;
+  vector<Ptr> *labelContextStack;
+  Ptr labelContext;
 
   ByteCodeBuilder* pushOp(u8 op) {
     return pushU64(op);
@@ -1092,7 +1102,13 @@ private:
     pushU64(0);
     return location;
   }
-  ByteCodeBuilder* pushJumpLocation(const char* name) {
+  string labelify(const char * raw_name) {
+    string name = raw_name;
+    name += "____" + to_string(labelContext.value);
+    return name;
+  }
+  ByteCodeBuilder* pushJumpLocation(const char* raw_name) {
+    auto name = labelify(raw_name);
     auto location = pushEmptyRef();
     branchLocations->push_back(make_tuple(location,name));
     return this;
@@ -1117,6 +1133,19 @@ public:
     bc_mem = bc->code->data;
     labelsMap = new map<string, u64>;
     branchLocations = new vector<branch_entry>;
+    labelContext = s64ToPtr(0);
+    labelContextStack = new vector<Ptr>;
+  }
+  // using Ptr's raw value as a unique id. we could just increment an integer as well.
+  auto pushLabelContext(Ptr context) {
+    labelContextStack->push_back(labelContext);
+    labelContext = context;
+    return this;
+  }
+  auto popLabelContext() {
+    labelContext = labelContextStack->at(labelContextStack->size() - 1);
+    labelContextStack->pop_back();
+    return this;
   }
   auto dup() {
     pushOp(DUP);
@@ -1135,7 +1164,7 @@ public:
       ->pushOp(FFI_CALL);
   }
   auto label(const char *name) {
-    string key = name;
+    string key = labelify(name);
     (*labelsMap)[key] = currentAddress();
     return this;
   }
@@ -1358,6 +1387,20 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env)
   }
 }
 
+void emit_if(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
+  auto test = nth_or_nil(vm, it, 1);
+  auto _thn = nth_or_nil(vm, it, 2);
+  auto _els = nth_or_nil(vm, it, 3);
+  builder->pushLabelContext(it);
+  emit_expr(vm, builder, test, env);
+  builder->branchIfFalse("else");
+  emit_expr(vm, builder, _thn, env);
+  builder->jump("endif")->label("else");
+  emit_expr(vm, builder, _els, env);
+  builder->label("endif");
+  builder->popLabelContext();
+}
+
 void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
   if (isSymbol(it)) {
     auto info = compiler_env_info(env, it);
@@ -1376,6 +1419,7 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
   } else if (consp(vm, it)) {
     auto fst = car(vm, it);
     if (isSymbol(fst)) {
+      auto _if = intern(vm, "if");
       auto quote = intern(vm, "quote");
       auto lambda = intern(vm, "lambda");
       if (ptr_eq(lambda, fst)) {
@@ -1384,6 +1428,9 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
       } else if (ptr_eq(quote, fst)) {
         auto item = car(vm, cdr(vm, it));
         builder->pushLit(item);
+        return;
+      } else if (ptr_eq(_if, fst)) {
+        emit_if(vm, builder, it, env);
         return;
       }
     }
@@ -1445,7 +1492,14 @@ void mark_closed_over_variables(VM *vm, Ptr it, CompilerEnv* env) {
       mark_lambda_closed_over_variables(vm, it, env);
     } else if (isSymbol(fst) && ptr_eq(intern(vm, "quote"), fst)) {
       // do nothing
-    }  else {
+    } else if (isSymbol(fst) && ptr_eq(intern(vm, "if"), fst)) {
+      auto test = nth_or_nil(vm, it, 1);
+      auto _thn = nth_or_nil(vm, it, 2);
+      auto _els = nth_or_nil(vm, it, 3);
+      mark_closed_over_variables(vm, test, env);
+      mark_closed_over_variables(vm, _thn, env);
+      mark_closed_over_variables(vm, _els, env);
+    } else {
       while(!isNil(it)) {
         mark_closed_over_variables(vm, car(vm, it), env);
         it = cdr(vm, it);

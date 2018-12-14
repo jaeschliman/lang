@@ -1,6 +1,32 @@
 (print '(hello world))
 (print 42)
 
+(if #t
+    (print 'it-was-true-1)
+    (print 'it-was-false-1))
+
+(if #f
+    (print 'it-was-true-2)
+    (print 'it-was-false-2))
+
+(print '(expecting tt tf ft ff))
+(print
+ (if #t
+     (if #t 'tt 'tf)
+     (if #t 'ft 'ff)))
+(print
+ (if #t
+     (if #f 'tt 'tf)
+     (if #t 'ft 'ff)))
+(print
+ (if #f
+     (if #t 'tt 'tf)
+     (if #t 'ft 'ff)))
+(print
+ (if #f
+     (if #t 'tt 'tf)
+     (if #f 'ft 'ff)))
+
 (print '(#\h #\e #\l #\l #\o))
 (print '(#\whoops))
 (print #\) )

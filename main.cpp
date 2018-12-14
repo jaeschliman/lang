@@ -339,7 +339,7 @@ Ptr make_symbol(VM *vm, const char* str) {
 Ptr make_number(s64 value) { return s64ToPtr(value); }
 
 Ptr make_raw_pointer(VM *vm, void* ptr) {
-  RawPointerObject *obj = (RawPointerObject *)vm_alloc(vm, sizeof RawPointer_ObjectType);
+  RawPointerObject *obj = (RawPointerObject *)vm_alloc(vm, sizeof(RawPointerObject));
   obj->header.object_type = RawPointer_ObjectType;
   obj->pointer = ptr;
   return objToPtr(obj);
@@ -930,12 +930,14 @@ void vm_ffi_call(VM* vm) {
     return;
   }
   Object *top = toObject(ptr);
+  // cout << "ffi checking object type" << endl;
   if (top->header.object_type != RawPointer_ObjectType) {
     vm->error = "not a pointer";
     return;
   }
   RawPointerObject *po = (RawPointerObject *)top;
   CCallFunction fn = (CCallFunction)(po->pointer);
+  // cout << "invoking function pointer" << endl;
   Ptr result = (*fn)(vm);
   // cout << " ffi call returned: " << result << endl;
   vm_push(vm, result);

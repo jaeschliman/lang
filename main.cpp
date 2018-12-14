@@ -1233,6 +1233,7 @@ void emit_lambda_body(VM *vm, ByteCodeBuilder *builder, Ptr body, CompilerEnv *e
     auto expr = car(vm, body);
     emit_expr(vm, builder, expr, env);
     body = cdr(vm, body);
+    if (!isNil(body)) builder->pop();
   }
 }
 

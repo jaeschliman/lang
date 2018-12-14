@@ -12,7 +12,10 @@ DONE: expression compiler
 DONE: lambda compiler
 DONE: lambdas + closures compiler
 DONE: def or define or something
-TODO: booleans?
+TODO: varargs
+TODO: booleans
+TODO: characters
+TODO: read string
 TODO: tests! (something like an assert)
 TODO: bounds checking for heap allocation
 TODO: memory usage report function
@@ -21,6 +24,8 @@ TODO: move stack memory into vm-managed heap
 TODO: garbage collection
 TODO: continuations / exceptions / signals
 TODO: dump/restore image
+TODO: write macroexpander in the language itself
+TODO: write reader in the language itself
 
 */
 
@@ -151,40 +156,68 @@ struct StandardObject : Object {
 };
 
 #define EXTRACT_PTR_MASK 0xFFFFFFFFFFFFFFF0
-#define TAG_MASK 0b111
-#define TAG_BITS 3
-#define FIXNUM_TAG 0b000
-#define OBJECT_TAG 0b001
-#define NIL toPtr((Object *)0)
+#define TAG_MASK 0b1111
+#define TAG_BITS 4
+#define FIXNUM_TAG 0b0000
+#define OBJECT_TAG 0b0001
+#define CHAR_TAG   0b0011
+#define BOOL_TAG   0b0100
+#define TRUE  ((Ptr){0b10100})
+#define FALSE ((Ptr){0b00100})
+
+// not so sure about this...
+#define NIL objToPtr((Object *)0)
 
 bool isFixnum(Ptr self) {
   return (self.value & TAG_MASK) == FIXNUM_TAG;
 }
-bool isObject(Ptr self) {
-  return (self.value & TAG_MASK) == OBJECT_TAG;
-}
-bool isNil(Ptr self) {
-  return (self.value == OBJECT_TAG);
-}
-Object *toObject(Ptr self) {
-  return (Object *)(self.value & EXTRACT_PTR_MASK);
-}
 s64 toS64(Ptr self) {
   return ((s64)self.value) >> TAG_BITS;
 }
-
-Ptr toPtr(Object *ref) {
-  Ptr p;
-  p.value = ((u64) ref) |  0b1;
-  return p;
-}
-
-Ptr toPtr(s64 value) {
+Ptr s64ToPtr(s64 value) {
   // TODO: overflow checking
   Ptr p;
   p.value = value << TAG_BITS;
   return p;
 }
+
+bool isObject(Ptr self) {
+  return (self.value & TAG_MASK) == OBJECT_TAG;
+}
+Ptr objToPtr(Object *ref) {
+  Ptr p;
+  p.value = ((u64) ref) |  0b1;
+  return p;
+}
+Object *toObject(Ptr self) {
+  return (Object *)(self.value & EXTRACT_PTR_MASK);
+}
+
+bool isNil(Ptr self) {
+  return self.value == OBJECT_TAG;
+}
+
+bool isBool(Ptr self) {
+  return (self.value & TAG_MASK) == BOOL_TAG;
+}
+bool toBool(Ptr self) {
+  return (self.value >> TAG_MASK) ? true : false;
+}
+Ptr boolToPtr(bool tf) {
+  return tf ? TRUE : FALSE;
+}
+
+bool isChar(Ptr self) {
+  return (self.value & TAG_MASK) == CHAR_TAG;
+}
+char toChar(Ptr self) {
+  return self.value >> TAG_BITS;
+}
+Ptr charToPtr(char ch) {
+  auto val = ((u64)ch << TAG_BITS)|CHAR_TAG;
+  return (Ptr){val};
+}
+
 
 bool isBytecode(Ptr it) {
   return isObject(it) && toObject(it)->header.object_type == ByteCode_ObjectType;
@@ -274,7 +307,7 @@ Ptr make_bytecode(VM *vm, u64 code_len) {
   auto bc = alloc_bytecode(vm);
   auto code = alloc_u64ao(vm, code_len);
   bc->code = code;
-  return toPtr(bc);
+  return objToPtr(bc);
 }
 
 Ptr make_string(VM *vm, const char* str) {
@@ -285,7 +318,7 @@ Ptr make_string(VM *vm, const char* str) {
     *to = *from;
     to++; from++;
   }
-  return toPtr(obj);
+  return objToPtr(obj);
 }
 
 Ptr make_symbol(VM *vm, const char* str, u64 len) {
@@ -296,20 +329,20 @@ Ptr make_symbol(VM *vm, const char* str, u64 len) {
     *to = *from;
     to++; from++;
   }
-  return toPtr(obj);
+  return objToPtr(obj);
 }
 
 Ptr make_symbol(VM *vm, const char* str) {
   return make_symbol(vm, str, strlen(str));
 }
 
-Ptr make_number(s64 value) { return toPtr(value); }
+Ptr make_number(s64 value) { return s64ToPtr(value); }
 
 Ptr make_raw_pointer(VM *vm, void* ptr) {
   RawPointerObject *obj = (RawPointerObject *)vm_alloc(vm, sizeof RawPointer_ObjectType);
   obj->header.object_type = RawPointer_ObjectType;
   obj->pointer = ptr;
-  return toPtr(obj);
+  return objToPtr(obj);
 }
 
 Ptr make_array(VM *vm, u64 len, Ptr objs[]) {
@@ -317,7 +350,7 @@ Ptr make_array(VM *vm, u64 len, Ptr objs[]) {
   for (u64 i = 0; i < len; i++) {
     array->data[i] = objs[i];
   }
-  return toPtr(array);
+  return objToPtr(array);
 }
 
 Ptr array_get(Ptr array, u64 index) {
@@ -336,7 +369,7 @@ Ptr make_closure(VM *vm, Ptr code, Ptr env) {
   assert(isBytecode(code));
   assert(isNil(env) || isPtrArrayObject(env));
   auto it = alloc_pao(vm, Closure, 2); 
-  auto c = toPtr(it);
+  auto c = objToPtr(it);
   array_set(c, 0, code);
   array_set(c, 1, env);
   return c;
@@ -401,12 +434,12 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
     auto sobj = (StandardObject *)obj;
     auto name = standard_object_get_ivar(sobj->klass, BaseClassName);
     auto pr_obj = standard_object_get_ivar(sobj->klass, BaseClassDebugPrint);
-    if (isObject(pr_obj)) {
+    if (!isNil(pr_obj) && isObject(pr_obj)) {
       Object *vobj = toObject(pr_obj);
       if (vobj->header.object_type == RawPointer_ObjectType) {
         auto rp  = (RawPointerObject *)vobj;
         auto fn = (DebugPrintFunction)rp->pointer;
-        fn(os, toPtr(obj));
+        fn(os, objToPtr(obj));
         return os;
       }
     }
@@ -426,6 +459,10 @@ std::ostream &operator<<(std::ostream &os, Ptr p) {
     return os << (toObject(p));
   } else if (isFixnum(p)) {
     return os << (toS64(p));
+  } else if (isBool(p)) {
+    return os << ((p.value >> TAG_BITS) ? "#t" : "#f");
+  } else if (isChar(p)) {
+    return os << toChar(p);
   } else {
     return os << "don't know how to print ptr.";
   }
@@ -489,7 +526,8 @@ struct Globals {
 };
 
 auto make_base_class(VM *vm, const char* name, u64 ivar_count) {
-  Ptr slots[] = {make_string(vm,name), make_number(ivar_count), toPtr((u64)0)};
+  auto defaultPrint = NIL;
+  Ptr slots[] = {make_string(vm,name), make_number(ivar_count), defaultPrint};
   return make_standard_object(vm, vm->globals->Base, slots);
 }
 
@@ -526,7 +564,7 @@ void set_cdr(VM *vm, Ptr cons, Ptr value) {
 
 Ptr cons(VM *vm, Ptr car, Ptr cdr) {
   auto obj = make_standard_object(vm, vm->globals->Cons, (Ptr[]){car, cdr});
-  auto res = toPtr(obj);
+  auto res = objToPtr(obj);
   assert(consp(vm, res));
   return res;
 }
@@ -710,7 +748,7 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
         input++;
       }
       *remaining = input;
-      return toPtr(num);
+      return s64ToPtr(num);
     }
     input++;
   }
@@ -879,7 +917,7 @@ void vm_interp(VM* vm) {
     }
     case PUSH_CLOSURE_ENV: {
       u64 count = *(++vm->pc);
-      auto array = toPtr(alloc_pao(vm, Array, count + 1));
+      auto array = objToPtr(alloc_pao(vm, Array, count + 1));
       array_set(array, 0, vm->frame->closed_over);
       while (count--) {
         auto it = vm_pop(vm);
@@ -1042,12 +1080,12 @@ public:
     return this;
   }
   auto call(u64 argc, ByteCode* bc) {
-    pushLit(make_closure(vm, toPtr(bc), NIL));
+    pushLit(make_closure(vm, objToPtr(bc), NIL));
     call(argc);
     return this;
   }
   auto selfcall(u64 argc) {
-    pushLit(toPtr(bc));
+    pushLit(objToPtr(bc));
     call(argc);
     return this;
   }
@@ -1204,7 +1242,7 @@ auto emit_flat_lambda(VM *vm, Ptr it, CompilerEnv *env) {
   auto body = cdr(vm, it);
   emit_lambda_body(vm, builder, body, env);
   builder->ret();
-  auto bc = toPtr(builder->build());
+  auto bc = objToPtr(builder->build());
   return make_closure(vm, bc, NIL);
 }
 
@@ -1226,7 +1264,7 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env)
     auto body = cdr(vm, cdr(vm, it));
     emit_lambda_body(vm, builder, body, env);
     builder->ret();
-    p_builder->pushLit(toPtr(builder->build()));
+    p_builder->pushLit(objToPtr(builder->build()));
     p_builder->buildClosure();
   } else {
     auto closure = emit_flat_lambda(vm, it, env);
@@ -1354,7 +1392,7 @@ Ptr decrement_object(VM *vm) {
     return object;
   }
   s64 n = toS64(object);
-  return toPtr(n - 1);
+  return s64ToPtr(n - 1);
 }
 
 Ptr add_objects(VM *vm) {
@@ -1370,7 +1408,7 @@ Ptr add_objects(VM *vm) {
   }
   s64 a = toS64(objectA);
   s64 b = toS64(objectB);
-  return toPtr(a + b);
+  return s64ToPtr(a + b);
 }
 
 Ptr mul_objects(VM *vm) {
@@ -1386,7 +1424,7 @@ Ptr mul_objects(VM *vm) {
   }
   s64 a = toS64(objectA);
   s64 b = toS64(objectB);
-  return toPtr(a * b);
+  return s64ToPtr(a * b);
 }
 
 Ptr set_global_object(VM *vm) {
@@ -1408,7 +1446,7 @@ void add_primitive_function(VM *vm, const char *name, CCallFunction fn, u64 argc
     ->FFICall(fn)
     ->ret()
     ->build();
-  auto closure = make_closure(vm, toPtr(bc), NIL);
+  auto closure = make_closure(vm, objToPtr(bc), NIL);
   set_global(vm, name, closure);
 }
 

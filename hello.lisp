@@ -1,6 +1,12 @@
 (print '(hello world))
 (print 42)
 
+(print '(#\h #\e #\l #\l #\o))
+(print '(#\whoops))
+(print #\) )
+
+(print '(if #t #f #t))
+
 ;; argument order
 (print ((lambda (x y) x) 10 11))
 (print ((lambda (x y) y) 10 11))

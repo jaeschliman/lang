@@ -47,7 +47,7 @@ char character_table[] = {
  /*  32  SPACE                        */ WS,
  /*  33  !                            */ CH | SS,
  /*  34  "                            */ CH,
- /*  35  #                            */ CH | SS,
+ /*  35  #                            */ CH | SB,
  /*  36  $                            */ CH | SS,
  /*  37  %                            */ CH | SS,
  /*  38  &                            */ CH | SS,

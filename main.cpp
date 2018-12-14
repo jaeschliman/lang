@@ -13,8 +13,8 @@ DONE: lambda compiler
 DONE: lambdas + closures compiler
 DONE: def or define or something
 TODO: varargs
-TODO: booleans
-TODO: characters
+DONE: booleans
+DONE: characters
 TODO: read string
 TODO: tests! (something like an assert)
 TODO: bounds checking for heap allocation
@@ -462,7 +462,7 @@ std::ostream &operator<<(std::ostream &os, Ptr p) {
   } else if (isBool(p)) {
     return os << ((p.value >> TAG_BITS) ? "#t" : "#f");
   } else if (isChar(p)) {
-    return os << toChar(p);
+    return os << "#\\" << toChar(p);
   } else {
     return os << "don't know how to print ptr.";
   }
@@ -728,6 +728,43 @@ auto read_delimited_list(VM *vm, const char **remaining, const char *end, Ptr do
   return res;
 }
 
+Ptr read_character(VM *vm, const char **remaining, const char *end, Ptr done) {
+  // TODO: would be nice read named characters
+  auto input = *remaining;
+  if (input >= end) { goto error; }
+  input++;
+  if (input >= end) { goto error; }
+  goto ok;
+ error: {
+    *remaining = end;
+    vm->error = "unexpected end of input";
+    return done;
+  }
+ ok: {
+    auto res = charToPtr(*input);
+    input++;
+    *remaining = input;
+    return res;
+  }
+}
+Ptr read_bool(VM *vm, const char **remaining, const char *end, Ptr done) {
+  auto input = *remaining;
+  if (input >= end) { goto error; }
+  goto ok;
+ error: {
+    *remaining = end;
+    vm->error = "unexpected end of input";
+    return done;
+  }
+ ok: {
+    auto ch = *input;
+    auto res = ch == 't' ? TRUE : FALSE; // TODO: error if not #f
+    input++;
+    *remaining = input;
+    return res;
+  }
+}
+
 Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
   const char *input = *remaining;
   while (input < end) {
@@ -750,6 +787,16 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
     } else if (*input == '(') {
       input++;
       auto res = read_delimited_list(vm, &input, end, done, ')');
+      *remaining = input;
+      return res;
+    } else if (*input == '#') {
+      auto ch = *(++input);
+      Ptr res;
+      if (ch == '\\') {
+        res = read_character(vm, &input, end, done);
+      } else {
+        res = read_bool(vm, &input, end, done);
+      }
       *remaining = input;
       return res;
     } else if (is_digitchar(*input)) {

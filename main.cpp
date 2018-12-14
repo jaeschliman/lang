@@ -708,6 +708,26 @@ void eat_ws(const char **remaining, const char *end) {
   *remaining = input;
 }
 
+Ptr read(VM *vm, const char **remaining, const char *end, Ptr done);
+
+auto read_delimited_list(VM *vm, const char **remaining, const char *end, Ptr done, char delim) {
+  auto input = *remaining;
+  vector<Ptr> items;
+  while(input < end && *input != delim) {
+    auto item = read(vm, &input, end, done);
+    if(ptr_eq(item, done)) {
+      vm->error = "unexpected end of input";
+      return done;
+    }
+    items.push_back(item);
+    eat_ws(&input, end);
+  }
+  auto res = make_list(vm, items.size(), &items[0]);
+  if (*input == delim) input++;
+  *remaining = input;
+  return res;
+}
+
 Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
   const char *input = *remaining;
   while (input < end) {
@@ -729,14 +749,7 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
       return result;
     } else if (*input == '(') {
       input++;
-      vector<Ptr> items;
-      while(input < end && *input != ')') {
-        auto item = read(vm, &input, end, done);
-        items.push_back(item);
-        eat_ws(&input, end);
-      }
-      auto res = make_list(vm, items.size(), &items[0]);
-      if (*input == ')') input++;
+      auto res = read_delimited_list(vm, &input, end, done, ')');
       *remaining = input;
       return res;
     } else if (is_digitchar(*input)) {

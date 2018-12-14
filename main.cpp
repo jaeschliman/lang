@@ -901,7 +901,9 @@ enum OpCode {
   LOAD_GLOBAL = 10,
   LOAD_CLOSURE = 11,
   BUILD_CLOSURE = 12,
-  PUSH_CLOSURE_ENV = 13
+  PUSH_CLOSURE_ENV = 13,
+  BR_IF_FALSE = 14,
+  JUMP = 15,
 };
 
 void vm_push(VM* vm, Ptr value) {
@@ -1005,6 +1007,19 @@ void vm_interp(VM* vm) {
       if ((u64)it.value != 0) {
         vm->pc = vm->bc->code->data + (jump - 1); //-1 to acct for pc advancing
       } 
+      break;
+    }
+    case BR_IF_FALSE: {
+      auto it = vm_pop(vm);
+      u64 jump = *(++vm->pc);
+      if (ptr_eq(it, FALSE)) {
+        vm->pc = vm->bc->code->data + (jump - 1); //-1 to acct for pc advancing
+      } 
+      break;
+    }
+    case JUMP: {
+      u64 jump = *(++vm->pc);
+      vm->pc = vm->bc->code->data + (jump - 1); //-1 to acct for pc advancing
       break;
     }
     case DUP: {
@@ -1131,6 +1146,16 @@ public:
   }
   auto branchIfNotZero(const char *name) {
     pushOp(BR_IF_NOT_ZERO);
+    pushJumpLocation(name);
+    return this;
+  }
+  auto branchIfFalse(const char *name) {
+    pushOp(BR_IF_FALSE);
+    pushJumpLocation(name);
+    return this;
+  }
+  auto jump(const char *name) {
+    pushOp(JUMP);
     pushJumpLocation(name);
     return this;
   }

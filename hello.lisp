@@ -86,3 +86,28 @@
 
 (print '(should print 22))
 (call-2 print-arg-2 10 22)
+
+(let ((x 10)
+      (y 11))
+  (print '(hello again world))
+  (print x)
+  (print y))
+
+(let ((x 10)
+      (y 11))
+  (print '(hello again world))
+  (let ((z (add1 y)))
+    (print x)
+    (print y)
+    (print z)))
+
+(let ((x 10)
+      (y 11))
+  (let ((y x)
+        (x y))
+    (print y)
+    (print x)))
+
+
+(let ((inc3 (lambda (x) (add 3 x))))
+  (print (inc3 39)))

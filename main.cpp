@@ -23,7 +23,7 @@ TODO: tests! (something like an assert)
 TODO: bounds checking for heap allocation
 DONE: memory usage report function
 DONE: if compiler
-TODO: simple let
+DONE: simple let
 TODO: let + closures
 TODO: move stack memory into vm-managed heap
 TODO: garbage collection
@@ -1679,6 +1679,7 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
       // cout << " closure scope, " << index << " " << depth << endl;
       builder->loadClosure(index, depth);
     } else if (info->scope == VariableScope_Let) {
+      // cout << " Loading FR REL: " << info->argument_index << endl;
       builder->loadFrameRel(info->argument_index); // LAZY reusing argument_index
     } else {
       assert(false);
@@ -1711,26 +1712,45 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
   }
 }
 
-void mark_variable_for_closure(VM *vm, Ptr sym, CompilerEnv *env, u64 level) {
-  if (!env) return;
+// returns true if variable was closed over, false otherwise
+bool mark_variable_for_closure
+(VM *vm, Ptr sym, CompilerEnv *env, u64 level, bool *saw_lambda)
+{
+  if (!env) return false; // global scope
   auto existing = env->info->find(sym.value);
+
+  // symbol is bound at this scope.
   if (existing != env->info->end()) {
-    if (level == 0) return;
+    // was found in enclosing scope, do nothing
+    if (level == 0) return false;
+    // there was no lambda in the lower scopes, so do nothing.
+    if (!*saw_lambda) return false;
+
+    // otherwise, was found in an outer scope, and we need to create a closure.
+    if (env->type == CompilerEnvType_Let) {
+      cout << " closing over let-bound variables not yet implemented" << endl;
+      assert(false);
+      // how will I do this? no idea yet...
+    }
+
     auto info = &existing->second;
-    if (info->scope == VariableScope_Closure) return;
+    if (info->scope == VariableScope_Closure) return true;
     info->scope = VariableScope_Closure;
     info->closure_level = level;
     info->closure_index = env->closed_over->size();
     env->closed_over->push_back(sym.value);
     env->has_closure = true;
+    return true;
+
   } else {
-    auto info = compiler_env_info(env->prev, sym);
-    if (info->scope != VariableScope_Global) env->has_closure = true;
-    if (env->type == CompilerEnvType_Let) {
-      cout << " closures through let binding not yet implemented. " << endl;
-      assert(false);
+    if (env->type == CompilerEnvType_Lambda) *saw_lambda = true;
+    auto closed = mark_variable_for_closure(vm, sym, env->prev, level + 1, saw_lambda);
+    if (closed) {
+      // we create a chain of closures for the vm stack
+      // not sure we will need this for Let though...
+      env->has_closure = true;
     }
-    mark_variable_for_closure(vm, sym, env->prev, level + 1);
+    return closed;
   }
 }
 
@@ -1771,28 +1791,25 @@ void mark_let_closed_over_variables(VM *vm, Ptr it, CompilerEnv* p_env) {
       auto sym = nth_or_nil(vm, lst, 0);
       auto expr = nth_or_nil(vm, lst, 1);
       assert(isSymbol(sym));
-      // FIXME: idx should be altered based on parent scopes...
-      //        should be reset at parent and lambda boundaries also,
-      //        how the F gonna chain closure scopes with let...  ok,
-      //        they should be part of the closure in the parent
-      //        lambda scope (which may be missing at toplevel).
-      //        perhaps we can resolve idx in the builder phase, which
-      //        already tracks it
-      auto info = (VariableInfo){VariableScope_Let, idx++, 0, 0};
+
+      // idx is altered in the emit phase to account for surrounding lets
+      auto info = (VariableInfo){VariableScope_Let, idx, 0, 0};
       env->info->insert(make_pair(sym.value, info));
-      mark_let_closed_over_variables(vm, expr, p_env);
+
+      mark_closed_over_variables(vm, expr, p_env);
       idx++;
     });
 
   auto body = cdr(vm, cdr(vm, it));
   do_list(vm, body, [&](Ptr expr) {
-      mark_let_closed_over_variables(vm, expr, env);
+      mark_closed_over_variables(vm, expr, env);
     });
 }
 
 void mark_closed_over_variables(VM *vm, Ptr it, CompilerEnv* env) {
   if (isSymbol(it)) {
-    mark_variable_for_closure(vm, it, env, 0);
+    bool saw_lambda = false;
+    mark_variable_for_closure(vm, it, env, 0, &saw_lambda);
   } else if (consp(vm, it)) {
     auto fst = car(vm, it);
     if (isSymbol(fst) && ptr_eq(intern(vm, "lambda"), fst)) {

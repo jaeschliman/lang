@@ -39,8 +39,10 @@ TODO: write reader in the language itself
 #include <unordered_map>
 #include <vector>
 #include <tuple>
+#include <set>
 #include <fstream>
 #include <sstream>
+#include <functional>
 
 using namespace std;
 
@@ -451,6 +453,44 @@ auto copy_object(VM *vm, Ptr it) {
   return objToPtr(to);
 }
 
+/* ---------------------------------------- */
+
+// walk object references
+
+// typedef void(*PtrFn)(Ptr);
+typedef std::function<void(Ptr)> PtrFn;
+
+void obj_refs(U64ArrayObject *it, PtrFn fn) { return; } 
+void obj_refs(ByteCode *it, PtrFn fn) {
+  fn(objToPtr(it->code));
+  // TODO: literals
+} 
+void obj_refs(ByteArrayObject *it, PtrFn fn) { return; } 
+void obj_refs(PtrArrayObject *it, PtrFn fn) {
+  for (u64 i = 0; i < it->length; i++) {
+    fn(it->data[i]);
+  }
+} 
+
+void obj_refs(RawPointerObject *it, PtrFn fn) { return; } 
+void obj_refs(StandardObject *it, PtrFn fn) {
+  for (u64 i = 0; i < it->ivar_count; i++) {
+    fn(it->ivars[i]);
+  }
+} 
+
+void map_refs(Ptr it, PtrFn fn) {
+  if (isNil(it) || !isObject(it)) return;
+  if (isU64ArrayObject(it))       return obj_refs((U64ArrayObject *)   toObject(it), fn);
+  if (isByteCode(it))             return obj_refs((ByteCode *)         toObject(it), fn);
+  if (isByteArrayObject(it))      return obj_refs((ByteArrayObject *)  toObject(it), fn);
+  if (isPtrArrayObject(it))       return obj_refs((PtrArrayObject *)   toObject(it), fn);
+  if (isRawPointerObject(it))     return obj_refs((RawPointerObject *) toObject(it), fn);
+  if (isStandardObject(it))       return obj_refs((StandardObject *)   toObject(it), fn);
+  cout << " unknown object type in map_refs" << endl;
+  assert(false);
+}
+
 
 /* ---------------------------------------- */
 
@@ -536,6 +576,23 @@ void vm_dump_args(VM *vm) {
   while(c--) {
     cout << "  argument: " << f->argv[c] << endl;
   }
+}
+
+void _debug_walk(Ptr it, set<u64>*seen) {
+  map_refs(it, [seen](Ptr p){
+      if (seen->find(p.value) != seen->end()) return;
+      seen->insert(p.value);
+      cout << "    " << p << endl;
+      _debug_walk(p, seen);
+    });
+}
+
+void debug_walk(Ptr it) {
+  set<u64> seen;
+  cout << "DEBUG WALK::" << endl;
+  // TODO: print out `it` as well :P
+  _debug_walk(it, &seen);
+  cout << "========================================" << endl << endl;
 }
 
 
@@ -1694,6 +1751,7 @@ void run_string(const char* str) {
 
   while (!isNil(exprs)) {
     auto expr = car(vm, exprs);
+    // debug_walk(expr);
     auto bc = compile_toplevel_expression(vm, expr);
 
     vm_push_stack_frame(vm, 0, bc);

@@ -15,19 +15,24 @@ DONE: def or define or something
 TODO: varargs
 DONE: booleans
 DONE: characters
-TODO: obj_size function // heap size of object (can be 0 for imms)
-TODO: obj_ptrs function // walk Ptr s of obj (use a lambda)
+DONE: obj_size function // heap size of object (can be 0 for imms)
+DONE: obj_ptrs function // walk Ptr s of obj (use a lambda)
+TODO: make stack frames objects
 TODO: read string
 TODO: tests! (something like an assert)
 TODO: bounds checking for heap allocation
-TODO: memory usage report function
+DONE: memory usage report function
 DONE: if compiler
+TODO: let
 TODO: move stack memory into vm-managed heap
 TODO: garbage collection
 TODO: continuations / exceptions / signals
 TODO: dump/restore image
 TODO: write macroexpander in the language itself
 TODO: write reader in the language itself
+
+maybe have a stack of compilers? can push/pop...
+have each compiler pass output to previous one in the stack
 
 */
 
@@ -63,6 +68,7 @@ enum ObjectType : u64 {
 
 struct Header {
   ObjectType object_type;
+  // u64 flags;
 };
   
 struct Object {
@@ -158,7 +164,7 @@ struct RawPointerObject : Object {
   void *pointer;
 };
 
-struct StandardObject : Object {
+struct StandardObject : Object { // really more of a structure object
   StandardObject *klass;
   u64 ivar_count;
   Ptr ivars[];
@@ -171,9 +177,23 @@ struct StandardObject : Object {
 #define OBJECT_TAG 0b0001
 #define CHAR_TAG   0b0011
 #define BOOL_TAG   0b0100
+// #define UNUSED_TAG 0b0100
+// #define UNUSED_TAG 0b0101
+// #define UNUSED_TAG 0b0110
+// #define UNUSED_TAG 0b0111
+// #define UNUSED_TAG 0b1000
+// #define UNUSED_TAG 0b1001
+// #define UNUSED_TAG 0b1010
+// #define UNUSED_TAG 0b1011
+// #define UNUSED_TAG 0b1100
+// #define UNUSED_TAG 0b1101
+// #define UNUSED_TAG 0b1110
+// #define UNUSED_TAG 0b1111
+// maybe have a pair of s30 ints as an imm?
+// what about a float?
+
 #define TRUE  ((Ptr){0b10100})
 #define FALSE ((Ptr){0b00100})
-// maybe have a pair of s30 ints as an imm?
 
 // not so sure about this...
 #define NIL objToPtr((Object *)0)
@@ -549,6 +569,9 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
   } else if (otype == ByteCode_ObjectType) {
     cout << "#<ByteCode " << (void*)obj << ">";
     return os;
+  } else if (otype == U64Array_ObjectType) {
+    auto len = ((const U64ArrayObject *)obj)->length;
+    return os << "#<U64Array (" << len << ") "<< (void*)obj << ">";
   }
   return os << "don't know how to print object: " << otype << (void*)obj << endl;
 }

@@ -15,6 +15,8 @@ DONE: def or define or something
 TODO: varargs
 DONE: booleans
 DONE: characters
+TODO: obj_size function // heap size of object (can be 0 for imms)
+TODO: obj_ptrs function // walk Ptr s of obj (use a lambda)
 TODO: read string
 TODO: tests! (something like an assert)
 TODO: bounds checking for heap allocation
@@ -223,22 +225,16 @@ Ptr charToPtr(char ch) {
   return (Ptr){val};
 }
 
-
-bool isBytecode(Ptr it) {
-  return isObject(it) && toObject(it)->header.object_type == ByteCode_ObjectType;
-}
-
-ByteCode *toBytecode(Ptr it) {
-  assert(isBytecode(it));
-  return (ByteCode*)toObject(it);
-}
-
 U64ArrayObject *alloc_u64ao(VM *vm, uint len) {
   auto byte_count = sizeof(U64ArrayObject) + (len * sizeof(u64));
   U64ArrayObject* obj = (U64ArrayObject *)vm_alloc(vm, byte_count);
-  obj->header.object_type = ByteArray_ObjectType;
+  obj->header.object_type = U64Array_ObjectType;
   obj->length = len;
   return obj;
+}
+
+bool isU64ArrayObject(Ptr it) {
+  return isObject(it) && toObject(it)->header.object_type == U64Array_ObjectType;
 }
 
 ByteCode *alloc_bytecode(VM *vm) {
@@ -246,6 +242,15 @@ ByteCode *alloc_bytecode(VM *vm) {
   ByteCode *obj = (ByteCode *)vm_alloc(vm, byte_count);
   obj->header.object_type = ByteCode_ObjectType;
   return obj;
+}
+
+bool isByteCode(Ptr it) {
+  return isObject(it) && toObject(it)->header.object_type == ByteCode_ObjectType;
+}
+
+ByteCode *toBytecode(Ptr it) {
+  assert(isByteCode(it));
+  return (ByteCode*)toObject(it);
 }
 
 ByteArrayObject *alloc_bao(VM *vm, BAOType ty, uint len) {
@@ -296,6 +301,10 @@ StandardObject *alloc_standard_object(VM *vm, StandardObject *klass, u64 ivar_co
   result->klass = klass;
   result->ivar_count = ivar_count;
   return result;
+}
+
+bool isStandardObject(Ptr it) {
+  return isObject(it) && (toObject(it))->header.object_type == StdObject_ObjectType;
 }
 
 Ptr standard_object_get_ivar(StandardObject *object, u64 idx) {
@@ -350,6 +359,10 @@ Ptr make_raw_pointer(VM *vm, void* ptr) {
   return objToPtr(obj);
 }
 
+bool isRawPointerObject(Ptr it) {
+  return isObject(it) && (toObject(it))->header.object_type == RawPointer_ObjectType;
+}
+
 Ptr make_array(VM *vm, u64 len, Ptr objs[]) {
   auto array = alloc_pao(vm, Array, len);
   for (u64 i = 0; i < len; i++) {
@@ -371,7 +384,7 @@ void array_set(Ptr array, u64 index, Ptr value) {
 }
 
 Ptr make_closure(VM *vm, Ptr code, Ptr env) {
-  assert(isBytecode(code));
+  assert(isByteCode(code));
   assert(isNil(env) || isPtrArrayObject(env));
   auto it = alloc_pao(vm, Closure, 2); 
   auto c = objToPtr(it);
@@ -390,6 +403,41 @@ ByteCode *closure_code(Ptr closure) {
 
 Ptr closure_env(Ptr closure) {
   return array_get(closure, 1);
+}
+
+/* ---------------------------------------- */
+
+// size of object in bytes
+
+u64 obj_size(U64ArrayObject *it) {
+  return sizeof(U64ArrayObject) + (it->length * 8);
+} 
+u64 obj_size(ByteCode *it) {
+ return sizeof(ByteCode) + 0;
+} 
+u64 obj_size(ByteArrayObject *it) {
+ return sizeof(ByteArrayObject) + it->length;
+} 
+u64 obj_size(PtrArrayObject *it) {
+  return sizeof(PtrArrayObject) + (it->length * 8);
+} 
+u64 obj_size(RawPointerObject *it) {
+ return sizeof(RawPointerObject) + 0;
+} 
+u64 obj_size(StandardObject *it) {
+  return sizeof(StandardObject) + (it->ivar_count * 8);
+} 
+
+auto object_size(Ptr it) {
+  if (isNil(it) && !isObject(it)) return (u64)0;
+  if (isU64ArrayObject(it))       return obj_size((U64ArrayObject *)   toObject(it));
+  if (isByteCode(it))             return obj_size((ByteCode *)         toObject(it));
+  if (isByteArrayObject(it))      return obj_size((ByteArrayObject *)  toObject(it));
+  if (isPtrArrayObject(it))       return obj_size((PtrArrayObject *)   toObject(it));
+  if (isRawPointerObject(it))     return obj_size((RawPointerObject *) toObject(it));
+  if (isStandardObject(it))       return obj_size((StandardObject *)   toObject(it));
+  cout << " unknown object type in object_size " << endl;
+  assert(false);
 }
 
 
@@ -439,14 +487,11 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
     auto sobj = (StandardObject *)obj;
     auto name = standard_object_get_ivar(sobj->klass, BaseClassName);
     auto pr_obj = standard_object_get_ivar(sobj->klass, BaseClassDebugPrint);
-    if (!isNil(pr_obj) && isObject(pr_obj)) {
-      Object *vobj = toObject(pr_obj);
-      if (vobj->header.object_type == RawPointer_ObjectType) {
-        auto rp  = (RawPointerObject *)vobj;
-        auto fn = (DebugPrintFunction)rp->pointer;
-        fn(os, objToPtr(obj));
-        return os;
-      }
+    if (!isNil(pr_obj) && isRawPointerObject(pr_obj)) {
+      auto rp  = (RawPointerObject *)toObject(pr_obj);
+      auto fn = (DebugPrintFunction)rp->pointer;
+      fn(os, objToPtr(obj));
+      return os;
     }
     cout << "#<A " << toObject(name) << " " << (void*)obj << ">";
     return os;
@@ -930,17 +975,16 @@ Ptr vm_pop(VM* vm) {
 void vm_ffi_call(VM* vm) {
   Ptr ptr = vm_pop(vm);
   // cout << "ffi calling: " << ptr << endl;
-  if (!isObject(ptr)) {
-    vm->error = "integer is not a pointer";
+  if (isNil(ptr) || !isObject(ptr)) {
+    vm->error = "not a callable object";
     return;
   }
-  Object *top = toObject(ptr);
   // cout << "ffi checking object type" << endl;
-  if (top->header.object_type != RawPointer_ObjectType) {
-    vm->error = "not a pointer";
+  if (!isRawPointerObject(ptr)) {
+    vm->error = "not a raw pointer object";
     return;
   }
-  RawPointerObject *po = (RawPointerObject *)top;
+  RawPointerObject *po = (RawPointerObject *)toObject(ptr);
   CCallFunction fn = (CCallFunction)(po->pointer);
   // cout << "invoking function pointer" << endl;
   Ptr result = (*fn)(vm);

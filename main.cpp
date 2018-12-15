@@ -171,6 +171,7 @@ struct StandardObject : Object {
 #define BOOL_TAG   0b0100
 #define TRUE  ((Ptr){0b10100})
 #define FALSE ((Ptr){0b00100})
+// maybe have a pair of s30 ints as an imm?
 
 // not so sure about this...
 #define NIL objToPtr((Object *)0)
@@ -428,8 +429,8 @@ u64 obj_size(StandardObject *it) {
   return sizeof(StandardObject) + (it->ivar_count * 8);
 } 
 
-auto object_size(Ptr it) {
-  if (isNil(it) && !isObject(it)) return (u64)0;
+auto sizeOf(Ptr it) {
+  if (isNil(it) || !isObject(it)) return (u64)0;
   if (isU64ArrayObject(it))       return obj_size((U64ArrayObject *)   toObject(it));
   if (isByteCode(it))             return obj_size((ByteCode *)         toObject(it));
   if (isByteArrayObject(it))      return obj_size((ByteArrayObject *)  toObject(it));
@@ -438,6 +439,16 @@ auto object_size(Ptr it) {
   if (isStandardObject(it))       return obj_size((StandardObject *)   toObject(it));
   cout << " unknown object type in object_size " << endl;
   assert(false);
+}
+
+auto copy_object(VM *vm, Ptr it) {
+  auto count = sizeOf(it);
+  if (!count) return it;
+  auto bytes = vm_alloc(vm, count);
+  auto from  = toObject(it);
+  auto to    = (Object *)bytes;
+  memcpy(to, from, count);
+  return objToPtr(to);
 }
 
 

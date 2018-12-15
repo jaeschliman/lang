@@ -23,13 +23,15 @@ TODO: tests! (something like an assert)
 TODO: bounds checking for heap allocation
 DONE: memory usage report function
 DONE: if compiler
-TODO: let
+TODO: simple let
+TODO: let + closures
 TODO: move stack memory into vm-managed heap
 TODO: garbage collection
 TODO: continuations / exceptions / signals
 TODO: dump/restore image
 TODO: write macroexpander in the language itself
 TODO: write reader in the language itself
+TODO: sdl integration
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -1079,6 +1081,9 @@ enum OpCode {
   PUSH_CLOSURE_ENV = 13,
   BR_IF_FALSE = 14,
   JUMP = 15,
+  STACK_RESERVE = 16,
+  LOAD_FRAME_RELATIVE = 17,
+  STORE_FRAME_RELATIVE = 18,
 };
 
 void vm_push(VM* vm, Ptr value) {
@@ -1124,6 +1129,25 @@ void vm_interp(VM* vm) {
   u64 instr;
   while ((instr = *vm->pc)) {
     switch (instr){
+    case STACK_RESERVE: {
+      u64 count = *(++vm->pc);
+      while (count--) { vm_push(vm, NIL); }
+      break;
+    }
+    case LOAD_FRAME_RELATIVE: {
+      u64 idx = *(++vm->pc);
+      Ptr *stack_bottom = ((Ptr *)(void *)vm->frame) - 1;
+      vm_push(vm, *(stack_bottom - idx));
+      break;
+    }
+    case STORE_FRAME_RELATIVE: {
+      u64 idx = *(++vm->pc);
+      u64 lit_idx = *(++vm->pc);
+      Ptr it = vm->bc->literals[lit_idx];
+      Ptr *stack_bottom = ((Ptr *)(void *)vm->frame) - 1;
+      *(stack_bottom - idx) = it;
+      break;
+    }
     case POP:
       vm_pop(vm);
       break;
@@ -1252,11 +1276,14 @@ private:
   u64* bc_mem;
   u64 bc_index;
   u64 lit_index;
+
   ByteCode *bc;
   map<string, u64> *labelsMap;
   vector<branch_entry> *branchLocations;
   vector<Ptr> *labelContextStack;
   Ptr labelContext;
+
+  u64 *temp_count;
 
   ByteCodeBuilder* pushOp(u8 op) {
     return pushU64(op);
@@ -1303,6 +1330,34 @@ public:
     branchLocations = new vector<branch_entry>;
     labelContext = s64ToPtr(0);
     labelContextStack = new vector<Ptr>;
+
+    pushOp(STACK_RESERVE);
+    temp_count = &bc_mem[bc_index];
+    pushU64(0);
+    assert(*temp_count == 0);
+  }
+  u64 reserveTemps(u64 count) {
+    auto start= *temp_count;
+    *temp_count += count;
+    return start;
+  }
+  auto pushLit(Ptr literal) {
+    bc->literals[lit_index] = literal;
+    pushOp(PUSHLIT);
+    pushOp(lit_index);
+    lit_index++;
+    return this;
+  }
+  auto loadFrameRel(u64 idx) {
+    pushOp(LOAD_FRAME_RELATIVE);
+    pushU64(idx);
+    return this;
+  }
+  auto storeFrameRel(u64 idx, Ptr val) {
+    pushOp(LOAD_FRAME_RELATIVE);
+    pushU64(idx);
+    pushLit(val);
+    return this;
   }
   // using Ptr's raw value as a unique id. we could just increment an integer as well.
   auto pushLabelContext(Ptr context) {
@@ -1317,13 +1372,6 @@ public:
   }
   auto dup() {
     pushOp(DUP);
-    return this;
-  }
-  auto pushLit(Ptr literal) {
-    bc->literals[lit_index] = literal;
-    pushOp(PUSHLIT);
-    pushOp(lit_index);
-    lit_index++;
     return this;
   }
   auto FFICall(CCallFunction fn) {

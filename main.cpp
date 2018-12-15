@@ -789,6 +789,18 @@ void debug_print_list(ostream &os, Ptr p) {
   os << ")";
 }
 
+void do_list(VM *vm, Ptr it, PtrFn cb) {
+  while (!isNil(it)) {
+    cb(car(vm, it));
+    it = cdr(vm, it);
+  }
+}
+
+u64 list_length(VM *vm, Ptr it) {
+  u64 count = 0;
+  do_list(vm, it, [&](Ptr p){ count++; });
+  return count;
+}
 
 /* ---------------------------------------- */
 
@@ -1142,8 +1154,7 @@ void vm_interp(VM* vm) {
     }
     case STORE_FRAME_RELATIVE: {
       u64 idx = *(++vm->pc);
-      u64 lit_idx = *(++vm->pc);
-      Ptr it = vm->bc->literals[lit_idx];
+      Ptr it = vm_pop(vm);
       Ptr *stack_bottom = ((Ptr *)(void *)vm->frame) - 1;
       *(stack_bottom - idx) = it;
       break;
@@ -1353,10 +1364,9 @@ public:
     pushU64(idx);
     return this;
   }
-  auto storeFrameRel(u64 idx, Ptr val) {
-    pushOp(LOAD_FRAME_RELATIVE);
+  auto storeFrameRel(u64 idx) {
+    pushOp(STORE_FRAME_RELATIVE);
     pushU64(idx);
-    pushLit(val);
     return this;
   }
   // using Ptr's raw value as a unique id. we could just increment an integer as well.
@@ -1481,6 +1491,13 @@ enum VariableScope {
   VariableScope_Global,
   VariableScope_Argument,
   VariableScope_Closure,
+  VariableScope_Let,
+};
+
+enum CompilerEnvType {
+  CompilerEnvType_Unknown,
+  CompilerEnvType_Lambda,
+  CompilerEnvType_Let
 };
 
 struct VariableInfo {
@@ -1497,12 +1514,14 @@ struct CompilerEnv {
   unordered_map<u64, CompilerEnv*> *sub_envs;
   vector<u64> *closed_over;
   bool has_closure;
+  CompilerEnvType type;
   CompilerEnv(CompilerEnv * parent_env) {
     prev = parent_env;
     info = new unordered_map<u64, VariableInfo>();
     sub_envs = new unordered_map<u64, CompilerEnv*>();
     closed_over = new vector<u64>();
     has_closure = false;
+    type = CompilerEnvType_Unknown;
   }
   ~CompilerEnv() {
     delete info;
@@ -1523,18 +1542,21 @@ auto compiler_env_get_subenv(CompilerEnv *env, Ptr it) {
   return env->sub_envs->find(key)->second;
 }
 
+VariableInfo GLOBAL_INFO = (VariableInfo){ VariableScope_Global, 0, 0, 0 };
+
 auto compiler_env_info(CompilerEnv *env, Ptr sym) {
-  if (!env) return (VariableInfo){ VariableScope_Global, 0, 0, 0 };
+  if (!env) return &GLOBAL_INFO;
   auto existing = env->info->find(sym.value);
   if (existing == env->info->end()) {
     auto outer = compiler_env_info(env->prev, sym);
-    if (outer.scope == VariableScope_Argument) {
+    auto from_lambda = env->prev && env->prev->type == CompilerEnvType_Lambda;
+    if (outer->scope == VariableScope_Argument && from_lambda) {
       cout << "  ERROR: variable should have been marked for closure: " << sym << endl;
       assert(false);
     }
     return outer;
   }
-  return existing->second;
+  return &existing->second;
 }
 
 void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env);
@@ -1589,7 +1611,7 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env)
       Ptr ptr = {raw};
       auto info = compiler_env_info(env, ptr);
       // cout << "  closing over: " << ptr  << " idx: " << info.argument_index << endl;
-      builder->loadArg(info.argument_index);
+      builder->loadArg(info->argument_index);
     }
     builder->pushClosureEnv(closed_count);
     auto body = cdr(vm, cdr(vm, it));
@@ -1602,6 +1624,33 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env)
     p_builder->pushLit(closure);
   }
 }
+
+void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* p_env) {
+  CompilerEnv *env = compiler_env_get_subenv(p_env, it);
+  auto vars = nth_or_nil(vm, it, 1);
+  auto count = list_length(vm, vars);
+  auto start_index = builder->reserveTemps(count);
+
+  do_list(vm, vars, [&](Ptr lst){
+      auto sym = nth_or_nil(vm, lst, 0);
+      auto expr = nth_or_nil(vm, lst, 1);
+      assert(isSymbol(sym));
+      auto info = compiler_env_info(env, sym);
+      auto idx = info->argument_index + start_index;
+      info->argument_index = idx;
+
+      emit_expr(vm, builder, expr, p_env);
+      builder->storeFrameRel(idx);
+    });
+
+  auto body = cdr(vm, cdr(vm, it));
+  builder->pushLit(NIL); // LAZY
+  do_list(vm, body, [&](Ptr expr){
+      builder->pop();
+      emit_expr(vm, builder, expr, env);
+    });
+}
+
 
 void emit_if(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
   auto test = nth_or_nil(vm, it, 1);
@@ -1620,15 +1669,17 @@ void emit_if(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
 void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
   if (isSymbol(it)) {
     auto info = compiler_env_info(env, it);
-    if (info.scope == VariableScope_Global) {
+    if (info->scope == VariableScope_Global) {
       builder->loadGlobal(it);
-    } else if (info.scope == VariableScope_Argument) {
-      builder->loadArg(info.argument_index);
-    } else if (info.scope == VariableScope_Closure) {
-      auto index = info.closure_index;
-      auto depth = info.closure_level;
+    } else if (info->scope == VariableScope_Argument) {
+      builder->loadArg(info->argument_index);
+    } else if (info->scope == VariableScope_Closure) {
+      auto index = info->closure_index;
+      auto depth = info->closure_level;
       // cout << " closure scope, " << index << " " << depth << endl;
       builder->loadClosure(index, depth);
+    } else if (info->scope == VariableScope_Let) {
+      builder->loadFrameRel(info->argument_index); // LAZY reusing argument_index
     } else {
       assert(false);
     }
@@ -1638,6 +1689,7 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
       auto _if = intern(vm, "if");
       auto quote = intern(vm, "quote");
       auto lambda = intern(vm, "lambda");
+      auto let = intern(vm, "let");
       if (ptr_eq(lambda, fst)) {
         emit_lambda(vm, builder, it, env);
         return;
@@ -1647,6 +1699,9 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
         return;
       } else if (ptr_eq(_if, fst)) {
         emit_if(vm, builder, it, env);
+        return;
+      } else if (ptr_eq(let, fst)) {
+        emit_let(vm, builder, it, env);
         return;
       }
     }
@@ -1670,7 +1725,11 @@ void mark_variable_for_closure(VM *vm, Ptr sym, CompilerEnv *env, u64 level) {
     env->has_closure = true;
   } else {
     auto info = compiler_env_info(env->prev, sym);
-    if (info.scope != VariableScope_Global) env->has_closure = true;
+    if (info->scope != VariableScope_Global) env->has_closure = true;
+    if (env->type == CompilerEnvType_Let) {
+      cout << " closures through let binding not yet implemented. " << endl;
+      assert(false);
+    }
     mark_variable_for_closure(vm, sym, env->prev, level + 1);
   }
 }
@@ -1679,6 +1738,8 @@ void mark_closed_over_variables(VM *vm, Ptr it, CompilerEnv* env);
 
 void mark_lambda_closed_over_variables(VM *vm, Ptr it, CompilerEnv *p_env) {
   CompilerEnv *env = compiler_env_get_subenv(p_env, it);
+  env->type = CompilerEnvType_Lambda;
+
   it = cdr(vm, it);
   auto args = car(vm, it);
   u64 idx = 0;
@@ -1699,6 +1760,36 @@ void mark_lambda_closed_over_variables(VM *vm, Ptr it, CompilerEnv *p_env) {
   }
 }
 
+void mark_let_closed_over_variables(VM *vm, Ptr it, CompilerEnv* p_env) {
+  auto env = compiler_env_get_subenv(p_env, it);
+  env->type = CompilerEnvType_Let;
+
+  auto vars = nth_or_nil(vm, it, 1);
+
+  u64 idx = 0;
+  do_list(vm, vars, [&](Ptr lst){
+      auto sym = nth_or_nil(vm, lst, 0);
+      auto expr = nth_or_nil(vm, lst, 1);
+      assert(isSymbol(sym));
+      // FIXME: idx should be altered based on parent scopes...
+      //        should be reset at parent and lambda boundaries also,
+      //        how the F gonna chain closure scopes with let...  ok,
+      //        they should be part of the closure in the parent
+      //        lambda scope (which may be missing at toplevel).
+      //        perhaps we can resolve idx in the builder phase, which
+      //        already tracks it
+      auto info = (VariableInfo){VariableScope_Let, idx++, 0, 0};
+      env->info->insert(make_pair(sym.value, info));
+      mark_let_closed_over_variables(vm, expr, p_env);
+      idx++;
+    });
+
+  auto body = cdr(vm, cdr(vm, it));
+  do_list(vm, body, [&](Ptr expr) {
+      mark_let_closed_over_variables(vm, expr, env);
+    });
+}
+
 void mark_closed_over_variables(VM *vm, Ptr it, CompilerEnv* env) {
   if (isSymbol(it)) {
     mark_variable_for_closure(vm, it, env, 0);
@@ -1715,6 +1806,8 @@ void mark_closed_over_variables(VM *vm, Ptr it, CompilerEnv* env) {
       mark_closed_over_variables(vm, test, env);
       mark_closed_over_variables(vm, _thn, env);
       mark_closed_over_variables(vm, _els, env);
+    } else if (isSymbol(fst) && ptr_eq(intern(vm, "let"), fst)) {
+      mark_let_closed_over_variables(vm, it, env);
     } else {
       while(!isNil(it)) {
         mark_closed_over_variables(vm, car(vm, it), env);

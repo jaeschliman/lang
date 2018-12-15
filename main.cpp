@@ -4,7 +4,7 @@
  
 (setq flycheck-clang-language-standard "c++14")
 
-TODO: stack traces
+DONE: stack traces
 DONE: move allocations into vm-managed heap
 DONE: lists (incl printing)
 DONE: lisp reader
@@ -63,7 +63,8 @@ enum ObjectType : u64 {
   ByteArray_ObjectType,
   U64Array_ObjectType,
   PtrArray_ObjectType,
-  StdObject_ObjectType
+  StdObject_ObjectType,
+  StackFrame_ObjectType
 };
 
 struct Header {
@@ -93,7 +94,7 @@ struct ByteCode : Object {
   Ptr literals[1024];
 };
 
-struct Frame {
+struct Frame : Object {
   Ptr* prev_stack;
   Frame* prev_frame;
   ByteCode* prev_fn;
@@ -451,6 +452,8 @@ u64 obj_size(StandardObject *it) {
   return sizeof(StandardObject) + (it->ivar_count * 8);
 } 
 
+// TODO: Frame
+
 auto sizeOf(Ptr it) {
   if (isNil(it) || !isObject(it)) return (u64)0;
   if (isU64ArrayObject(it))       return obj_size((U64ArrayObject *)   toObject(it));
@@ -477,8 +480,10 @@ auto copy_object(VM *vm, Ptr it) {
 
 // walk object references
 
-// typedef void(*PtrFn)(Ptr);
+
 typedef std::function<void(Ptr)> PtrFn;
+
+// TODO: Frame
 
 void obj_refs(U64ArrayObject *it, PtrFn fn) { return; } 
 void obj_refs(ByteCode *it, PtrFn fn) {
@@ -572,6 +577,9 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
   } else if (otype == U64Array_ObjectType) {
     auto len = ((const U64ArrayObject *)obj)->length;
     return os << "#<U64Array (" << len << ") "<< (void*)obj << ">";
+  } else if (otype == StackFrame_ObjectType) {
+    auto len = ((const Frame *)obj)->argc;
+    return os << "#<StackFrame (argc = " << len << ") "<< (void*)obj << ">";
   }
   return os << "don't know how to print object: " << otype << (void*)obj << endl;
 }
@@ -618,6 +626,23 @@ void debug_walk(Ptr it) {
   cout << "========================================" << endl << endl;
 }
 
+auto vm_print_stack_trace(VM *vm) {
+  Frame *fr = vm->frame;
+  Ptr *stack = vm->stack;
+  cout << "PRINTING STACKTRACE:" << endl;
+  while (fr) {
+    cout << " FRAME: " << fr << endl;
+    cout << "   closure: " << fr->closed_over << endl;
+    for (u64 i = 1; i <= fr->argc; i++) {
+      cout << "   arg " << (i - 1) << " = " << fr->argv[fr->argc - i] << endl;
+    }
+    auto h =  (u64)fr - (u64)stack;
+    cout << "   stack height (bytes): " << h << endl;
+    stack = &fr->argv[fr->argc];
+    fr = fr->prev_frame;
+  }
+  return NIL;
+}
 
 /* ---------------------------------------- */
 
@@ -1012,6 +1037,7 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCode*fn, Ptr closed_over) {
   uint offset = (sizeof(Frame) / sizeof(u64));
   u64 *top = &((vm->stack - offset)->value);
   Frame *new_frame = (Frame *)top;
+  new_frame->header.object_type = StackFrame_ObjectType;
 
   // cout << "pushing stack frame from: " << vm->stack << endl;
   // cout << "  argc = " << argc << endl;
@@ -1737,6 +1763,7 @@ void initialize_global_environment(VM *vm) {
   add_primitive_function(vm, "add", &add_objects, 2);
   add_primitive_function(vm, "mul", &mul_objects, 2);
   add_primitive_function(vm, "set-symbol-value", &set_global_object, 2);
+  add_primitive_function(vm, "print-stacktrace", &vm_print_stack_trace, 0);
 }
 
 void run_string(const char* str) {
@@ -1776,6 +1803,7 @@ void run_string(const char* str) {
     auto expr = car(vm, exprs);
     // debug_walk(expr);
     auto bc = compile_toplevel_expression(vm, expr);
+    // debug_walk(objToPtr(bc));
 
     vm_push_stack_frame(vm, 0, bc);
 

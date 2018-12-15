@@ -79,3 +79,10 @@
 )
 'z-value
 )
+
+
+(set-symbol-value 'print-arg-2 (lambda (x y) (print-stacktrace) (print y) ))
+(set-symbol-value 'call-2 (lambda (f x y) (f x y)))
+
+(print '(should print 22))
+(call-2 print-arg-2 10 22)

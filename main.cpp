@@ -24,7 +24,7 @@ TODO: bounds checking for heap allocation
 DONE: memory usage report function
 DONE: if compiler
 DONE: simple let
-TODO: let + closures
+DONE: let + closures
 TODO: move stack memory into vm-managed heap
 TODO: garbage collection
 TODO: continuations / exceptions / signals
@@ -1096,6 +1096,7 @@ enum OpCode {
   STACK_RESERVE = 16,
   LOAD_FRAME_RELATIVE = 17,
   STORE_FRAME_RELATIVE = 18,
+  POP_CLOSURE_ENV = 20,
 };
 
 void vm_push(VM* vm, Ptr value) {
@@ -1198,6 +1199,16 @@ void vm_interp(VM* vm) {
         array_set(array, count + 1, it);
       }
       vm->frame->closed_over = array;
+      break;
+    }
+    case POP_CLOSURE_ENV: {
+      auto curr = vm->frame->closed_over;
+      if (isNil(curr)) {
+        vm->error = "cannot pop null closure env ";
+      } else {
+        auto prev = array_get(curr, 0);
+        vm->frame->closed_over = prev;
+      }
       break;
     }
     case FFI_CALL:
@@ -1473,6 +1484,9 @@ public:
     pushOp(PUSH_CLOSURE_ENV);
     pushU64(count);
   }
+  auto popClosureEnv() {
+    pushOp(POP_CLOSURE_ENV);
+  }
   auto call(u64 argc, const char *name) {
     loadGlobal(name);
     call(argc);
@@ -1601,9 +1615,9 @@ auto emit_flat_lambda(VM *vm, Ptr it, CompilerEnv *env) {
 
 void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env) {
   CompilerEnv *env = compiler_env_get_subenv(p_env, it);
-  auto closed_count = env->closed_over->size();
   auto has_closure = env->has_closure;
   if (has_closure) {
+    auto closed_count = env->closed_over->size();
     auto builder = new ByteCodeBuilder(vm);
     // cout << " closing over " << closed_count << " arguments." << endl;
     // cout << "   form  = " << it << endl;
@@ -1643,12 +1657,28 @@ void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* p_env) {
       builder->storeFrameRel(idx);
     });
 
+  auto has_closure = env->has_closure;
+  if (has_closure) {
+    auto closed_count = env->closed_over->size();
+    for (auto raw: *env->closed_over) {
+      Ptr ptr = {raw};
+      auto info = compiler_env_info(env, ptr);
+      // cout << "  closing over: " << ptr  << " idx: " << info.argument_index << endl;
+      builder->loadFrameRel(info->argument_index);
+    }
+    builder->pushClosureEnv(closed_count);
+  }
+
   auto body = cdr(vm, cdr(vm, it));
   builder->pushLit(NIL); // LAZY
   do_list(vm, body, [&](Ptr expr){
       builder->pop();
       emit_expr(vm, builder, expr, env);
     });
+
+  if (has_closure) {
+    builder->popClosureEnv();
+  }
 }
 
 
@@ -1714,25 +1744,19 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
 
 // returns true if variable was closed over, false otherwise
 bool mark_variable_for_closure
-(VM *vm, Ptr sym, CompilerEnv *env, u64 level, bool *saw_lambda)
+(VM *vm, Ptr sym, CompilerEnv *env, u64 level, bool saw_lambda)
 {
   if (!env) return false; // global scope
   auto existing = env->info->find(sym.value);
 
   // symbol is bound at this scope.
   if (existing != env->info->end()) {
-    // was found in enclosing scope, do nothing
+    // symbol was found in its enclosing scope, do nothing
     if (level == 0) return false;
     // there was no lambda in the lower scopes, so do nothing.
-    if (!*saw_lambda) return false;
+    if (!saw_lambda) return false;
 
     // otherwise, was found in an outer scope, and we need to create a closure.
-    if (env->type == CompilerEnvType_Let) {
-      cout << " closing over let-bound variables not yet implemented" << endl;
-      assert(false);
-      // how will I do this? no idea yet...
-    }
-
     auto info = &existing->second;
     if (info->scope == VariableScope_Closure) return true;
     info->scope = VariableScope_Closure;
@@ -1743,13 +1767,9 @@ bool mark_variable_for_closure
     return true;
 
   } else {
-    if (env->type == CompilerEnvType_Lambda) *saw_lambda = true;
+    if (env->type == CompilerEnvType_Lambda) saw_lambda = true;
     auto closed = mark_variable_for_closure(vm, sym, env->prev, level + 1, saw_lambda);
-    if (closed) {
-      // we create a chain of closures for the vm stack
-      // not sure we will need this for Let though...
-      env->has_closure = true;
-    }
+    if (closed) env->has_closure = true; 
     return closed;
   }
 }
@@ -1808,8 +1828,7 @@ void mark_let_closed_over_variables(VM *vm, Ptr it, CompilerEnv* p_env) {
 
 void mark_closed_over_variables(VM *vm, Ptr it, CompilerEnv* env) {
   if (isSymbol(it)) {
-    bool saw_lambda = false;
-    mark_variable_for_closure(vm, it, env, 0, &saw_lambda);
+    mark_variable_for_closure(vm, it, env, 0, false);
   } else if (consp(vm, it)) {
     auto fst = car(vm, it);
     if (isSymbol(fst) && ptr_eq(intern(vm, "lambda"), fst)) {

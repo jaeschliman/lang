@@ -119,6 +119,11 @@ void * vm_alloc(VM *vm, u64 bytes) {
   return result;
 }
 
+void report_memory_usage(VM *vm) {
+  double byte_count = (u64)vm->heap_end - (u64)vm->heap_mem;
+  cout << "Memory usage, MB : " << (byte_count / (1024 * 1024)) << endl;
+}
+
 VM *CURRENT_DEBUG_VM;
 
 /* -------------------------------------------------- */
@@ -1650,6 +1655,8 @@ void run_string(const char* str) {
 
     exprs = cdr(vm, exprs);
   }
+
+  report_memory_usage(vm);
 
   // TODO: clean up
 }

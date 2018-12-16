@@ -122,6 +122,7 @@ struct StackFrame : Object {
   u64* prev_pc;
   Ptr closed_over;
   u64 argc;
+  u64 pad_count;
   Ptr argv[];
 };
 
@@ -497,19 +498,16 @@ auto copy_object(VM *vm, Ptr it) {
 typedef std::function<void(Ptr)> PtrFn;
 
 void obj_refs(VM *vm, StackFrame *it, PtrFn fn) {
-  //arguments
   for (u64 i = 0; i < it->argc; i++) {
-    fn(it->argv[i]);
+    fn(it->argv[it->pad_count + i]);
   }
-  //closure
   fn(it->closed_over);
-  //temporaries
-  for (u64 curr = (u64)vm->stack; curr < (u64)it; curr++) {
-    auto tmp = (Ptr){curr};
-    fn(tmp);
-  }
-  //prev frame
-  fn(objToPtr(it->prev_frame));
+  // TODO: how to track items currently on the stack?
+  //       don't want to add bookkeeping...
+  //       we will need /something/ once we start copying stack frames around...
+  //       or will we really?
+  //       just handle stack frames specially? not the end of the world.
+  if (it->prev_frame) fn(objToPtr(it->prev_frame));
 }
 
 void obj_refs(VM *vm, U64ArrayObject *it, PtrFn fn) { return; } 
@@ -634,7 +632,7 @@ std::ostream &operator<<(std::ostream &os, Ptr p) {
   } else if (is(Char, p)) {
     return os << "#\\" << toChar(p);
   } else {
-    return os << "don't know how to print ptr.";
+    return os << "don't know how to print ptr: " << (void *)p.value;
   }
 }
 
@@ -643,7 +641,7 @@ void vm_dump_args(VM *vm) {
   auto c = f->argc;
   cout << " dumping args:" << endl;
   while(c--) {
-    cout << "  argument: " << f->argv[c] << endl;
+    cout << "  argument: " << f->argv[f->pad_count + c] << endl;
   }
 }
 
@@ -671,12 +669,14 @@ auto vm_print_stack_trace(VM *vm) {
   while (fr) {
     cout << " FRAME: " << fr << endl;
     cout << "   closure: " << fr->closed_over << endl;
+    cout << "   aligned by: " << fr->pad_count << endl;
+    auto pad = fr->pad_count;
     for (u64 i = 1; i <= fr->argc; i++) {
-      cout << "   arg " << (i - 1) << " = " << fr->argv[fr->argc - i] << endl;
+      cout << "   arg " << (i - 1) << " = " << fr->argv[pad + (fr->argc - i)] << endl;
     }
     auto h =  (u64)fr - (u64)stack;
     cout << "   stack height (bytes): " << h << endl;
-    stack = &fr->argv[fr->argc];
+    stack = &fr->argv[fr->argc + pad];
     fr = fr->prev_frame;
   }
   return NIL;
@@ -1091,9 +1091,15 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCode*fn) {
 void vm_push_stack_frame(VM* vm, u64 argc, ByteCode*fn, Ptr closed_over) {
 
   uint offset = (sizeof(StackFrame) / sizeof(u64));
+
   u64 *top = &((vm->stack - offset)->value);
+  u64 padding = ((u64)top & TAG_MASK) ? 1 : 0;
+  top -= padding;
+  assert(((u64)top & TAG_MASK) == 0);
+
   StackFrame *new_frame = (StackFrame *)top;
   new_frame->header.object_type = StackFrame_ObjectType;
+  new_frame->pad_count = padding;
 
   // cout << "pushing stack frame from: " << vm->stack << endl;
   // cout << "  argc = " << argc << endl;
@@ -1317,7 +1323,8 @@ void vm_interp(VM* vm) {
     case LOAD_ARG: {
       u64 idx = *(++vm->pc);
       u64 argc = vm->frame->argc;
-      auto it = vm->frame->argv[argc - (idx + 1)];
+      u64 ofs  = vm->frame->pad_count;
+      auto it = vm->frame->argv[ofs + (argc - (idx + 1))];
       vm_push(vm, it);
       // cout << " loading arg "<< idx << ": " << it << endl;
       // vm_dump_args(vm);

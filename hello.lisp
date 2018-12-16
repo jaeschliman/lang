@@ -143,3 +143,8 @@
 
 (print (ret1-0))
 (print (ret1-1))
+
+((lambda () (print-stacktrace)))
+((lambda (x) (debug-stacktrace)) 42)
+
+

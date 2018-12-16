@@ -115,9 +115,9 @@ struct ByteCode : Object {
   PtrArrayObject *literals;
 };
 
-struct Frame : Object {
+struct StackFrame : Object {
   Ptr* prev_stack;
-  Frame* prev_frame;
+  StackFrame* prev_frame;
   ByteCode* prev_fn;
   u64* prev_pc;
   Ptr closed_over;
@@ -132,7 +132,7 @@ struct VM {
   void* heap_mem;
   void* heap_end;
   u64 heap_size_in_bytes;
-  Frame *frame;
+  StackFrame *frame;
   u64 *pc;
   ByteCode *bc;
   const char* error;
@@ -508,11 +508,14 @@ auto copy_object(VM *vm, Ptr it) {
 typedef std::function<void(Ptr)> PtrFn;
 
 // TODO: Frame
+void obj_refs(StackFrame *it, PtrFn fn) {
+  
+}
 
 void obj_refs(U64ArrayObject *it, PtrFn fn) { return; } 
 void obj_refs(ByteCode *it, PtrFn fn) {
   fn(objToPtr(it->code));
-  // TODO: literals
+  fn(objToPtr(it->literals));
 } 
 void obj_refs(ByteArrayObject *it, PtrFn fn) { return; } 
 void obj_refs(PtrArrayObject *it, PtrFn fn) {
@@ -536,6 +539,7 @@ void map_refs(Ptr it, PtrFn fn) {
   if (is(PtrArray, it))       return obj_refs((PtrArrayObject *)   toObject(it), fn);
   if (is(RawPointer, it))     return obj_refs((RawPointerObject *) toObject(it), fn);
   if (is(StandardObject, it)) return obj_refs((StandardObject *)   toObject(it), fn);
+  if (is(StackFrame, it))     return obj_refs((StackFrame *)       toObject(it), fn);
   cout << " unknown object type in map_refs" << endl;
   assert(false);
 }
@@ -608,7 +612,7 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
     return os << "#<U64Array (" << len << ") "<< (void*)obj << ">";
   }
   case StackFrame_ObjectType: {
-    auto len = ((const Frame *)obj)->argc;
+    auto len = ((const StackFrame *)obj)->argc;
     return os << "#<StackFrame (argc = " << len << ") "<< (void*)obj << ">";
   }
   case RawPointer_ObjectType: {
@@ -661,7 +665,7 @@ void debug_walk(Ptr it) {
 }
 
 auto vm_print_stack_trace(VM *vm) {
-  Frame *fr = vm->frame;
+  StackFrame *fr = vm->frame;
   Ptr *stack = vm->stack;
   cout << "PRINTING STACKTRACE:" << endl;
   while (fr) {
@@ -1080,9 +1084,9 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCode*fn) {
 
 void vm_push_stack_frame(VM* vm, u64 argc, ByteCode*fn, Ptr closed_over) {
 
-  uint offset = (sizeof(Frame) / sizeof(u64));
+  uint offset = (sizeof(StackFrame) / sizeof(u64));
   u64 *top = &((vm->stack - offset)->value);
-  Frame *new_frame = (Frame *)top;
+  StackFrame *new_frame = (StackFrame *)top;
   new_frame->header.object_type = StackFrame_ObjectType;
 
   // cout << "pushing stack frame from: " << vm->stack << endl;

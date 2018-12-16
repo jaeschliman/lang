@@ -17,7 +17,7 @@ DONE: booleans
 DONE: characters
 DONE: obj_size function // heap size of object (can be 0 for imms)
 DONE: obj_ptrs function // walk Ptr s of obj (use a lambda)
-TODO: make stack frames objects
+DONE: make stack frames objects
 TODO: read string
 TODO: tests! (something like an assert)
 TODO: bounds checking for heap allocation
@@ -216,14 +216,38 @@ inline Ptr objToPtr(Object *ref) {
   return p;
 }
 
+Object *toObject(Ptr self) {
+  return (Object *)(self.value & EXTRACT_PTR_MASK);
+}
+
 inline bool isNonNilObject(Ptr it) {
   return it.value != 1 && ((it.value & TAG_MASK) == OBJECT_TAG);
 }
 
-#define is(type, it) \
-  ((type##_ObjectType > TAG_MASK) \
-   ? isNonNilObject((it)) && (toObject((it)))->header.object_type == type##_ObjectType \
-   : (it.value & TAG_MASK) == type##_ObjectType )
+#define type_test_name(type) is_##type##_ObjectType
+#define is(type, it) type_test_name(type)(it)
+
+#define type_test(type, var) inline bool type_test_name(type)(Ptr var)
+
+#define simple_type(type)                                         \
+  type_test(type, it) {                                              \
+  return ((type##_ObjectType > TAG_MASK)                          \
+          ? isNonNilObject(it) &&                                 \
+          (toObject(it))->header.object_type == type##_ObjectType \
+          : (it.value & TAG_MASK) == type##_ObjectType );         \
+  }
+
+simple_type(ByteCode)
+simple_type(RawPointer)
+simple_type(ByteArray)
+simple_type(U64Array)
+simple_type(PtrArray)
+simple_type(StandardObject)
+simple_type(StackFrame)
+simple_type(Fixnum)
+simple_type(Object)
+simple_type(Char)
+simple_type(Bool)
 
 #define to(type, it) to##type(it)
 
@@ -249,9 +273,6 @@ Ptr s64ToPtr(s64 value) {
   return p;
 }
 
-Object *toObject(Ptr self) {
-  return (Object *)(self.value & EXTRACT_PTR_MASK);
-}
 
 bool isNil(Ptr self) {
   return self.value == OBJECT_TAG;
@@ -301,8 +322,7 @@ ByteArrayObject *alloc_bao(VM *vm, BAOType ty, uint len) {
   return obj;
 }
 
-// shame we can't write is(Symbol, it)...
-bool isSymbol(Ptr it) {
+type_test(Symbol, it){
   if (!is(ByteArray, it)) return false;
   auto bao = (ByteArrayObject *)toObject(it);
   return bao->bao_type == Symbol;
@@ -844,7 +864,7 @@ Ptr intern(VM *vm, string name) {
 }
 
 void set_global(VM *vm, Ptr sym, Ptr value) {
-  assert(isSymbol(sym));
+  assert(is(Symbol, sym));
   set_assoc(vm, &vm->globals->env, sym, value);
 }
 
@@ -1462,7 +1482,7 @@ public:
     return this;
   }
   auto loadGlobal(Ptr sym) {
-    if (!isSymbol(sym)) {
+    if (!is(Symbol, sym)) {
       cout << " ERROR: " << sym << " is not a symbol.";
       assert(false);
     }
@@ -1663,7 +1683,7 @@ void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* p_env) {
   do_list(vm, vars, [&](Ptr lst){
       auto sym = nth_or_nil(vm, lst, 0);
       auto expr = nth_or_nil(vm, lst, 1);
-      assert(isSymbol(sym));
+      assert(is(Symbol, sym));
       auto binding = compiler_env_binding(env, sym);
       auto idx = binding.info->argument_index + start_index;
       binding.info->argument_index = idx;
@@ -1712,7 +1732,7 @@ void emit_if(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
 }
 
 void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
-  if (isSymbol(it)) {
+  if (is(Symbol, it)) {
     auto binding = compiler_env_binding(env, it);
     auto info = binding.info;
     if (info->scope == VariableScope_Global) {
@@ -1732,7 +1752,7 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
     }
   } else if (consp(vm, it)) {
     auto fst = car(vm, it);
-    if (isSymbol(fst)) {
+    if (is(Symbol, fst)) {
       auto _if = intern(vm, "if");
       auto quote = intern(vm, "quote");
       auto lambda = intern(vm, "lambda");
@@ -1800,7 +1820,7 @@ void mark_lambda_closed_over_variables(VM *vm, Ptr it, CompilerEnv *p_env) {
   u64 idx = 0;
   while (!isNil(args)) {
     auto arg = car(vm, args);
-    assert(isSymbol(arg));
+    assert(is(Symbol, arg));
     auto info = (VariableInfo){VariableScope_Argument, idx++, 0};
     env->info->insert(make_pair(arg.value, info));
     args = cdr(vm, args);
@@ -1825,7 +1845,7 @@ void mark_let_closed_over_variables(VM *vm, Ptr it, CompilerEnv* p_env) {
   do_list(vm, vars, [&](Ptr lst){
       auto sym = nth_or_nil(vm, lst, 0);
       auto expr = nth_or_nil(vm, lst, 1);
-      assert(isSymbol(sym));
+      assert(is(Symbol, sym));
 
       // idx is altered in the emit phase to account for surrounding lets
       auto info = (VariableInfo){VariableScope_Let, idx, 0};
@@ -1842,22 +1862,22 @@ void mark_let_closed_over_variables(VM *vm, Ptr it, CompilerEnv* p_env) {
 }
 
 void mark_closed_over_variables(VM *vm, Ptr it, CompilerEnv* env) {
-  if (isSymbol(it)) {
+  if (is(Symbol, it)) {
     mark_variable_for_closure(vm, it, env, 0, false);
   } else if (consp(vm, it)) {
     auto fst = car(vm, it);
-    if (isSymbol(fst) && ptr_eq(intern(vm, "lambda"), fst)) {
+    if (is(Symbol, fst) && ptr_eq(intern(vm, "lambda"), fst)) {
       mark_lambda_closed_over_variables(vm, it, env);
-    } else if (isSymbol(fst) && ptr_eq(intern(vm, "quote"), fst)) {
+    } else if (is(Symbol, fst) && ptr_eq(intern(vm, "quote"), fst)) {
       // do nothing
-    } else if (isSymbol(fst) && ptr_eq(intern(vm, "if"), fst)) {
+    } else if (is(Symbol, fst) && ptr_eq(intern(vm, "if"), fst)) {
       auto test = nth_or_nil(vm, it, 1);
       auto _thn = nth_or_nil(vm, it, 2);
       auto _els = nth_or_nil(vm, it, 3);
       mark_closed_over_variables(vm, test, env);
       mark_closed_over_variables(vm, _thn, env);
       mark_closed_over_variables(vm, _els, env);
-    } else if (isSymbol(fst) && ptr_eq(intern(vm, "let"), fst)) {
+    } else if (is(Symbol, fst) && ptr_eq(intern(vm, "let"), fst)) {
       mark_let_closed_over_variables(vm, it, env);
     } else {
       while(!isNil(it)) {
@@ -1905,7 +1925,7 @@ Ptr mul_objects(VM *vm) {
 Ptr set_global_object(VM *vm) {
   Ptr val = vm_pop(vm);
   Ptr sym = vm_pop(vm);
-  if (!isSymbol(sym)) {
+  if (!is(Symbol, sym)) {
     vm->error = "argument is not a symbol";
     return val;
   }

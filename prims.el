@@ -35,7 +35,7 @@
   "Emit BODY and RETURN-TYPE."
   (if (eq return-type 'any)
       (tmpl " return " body ";")
-    (tmpl "  return from("return-type",("body"));")))
+    (tmpl "  return to("return-type",("body"));")))
 
 (defun emit-prim-impl (prim)
   "Emits a primitive PRIM."
@@ -53,20 +53,35 @@
       (insert (tmpl "// Primitive " (incf counter) "\n"))
       (insert (emit-prim-impl p)))))
 
+(defun emit-prim-encoding (idx argc)
+  "Emit encoding for prim at IDX with ARGC."
+  (tmpl "("idx" << 32) | ("argc " << 16) | PRIM_TAG"))
+
 (defun emit-prim-enum ()
   "Emit enum naming all prims."
   ;; TODO: embed PRIM mask and call count in counter number
   (let ((counter -1))
     (insert (tmpl "
 typedef enum {
-" (mapcar (lambda (p) (tmpl "  " (getf p :prim-name) " = " (incf counter) ",\n")) *prims*) "
-  PRIM_UNUSED = " (incf counter) "
+" (mapcar (lambda (p) (tmpl "  " (getf p :prim-name) " = "
+                            (emit-prim-encoding
+                             (incf counter)
+                             (length (getf p :args)))
+                             ",\n")) *prims*) "
+  PRIM_UNUSED = 0
 } PrimitiveOperations;
 
 "))))
 
-;; TODO: emit PRIM lookup table
-;; (defun emit-prim-table ())
+(defun emit-prim-table ()
+  "Emit primitive lookup table."
+  (insert
+   (tmpl "
+PrimitiveFunction PrimLookupTable[] = {
+"(mapcar (lambda (p) (tmpl "  &" (getf p :prim-name) "_impl,\n")) *prims*)"
+  (void *)0
+};
+")))
 
 (progn
   (clear-prims)
@@ -78,12 +93,14 @@ typedef enum {
   (prim > GT  ((a Fixnum) (b Fixnum)) Bool "a > b")
   (prim % MOD ((a Fixnum) (b Fixnum)) Fixnum "a % b")
   (prim cons CONS ((a any) (b any)) any "cons(vm, a, b)")
-  (prim print PRINT ((a any)) any "primitive_print(a)"))
+  (prim print PRINT ((a any)) any "primitive_print(a)")
+  (setf *prims* (reverse *prims*)))
 
 (with-current-buffer "foo"
   (delete-region (point-min) (point-max))
   (emit-prim-enum)
-  (emit-all-prim-impls))
+  (emit-all-prim-impls)
+  (emit-prim-table))
 
 
 (provide 'prims)

@@ -25,7 +25,8 @@ DONE: memory usage report function
 DONE: if compiler
 DONE: simple let
 DONE: let + closures
-TODO: move symbol table into heap (make it a an object)
+TODO: move symbol table into heap (make it an object)
+TODO: walk_stack_refs(VM *vm, PtrFn)
 TODO: walk_roots(VM *vm) function
 TODO: garbage collection
 TODO: move stack memory into vm-managed heap
@@ -34,6 +35,8 @@ TODO: dump/restore image
 TODO: write macroexpander in the language itself
 TODO: write reader in the language itself
 TODO: sdl integration
+TODO: maybe replace 'ffi' with primitives array (simpler for dump/restore?)
+TODO: code-generate the prims table. elisp?
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack

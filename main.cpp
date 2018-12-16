@@ -77,6 +77,14 @@ enum ObjectType : u64 {
 #define Char_Mask   0b0011
 #define Bool_Mask   0b0100
 
+struct Ptr {
+  u64 value;
+};
+
+bool ptr_eq(Ptr a, Ptr b) {
+  return a.value == b.value;
+}
+
 struct Header {
   ObjectType object_type;
   // u64 flags;
@@ -91,17 +99,20 @@ struct U64ArrayObject : Object {
   u64 data[];
 };
 
-struct Ptr {
-  u64 value;
-};
+typedef enum {
+  Array,
+  Closure
+} PAOType;
 
-bool ptr_eq(Ptr a, Ptr b) {
-  return a.value == b.value;
-}
+struct PtrArrayObject : Object {
+  PAOType pao_type;
+  uint length;
+  Ptr  data[];
+};
 
 struct ByteCode : Object {
   U64ArrayObject *code;
-  Ptr literals[1024]; // TODO: make this a PtrArray (or at least smaller)
+  PtrArrayObject *literals;
 };
 
 struct Frame : Object {
@@ -154,21 +165,10 @@ typedef enum {
   Symbol
 } BAOType;
 
-typedef enum {
-  Array,
-  Closure
-} PAOType;
-
 struct ByteArrayObject : Object {
   BAOType bao_type;
   uint length;
   char data[];
-};
-
-struct PtrArrayObject : Object {
-  PAOType pao_type;
-  uint length;
-  Ptr  data[];
 };
 
 struct RawPointerObject : Object {
@@ -250,14 +250,17 @@ object_type(PtrArray)
 object_type(StandardObject)
 object_type(StackFrame)
 
+#undef prim_type
+#undef object_type
+
 #define to(type, it) to##type(it)
 
-#define VM_ARG(type, name) \
-  Ptr _##name = vm_pop(vm); \
-  if (!is(type, _##name)) { \
+#define VM_ARG(type, name)                             \
+  Ptr _##name = vm_pop(vm);                            \
+  if (!is(type, _##name)) {                            \
     vm->error = " argument " #name " is not a " #type; \
-    return NIL; \
-  } \
+    return NIL;                                        \
+  }                                                    \
   auto name = to(type, _##name);
 
 s64 toS64(Ptr self) {
@@ -343,7 +346,7 @@ PtrArrayObject *toPtrArrayObject(Ptr it) {
   return (PtrArrayObject *)toObject(it);
 }
 
-bool isArray(Ptr it) {
+type_test(Array, it) {
   return is(PtrArray, it) && (toPtrArrayObject(it))->pao_type == Array;
 }
 
@@ -438,7 +441,7 @@ Ptr make_closure(VM *vm, Ptr code, Ptr env) {
   return c;
 }
 
-bool isClosure(Ptr it) {
+type_test(Closure, it) {
   return is(PtrArray, it) && (toPtrArrayObject(it))->pao_type == Closure;
 }
 
@@ -1194,7 +1197,7 @@ void vm_interp(VM* vm) {
       break;
     case PUSHLIT: {
       u64 idx = *(++vm->pc);
-      Ptr it = vm->bc->literals[idx];
+      Ptr it = vm->bc->literals->data[idx];
       vm_push(vm, it);
       break;
     }
@@ -1282,7 +1285,7 @@ void vm_interp(VM* vm) {
     case CALL: {
       u64 argc = *(++vm->pc);
       auto fn = vm_pop(vm);
-      if (!isClosure(fn)) {
+      if (!is(Closure, fn)) {
         vm->error = "value is not a closure";
         break;
       }
@@ -1335,6 +1338,7 @@ private:
   Ptr labelContext;
 
   u64 *temp_count;
+  vector<Ptr> *literals;
 
   ByteCodeBuilder* pushOp(u8 op) {
     return pushU64(op);
@@ -1367,6 +1371,14 @@ private:
       *loc = tgt;
     }
   }
+  void finalizeByteCode() {
+    auto literal_count = literals->size();
+    auto array = alloc_pao(vm, Array, literal_count);
+    bc->literals = array;
+    for (u64 i = 0; i < literal_count; i++) {
+      array->data[i] = literals->at(i);
+    }
+  }
   u64 currentAddress() {
     return bc_index;
   }
@@ -1381,6 +1393,7 @@ public:
     branchLocations = new vector<branch_entry>;
     labelContext = s64ToPtr(0);
     labelContextStack = new vector<Ptr>;
+    literals = new vector<Ptr>;
 
     pushOp(STACK_RESERVE);
     temp_count = &bc_mem[bc_index];
@@ -1393,7 +1406,8 @@ public:
     return start;
   }
   auto pushLit(Ptr literal) {
-    bc->literals[lit_index] = literal;
+    // TODO: deduplicate them
+    literals->push_back(literal);
     pushOp(PUSHLIT);
     pushOp(lit_index);
     lit_index++;
@@ -1425,9 +1439,9 @@ public:
     return this;
   }
   auto FFICall(CCallFunction fn) {
-    return this
-      ->pushLit(make_raw_pointer(vm, (void *)fn))
-      ->pushOp(FFI_CALL);
+    pushLit(make_raw_pointer(vm, (void *)fn));
+    pushOp(FFI_CALL);
+    return this;
   }
   auto label(const char *name) {
     string key = labelify(name);
@@ -1524,6 +1538,7 @@ public:
   ByteCode *build() {
     pushOp(END);
     fixupJumpLocations();
+    finalizeByteCode();
     return bc;
   }
 };

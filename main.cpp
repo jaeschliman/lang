@@ -62,21 +62,20 @@ typedef uint8_t u8;
 typedef int8_t s8;
 
 enum ObjectType : u64 {
-  // need to have the low 4 bits clear
-  ByteCode_ObjectType       = 0b00010000,
-  RawPointer_ObjectType     = 0b00100000,
-  ByteArray_ObjectType      = 0b00110000,
-  U64Array_ObjectType       = 0b01000000,
-  PtrArray_ObjectType       = 0b01010000,
-  StandardObject_ObjectType = 0b01100000,
-  StackFrame_ObjectType     = 0b01110000
+  ByteCode_ObjectType,
+  RawPointer_ObjectType,
+  ByteArray_ObjectType,
+  U64Array_ObjectType,
+  PtrArray_ObjectType,
+  StandardObject_ObjectType,
+  StackFrame_ObjectType,
 };
 
 // so we can write the is(...) macro
-#define Fixnum_ObjectType 0b0000
-#define Object_ObjectType 0b0001
-#define Char_ObjectType   0b0011
-#define Bool_ObjectType   0b0100
+#define Fixnum_Mask 0b0000
+#define Object_Mask 0b0001
+#define Char_Mask   0b0011
+#define Bool_Mask   0b0100
 
 struct Header {
   ObjectType object_type;
@@ -224,30 +223,32 @@ inline bool isNonNilObject(Ptr it) {
   return it.value != 1 && ((it.value & TAG_MASK) == OBJECT_TAG);
 }
 
-#define type_test_name(type) is_##type##_ObjectType
+#define type_test_name(type) is_##type##_Impl
 #define is(type, it) type_test_name(type)(it)
 
 #define type_test(type, var) inline bool type_test_name(type)(Ptr var)
 
-#define simple_type(type)                                         \
-  type_test(type, it) {                                              \
-  return ((type##_ObjectType > TAG_MASK)                          \
-          ? isNonNilObject(it) &&                                 \
-          (toObject(it))->header.object_type == type##_ObjectType \
-          : (it.value & TAG_MASK) == type##_ObjectType );         \
+#define prim_type(type) type_test(type, it){     \
+    return (it.value & TAG_MASK) == type##_Mask; \
   }
 
-simple_type(ByteCode)
-simple_type(RawPointer)
-simple_type(ByteArray)
-simple_type(U64Array)
-simple_type(PtrArray)
-simple_type(StandardObject)
-simple_type(StackFrame)
-simple_type(Fixnum)
-simple_type(Object)
-simple_type(Char)
-simple_type(Bool)
+#define object_type(type)                                             \
+  type_test(type, it) {                                               \
+    return (isNonNilObject(it) &&                                     \
+            (toObject(it))->header.object_type == type##_ObjectType); \
+  }
+
+prim_type(Fixnum)
+prim_type(Char)
+prim_type(Bool)
+type_test(Object, it) { return isNonNilObject(it); }
+object_type(ByteCode)
+object_type(RawPointer)
+object_type(ByteArray)
+object_type(U64Array)
+object_type(PtrArray)
+object_type(StandardObject)
+object_type(StackFrame)
 
 #define to(type, it) to##type(it)
 

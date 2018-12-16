@@ -25,8 +25,10 @@ DONE: memory usage report function
 DONE: if compiler
 DONE: simple let
 DONE: let + closures
-TODO: move stack memory into vm-managed heap
+TODO: move symbol table into heap (make it a an object)
+TODO: walk_roots(VM *vm) function
 TODO: garbage collection
+TODO: move stack memory into vm-managed heap
 TODO: continuations / exceptions / signals
 TODO: dump/restore image
 TODO: write macroexpander in the language itself
@@ -60,14 +62,21 @@ typedef uint8_t u8;
 typedef int8_t s8;
 
 enum ObjectType : u64 {
-  ByteCode_ObjectType,
-  RawPointer_ObjectType,
-  ByteArray_ObjectType,
-  U64Array_ObjectType,
-  PtrArray_ObjectType,
-  StdObject_ObjectType,
-  StackFrame_ObjectType
+  // need to have the low 4 bits clear
+  ByteCode_ObjectType       = 0b00010000,
+  RawPointer_ObjectType     = 0b00100000,
+  ByteArray_ObjectType      = 0b00110000,
+  U64Array_ObjectType       = 0b01000000,
+  PtrArray_ObjectType       = 0b01010000,
+  StandardObject_ObjectType = 0b01100000,
+  StackFrame_ObjectType     = 0b01110000
 };
+
+// so we can write the is(...) macro
+#define Fixnum_ObjectType 0b0000
+#define Object_ObjectType 0b0001
+#define Char_ObjectType   0b0011
+#define Bool_ObjectType   0b0100
 
 struct Header {
   ObjectType object_type;
@@ -93,7 +102,7 @@ bool ptr_eq(Ptr a, Ptr b) {
 
 struct ByteCode : Object {
   U64ArrayObject *code;
-  Ptr literals[1024];
+  Ptr literals[1024]; // TODO: make this a PtrArray (or at least smaller)
 };
 
 struct Frame : Object {
@@ -201,12 +210,38 @@ struct StandardObject : Object { // really more of a structure object
 // not so sure about this...
 #define NIL objToPtr((Object *)0)
 
-bool isFixnum(Ptr self) {
-  return (self.value & TAG_MASK) == FIXNUM_TAG;
+inline Ptr objToPtr(Object *ref) {
+  Ptr p;
+  p.value = ((u64) ref) |  0b1;
+  return p;
 }
+
+inline bool isNonNilObject(Ptr it) {
+  return it.value != 1 && ((it.value & TAG_MASK) == OBJECT_TAG);
+}
+
+#define is(type, it) \
+  ((type##_ObjectType > TAG_MASK) \
+   ? isNonNilObject((it)) && (toObject((it)))->header.object_type == type##_ObjectType \
+   : (it.value & TAG_MASK) == type##_ObjectType )
+
+#define to(type, it) to##type(it)
+
+#define VM_ARG(type, name) \
+  Ptr _##name = vm_pop(vm); \
+  if (!is(type, _##name)) { \
+    vm->error = " argument " #name " is not a " #type; \
+    return NIL; \
+  } \
+  auto name = to(type, _##name);
+
 s64 toS64(Ptr self) {
   return ((s64)self.value) >> TAG_BITS;
 }
+s64 toFixnum(Ptr self) {
+  return ((s64)self.value) >> TAG_BITS;
+}
+
 Ptr s64ToPtr(s64 value) {
   // TODO: overflow checking
   Ptr p;
@@ -214,14 +249,6 @@ Ptr s64ToPtr(s64 value) {
   return p;
 }
 
-bool isObject(Ptr self) {
-  return (self.value & TAG_MASK) == OBJECT_TAG;
-}
-Ptr objToPtr(Object *ref) {
-  Ptr p;
-  p.value = ((u64) ref) |  0b1;
-  return p;
-}
 Object *toObject(Ptr self) {
   return (Object *)(self.value & EXTRACT_PTR_MASK);
 }
@@ -230,9 +257,6 @@ bool isNil(Ptr self) {
   return self.value == OBJECT_TAG;
 }
 
-bool isBool(Ptr self) {
-  return (self.value & TAG_MASK) == BOOL_TAG;
-}
 bool toBool(Ptr self) {
   return (self.value >> TAG_MASK) ? true : false;
 }
@@ -240,9 +264,6 @@ Ptr boolToPtr(bool tf) {
   return tf ? TRUE : FALSE;
 }
 
-bool isChar(Ptr self) {
-  return (self.value & TAG_MASK) == CHAR_TAG;
-}
 char toChar(Ptr self) {
   return self.value >> TAG_BITS;
 }
@@ -259,10 +280,6 @@ U64ArrayObject *alloc_u64ao(VM *vm, uint len) {
   return obj;
 }
 
-bool isU64ArrayObject(Ptr it) {
-  return isObject(it) && toObject(it)->header.object_type == U64Array_ObjectType;
-}
-
 ByteCode *alloc_bytecode(VM *vm) {
   auto byte_count = sizeof(ByteCode);
   ByteCode *obj = (ByteCode *)vm_alloc(vm, byte_count);
@@ -270,12 +287,8 @@ ByteCode *alloc_bytecode(VM *vm) {
   return obj;
 }
 
-bool isByteCode(Ptr it) {
-  return isObject(it) && toObject(it)->header.object_type == ByteCode_ObjectType;
-}
-
 ByteCode *toBytecode(Ptr it) {
-  assert(isByteCode(it));
+  assert(is(ByteCode, it));
   return (ByteCode*)toObject(it);
 }
 
@@ -288,12 +301,9 @@ ByteArrayObject *alloc_bao(VM *vm, BAOType ty, uint len) {
   return obj;
 }
 
-bool isByteArrayObject(Ptr it) {
-  return isObject(it) && toObject(it)->header.object_type == ByteArray_ObjectType;
-}
-
+// shame we can't write is(Symbol, it)...
 bool isSymbol(Ptr it) {
-  if (!isByteArrayObject(it)) return false;
+  if (!is(ByteArray, it)) return false;
   auto bao = (ByteArrayObject *)toObject(it);
   return bao->bao_type == Symbol;
 }
@@ -307,30 +317,22 @@ PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   return obj;
 }
 
-bool isPtrArrayObject(Ptr it) {
-  return isObject(it) && toObject(it)->header.object_type == PtrArray_ObjectType;
-}
-
 PtrArrayObject *toPtrArrayObject(Ptr it) {
-  assert(isPtrArrayObject(it));
+  assert(is(PtrArray,it));
   return (PtrArrayObject *)toObject(it);
 }
 
 bool isArray(Ptr it) {
-  return isPtrArrayObject(it) && (toPtrArrayObject(it))->pao_type == Array;
+  return is(PtrArray, it) && (toPtrArrayObject(it))->pao_type == Array;
 }
 
 StandardObject *alloc_standard_object(VM *vm, StandardObject *klass, u64 ivar_count) {
   auto byte_count = (sizeof(StandardObject)) + ivar_count * (sizeof(Ptr));
   auto result = (StandardObject *)vm_alloc(vm, byte_count);
-  result->header.object_type = StdObject_ObjectType;
+  result->header.object_type = StandardObject_ObjectType;
   result->klass = klass;
   result->ivar_count = ivar_count;
   return result;
-}
-
-bool isStandardObject(Ptr it) {
-  return isObject(it) && (toObject(it))->header.object_type == StdObject_ObjectType;
 }
 
 Ptr standard_object_get_ivar(StandardObject *object, u64 idx) {
@@ -385,10 +387,6 @@ Ptr make_raw_pointer(VM *vm, void* ptr) {
   return objToPtr(obj);
 }
 
-bool isRawPointerObject(Ptr it) {
-  return isObject(it) && (toObject(it))->header.object_type == RawPointer_ObjectType;
-}
-
 Ptr make_array(VM *vm, u64 len, Ptr objs[]) {
   auto array = alloc_pao(vm, Array, len);
   for (u64 i = 0; i < len; i++) {
@@ -410,8 +408,8 @@ void array_set(Ptr array, u64 index, Ptr value) {
 }
 
 Ptr make_closure(VM *vm, Ptr code, Ptr env) {
-  assert(isByteCode(code));
-  assert(isNil(env) || isPtrArrayObject(env));
+  assert(is(ByteCode, code));
+  assert(isNil(env) || is(PtrArray, env));
   auto it = alloc_pao(vm, Closure, 2); 
   auto c = objToPtr(it);
   array_set(c, 0, code);
@@ -420,7 +418,7 @@ Ptr make_closure(VM *vm, Ptr code, Ptr env) {
 }
 
 bool isClosure(Ptr it) {
-  return isPtrArrayObject(it) && (toPtrArrayObject(it))->pao_type == Closure;
+  return is(PtrArray, it) && (toPtrArrayObject(it))->pao_type == Closure;
 }
 
 ByteCode *closure_code(Ptr closure) {
@@ -457,13 +455,13 @@ u64 obj_size(StandardObject *it) {
 // TODO: Frame
 
 auto sizeOf(Ptr it) {
-  if (isNil(it) || !isObject(it)) return (u64)0;
-  if (isU64ArrayObject(it))       return obj_size((U64ArrayObject *)   toObject(it));
-  if (isByteCode(it))             return obj_size((ByteCode *)         toObject(it));
-  if (isByteArrayObject(it))      return obj_size((ByteArrayObject *)  toObject(it));
-  if (isPtrArrayObject(it))       return obj_size((PtrArrayObject *)   toObject(it));
-  if (isRawPointerObject(it))     return obj_size((RawPointerObject *) toObject(it));
-  if (isStandardObject(it))       return obj_size((StandardObject *)   toObject(it));
+  if (isNil(it) || !is(Object, it)) return (u64)0;
+  if (is(U64Array, it))       return obj_size((U64ArrayObject *)   toObject(it));
+  if (is(ByteCode, it))       return obj_size((ByteCode *)         toObject(it));
+  if (is(ByteArray, it))      return obj_size((ByteArrayObject *)  toObject(it));
+  if (is(PtrArray, it))       return obj_size((PtrArrayObject *)   toObject(it));
+  if (is(RawPointer, it))     return obj_size((RawPointerObject *) toObject(it));
+  if (is(StandardObject, it)) return obj_size((StandardObject *)   toObject(it));
   cout << " unknown object type in object_size " << endl;
   assert(false);
 }
@@ -507,13 +505,13 @@ void obj_refs(StandardObject *it, PtrFn fn) {
 } 
 
 void map_refs(Ptr it, PtrFn fn) {
-  if (isNil(it) || !isObject(it)) return;
-  if (isU64ArrayObject(it))       return obj_refs((U64ArrayObject *)   toObject(it), fn);
-  if (isByteCode(it))             return obj_refs((ByteCode *)         toObject(it), fn);
-  if (isByteArrayObject(it))      return obj_refs((ByteArrayObject *)  toObject(it), fn);
-  if (isPtrArrayObject(it))       return obj_refs((PtrArrayObject *)   toObject(it), fn);
-  if (isRawPointerObject(it))     return obj_refs((RawPointerObject *) toObject(it), fn);
-  if (isStandardObject(it))       return obj_refs((StandardObject *)   toObject(it), fn);
+  if (isNil(it) || !is(Object, it)) return;
+  if (is(U64Array, it))       return obj_refs((U64ArrayObject *)   toObject(it), fn);
+  if (is(ByteCode, it))       return obj_refs((ByteCode *)         toObject(it), fn);
+  if (is(ByteArray, it))      return obj_refs((ByteArrayObject *)  toObject(it), fn);
+  if (is(PtrArray, it))       return obj_refs((PtrArrayObject *)   toObject(it), fn);
+  if (is(RawPointer, it))     return obj_refs((RawPointerObject *) toObject(it), fn);
+  if (is(StandardObject, it)) return obj_refs((StandardObject *)   toObject(it), fn);
   cout << " unknown object type in map_refs" << endl;
   assert(false);
 }
@@ -534,7 +532,8 @@ std::ostream &operator<<(std::ostream &os, Ptr p);
 
 std::ostream &operator<<(std::ostream &os, Object *obj) { 
   auto otype = obj->header.object_type;
-  if (otype == ByteArray_ObjectType) {
+  switch (otype) {
+  case ByteArray_ObjectType: {
     const ByteArrayObject *vobj = (const ByteArrayObject*)(obj);
     switch(vobj->bao_type) {
     case String:
@@ -550,7 +549,8 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
       }
       return os;
     }
-  } else if (otype == PtrArray_ObjectType) {
+  }
+  case PtrArray_ObjectType: {
     const PtrArrayObject *vobj = (const PtrArrayObject*)(obj);
     os << "[";
     if (vobj->length > 0) {
@@ -561,11 +561,12 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
     }
     os << "]";
     return os;
-  } else if (otype == StdObject_ObjectType) {
+  }
+  case StandardObject_ObjectType: {
     auto sobj = (StandardObject *)obj;
     auto name = standard_object_get_ivar(sobj->klass, BaseClassName);
     auto pr_obj = standard_object_get_ivar(sobj->klass, BaseClassDebugPrint);
-    if (!isNil(pr_obj) && isRawPointerObject(pr_obj)) {
+    if (is(RawPointer, pr_obj)) {
       auto rp  = (RawPointerObject *)toObject(pr_obj);
       auto fn = (DebugPrintFunction)rp->pointer;
       fn(os, objToPtr(obj));
@@ -573,15 +574,22 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
     }
     cout << "#<A " << toObject(name) << " " << (void*)obj << ">";
     return os;
-  } else if (otype == ByteCode_ObjectType) {
+  }
+  case ByteCode_ObjectType: {
     cout << "#<ByteCode " << (void*)obj << ">";
     return os;
-  } else if (otype == U64Array_ObjectType) {
+  }
+  case U64Array_ObjectType: {
     auto len = ((const U64ArrayObject *)obj)->length;
     return os << "#<U64Array (" << len << ") "<< (void*)obj << ">";
-  } else if (otype == StackFrame_ObjectType) {
+  }
+  case StackFrame_ObjectType: {
     auto len = ((const Frame *)obj)->argc;
     return os << "#<StackFrame (argc = " << len << ") "<< (void*)obj << ">";
+  }
+  case RawPointer_ObjectType: {
+    return os << "#<RawPointer "<< (void*)obj << ">";
+  }
   }
   return os << "don't know how to print object: " << otype << (void*)obj << endl;
 }
@@ -589,13 +597,13 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
 std::ostream &operator<<(std::ostream &os, Ptr p) { 
   if (isNil(p)) {
     return os << "nil";
-  } else if (isObject(p)) {
+  } else if (is(Object, p)) {
     return os << (toObject(p));
-  } else if (isFixnum(p)) {
+  } else if (is(Fixnum, p)) {
     return os << (toS64(p));
-  } else if (isBool(p)) {
+  } else if (is(Bool, p)) {
     return os << ((p.value >> TAG_BITS) ? "#t" : "#f");
-  } else if (isChar(p)) {
+  } else if (is(Char, p)) {
     return os << "#\\" << toChar(p);
   } else {
     return os << "don't know how to print ptr.";
@@ -650,7 +658,7 @@ auto vm_print_stack_trace(VM *vm) {
 
 StandardObject *make_standard_object(VM *vm, StandardObject *klass, Ptr*ivars) {
   auto ivar_count_object = standard_object_get_ivar(klass, BaseClassIvarCount);
-  assert(isFixnum(ivar_count_object));
+  assert(is(Fixnum, ivar_count_object));
   auto ivar_count = toS64(ivar_count_object);
   auto result = alloc_standard_object(vm, klass, ivar_count);
   for (auto i = 0; i < ivar_count; i++) {
@@ -661,7 +669,7 @@ StandardObject *make_standard_object(VM *vm, StandardObject *klass, Ptr*ivars) {
 
 bool isStdObj(Ptr p) {
   if (isNil(p)) return false;
-  return isObject(p) && (toObject(p)->header.object_type == StdObject_ObjectType);
+  return is(Object, p) && (toObject(p)->header.object_type == StandardObject_ObjectType);
 }
 
 /* ---------------------------------------- */
@@ -1110,12 +1118,12 @@ Ptr vm_pop(VM* vm) {
 void vm_ffi_call(VM* vm) {
   Ptr ptr = vm_pop(vm);
   // cout << "ffi calling: " << ptr << endl;
-  if (isNil(ptr) || !isObject(ptr)) {
+  if (isNil(ptr) || !is(Object, ptr)) {
     vm->error = "not a callable object";
     return;
   }
   // cout << "ffi checking object type" << endl;
-  if (!isRawPointerObject(ptr)) {
+  if (!is(RawPointer, ptr)) {
     vm->error = "not a raw pointer object";
     return;
   }
@@ -1560,7 +1568,7 @@ auto compiler_env_get_subenv(CompilerEnv *env, Ptr it) {
   return env->sub_envs->find(key)->second;
 }
 
-VariableInfo GLOBAL_INFO = (VariableInfo){ VariableScope_Global, 0};
+VariableInfo GLOBAL_INFO = (VariableInfo){ VariableScope_Global, 0, 0};
 
 
 VariableBinding compiler_env_binding(CompilerEnv *env, Ptr sym) {
@@ -1878,44 +1886,19 @@ Ptr print_object(VM *vm) {
 }
 
 Ptr decrement_object(VM *vm) {
-  Ptr object = vm_pop(vm);
-  if (!isFixnum(object)) {
-    vm->error = "argument is not a fixnum";
-    return object;
-  }
-  s64 n = toS64(object);
+  VM_ARG(Fixnum, n);
   return s64ToPtr(n - 1);
 }
 
 Ptr add_objects(VM *vm) {
-  Ptr objectA = vm_pop(vm);
-  if (!isFixnum(objectA)) {
-    vm->error = "argument A is not a fixnum";
-    return objectA;
-  }
-  Ptr objectB = vm_pop(vm);
-  if (!isFixnum(objectB)) {
-    vm->error = "argument B is not a fixnum";
-    return objectB;
-  }
-  s64 a = toS64(objectA);
-  s64 b = toS64(objectB);
+  VM_ARG(Fixnum, b);
+  VM_ARG(Fixnum, a);
   return s64ToPtr(a + b);
 }
 
 Ptr mul_objects(VM *vm) {
-  Ptr objectA = vm_pop(vm);
-  if (!isFixnum(objectA)) {
-    vm->error = "argument A is not a fixnum";
-    return objectA;
-  }
-  Ptr objectB = vm_pop(vm);
-  if (!isFixnum(objectB)) {
-    vm->error = "argument B is not a fixnum";
-    return objectB;
-  }
-  s64 a = toS64(objectA);
-  s64 b = toS64(objectB);
+  VM_ARG(Fixnum, b);
+  VM_ARG(Fixnum, a);
   return s64ToPtr(a * b);
 }
 

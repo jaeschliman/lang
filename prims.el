@@ -83,6 +83,20 @@ PrimitiveFunction PrimLookupTable[] = {
 };
 ")))
 
+(defun emit-prim-registration (p)
+  "String for registration of primitive P."
+  (tmpl "  set_global(vm, \"" (getf p :name) "\", "(getf p :prim-name)");\n" ))
+
+(defun emit-prim-registration-function ()
+  "Emits the function which registers the primitives under symbol names in the VM."
+  (insert (tmpl "
+void initialize_primitive_functions(VM *vm) {
+
+" (mapcar 'emit-prim-registration *prims*)
+"
+}
+")))
+
 (progn
   (clear-prims)
   (prim + PLUS ((a Fixnum) (b Fixnum)) Fixnum "a + b")
@@ -100,7 +114,8 @@ PrimitiveFunction PrimLookupTable[] = {
   (delete-region (point-min) (point-max))
   (emit-prim-enum)
   (emit-all-prim-impls)
-  (emit-prim-table))
+  (emit-prim-table)
+  (emit-prim-registration-function))
 
 
 (provide 'prims)

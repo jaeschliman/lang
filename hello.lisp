@@ -135,3 +135,11 @@
 
 (print (shared-1 1))
 (print (shared-2 1))
+
+(let ((x 1))
+  (set-symbol-value 'ret1-0 (lambda () x))
+  (let ()
+    (set-symbol-value 'ret1-1 (lambda () x))))
+
+(print (ret1-0))
+(print (ret1-1))

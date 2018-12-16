@@ -456,27 +456,15 @@ Ptr closure_env(Ptr closure) {
 /* ---------------------------------------- */
 
 // size of object in bytes
+// note that obj_size of stack frame does not take into account temporaries.
 
-u64 obj_size(U64ArrayObject *it) {
-  return sizeof(U64ArrayObject) + (it->length * 8);
-} 
-u64 obj_size(ByteCode *it) {
- return sizeof(ByteCode) + 0;
-} 
-u64 obj_size(ByteArrayObject *it) {
- return sizeof(ByteArrayObject) + it->length;
-} 
-u64 obj_size(PtrArrayObject *it) {
-  return sizeof(PtrArrayObject) + (it->length * 8);
-} 
-u64 obj_size(RawPointerObject *it) {
- return sizeof(RawPointerObject) + 0;
-} 
-u64 obj_size(StandardObject *it) {
-  return sizeof(StandardObject) + (it->ivar_count * 8);
-} 
-
-// TODO: Frame
+u64 obj_size(U64ArrayObject *it)  { return sizeof(U64ArrayObject) + it->length * 8;    } 
+u64 obj_size(ByteCode *it)        { return sizeof(ByteCode) + 0;                       } 
+u64 obj_size(ByteArrayObject *it) { return sizeof(ByteArrayObject) + it->length;       } 
+u64 obj_size(PtrArrayObject *it)  { return sizeof(PtrArrayObject) + it->length * 8;    } 
+u64 obj_size(RawPointerObject *it){ return sizeof(RawPointerObject) + 0;               } 
+u64 obj_size(StandardObject *it)  { return sizeof(StandardObject) + it->ivar_count * 8;}
+u64 obj_size(StackFrame*it)       { return sizeof(StackFrame) + it->argc * 8;          } 
 
 auto sizeOf(Ptr it) {
   if (isNil(it) || !is(Object, it)) return (u64)0;
@@ -486,6 +474,7 @@ auto sizeOf(Ptr it) {
   if (is(PtrArray, it))       return obj_size((PtrArrayObject *)   toObject(it));
   if (is(RawPointer, it))     return obj_size((RawPointerObject *) toObject(it));
   if (is(StandardObject, it)) return obj_size((StandardObject *)   toObject(it));
+  if (is(StackFrame, it))     return obj_size((StackFrame *)       toObject(it));
   cout << " unknown object type in object_size " << endl;
   assert(false);
 }
@@ -507,39 +496,50 @@ auto copy_object(VM *vm, Ptr it) {
 
 typedef std::function<void(Ptr)> PtrFn;
 
-// TODO: Frame
-void obj_refs(StackFrame *it, PtrFn fn) {
-  
+void obj_refs(VM *vm, StackFrame *it, PtrFn fn) {
+  //arguments
+  for (u64 i = 0; i < it->argc; i++) {
+    fn(it->argv[i]);
+  }
+  //closure
+  fn(it->closed_over);
+  //temporaries
+  for (u64 curr = (u64)vm->stack; curr < (u64)it; curr++) {
+    auto tmp = (Ptr){curr};
+    fn(tmp);
+  }
+  //prev frame
+  fn(objToPtr(it->prev_frame));
 }
 
-void obj_refs(U64ArrayObject *it, PtrFn fn) { return; } 
-void obj_refs(ByteCode *it, PtrFn fn) {
+void obj_refs(VM *vm, U64ArrayObject *it, PtrFn fn) { return; } 
+void obj_refs(VM *vm, ByteCode *it, PtrFn fn) {
   fn(objToPtr(it->code));
   fn(objToPtr(it->literals));
 } 
-void obj_refs(ByteArrayObject *it, PtrFn fn) { return; } 
-void obj_refs(PtrArrayObject *it, PtrFn fn) {
+void obj_refs(VM *vm, ByteArrayObject *it, PtrFn fn) { return; } 
+void obj_refs(VM *vm, PtrArrayObject *it, PtrFn fn) {
   for (u64 i = 0; i < it->length; i++) {
     fn(it->data[i]);
   }
 } 
 
-void obj_refs(RawPointerObject *it, PtrFn fn) { return; } 
-void obj_refs(StandardObject *it, PtrFn fn) {
+void obj_refs(VM *vm, RawPointerObject *it, PtrFn fn) { return; } 
+void obj_refs(VM *vm, StandardObject *it, PtrFn fn) {
   for (u64 i = 0; i < it->ivar_count; i++) {
     fn(it->ivars[i]);
   }
 } 
 
-void map_refs(Ptr it, PtrFn fn) {
+void map_refs(VM *vm, Ptr it, PtrFn fn) {
   if (isNil(it) || !is(Object, it)) return;
-  if (is(U64Array, it))       return obj_refs((U64ArrayObject *)   toObject(it), fn);
-  if (is(ByteCode, it))       return obj_refs((ByteCode *)         toObject(it), fn);
-  if (is(ByteArray, it))      return obj_refs((ByteArrayObject *)  toObject(it), fn);
-  if (is(PtrArray, it))       return obj_refs((PtrArrayObject *)   toObject(it), fn);
-  if (is(RawPointer, it))     return obj_refs((RawPointerObject *) toObject(it), fn);
-  if (is(StandardObject, it)) return obj_refs((StandardObject *)   toObject(it), fn);
-  if (is(StackFrame, it))     return obj_refs((StackFrame *)       toObject(it), fn);
+  if (is(U64Array, it))       return obj_refs(vm, (U64ArrayObject *)   toObject(it), fn);
+  if (is(ByteCode, it))       return obj_refs(vm, (ByteCode *)         toObject(it), fn);
+  if (is(ByteArray, it))      return obj_refs(vm, (ByteArrayObject *)  toObject(it), fn);
+  if (is(PtrArray, it))       return obj_refs(vm, (PtrArrayObject *)   toObject(it), fn);
+  if (is(RawPointer, it))     return obj_refs(vm, (RawPointerObject *) toObject(it), fn);
+  if (is(StandardObject, it)) return obj_refs(vm, (StandardObject *)   toObject(it), fn);
+  if (is(StackFrame, it))     return obj_refs(vm, (StackFrame *)       toObject(it), fn);
   cout << " unknown object type in map_refs" << endl;
   assert(false);
 }
@@ -647,20 +647,20 @@ void vm_dump_args(VM *vm) {
   }
 }
 
-void _debug_walk(Ptr it, set<u64>*seen) {
-  map_refs(it, [seen](Ptr p){
+void _debug_walk(VM *vm, Ptr it, set<u64>*seen) {
+  map_refs(vm, it, [&](Ptr p){
       if (seen->find(p.value) != seen->end()) return;
       seen->insert(p.value);
       cout << "    " << p << endl;
-      _debug_walk(p, seen);
+      _debug_walk(vm, p, seen);
     });
 }
 
-void debug_walk(Ptr it) {
+void debug_walk(VM *vm, Ptr it) {
   set<u64> seen;
   cout << "DEBUG WALK::" << endl;
   // TODO: print out `it` as well :P
-  _debug_walk(it, &seen);
+  _debug_walk(vm, it, &seen);
   cout << "========================================" << endl << endl;
 }
 
@@ -679,6 +679,12 @@ auto vm_print_stack_trace(VM *vm) {
     stack = &fr->argv[fr->argc];
     fr = fr->prev_frame;
   }
+  return NIL;
+}
+
+auto vm_print_debug_stack_trace(VM *vm) {
+  StackFrame *fr = vm->frame;
+  debug_walk(vm, objToPtr(fr));
   return NIL;
 }
 
@@ -1971,6 +1977,7 @@ void initialize_global_environment(VM *vm) {
   add_primitive_function(vm, "mul", &mul_objects, 2);
   add_primitive_function(vm, "set-symbol-value", &set_global_object, 2);
   add_primitive_function(vm, "print-stacktrace", &vm_print_stack_trace, 0);
+  add_primitive_function(vm, "debug-stacktrace", &vm_print_debug_stack_trace, 0);
 }
 
 void run_string(const char* str) {

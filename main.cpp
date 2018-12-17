@@ -1333,7 +1333,8 @@ void vm_interp(VM* vm) {
       auto fn = vm_pop(vm);
       if (is(PrimOp, fn)) {
         u64 v = fn.value;
-        // auto argc = (v >> 16) & 0xFF; //not needed yet
+        // TODO: validate argc against prim op
+        // auto argc = (v >> 16) & 0xFF;
         auto idx  = (v >> 32) & 0xFFFF;
         // cout << " calling prim at idx: " << idx << " arg count = " << argc << endl;
         PrimitiveFunction fn = PrimLookupTable[idx];

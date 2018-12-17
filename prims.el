@@ -2,11 +2,16 @@
 
 ;;; Code:
 (require 'cl)
+
 (defvar *prims* nil)
-(defun clear-prims () "Clear the primitives." (setq *prims* nil))
 
 (defmacro prim (name prim-name arguments return-type body-expression)
-  "Define a primitive."
+  "Defines a primitive.
+
+  NAME is the symbol the primitive will be installed as.
+  PRIM-NAME is a unique cpp-friendly name used in generating the prim enum.
+  ARGUMENTS describe the argument names and types.
+  RETURN-TYPE specifies the primitive return type of the BODY-EXPRESSION."
   `(push
     '(:name ,(symbol-name name)
             :prim-name ,(concat "PRIM_" (symbol-name prim-name))
@@ -27,8 +32,7 @@
 
 (defun tmpl (&rest args)
   "Templates ARGS as a string."
-  (apply 'concat (mapcar (lambda (item) (tmpl-repr item))
-                         (flatten args))))
+  (apply 'concat (mapcar #'tmpl-repr (flatten args))))
 
 (defun emit-arg (arg)
   "Emit ARG as an argument declaration."
@@ -104,7 +108,7 @@ void initialize_primitive_functions(VM *vm) {
 ")))
 
 (progn
-  (clear-prims)
+  (setf *prims* nil)
 
   (prim +     PLUS   ((a Fixnum) (b Fixnum)) Fixnum "a + b")
   (prim -     MINUS  ((a Fixnum) (b Fixnum)) Fixnum "a - b")
@@ -121,6 +125,8 @@ void initialize_primitive_functions(VM *vm) {
 
   (setf *prims* (reverse *prims*)))
 
+;; TODO: emit directly to file (run in batch mode)
+;; TODO: would be nice to have a prim -> name lookup table for printing as well.
 (with-current-buffer "primop-generated.cpp"
   (delete-region (point-min) (point-max))
   (emit-prim-enum)

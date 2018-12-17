@@ -147,4 +147,6 @@
 ((lambda () (print-stacktrace)))
 ((lambda (x) (debug-stacktrace)) 42)
 
+(print (eq 't 't))
+(print (eq 't 'f))
 

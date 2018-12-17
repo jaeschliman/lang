@@ -66,7 +66,7 @@ typedef int8_t s8;
 
 enum ObjectType : u64 {
   ByteCode_ObjectType,
-  RawPointer_ObjectType,
+  RawPointer_ObjectType, // TODO: get rid of this type
   ByteArray_ObjectType,
   U64Array_ObjectType,
   PtrArray_ObjectType,
@@ -84,6 +84,8 @@ enum ObjectType : u64 {
 struct Ptr {
   u64 value;
 };
+
+
 
 bool ptr_eq(Ptr a, Ptr b) {
   return a.value == b.value;
@@ -143,6 +145,9 @@ struct VM {
   const char* error;
   Globals *globals;
 };
+
+typedef Ptr (*PrimitiveFunction)(VM*);
+extern PrimitiveFunction PrimLookupTable[];
 
 void * vm_alloc(VM *vm, u64 bytes) {
   auto result = (void *)vm->heap_end;
@@ -308,7 +313,7 @@ inline bool isNil(Ptr self) {
 }
 
 inline bool asBool(Ptr self) {
-  return (self.value >> TAG_MASK) ? true : false;
+  return (self.value >> TAG_BITS) ? true : false;
 }
 inline Ptr toBool(bool tf) {
   return tf ? TRUE : FALSE;
@@ -1326,6 +1331,16 @@ void vm_interp(VM* vm) {
     case CALL: {
       u64 argc = *(++vm->pc);
       auto fn = vm_pop(vm);
+      if (is(PrimOp, fn)) {
+        u64 v = fn.value;
+        // auto argc = (v >> 16) & 0xFF; //not needed yet
+        auto idx  = (v >> 32) & 0xFFFF;
+        // cout << " calling prim at idx: " << idx << " arg count = " << argc << endl;
+        PrimitiveFunction fn = PrimLookupTable[idx];
+        Ptr result = (*fn)(vm);
+        vm_push(vm, result);
+        break;
+      }
       if (!is(Closure, fn)) {
         vm->error = "value is not a closure";
         break;
@@ -2004,7 +2019,7 @@ void add_primitive_function(VM *vm, const char *name, CCallFunction fn, u64 argc
 }
 
 void initialize_global_environment(VM *vm) {
-  add_primitive_function(vm, "print", &print_object, 1);
+  // add_primitive_function(vm, "print", &print_object, 1);
   add_primitive_function(vm, "add", &add_objects, 2);
   add_primitive_function(vm, "mul", &mul_objects, 2);
   add_primitive_function(vm, "set-symbol-value", &set_global_object, 2);
@@ -2013,7 +2028,6 @@ void initialize_global_environment(VM *vm) {
 }
 
 /* -------------------------------------------------- */
-typedef CCallFunction PrimitiveFunction;
 Ptr primitive_print(Ptr a) { cout << a << endl; return a; }
 
 #include "./primop-generated.cpp"
@@ -2043,6 +2057,7 @@ void run_string(const char* str) {
   vm->globals->env = NIL;
   initialize_classes(vm);
   initialize_global_environment(vm);
+  initialize_primitive_functions(vm);
 
   // purely for debug printing
   CURRENT_DEBUG_VM = vm;

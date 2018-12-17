@@ -19,9 +19,15 @@
   "Flatten LIST one level."
   (mapcan (lambda (x) (if (consp x) (copy-list x) (list x))) list))
 
+(defun tmpl-repr (item)
+  "The template representation of ITEM."
+  (if (stringp item)
+      item
+    (if item (prin1-to-string item) "")))
+
 (defun tmpl (&rest args)
   "Templates ARGS as a string."
-  (apply 'concat (mapcar (lambda (item) (if (stringp item) item (prin1-to-string item)))
+  (apply 'concat (mapcar (lambda (item) (tmpl-repr item))
                          (flatten args))))
 
 (defun emit-arg (arg)
@@ -99,15 +105,20 @@ void initialize_primitive_functions(VM *vm) {
 
 (progn
   (clear-prims)
-  (prim + PLUS ((a Fixnum) (b Fixnum)) Fixnum "a + b")
-  (prim - MINUS ((a Fixnum) (b Fixnum)) Fixnum "a - b")
-  (prim * TIMES ((a Fixnum) (b Fixnum)) Fixnum "a * b")
-  (prim / DIVIDE ((a Fixnum) (b Fixnum)) Fixnum "a / b")
-  (prim < LT  ((a Fixnum) (b Fixnum)) Bool "a < b")
-  (prim > GT  ((a Fixnum) (b Fixnum)) Bool "a > b")
-  (prim % MOD ((a Fixnum) (b Fixnum)) Fixnum "a % b")
-  (prim cons CONS ((a any) (b any)) any "cons(vm, a, b)")
-  (prim print PRINT ((a any)) any "primitive_print(a)")
+
+  (prim +     PLUS   ((a Fixnum) (b Fixnum)) Fixnum "a + b")
+  (prim -     MINUS  ((a Fixnum) (b Fixnum)) Fixnum "a - b")
+  (prim *     TIMES  ((a Fixnum) (b Fixnum)) Fixnum "a * b")
+  (prim /     DIVIDE ((a Fixnum) (b Fixnum)) Fixnum "a / b")
+  (prim <     LT     ((a Fixnum) (b Fixnum)) Bool   "a < b")
+  (prim >     GT     ((a Fixnum) (b Fixnum)) Bool   "a > b")
+  (prim %     MOD    ((a Fixnum) (b Fixnum)) Fixnum "a % b")
+  (prim cons  CONS   ((a any) (b any))       any    "cons(vm, a, b)")
+  (prim car   CAR    ((a any))               any    "car(vm, a)")
+  (prim cdr   CDR    ((a any))               any    "cdr(vm, a)")
+  (prim eq    EQ     ((a any) (b any))       Bool   "ptr_eq(a, b)")
+  (prim print PRINT  ((a any))               any    "primitive_print(a)")
+
   (setf *prims* (reverse *prims*)))
 
 (with-current-buffer "foo"

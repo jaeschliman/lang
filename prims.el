@@ -61,21 +61,21 @@
 
 (defun emit-prim-encoding (idx argc)
   "Emit encoding for prim at IDX with ARGC."
-  (tmpl "("idx" << 32) | ("argc " << 16) | PRIM_TAG"))
+  (tmpl "(("idx"ULL << 32) | ("argc "ULL << 16) | PRIM_TAG)"))
 
 (defun emit-prim-enum ()
   "Emit enum naming all prims."
   ;; TODO: embed PRIM mask and call count in counter number
   (let ((counter -1))
     (insert (tmpl "
-typedef enum {
+enum PrimitiveOperation : u64 {
 " (mapcar (lambda (p) (tmpl "  " (getf p :prim-name) " = "
                             (emit-prim-encoding
                              (incf counter)
                              (length (getf p :args)))
                              ",\n")) *prims*) "
   PRIM_UNUSED = 0
-} PrimitiveOperations;
+};
 
 "))))
 
@@ -85,13 +85,13 @@ typedef enum {
    (tmpl "
 PrimitiveFunction PrimLookupTable[] = {
 "(mapcar (lambda (p) (tmpl "  &" (getf p :prim-name) "_impl,\n")) *prims*)"
-  (void *)0
+  (PrimitiveFunction)(void *)0
 };
 ")))
 
 (defun emit-prim-registration (p)
   "String for registration of primitive P."
-  (tmpl "  set_global(vm, \"" (getf p :name) "\", "(getf p :prim-name)");\n" ))
+  (tmpl "  set_global(vm, \"" (getf p :name) "\", to(PrimOp, "(getf p :prim-name)"));\n" ))
 
 (defun emit-prim-registration-function ()
   "Emits the function which registers the primitives under symbol names in the VM."
@@ -121,7 +121,7 @@ void initialize_primitive_functions(VM *vm) {
 
   (setf *prims* (reverse *prims*)))
 
-(with-current-buffer "foo"
+(with-current-buffer "primop-generated.cpp"
   (delete-region (point-min) (point-max))
   (emit-prim-enum)
   (emit-all-prim-impls)

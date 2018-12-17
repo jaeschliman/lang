@@ -254,6 +254,8 @@ inline bool isNonNilObject(Ptr it) {
 
 
 type_test(any, it) { return true; }
+inline Ptr asany(Ptr it) { return it; }
+
 prim_type(Fixnum)
 prim_type(Char)
 prim_type(Bool)
@@ -296,15 +298,19 @@ inline s64 asFixnum(Ptr self) {
   return ((s64)self.value) >> TAG_BITS;
 }
 
+inline Ptr toPrimOp(u64 raw_value){
+  return (Ptr){raw_value};
+}
+
 // TODO: convert this to type-test
-bool isNil(Ptr self) {
+inline bool isNil(Ptr self) {
   return self.value == OBJECT_TAG;
 }
 
-bool asBool(Ptr self) {
+inline bool asBool(Ptr self) {
   return (self.value >> TAG_MASK) ? true : false;
 }
-Ptr boolToPtr(bool tf) {
+inline Ptr toBool(bool tf) {
   return tf ? TRUE : FALSE;
 }
 
@@ -2005,6 +2011,14 @@ void initialize_global_environment(VM *vm) {
   add_primitive_function(vm, "print-stacktrace", &vm_print_stack_trace, 0);
   add_primitive_function(vm, "debug-stacktrace", &vm_print_debug_stack_trace, 0);
 }
+
+/* -------------------------------------------------- */
+typedef CCallFunction PrimitiveFunction;
+Ptr primitive_print(Ptr a) { cout << a << endl; return a; }
+
+#include "./primop-generated.cpp"
+
+/* -------------------------------------------------- */
 
 void run_string(const char* str) {
   VM *vm;

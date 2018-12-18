@@ -150,3 +150,5 @@
 (print (eq 't 't))
 (print (eq 't 'f))
 
+(set-symbol-value 'test 'test)
+(set-symbol-value 'test (cons 'test 'test))

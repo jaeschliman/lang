@@ -138,6 +138,7 @@ struct VM {
   Ptr *stack;
   void* heap_mem;
   void* heap_end;
+  u64 allocation_count;
   u64 heap_size_in_bytes;
   StackFrameObject *frame;
   u64 *pc;
@@ -158,6 +159,7 @@ void * vm_alloc(VM *vm, u64 bytes) {
   vm->heap_end = ((u8*)vm->heap_end) + bump;
   assert(((u64)vm->heap_end & 0b1111) == 0);
   // cout << " alloc: bytes = " << bytes << " bump = " << bump << " end = " << vm->heap_end << endl;
+  vm->allocation_count++;
   return result;
 }
 
@@ -691,6 +693,26 @@ void debug_walk(VM *vm, Ptr it) {
   cout << "========================================" << endl << endl;
 }
 
+auto vm_map_stack_refs(VM *vm, PtrFn fn) {
+  StackFrameObject *fr = vm->frame;
+  Ptr *stack = vm->stack;
+  while (fr) {
+    fn(fr->closed_over);
+    auto pad = fr->pad_count;
+    for (u64 i = 1; i <= fr->argc; i++) {
+      auto arg = fr->argv[pad + (fr->argc - i)];
+      fn(arg);
+    }
+    auto on_stack = (Ptr*)(void *)fr;
+    while (on_stack > stack) {
+      on_stack--;
+      fn(*on_stack);
+    }
+    stack = &fr->argv[fr->argc + pad];
+    fr = fr->prev_frame;
+  }
+}
+
 auto vm_print_stack_trace(VM *vm) {
   StackFrameObject *fr = vm->frame;
   Ptr *stack = vm->stack;
@@ -714,6 +736,11 @@ auto vm_print_stack_trace(VM *vm) {
 auto vm_print_debug_stack_trace(VM *vm) {
   StackFrameObject *fr = vm->frame;
   debug_walk(vm, objToPtr(fr));
+  cout << "----------------------------------------" << endl;
+  vm_map_stack_refs(vm, [&](Ptr it){
+      cout << "    " << it << endl;
+    });
+  cout << "----------------------------------------" << endl;
   return NIL;
 }
 
@@ -763,6 +790,27 @@ struct Globals {
   unordered_map<string, Ptr> *symtab;
   Ptr env;
 };
+
+auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
+  set<u64> seen;
+  PtrFn recurse = [&](Ptr it) {
+    if (!isNonNilObject(it)) return;
+    if (seen.find(it.value) != seen.end()) return;
+    seen.insert(it.value);
+    fn(it);
+    map_refs(vm, it, recurse);
+  };
+  vm_map_stack_refs(vm, [&](Ptr it){
+      if (!isNonNilObject(it)) return;
+      if (seen.find(it.value) != seen.end()) return;
+      seen.insert(it.value);
+      fn(it);
+      map_refs(vm, it, recurse);
+    });
+  recurse(vm->globals->env);
+  // TODO: symbtab and the base classes
+}
+
 
 auto make_base_class(VM *vm, const char* name, u64 ivar_count) {
   auto defaultPrint = NIL;
@@ -1999,6 +2047,7 @@ void run_string(const char* str) {
   vm->heap_mem = heap_mem;
   vm->heap_end = heap_mem;
   vm->heap_size_in_bytes = heap_size_in_bytes;
+  vm->allocation_count = 0;
 
   vm->frame = 0;
   vm->error = 0;
@@ -2035,6 +2084,14 @@ void run_string(const char* str) {
       puts(vm->error);
       return;
     }
+
+    // auto count = 0;
+    // cout << endl << "                             walking objects." << endl;
+    // vm_map_reachable_refs(vm, [&](Ptr it){
+    //     count++;
+    //   });
+    // cout << endl << "             " << count << " reachable objects." << endl;
+    // cout << "                     " << vm->allocation_count << " allocated." << endl;
 
     exprs = cdr(vm, exprs);
   }

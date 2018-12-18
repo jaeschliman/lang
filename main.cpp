@@ -37,7 +37,7 @@ TODO: write reader in the language itself
 TODO: sdl integration
 DONE: maybe replace 'ffi' with primitives array (simpler for dump/restore?)
 DONE: code-generate the prims table. elisp?
-TODO: remove the 'ffi' stuff
+DONE: remove the 'ffi' stuff
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -67,7 +67,6 @@ typedef int8_t s8;
 
 enum ObjectType : u64 {
   ByteCode_ObjectType,
-  RawPointer_ObjectType, // TODO: get rid of this type
   ByteArray_ObjectType,
   U64Array_ObjectType,
   PtrArray_ObjectType,
@@ -268,7 +267,6 @@ prim_type(Bool)
 prim_type(PrimOp)
 type_test(Object, it) { return isNonNilObject(it); }
 object_type(ByteCode)
-object_type(RawPointer)
 object_type(ByteArray)
 object_type(U64Array)
 object_type(PtrArray)
@@ -363,6 +361,10 @@ type_test(Symbol, it){
   return bao->bao_type == Symbol;
 }
 
+inline ByteArrayObject * asSymbol(Ptr it) {
+  return as(ByteArray, it);
+}
+
 PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   auto byte_count = sizeof(PtrArrayObject) + (len * sizeof(Ptr));
   PtrArrayObject* obj = (PtrArrayObject *)vm_alloc(vm, byte_count);
@@ -435,13 +437,6 @@ Ptr make_symbol(VM *vm, const char* str) {
 
 Ptr make_number(s64 value) { return s64ToPtr(value); }
 
-Ptr make_raw_pointer(VM *vm, void* ptr) {
-  RawPointerObject *obj = (RawPointerObject *)vm_alloc(vm, sizeof(RawPointerObject));
-  obj->header.object_type = RawPointer_ObjectType;
-  obj->pointer = ptr;
-  return objToPtr(obj);
-}
-
 Ptr make_array(VM *vm, u64 len, Ptr objs[]) {
   auto array = alloc_pao(vm, Array, len);
   for (u64 i = 0; i < len; i++) {
@@ -493,7 +488,6 @@ u64 obj_size(U64ArrayObject *it)  { return sizeof(U64ArrayObject) + it->length *
 u64 obj_size(ByteCodeObject *it)  { return sizeof(ByteCodeObject) + 0;                 } 
 u64 obj_size(ByteArrayObject *it) { return sizeof(ByteArrayObject) + it->length;       } 
 u64 obj_size(PtrArrayObject *it)  { return sizeof(PtrArrayObject) + it->length * 8;    } 
-u64 obj_size(RawPointerObject *it){ return sizeof(RawPointerObject) + 0;               } 
 u64 obj_size(StandardObject *it)  { return sizeof(StandardObject) + it->ivar_count * 8;}
 // TODO: include padding
 u64 obj_size(StackFrameObject*it) { return sizeof(StackFrameObject) + it->argc * 8;    } 
@@ -504,7 +498,6 @@ auto sizeOf(Ptr it) {
   if (is(ByteCode, it))       return obj_size(as(ByteCode, it))  ;
   if (is(ByteArray, it))      return obj_size(as(ByteArray, it)) ;
   if (is(PtrArray, it))       return obj_size(as(PtrArray, it))  ;
-  if (is(RawPointer, it))     return obj_size(as(RawPointer, it));
   if (is(Standard, it))       return obj_size(as(Standard, it))  ;
   if (is(StackFrame, it))     return obj_size(as(StackFrame, it));
   cout << " unknown object type in object_size " << endl;
@@ -553,7 +546,6 @@ void obj_refs(VM *vm, PtrArrayObject *it, PtrFn fn) {
   }
 } 
 
-void obj_refs(VM *vm, RawPointerObject *it, PtrFn fn) { return; } 
 void obj_refs(VM *vm, StandardObject *it, PtrFn fn) {
   for (u64 i = 0; i < it->ivar_count; i++) {
     fn(it->ivars[i]);
@@ -566,7 +558,6 @@ void map_refs(VM *vm, Ptr it, PtrFn fn) {
   if (is(ByteCode, it))   return obj_refs(vm, as(ByteCode, it),   fn);
   if (is(ByteArray, it))  return obj_refs(vm, as(ByteArray, it),  fn);
   if (is(PtrArray, it))   return obj_refs(vm, as(PtrArray, it),   fn);
-  if (is(RawPointer, it)) return obj_refs(vm, as(RawPointer, it), fn);
   if (is(Standard, it))   return obj_refs(vm, as(Standard, it),   fn);
   if (is(StackFrame, it)) return obj_refs(vm, as(StackFrame, it), fn);
   cout << " unknown object type in map_refs" << endl;
@@ -653,9 +644,6 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
   case StackFrame_ObjectType: {
     auto len = ((const StackFrameObject *)obj)->argc;
     return os << "#<StackFrame (argc = " << len << ") "<< (void*)obj << ">";
-  }
-  case RawPointer_ObjectType: {
-    return os << "#<RawPointer "<< (void*)obj << ">";
   }
   }
   return os << "don't know how to print object: " << otype << (void*)obj << endl;
@@ -919,13 +907,14 @@ Ptr intern(VM *vm, string name) {
   return intern(vm, str, strlen(str));
 }
 
-void set_global(VM *vm, Ptr sym, Ptr value) {
+Ptr set_global(VM *vm, Ptr sym, Ptr value) {
   assert(is(Symbol, sym));
   set_assoc(vm, &vm->globals->env, sym, value);
+  return sym;
 }
 
-void set_global(VM *vm, const char* name, Ptr value) {
-  set_global(vm, intern(vm, name), value);
+Ptr set_global(VM *vm, const char* name, Ptr value) {
+  return set_global(vm, intern(vm, name), value);
 }
 
 /* -------------------------------------------------- */
@@ -1171,7 +1160,6 @@ enum OpCode {
   RET = 1,
   PUSHLIT = 2,
   POP = 3,
-  FFI_CALL = 4,
   BR_IF_ZERO = 5,
   BR_IF_NOT_ZERO = 6,
   DUP = 7,
@@ -1195,26 +1183,6 @@ void vm_push(VM* vm, Ptr value) {
 
 Ptr vm_pop(VM* vm) {
   return *(vm->stack++);
-}
-
-void vm_ffi_call(VM* vm) {
-  Ptr ptr = vm_pop(vm);
-  // cout << "ffi calling: " << ptr << endl;
-  if (isNil(ptr) || !is(Object, ptr)) {
-    vm->error = "not a callable object";
-    return;
-  }
-  // cout << "ffi checking object type" << endl;
-  if (!is(RawPointer, ptr)) {
-    vm->error = "not a raw pointer object";
-    return;
-  }
-  RawPointerObject *po = (RawPointerObject *)as(Object, ptr);
-  CCallFunction fn = (CCallFunction)(po->pointer);
-  // cout << "invoking function pointer" << endl;
-  Ptr result = (*fn)(vm);
-  // cout << " ffi call returned: " << result << endl;
-  vm_push(vm, result);
 }
 
 auto vm_load_closure_value(VM *vm, u64 slot, u64 depth) {
@@ -1301,10 +1269,6 @@ void vm_interp(VM* vm) {
       }
       break;
     }
-    case FFI_CALL:
-      vm_ffi_call(vm);
-      if (vm->error) return;
-      break;
     case BR_IF_ZERO: {
       auto it = vm_pop(vm);
       u64 jump = *(++vm->pc);
@@ -1506,11 +1470,6 @@ public:
   }
   auto dup() {
     pushOp(DUP);
-    return this;
-  }
-  auto FFICall(CCallFunction fn) {
-    pushLit(make_raw_pointer(vm, (void *)fn));
-    pushOp(FFI_CALL);
     return this;
   }
   auto label(const char *name) {
@@ -2019,27 +1978,6 @@ Ptr set_global_object(VM *vm) {
   return sym;
 }
 
-
-void add_primitive_function(VM *vm, const char *name, CCallFunction fn, u64 argc) {
-  auto builder = new ByteCodeBuilder(vm);
-  for (u64 arg = 0; arg < argc; arg++) builder->loadArg(arg);
-  auto bc = builder
-    ->FFICall(fn)
-    ->ret()
-    ->build();
-  auto closure = make_closure(vm, objToPtr(bc), NIL);
-  set_global(vm, name, closure);
-}
-
-void initialize_global_environment(VM *vm) {
-  // add_primitive_function(vm, "print", &print_object, 1);
-  add_primitive_function(vm, "add", &add_objects, 2);
-  add_primitive_function(vm, "mul", &mul_objects, 2);
-  add_primitive_function(vm, "set-symbol-value", &set_global_object, 2);
-  add_primitive_function(vm, "print-stacktrace", &vm_print_stack_trace, 0);
-  add_primitive_function(vm, "debug-stacktrace", &vm_print_debug_stack_trace, 0);
-}
-
 /* -------------------------------------------------- */
 Ptr primitive_print(Ptr a) { cout << a << endl; return a; }
 
@@ -2069,10 +2007,9 @@ void run_string(const char* str) {
   vm->globals->symtab = new unordered_map<string, Ptr>;
   vm->globals->env = NIL;
   initialize_classes(vm);
-  initialize_global_environment(vm);
   initialize_primitive_functions(vm);
 
-  // purely for debug printing
+  // purely for debug printing. would be nice to get rid of this
   CURRENT_DEBUG_VM = vm;
 
   // so we have a root frame

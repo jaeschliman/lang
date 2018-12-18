@@ -12,6 +12,9 @@ enum PrimitiveOperation : u64 {
   PRIM_CDR = ((9ULL << 32) | (1ULL << 16) | PRIM_TAG),
   PRIM_EQ = ((10ULL << 32) | (2ULL << 16) | PRIM_TAG),
   PRIM_PRINT = ((11ULL << 32) | (1ULL << 16) | PRIM_TAG),
+  PRIM_SET_SYM_VAL = ((12ULL << 32) | (2ULL << 16) | PRIM_TAG),
+  PRIM_PRINT_STACK = ((13ULL << 32) | (0ULL << 16) | PRIM_TAG),
+  PRIM_DBG_STACK = ((14ULL << 32) | (0ULL << 16) | PRIM_TAG),
 
   PRIM_UNUSED = 0
 };
@@ -109,6 +112,26 @@ Ptr PRIM_PRINT_impl(VM *vm) {
  return primitive_print(a);
 }
 
+// Primitive 12
+Ptr PRIM_SET_SYM_VAL_impl(VM *vm) {
+   VM_ARG(any,b);
+   VM_ARG(Symbol,a);
+
+ return set_global(vm, objToPtr(a), b);
+}
+
+// Primitive 13
+Ptr PRIM_PRINT_STACK_impl(VM *vm) {
+
+ return vm_print_stack_trace(vm);
+}
+
+// Primitive 14
+Ptr PRIM_DBG_STACK_impl(VM *vm) {
+
+ return vm_print_debug_stack_trace(vm);
+}
+
 
 PrimitiveFunction PrimLookupTable[] = {
   &PRIM_PLUS_impl,
@@ -123,6 +146,9 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_CDR_impl,
   &PRIM_EQ_impl,
   &PRIM_PRINT_impl,
+  &PRIM_SET_SYM_VAL_impl,
+  &PRIM_PRINT_STACK_impl,
+  &PRIM_DBG_STACK_impl,
 
   (PrimitiveFunction)(void *)0
 };
@@ -141,5 +167,8 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "cdr", to(PrimOp, PRIM_CDR));
   set_global(vm, "eq", to(PrimOp, PRIM_EQ));
   set_global(vm, "print", to(PrimOp, PRIM_PRINT));
+  set_global(vm, "set-symbol-value", to(PrimOp, PRIM_SET_SYM_VAL));
+  set_global(vm, "print-stacktrace", to(PrimOp, PRIM_PRINT_STACK));
+  set_global(vm, "debug-stacktrace", to(PrimOp, PRIM_DBG_STACK));
 
 }

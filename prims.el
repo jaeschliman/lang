@@ -123,6 +123,10 @@ void initialize_primitive_functions(VM *vm) {
   (prim eq    EQ     ((a any) (b any))       Bool   "ptr_eq(a, b)")
   (prim print PRINT  ((a any))               any    "primitive_print(a)")
 
+  (prim set-symbol-value SET_SYM_VAL ((a Symbol) (b any)) any "set_global(vm, objToPtr(a), b)")
+  (prim print-stacktrace PRINT_STACK () any "vm_print_stack_trace(vm)")
+  (prim debug-stacktrace DBG_STACK () any "vm_print_debug_stack_trace(vm)")
+
   (setf *prims* (reverse *prims*)))
 
 ;; TODO: emit directly to file (run in batch mode)

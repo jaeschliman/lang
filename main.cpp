@@ -35,8 +35,9 @@ TODO: dump/restore image
 TODO: write macroexpander in the language itself
 TODO: write reader in the language itself
 TODO: sdl integration
-TODO: maybe replace 'ffi' with primitives array (simpler for dump/restore?)
-TODO: code-generate the prims table. elisp?
+DONE: maybe replace 'ffi' with primitives array (simpler for dump/restore?)
+DONE: code-generate the prims table. elisp?
+TODO: remove the 'ffi' stuff
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -584,6 +585,14 @@ enum {
 
 typedef void(*DebugPrintFunction)(std::ostream &os, Ptr p);
 
+#define DEBUG_PRINT_MAX 255
+DebugPrintFunction DebugPrintTable[DEBUG_PRINT_MAX] = {0};
+enum BuiltInDebugPrintIndex : u64 {
+  DebugPrint_None,
+  DebugPrint_Cons,
+  DebugPrint_End
+};
+
 std::ostream &operator<<(std::ostream &os, Ptr p);
 
 std::ostream &operator<<(std::ostream &os, Object *obj) { 
@@ -622,11 +631,13 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
     auto sobj = (StandardObject *)obj;
     auto name = standard_object_get_ivar(sobj->klass, BaseClassName);
     auto pr_obj = standard_object_get_ivar(sobj->klass, BaseClassDebugPrint);
-    if (is(RawPointer, pr_obj)) {
-      auto rp  = (RawPointerObject *)as(Object, pr_obj);
-      auto fn = (DebugPrintFunction)rp->pointer;
-      fn(os, objToPtr(obj));
-      return os;
+    if (is(Fixnum, pr_obj)) {
+      auto idx = as(Fixnum, pr_obj);
+      if (idx > 0 && idx < DEBUG_PRINT_MAX && DebugPrintTable[idx]) {
+        auto fn = DebugPrintTable[idx];
+        fn(os, objToPtr(obj));
+        return os;
+      }
     }
     cout << "#<A " << as(Object, name) << " " << (void*)obj << ">";
     return os;
@@ -885,8 +896,9 @@ void initialize_classes(VM *vm)
   auto g = vm->globals;
   g->Base = Base;
   g->Cons = make_base_class(vm, "Cons", 2);
+  DebugPrintTable[DebugPrint_Cons] = &debug_print_list;
   standard_object_set_ivar(g->Cons, BaseClassDebugPrint,
-                           make_raw_pointer(vm, (void*)&debug_print_list));
+                           to(Fixnum, DebugPrint_Cons));
   g->Fixnum = make_base_class(vm, "Fixnum", 0);
   g->Symbol = make_base_class(vm, "Symbol", 0);
 }

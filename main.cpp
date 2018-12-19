@@ -32,7 +32,7 @@ DONE: maybe replace 'ffi' with primitives array (simpler for dump/restore?)
 DONE: code-generate the prims table. elisp?
 DONE: remove the 'ffi' stuff
 DONE: scan_heap(mem *start, mem*end) fn (linear scan of objects on the heap)
-TODO: garbage collection (cheney?)
+DONE: garbage collection (cheney?)
 TODO: move stack memory into vm-managed heap
 TODO: continuations / exceptions / signals
 TODO: dump/restore image
@@ -87,8 +87,6 @@ struct Ptr {
   u64 value;
 };
 
-
-
 bool ptr_eq(Ptr a, Ptr b) {
   return a.value == b.value;
 }
@@ -101,6 +99,20 @@ struct Header {
 struct Object {
   Header header;
 };
+
+struct VM;
+
+void gc_protect_reference(VM *vm, Object **);
+void gc_unprotect_reference(VM *vm, Object **);
+
+#define gc_protect(it) do {                     \
+    auto _ref = (Object **)&it;                 \
+    gc_protect_reference(vm, _ref);             \
+  } while(0)
+#define gc_unprotect(it) do {                   \
+    auto _ref = (Object **)&it;                 \
+    gc_unprotect_reference(vm, _ref);           \
+  } while(0)
 
 struct U64ArrayObject : Object {
   u64 length;
@@ -149,6 +161,9 @@ struct VM {
   ByteCodeObject *bc;
   const char* error;
   Globals *globals;
+  u64 gc_count;
+  u64 gc_threshold_in_bytes;
+  set<Object **>  *gc_protected;
 };
 
 typedef Ptr (*PrimitiveFunction)(VM*);
@@ -1002,6 +1017,23 @@ void gc_copy_symtab(VM *vm) {
   delete old_symtab;
 }
 
+void gc_update_protected_references(VM *vm) {
+  for (Object **ref : *vm->gc_protected) {
+    auto obj = *ref;
+    auto ptr = objToPtr(obj);
+    gc_update_ptr(vm, &ptr);
+    auto new_obj = as(Object, ptr);
+    *ref = new_obj;
+  }
+}
+
+void gc_protect_reference(VM *vm, Object **ref){
+  vm->gc_protected->insert(ref);
+}
+void gc_unprotect_reference(VM *vm, Object **ref){
+  vm->gc_protected->erase(ref);
+}
+
 void gc(VM *vm) {
   // prepare_vm
   gc_prepare_vm(vm);
@@ -1014,6 +1046,9 @@ void gc(VM *vm) {
   gc_update_stack(vm);
   // update global refs
   gc_update_globals(vm);
+  // update protected refs
+  gc_update_protected_references(vm);
+
   auto end = vm->heap_end;
   // repeatedly update new allocations on the heap
   while (start < end) {
@@ -2244,8 +2279,13 @@ void run_string(const char* str) {
   auto alt_heap_mem = calloc(heap_size_in_bytes, 1);
   vm->alt_heap_mem = alt_heap_mem;
   vm->alt_heap_end = alt_heap_mem;
+
   vm->heap_size_in_bytes = heap_size_in_bytes;
   vm->allocation_count = 0;
+  vm->gc_count = 0;
+  vm->gc_threshold_in_bytes = 1 * 1024 * 1024;
+
+  vm->gc_protected = new set<Object **>;
 
   vm->frame = 0;
   vm->error = 0;
@@ -2262,25 +2302,24 @@ void run_string(const char* str) {
   // so we have a root frame
   auto bc = (new ByteCodeBuilder(vm))->build();
   vm_push_stack_frame(vm, 0, bc);
-  // XXX HACK -- all these set_globals are for gc protection
-  set_global(vm, "_base_bytecode", objToPtr(bc));
+  gc_protect(bc);
 
   auto exprs = read_all(vm, str);
+  auto raw_exprs = as(Object, exprs);
 
   while (!isNil(exprs)) {
-    // XXX HACK
-    set_global(vm, "_read_expressions", exprs);
+    gc_protect(raw_exprs);
 
     auto expr = car(vm, exprs);
     auto bc = compile_toplevel_expression(vm, expr);
 
-    set_global(vm, "_current_bytecode", objToPtr(bc));
-
+    gc_protect(bc);
     vm_push_stack_frame(vm, 0, bc);
 
     vm_interp(vm);
 
     vm_pop_stack_frame(vm);
+    gc_unprotect(bc);
 
     gc(vm);
   
@@ -2290,14 +2329,16 @@ void run_string(const char* str) {
       return;
     }
 
-    // XXX HACK
-    exprs = get_global(vm, "_read_expressions");
+    // it would really be nice if there was an easier way to do this...
+    gc_unprotect(raw_exprs);
+    exprs = objToPtr(raw_exprs);
     exprs = cdr(vm, exprs);
+    raw_exprs = as(Object, exprs);
+    gc_protect(raw_exprs);
   }
 
-  // XXX HACK
-  set_global(vm, "_read_expressions", NIL);
-  set_global(vm, "_current_bytecode", NIL);
+  gc_unprotect(bc);
+  gc_unprotect(raw_exprs);
 
   vm_count_objects_on_heap(vm);
   vm_count_reachable_refs(vm);

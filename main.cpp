@@ -2222,41 +2222,6 @@ auto compile_toplevel_expression(VM *vm, Ptr it) {
 
 /* -------------------------------------------------- */
 
-Ptr print_object(VM *vm) {
-  Ptr object = vm_pop(vm);
-  cout << object << endl;
-  return  object;
-}
-
-Ptr decrement_object(VM *vm) {
-  VM_ARG(Fixnum, n);
-  return s64ToPtr(n - 1);
-}
-
-Ptr add_objects(VM *vm) {
-  VM_ARG(Fixnum, b);
-  VM_ARG(Fixnum, a);
-  return s64ToPtr(a + b);
-}
-
-Ptr mul_objects(VM *vm) {
-  VM_ARG(Fixnum, b);
-  VM_ARG(Fixnum, a);
-  return s64ToPtr(a * b);
-}
-
-Ptr set_global_object(VM *vm) {
-  Ptr val = vm_pop(vm);
-  Ptr sym = vm_pop(vm);
-  if (!is(Symbol, sym)) {
-    vm->error = "argument is not a symbol";
-    return val;
-  }
-  set_global(vm, sym, val);
-  return sym;
-}
-
-/* -------------------------------------------------- */
 Ptr primitive_print(Ptr a) { cout << a << endl; return a; }
 
 #include "./primop-generated.cpp"

@@ -33,15 +33,26 @@ DONE: code-generate the prims table. elisp?
 DONE: remove the 'ffi' stuff
 DONE: scan_heap(mem *start, mem*end) fn (linear scan of objects on the heap)
 DONE: garbage collection (cheney?)
+TODO: initial audit of requred gc_protect calls
+TODO: growable ptr array
+TODO: growable identity map
+TODO: gc-safe reader
+TODO: gc-safe compiler
+TODO: automatic garbage collection (need to use gc_protect)
 TODO: move stack memory into vm-managed heap
 TODO: continuations / exceptions / signals
 TODO: dump/restore image
 TODO: write macroexpander in the language itself
 TODO: write reader in the language itself
 TODO: sdl integration
+TODO: single floats
+TODO: U32 Array etc
+TODO: more prim instrs
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
+
+how to represent U32 and U64?
 
 */
 
@@ -1275,11 +1286,14 @@ void eat_ws(const char **remaining, const char *end) {
   *remaining = input;
 }
 
+// TODO: need to make all branches of read GC safe.
 Ptr read(VM *vm, const char **remaining, const char *end, Ptr done);
 
+// @gc
 auto read_delimited_list(VM *vm, const char **remaining, const char *end, Ptr done, char delim) {
   auto input = *remaining;
-  vector<Ptr> items;
+  // @gc
+  vector<Ptr> items; // could replace this with a built-in 'extensible vector'
   while(input < end && *input != delim) {
     auto item = read(vm, &input, end, done);
     if(ptr_eq(item, done)) {
@@ -1289,6 +1303,7 @@ auto read_delimited_list(VM *vm, const char **remaining, const char *end, Ptr do
     items.push_back(item);
     eat_ws(&input, end);
   }
+  // @gc
   auto res = make_list(vm, items.size(), &items[0]);
   if (*input == delim) input++;
   *remaining = input;
@@ -1332,6 +1347,7 @@ Ptr read_bool(VM *vm, const char **remaining, const char *end, Ptr done) {
   }
 }
 
+// @gc
 Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
   const char *input = *remaining;
   while (input < end) {
@@ -1348,11 +1364,13 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
       return result;
     } else if (*input == '\'') {
       input++;
+      // @gc
       auto result = quote_form(vm, read(vm, &input, end, done));
       *remaining = input;
       return result;
     } else if (*input == '(') {
       input++;
+      // @gc
       auto res = read_delimited_list(vm, &input, end, done, ')');
       *remaining = input;
       return res;
@@ -1390,6 +1408,7 @@ Ptr read(VM *vm, const char* input) {
 Ptr read_all(VM *vm, const char* input) {
   auto done = cons(vm, NIL, NIL);
   auto len = strlen(input);
+  // @gc
   vector<Ptr> items;
   auto end = input + len;
   auto item = read(vm, &input, end, done);
@@ -1399,6 +1418,7 @@ Ptr read_all(VM *vm, const char* input) {
     item = read(vm, &input, end, done);
     assert(input <= end);
   }
+  // @gc
   auto res = make_list(vm, items.size(), &items[0]);
   return res;
 }
@@ -1473,7 +1493,9 @@ enum OpCode {
   LOAD_ARG = 9,
   LOAD_GLOBAL = 10,
   LOAD_CLOSURE = 11,
+  // @gc
   BUILD_CLOSURE = 12,
+  // @gc
   PUSH_CLOSURE_ENV = 13,
   BR_IF_FALSE = 14,
   JUMP = 15,
@@ -1554,6 +1576,7 @@ void vm_interp(VM* vm) {
       break;
     }
     case BUILD_CLOSURE: {
+      // @gc
       auto lambda = vm_pop(vm);
       auto array = vm->frame->closed_over;
       auto closure = make_closure(vm, lambda, array);
@@ -1562,6 +1585,7 @@ void vm_interp(VM* vm) {
     }
     case PUSH_CLOSURE_ENV: {
       u64 count = vm_adv_instr(vm);
+      // @gc
       auto array = objToPtr(alloc_pao(vm, Array, count + 1));
       array_set(array, 0, vm->frame->closed_over);
       while (count--) {
@@ -1734,12 +1758,20 @@ public:
     this->vm = vm;
     bc_index = 0;
     lit_index = 0;
+    // is there a way to disable vm allocations during BC building?
+    // alternatively, just keep raw memory for the most part,
+    // and vm_alloc at end. so long as we protect the literal vector be ok?
+    // @gc
     bc = (ByteCodeObject *)as(Object, make_bytecode(vm, 1024));
+    // @gc
     bc_mem = bc->code->data;
+    // @gc ?
     labelsMap = new map<string, u64>;
     branchLocations = new vector<branch_entry>;
     labelContext = s64ToPtr(0);
+    // @gc -- can just be ints instead of Ptrs anyway
     labelContextStack = new vector<Ptr>;
+    // @gc
     literals = new vector<Ptr>;
 
     pushOp(STACK_RESERVE);
@@ -1914,8 +1946,11 @@ struct VariableBinding {
 // TODO: would be nicer to represent this in the VM itself.
 struct CompilerEnv {
   CompilerEnv *prev;
+  // @gc
   unordered_map<u64, VariableInfo> *info;
+  // @gc
   unordered_map<u64, CompilerEnv*> *sub_envs;
+  // @gc ?
   vector<u64> *closed_over;
   bool has_closure;
   CompilerEnvType type;
@@ -1936,6 +1971,8 @@ struct CompilerEnv {
     delete sub_envs;
   }
 };
+
+// @gc --- continue audit from here
 
 auto compiler_env_get_subenv(CompilerEnv *env, Ptr it) {
   auto key = it.value;

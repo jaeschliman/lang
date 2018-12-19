@@ -567,6 +567,7 @@ void obj_refs(VM *vm, PtrArrayObject *it, PtrFn fn) {
 } 
 
 void obj_refs(VM *vm, StandardObject *it, PtrFn fn) {
+  fn(objToPtr(it->klass));
   for (u64 i = 0; i < it->ivar_count; i++) {
     fn(it->ivars[i]);
   }
@@ -939,6 +940,11 @@ void gc_update(VM *vm, PtrArrayObject* it) {
 }
 
 void gc_update(VM *vm, StandardObject* it) {
+  {
+    Ptr p = objToPtr(it->klass);
+    gc_update_ptr(vm, &p);
+    it->klass = as(Standard, p);
+  }
   for (u64 i = 0; i < it->ivar_count; i++) {
     gc_update_ptr(vm, it->ivars + i);
   }
@@ -986,7 +992,6 @@ void gc_update_globals(VM *vm) {
 }
 
 void gc_copy_symtab(VM *vm) {
-  //TODO
   auto old_symtab = vm->globals->symtab;
   auto new_symtab = new unordered_map<string, Ptr>;
   for (auto pair : *old_symtab) {
@@ -1018,7 +1023,6 @@ void gc(VM *vm) {
     start = end;
     end = vm->heap_end;
   }
-  // done?
   // TODO: memset old heap for safety.
 }
 
@@ -1034,8 +1038,8 @@ auto make_base_class(VM *vm, const char* name, u64 ivar_count) {
 /* ---------------------------------------- */
 
 bool consp(VM *vm, Ptr p) {
-  if (!isStdObj(p)) return false;
-  auto obj = (StandardObject *)as(Object, p);
+  if (!is(Standard, p)) return false;
+  auto obj = as(Standard, p);
   auto res = (void *)obj->klass == (void *)vm->globals->Cons;
   return res;
 }
@@ -1176,6 +1180,12 @@ Ptr set_global(VM *vm, Ptr sym, Ptr value) {
 
 Ptr set_global(VM *vm, const char* name, Ptr value) {
   return set_global(vm, intern(vm, name), value);
+}
+
+Ptr get_global(VM *vm,  const char*name) {
+  auto pair = assoc(vm, intern(vm, name), vm->globals->env);
+  if (isNil(pair)) return pair;
+  return cdr(vm, pair);
 }
 
 /* -------------------------------------------------- */
@@ -2287,20 +2297,27 @@ void run_string(const char* str) {
   // so we have a root frame
   auto bc = (new ByteCodeBuilder(vm))->build();
   vm_push_stack_frame(vm, 0, bc);
+  // XXX HACK -- all these set_globals are for gc protection
+  set_global(vm, "_base_bytecode", objToPtr(bc));
 
   auto exprs = read_all(vm, str);
 
   while (!isNil(exprs)) {
+    // XXX HACK
+    set_global(vm, "_read_expressions", exprs);
+
     auto expr = car(vm, exprs);
-    // debug_walk(expr);
     auto bc = compile_toplevel_expression(vm, expr);
-    // debug_walk(objToPtr(bc));
+
+    set_global(vm, "_current_bytecode", objToPtr(bc));
 
     vm_push_stack_frame(vm, 0, bc);
 
     vm_interp(vm);
 
     vm_pop_stack_frame(vm);
+
+    gc(vm);
   
     if (vm->error) {
       puts("VM ERROR: ");
@@ -2308,16 +2325,14 @@ void run_string(const char* str) {
       return;
     }
 
-    // auto count = 0;
-    // cout << endl << "                             walking objects." << endl;
-    // vm_map_reachable_refs(vm, [&](Ptr it){
-    //     count++;
-    //   });
-    // cout << endl << "             " << count << " reachable objects." << endl;
-    // cout << "                     " << vm->allocation_count << " allocated." << endl;
-
+    // XXX HACK
+    exprs = get_global(vm, "_read_expressions");
     exprs = cdr(vm, exprs);
   }
+
+  // XXX HACK
+  set_global(vm, "_read_expressions", NIL);
+  set_global(vm, "_current_bytecode", NIL);
 
   vm_count_objects_on_heap(vm);
   vm_count_reachable_refs(vm);

@@ -1,3 +1,4 @@
+(set-symbol-value 'goodbye-message '(so long and thanks for all the fish))
 (print '(hello world))
 (print 42)
 
@@ -152,3 +153,4 @@
 
 (set-symbol-value 'test 'test)
 (set-symbol-value 'test (cons 'test 'test))
+(print goodbye-message)

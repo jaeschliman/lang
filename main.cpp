@@ -26,18 +26,19 @@ DONE: if compiler
 DONE: simple let
 DONE: let + closures
 TODO: move symbol table into heap (make it an object)
-TODO: walk_stack_refs(VM *vm, PtrFn)
-TODO: walk_roots(VM *vm) function
-TODO: garbage collection
+DONE: vm_map_stack_refs(VM *vm, PtrFn)
+DONE: vm_map_reachable_refs(VM *vm) function
+DONE: maybe replace 'ffi' with primitives array (simpler for dump/restore?)
+DONE: code-generate the prims table. elisp?
+DONE: remove the 'ffi' stuff
+DONE: scan_heap(mem *start, mem*end) fn (linear scan of objects on the heap)
+TODO: garbage collection (cheney?)
 TODO: move stack memory into vm-managed heap
 TODO: continuations / exceptions / signals
 TODO: dump/restore image
 TODO: write macroexpander in the language itself
 TODO: write reader in the language itself
 TODO: sdl integration
-DONE: maybe replace 'ffi' with primitives array (simpler for dump/restore?)
-DONE: code-generate the prims table. elisp?
-DONE: remove the 'ffi' stuff
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -72,6 +73,7 @@ enum ObjectType : u64 {
   PtrArray_ObjectType,
   Standard_ObjectType,
   StackFrame_ObjectType,
+  BrokenHeart
 };
 
 // so we can write the is(...) macro
@@ -125,7 +127,7 @@ struct StackFrameObject : Object {
   Ptr* prev_stack;
   StackFrameObject* prev_frame;
   ByteCodeObject* prev_fn;
-  u64* prev_pc;
+  u64 prev_pc;
   Ptr closed_over;
   u64 argc;
   u64 pad_count;
@@ -138,10 +140,12 @@ struct VM {
   Ptr *stack;
   void* heap_mem;
   void* heap_end;
+  void* alt_heap_mem;
+  void* alt_heap_end;
   u64 allocation_count;
   u64 heap_size_in_bytes;
   StackFrameObject *frame;
-  u64 *pc;
+  u64 pc;
   ByteCodeObject *bc;
   const char* error;
   Globals *globals;
@@ -150,15 +154,29 @@ struct VM {
 typedef Ptr (*PrimitiveFunction)(VM*);
 extern PrimitiveFunction PrimLookupTable[];
 
+inline void *align_pointer(void *mem) {
+  static_assert(sizeof(u64) == sizeof(void *), "right pointer size");
+  auto bytes = (u64)mem;
+  auto rounded = ((bytes >> 4) << 4);
+  auto bump = rounded == bytes ? rounded : rounded + 16;
+  assert(((u64)bump & 0b1111) == 0);
+  return (void *)bump;
+}
+
+inline void *align_pointer_with_offset(void* mem, u64 bytes) {
+  auto adjusted = (u8*)mem + bytes;
+  return align_pointer(adjusted);
+}
+
+inline bool pointer_is_aligned(void* mem) {
+  return ((u64)mem & 0b1111) == 0;
+}
+
 void * vm_alloc(VM *vm, u64 bytes) {
   auto result = (void *)vm->heap_end;
-  static_assert(sizeof(u64) == sizeof(void *), "right pointer size");
-  assert(((u64)result & 0b1111) == 0);
-  auto rounded = ((bytes >> 4) << 4);
-  u64 bump = rounded == bytes ? rounded : rounded + 16;
-  vm->heap_end = ((u8*)vm->heap_end) + bump;
-  assert(((u64)vm->heap_end & 0b1111) == 0);
-  // cout << " alloc: bytes = " << bytes << " bump = " << bump << " end = " << vm->heap_end << endl;
+  assert(pointer_is_aligned(result));
+  vm->heap_end = align_pointer_with_offset(vm->heap_end, bytes);
+  assert(pointer_is_aligned(vm->heap_end));
   vm->allocation_count++;
   return result;
 }
@@ -494,7 +512,7 @@ u64 obj_size(StandardObject *it)  { return sizeof(StandardObject) + it->ivar_cou
 // TODO: include padding
 u64 obj_size(StackFrameObject*it) { return sizeof(StackFrameObject) + it->argc * 8;    } 
 
-auto sizeOf(Ptr it) {
+auto size_of(Ptr it) {
   if (isNil(it) || !is(Object, it)) return (u64)0;
   if (is(U64Array, it))       return obj_size(as(U64Array, it))  ;
   if (is(ByteCode, it))       return obj_size(as(ByteCode, it))  ;
@@ -507,7 +525,7 @@ auto sizeOf(Ptr it) {
 }
 
 auto copy_object(VM *vm, Ptr it) {
-  auto count = sizeOf(it);
+  auto count = size_of(it);
   if (!count) return it;
   auto bytes = vm_alloc(vm, count);
   auto from  = as(Object, it);
@@ -646,6 +664,9 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
   case StackFrame_ObjectType: {
     auto len = ((const StackFrameObject *)obj)->argc;
     return os << "#<StackFrame (argc = " << len << ") "<< (void*)obj << ">";
+  }
+  case BrokenHeart: {
+    return os << "#<GC Broken Heart>";
   }
   }
   return os << "don't know how to print object: " << otype << (void*)obj << endl;
@@ -800,17 +821,209 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
     fn(it);
     map_refs(vm, it, recurse);
   };
-  vm_map_stack_refs(vm, [&](Ptr it){
-      if (!isNonNilObject(it)) return;
-      if (seen.find(it.value) != seen.end()) return;
-      seen.insert(it.value);
-      fn(it);
-      map_refs(vm, it, recurse);
-    });
+  vm_map_stack_refs(vm, recurse);
   recurse(vm->globals->env);
-  // TODO: symbtab and the base classes
+  for (auto pair : *vm->globals->symtab) {
+    recurse(pair.second);
+  }
+  recurse(objToPtr(vm->globals->Base));
+  recurse(objToPtr(vm->globals->Cons));
+  recurse(objToPtr(vm->globals->Fixnum));
+  recurse(objToPtr(vm->globals->Symbol));
 }
 
+void vm_count_reachable_refs(VM *vm) {
+  u64 count = 0;
+  vm_map_reachable_refs(vm, [&](Ptr it){
+      count++;
+    });
+  cout << "  " << count << "  reachable objects." << endl;
+}
+
+void scan_heap(void *start, void*end, PtrFn fn) {
+  while(start < end) {
+    assert(pointer_is_aligned(start));
+    auto it = objToPtr((Object *)start);
+    auto offset = size_of(it);
+    if (offset == 0) {
+      cout << " error while scanning heap." << endl;
+      return;
+    }
+    fn(it);
+    start = align_pointer_with_offset(start, offset);
+  }
+}
+
+void vm_count_objects_on_heap(VM *vm) {
+  u64 count = 0;
+  scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it){
+      count++;
+    });
+  cout << " counted " << count << " objects on heap. " << endl;
+  cout << " allocation count is : " << vm->allocation_count << endl;
+}
+
+/* ---------------------------------------- */
+/*             -- gc support --             */
+
+void gc_prepare_vm(VM *vm) {
+  auto start = vm->heap_mem;
+  auto end = vm->heap_end;
+  vm->heap_mem = vm->alt_heap_mem;
+  vm->heap_end = vm->alt_heap_mem;
+  vm->alt_heap_mem = start;
+  vm->alt_heap_end = end;
+}
+
+bool gc_is_broken_heart(Object *obj) {
+  return obj->header.object_type == BrokenHeart;
+}
+
+void gc_break_heart(Object *obj, Object *forwarding_address) {
+  assert(!gc_is_broken_heart(obj));
+  obj->header.object_type = BrokenHeart;
+  auto ptr = (u64 *)obj;
+  ptr++;
+  *ptr = (u64)forwarding_address;
+}
+
+Object *gc_forwarding_address(Object *obj) {
+  assert(gc_is_broken_heart(obj));
+  auto ptr = (u64 *)obj;
+  ptr++;
+  return (Object *)*ptr;
+}
+
+Ptr gc_move_object(VM *vm, Object *obj) {
+  assert(!gc_is_broken_heart(obj));
+  auto ptr = objToPtr(obj);
+  assert(size_of(ptr) > 0);
+  auto new_ptr = copy_object(vm, ptr);
+  Object *addr = as(Object, new_ptr);
+  gc_break_heart(obj, addr);
+  return new_ptr;
+}
+
+void gc_update_ptr(VM *vm, Ptr *p) {
+  auto ptr = *p;
+  if (!isNonNilObject(ptr)) return;
+  auto obj = as(Object, ptr);
+  if (!gc_is_broken_heart(obj)) {
+    gc_move_object(vm, obj);
+  }
+  auto new_addr = gc_forwarding_address(obj);
+  auto new_ptr = objToPtr(new_addr);
+  *p = new_ptr;
+}
+
+// gc update is called while scanning the heap of objects that have
+// already been copied over.
+// StackFrameObject is handled specially.
+void gc_update(VM *vm, ByteCodeObject* it) {
+  {
+    Ptr p = objToPtr(it->code);
+    gc_update_ptr(vm, &p);
+    it->code = as(U64Array, p);
+  }
+  {
+    Ptr p = objToPtr(it->literals);
+    gc_update_ptr(vm, &p);
+    it->literals = as(PtrArray, p);
+  }
+}
+
+void gc_update(VM *vm, PtrArrayObject* it) {
+  for (u64 i = 0; i < it->length; i++) {
+    gc_update_ptr(vm, it->data + i);
+  }
+}
+
+void gc_update(VM *vm, StandardObject* it) {
+  for (u64 i = 0; i < it->ivar_count; i++) {
+    gc_update_ptr(vm, it->ivars + i);
+  }
+}
+
+void gc_update_copied_object(VM *vm, Ptr it) {
+  assert(is(Object, it));
+  if (is(ByteCode, it)) return gc_update(vm, as(ByteCode, it));
+  if (is(PtrArray, it)) return gc_update(vm, as(PtrArray, it));
+  if (is(Standard, it)) return gc_update(vm, as(Standard, it));
+}
+
+void gc_update_stack(VM *vm) {
+  StackFrameObject *fr = vm->frame;
+  Ptr *stack = vm->stack;
+  while (fr) {
+    gc_update_ptr(vm, &fr->closed_over);
+    auto pad = fr->pad_count;
+    for (u64 i = 1; i <= fr->argc; i++) {
+      auto arg = fr->argv[pad + (fr->argc - i)];
+      gc_update_ptr(vm, &arg);
+    }
+    auto on_stack = (Ptr*)(void *)fr;
+    while (on_stack > stack) {
+      on_stack--;
+      gc_update_ptr(vm, on_stack);
+    }
+    stack = &fr->argv[fr->argc + pad];
+    fr = fr->prev_frame;
+  }
+}
+
+void gc_update_base_class(VM *vm, StandardObject **it) {
+  Ptr p = objToPtr(*it);
+  gc_update_ptr(vm, &p);
+  *it = as(Standard, p);
+}
+
+void gc_update_globals(VM *vm) {
+  gc_update_ptr(vm, &vm->globals->env);
+  gc_update_base_class(vm, &vm->globals->Base);
+  gc_update_base_class(vm, &vm->globals->Cons);
+  gc_update_base_class(vm, &vm->globals->Fixnum);
+  gc_update_base_class(vm, &vm->globals->Symbol);
+}
+
+void gc_copy_symtab(VM *vm) {
+  //TODO
+  auto old_symtab = vm->globals->symtab;
+  auto new_symtab = new unordered_map<string, Ptr>;
+  for (auto pair : *old_symtab) {
+    gc_update_ptr(vm, &pair.second);
+    new_symtab->insert(pair);
+  }
+  vm->globals->symtab = new_symtab;
+  delete old_symtab;
+}
+
+void gc(VM *vm) {
+  // prepare_vm
+  gc_prepare_vm(vm);
+  // copy symtab
+  gc_copy_symtab(vm);
+
+  // set start ptr (everything on heap should be symbols right now)
+  auto start = vm->heap_end;
+  // update stack. (loop through stack and gc_copy_object on-stack and args etc.)
+  gc_update_stack(vm);
+  // update global refs
+  gc_update_globals(vm);
+  auto end = vm->heap_end;
+  // repeatedly update new allocations on the heap
+  while (start < end) {
+    scan_heap(start, end, [&](Ptr it){
+        gc_update_copied_object(vm, it);
+      });
+    start = end;
+    end = vm->heap_end;
+  }
+  // done?
+  // TODO: memset old heap for safety.
+}
+
+
+/* ---------------------------------------- */
 
 auto make_base_class(VM *vm, const char* name, u64 ivar_count) {
   auto defaultPrint = NIL;
@@ -1198,7 +1411,7 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   vm->stack = (Ptr*)(void *)new_frame; // - 100; // STACK_PADDING
   vm->frame = new_frame;
   vm->bc = fn;
-  vm->pc = fn->code->data;
+  vm->pc = 0;
 }
 
 typedef Ptr (*CCallFunction)(VM*);
@@ -1244,23 +1457,30 @@ auto vm_load_closure_value(VM *vm, u64 slot, u64 depth) {
   return array_get(curr, slot+1);
 }
 
+inline u64 vm_curr_instr(VM *vm) {
+  return vm->bc->code->data[vm->pc];
+}
+inline u64 vm_adv_instr(VM *vm) {
+  return vm->bc->code->data[++vm->pc];
+}
+
 void vm_interp(VM* vm) {
   u64 instr;
-  while ((instr = *vm->pc)) {
+  while ((instr = vm_curr_instr(vm))) {
     switch (instr){
     case STACK_RESERVE: {
-      u64 count = *(++vm->pc);
+      u64 count = vm_adv_instr(vm);
       while (count--) { vm_push(vm, NIL); }
       break;
     }
     case LOAD_FRAME_RELATIVE: {
-      u64 idx = *(++vm->pc);
+      u64 idx = vm_adv_instr(vm);
       Ptr *stack_bottom = ((Ptr *)(void *)vm->frame) - 1;
       vm_push(vm, *(stack_bottom - idx));
       break;
     }
     case STORE_FRAME_RELATIVE: {
-      u64 idx = *(++vm->pc);
+      u64 idx = vm_adv_instr(vm);
       Ptr it = vm_pop(vm);
       Ptr *stack_bottom = ((Ptr *)(void *)vm->frame) - 1;
       *(stack_bottom - idx) = it;
@@ -1270,7 +1490,7 @@ void vm_interp(VM* vm) {
       vm_pop(vm);
       break;
     case PUSHLIT: {
-      u64 idx = *(++vm->pc);
+      u64 idx = vm_adv_instr(vm);
       Ptr it = vm->bc->literals->data[idx];
       vm_push(vm, it);
       break;
@@ -1282,8 +1502,8 @@ void vm_interp(VM* vm) {
       break;
     }
     case LOAD_CLOSURE: {
-      u64 slot  = *(++vm->pc);
-      u64 depth = *(++vm->pc);
+      u64 slot  = vm_adv_instr(vm);
+      u64 depth = vm_adv_instr(vm);
       auto it = vm_load_closure_value(vm, slot, depth);
       vm_push(vm, it);
       break;
@@ -1296,7 +1516,7 @@ void vm_interp(VM* vm) {
       break;
     }
     case PUSH_CLOSURE_ENV: {
-      u64 count = *(++vm->pc);
+      u64 count = vm_adv_instr(vm);
       auto array = objToPtr(alloc_pao(vm, Array, count + 1));
       array_set(array, 0, vm->frame->closed_over);
       while (count--) {
@@ -1319,31 +1539,31 @@ void vm_interp(VM* vm) {
     }
     case BR_IF_ZERO: {
       auto it = vm_pop(vm);
-      u64 jump = *(++vm->pc);
+      u64 jump = vm_adv_instr(vm);
       if ((u64)it.value == 0) {
-        vm->pc = vm->bc->code->data + (jump - 1); //-1 to acct for pc advancing
+        vm->pc = jump - 1; //-1 to acct for pc advancing
       } 
       break;
     }
     case BR_IF_NOT_ZERO: {
       auto it = vm_pop(vm);
-      u64 jump = *(++vm->pc);
+      u64 jump = vm_adv_instr(vm);
       if ((u64)it.value != 0) {
-        vm->pc = vm->bc->code->data + (jump - 1); //-1 to acct for pc advancing
+        vm->pc = jump - 1; //-1 to acct for pc advancing
       } 
       break;
     }
     case BR_IF_FALSE: {
       auto it = vm_pop(vm);
-      u64 jump = *(++vm->pc);
+      u64 jump = vm_adv_instr(vm);
       if (ptr_eq(it, FALSE)) {
-        vm->pc = vm->bc->code->data + (jump - 1); //-1 to acct for pc advancing
+        vm->pc = jump - 1; //-1 to acct for pc advancing
       } 
       break;
     }
     case JUMP: {
-      u64 jump = *(++vm->pc);
-      vm->pc = vm->bc->code->data + (jump - 1); //-1 to acct for pc advancing
+      u64 jump = vm_adv_instr(vm);
+      vm->pc = jump - 1; //-1 to acct for pc advancing
       break;
     }
     case DUP: {
@@ -1353,7 +1573,7 @@ void vm_interp(VM* vm) {
       break;
     }
     case CALL: {
-      u64 argc = *(++vm->pc);
+      u64 argc = vm_adv_instr(vm);
       auto fn = vm_pop(vm);
       if (is(PrimOp, fn)) {
         u64 v = fn.value;
@@ -1386,7 +1606,7 @@ void vm_interp(VM* vm) {
       break;
     }
     case LOAD_ARG: {
-      u64 idx = *(++vm->pc);
+      u64 idx = vm_adv_instr(vm);
       u64 argc = vm->frame->argc;
       u64 ofs  = vm->frame->pad_count;
       auto it = vm->frame->argv[ofs + (argc - (idx + 1))];
@@ -2046,6 +2266,9 @@ void run_string(const char* str) {
   auto heap_mem = calloc(heap_size_in_bytes, 1);
   vm->heap_mem = heap_mem;
   vm->heap_end = heap_mem;
+  auto alt_heap_mem = calloc(heap_size_in_bytes, 1);
+  vm->alt_heap_mem = alt_heap_mem;
+  vm->alt_heap_end = alt_heap_mem;
   vm->heap_size_in_bytes = heap_size_in_bytes;
   vm->allocation_count = 0;
 
@@ -2096,6 +2319,12 @@ void run_string(const char* str) {
     exprs = cdr(vm, exprs);
   }
 
+  vm_count_objects_on_heap(vm);
+  vm_count_reachable_refs(vm);
+  cout << " running gc..." << endl;
+  gc(vm);
+  vm_count_objects_on_heap(vm);
+  vm_count_reachable_refs(vm);
   report_memory_usage(vm);
 
   // TODO: clean up

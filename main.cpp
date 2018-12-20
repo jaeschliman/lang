@@ -53,6 +53,7 @@ TODO: sdl integration
 TODO: single floats
 TODO: U32 Array etc
 TODO: more prim instrs
+TODO: maybe expose bytecode prims as special forms? %push %call etc...
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -683,6 +684,42 @@ Ptr *extensible_array_memory(Ptr array) {
   return buff->data;
 }
 
+/* ---------------------------------------- */
+// defstruct macro
+// primitive 'structures' based on arrays
+// could eventually have something like CCL's gvectors
+// would then support is(..) etc.
+// would be nice to have parameter typechecking as well, but, well...
+
+#define _define_structure_maker(name, ...)      \
+  Ptr alloc_##name(VM *vm) {                    \
+    auto len = PP_NARG(__VA_ARGS__);            \
+    auto res = make_zf_array(vm, len);          \
+    return res;                                 \
+  }
+
+#define _define_structure_accessors(slot, name, idx)    \
+  Ptr name##_get_##slot(Ptr obj) {                      \
+    return array_get(obj, idx);                         \
+  }                                                     \
+  void name##_set_##slot(Ptr obj, Ptr value) {          \
+    array_set(obj, idx, value);                         \
+  } 
+
+#define defstruct(name, ...) \
+  _define_structure_maker(name, _VA_ARGS_); \
+  MAP_WITH_ARG_AND_INDEX(_define_structure_accessors, name, __VA_ARGS__);
+
+defstruct(atest, a, b);
+void test_defstruct_compiles(VM *vm) {
+  auto it = alloc_atest(vm);
+  atest_get_a(it);
+  atest_get_b(it);
+  atest_set_a(it, NIL);
+  atest_set_b(it, NIL);
+}
+
+/* ---------------------------------------- */
 
 // @safe
 Ptr make_closure(VM *vm, Ptr code, Ptr env) {

@@ -35,12 +35,13 @@ DONE: scan_heap(mem *start, mem*end) fn (linear scan of objects on the heap)
 DONE: garbage collection (cheney?)
 TODO: initial audit of requred gc_protect calls
 DONE: gc_protect for ptrs
-TODO: gc-safe list manipulation functions
-TODO: gc-safe allocators / make- functions
-TODO: growable ptr array
+DONE: gc-safe list manipulation functions
+DONE: gc-safe allocators / make- functions
+DONE: growable ptr array
 TODO: growable identity map
 DONE: gc-safe reader
 DONE: gc-safe ByteCodeBuilder
+TODO: move VariableInfo & CompilerEnv into gc heap
 TODO: gc-safe compiler
 TODO: automatic garbage collection (need to use gc_protect)
 TODO: move stack memory into vm-managed heap
@@ -1717,9 +1718,7 @@ enum OpCode {
   LOAD_ARG = 9,
   LOAD_GLOBAL = 10,
   LOAD_CLOSURE = 11,
-  // @gc
   BUILD_CLOSURE = 12,
-  // @gc
   PUSH_CLOSURE_ENV = 13,
   BR_IF_FALSE = 14,
   JUMP = 15,
@@ -1729,14 +1728,17 @@ enum OpCode {
   POP_CLOSURE_ENV = 20,
 };
 
+// @safe
 void vm_push(VM* vm, Ptr value) {
   *(--vm->stack) = value;
 }
 
+// @safe
 Ptr vm_pop(VM* vm) {
   return *(vm->stack++);
 }
 
+// @safe
 auto vm_load_closure_value(VM *vm, u64 slot, u64 depth) {
   auto curr = vm->frame->closed_over;
   while (depth) {
@@ -1748,13 +1750,17 @@ auto vm_load_closure_value(VM *vm, u64 slot, u64 depth) {
   return array_get(curr, slot+1);
 }
 
+// @safe
 inline u64 vm_curr_instr(VM *vm) {
   return vm->bc->code->data[vm->pc];
 }
+
+// @safe
 inline u64 vm_adv_instr(VM *vm) {
   return vm->bc->code->data[++vm->pc];
 }
 
+// @safe
 void vm_interp(VM* vm) {
   u64 instr;
   while ((instr = vm_curr_instr(vm))) {
@@ -1917,6 +1923,7 @@ void vm_interp(VM* vm) {
 
 typedef tuple<u64*, string> branch_entry;
 
+// @safe
 class ByteCodeBuilder {
 private:
   VM* vm;
@@ -2162,11 +2169,11 @@ struct VariableBinding {
 struct CompilerEnv {
   CompilerEnv *prev;
   // @gc
-  unordered_map<u64, VariableInfo> *info;
+  unordered_map<u64, VariableInfo> *info;  // symbol -> VariableInfo
   // @gc
-  unordered_map<u64, CompilerEnv*> *sub_envs;
+  unordered_map<u64, CompilerEnv*> *sub_envs; // symbol -> CompilerEnv *
   // @gc ?
-  vector<u64> *closed_over;
+  vector<u64> *closed_over; // [symbol]
   bool has_closure;
   CompilerEnvType type;
   CompilerEnv(CompilerEnv * parent_env) {
@@ -2187,8 +2194,8 @@ struct CompilerEnv {
   }
 };
 
-// @gc --- continue audit from here
 
+// @gc
 auto compiler_env_get_subenv(CompilerEnv *env, Ptr it) {
   auto key = it.value;
   if (env->sub_envs->find(key) == env->sub_envs->end()) {
@@ -2200,7 +2207,7 @@ auto compiler_env_get_subenv(CompilerEnv *env, Ptr it) {
 
 VariableInfo GLOBAL_INFO = (VariableInfo){ VariableScope_Global, 0, 0};
 
-
+// @gc
 VariableBinding compiler_env_binding(CompilerEnv *env, Ptr sym) {
   if (!env) return (VariableBinding){0, &GLOBAL_INFO};
   auto existing = env->info->find(sym.value);
@@ -2220,20 +2227,25 @@ VariableBinding compiler_env_binding(CompilerEnv *env, Ptr sym) {
 
 void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env);
 
+// @safe
 void emit_call(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
   auto fn = car(vm, it);
   auto args = cdr(vm, it);
   auto argc = 0;
+  prot_ptr(fn);
   while (!isNil(args)) {
     assert(consp(vm, args));
     argc++;
-    emit_expr(vm, builder, car(vm, args), env);
+    call_with_ptrs((args),
+                   emit_expr(vm, builder, car(vm, args), env));
     args = cdr(vm, args);
   }
+  unprot_ptr(fn);
   emit_expr(vm, builder, fn, env);
   builder->call(argc);
 }
 
+// @safe
 void emit_lambda_body(VM *vm, ByteCodeBuilder *builder, Ptr body, CompilerEnv *env) {
   if (isNil(body)) {
     builder->pushLit(NIL);
@@ -2242,12 +2254,14 @@ void emit_lambda_body(VM *vm, ByteCodeBuilder *builder, Ptr body, CompilerEnv *e
   assert(consp(vm, body));
   while(!isNil(body)) {
     auto expr = car(vm, body);
-    emit_expr(vm, builder, expr, env);
+    call_with_ptrs((body),
+                   emit_expr(vm, builder, expr, env));
     body = cdr(vm, body);
     if (!isNil(body)) builder->pop();
   }
 }
 
+// @safe
 auto emit_flat_lambda(VM *vm, Ptr it, CompilerEnv *env) {
   it = cdr(vm, it);
   auto builder = new ByteCodeBuilder(vm);
@@ -2259,6 +2273,7 @@ auto emit_flat_lambda(VM *vm, Ptr it, CompilerEnv *env) {
 }
 
 void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env) {
+  // @gc
   CompilerEnv *env = compiler_env_get_subenv(p_env, it);
   auto has_closure = env->has_closure;
   if (has_closure) {
@@ -2274,16 +2289,19 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env)
     }
     builder->pushClosureEnv(closed_count);
     auto body = cdr(vm, cdr(vm, it));
+    // @gc
     emit_lambda_body(vm, builder, body, env);
     builder->ret();
     p_builder->pushLit(objToPtr(builder->build()));
     p_builder->buildClosure();
   } else {
+    // @safe
     auto closure = emit_flat_lambda(vm, it, env);
     p_builder->pushLit(closure);
   }
 }
 
+// @gc
 void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* p_env) {
   CompilerEnv *env = compiler_env_get_subenv(p_env, it);
   auto vars = nth_or_nil(vm, it, 1);
@@ -2327,6 +2345,7 @@ void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* p_env) {
 }
 
 
+// @gc
 void emit_if(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
   auto test = nth_or_nil(vm, it, 1);
   auto _thn = nth_or_nil(vm, it, 2);
@@ -2341,6 +2360,7 @@ void emit_if(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
   builder->popLabelContext();
 }
 
+// @gc
 void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
   if (is(Symbol, it)) {
     auto binding = compiler_env_binding(env, it);
@@ -2389,6 +2409,7 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
 }
 
 // returns true if variable was closed over, false otherwise
+// @gc
 bool mark_variable_for_closure
 (VM *vm, Ptr sym, CompilerEnv *env, u64 level, bool saw_lambda)
 {
@@ -2421,6 +2442,7 @@ bool mark_variable_for_closure
 
 void mark_closed_over_variables(VM *vm, Ptr it, CompilerEnv* env);
 
+// @gc
 void mark_lambda_closed_over_variables(VM *vm, Ptr it, CompilerEnv *p_env) {
   CompilerEnv *env = compiler_env_get_subenv(p_env, it);
   env->type = CompilerEnvType_Lambda;
@@ -2445,6 +2467,7 @@ void mark_lambda_closed_over_variables(VM *vm, Ptr it, CompilerEnv *p_env) {
   }
 }
 
+// @gc
 void mark_let_closed_over_variables(VM *vm, Ptr it, CompilerEnv* p_env) {
   auto env = compiler_env_get_subenv(p_env, it);
   env->type = CompilerEnvType_Let;
@@ -2471,6 +2494,7 @@ void mark_let_closed_over_variables(VM *vm, Ptr it, CompilerEnv* p_env) {
     });
 }
 
+// @gc
 void mark_closed_over_variables(VM *vm, Ptr it, CompilerEnv* env) {
   if (is(Symbol, it)) {
     mark_variable_for_closure(vm, it, env, 0, false);
@@ -2498,6 +2522,7 @@ void mark_closed_over_variables(VM *vm, Ptr it, CompilerEnv* env) {
   }
 }
 
+// @gc
 auto compile_toplevel_expression(VM *vm, Ptr it) {
   auto env = new CompilerEnv(nullptr);
   auto builder = new ByteCodeBuilder(vm);
@@ -2506,6 +2531,8 @@ auto compile_toplevel_expression(VM *vm, Ptr it) {
   delete env;
   return builder->build();
 }
+
+// @gc -- continue audit from here
 
 /* -------------------------------------------------- */
 

@@ -638,6 +638,7 @@ Ptr closure_env(Ptr closure) {
 }
 
 /* ---------------------------------------- */
+// @safe
 
 // size of object in bytes
 // note that obj_size of stack frame does not take into account temporaries.
@@ -710,6 +711,7 @@ void map_refs(VM *vm, Ptr it, PtrFn fn) {
 }
 
 /* ---------------------------------------- */
+// @safe @noalloc
 
 enum {
   BaseClassName = 0,
@@ -812,6 +814,7 @@ std::ostream &operator<<(std::ostream &os, Ptr p) {
   }
 }
 
+// @safe @noalloc
 void vm_dump_args(VM *vm) {
   auto f = vm->frame;
   auto c = f->argc;
@@ -821,6 +824,7 @@ void vm_dump_args(VM *vm) {
   }
 }
 
+// @safe @noalloc
 void _debug_walk(VM *vm, Ptr it, set<u64>*seen) {
   map_refs(vm, it, [&](Ptr p){
       if (seen->find(p.value) != seen->end()) return;
@@ -830,6 +834,7 @@ void _debug_walk(VM *vm, Ptr it, set<u64>*seen) {
     });
 }
 
+// @safe @noalloc
 void debug_walk(VM *vm, Ptr it) {
   set<u64> seen;
   cout << "DEBUG WALK::" << endl;
@@ -838,6 +843,7 @@ void debug_walk(VM *vm, Ptr it) {
   cout << "========================================" << endl << endl;
 }
 
+// @unsafe
 auto vm_map_stack_refs(VM *vm, PtrFn fn) {
   StackFrameObject *fr = vm->frame;
   Ptr *stack = vm->stack;
@@ -858,6 +864,7 @@ auto vm_map_stack_refs(VM *vm, PtrFn fn) {
   }
 }
 
+// @safe @noalloc
 auto vm_print_stack_trace(VM *vm) {
   StackFrameObject *fr = vm->frame;
   Ptr *stack = vm->stack;
@@ -878,6 +885,7 @@ auto vm_print_stack_trace(VM *vm) {
   return NIL;
 }
 
+// @safe @noalloc
 auto vm_print_debug_stack_trace(VM *vm) {
   StackFrameObject *fr = vm->frame;
   debug_walk(vm, objToPtr(fr));
@@ -891,6 +899,7 @@ auto vm_print_debug_stack_trace(VM *vm) {
 
 /* ---------------------------------------- */
 
+// @safe
 StandardObject *make_standard_object(VM *vm, StandardObject *klass, Ptr*ivars) {
   auto ivar_count_object = standard_object_get_ivar(klass, BaseClassIvarCount);
   assert(is(Fixnum, ivar_count_object));
@@ -915,7 +924,7 @@ struct Globals {
   Ptr env;
 };
 
-// NB: not gc safe
+// @unsafe
 auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
   set<u64> seen;
   PtrFn recurse = [&](Ptr it) {
@@ -936,6 +945,7 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
   recurse(objToPtr(vm->globals->Symbol));
 }
 
+// @safe @noalloc
 void vm_count_reachable_refs(VM *vm) {
   u64 count = 0;
   vm_map_reachable_refs(vm, [&](Ptr it){
@@ -944,7 +954,7 @@ void vm_count_reachable_refs(VM *vm) {
   cout << "  " << count << "  reachable objects." << endl;
 }
 
-// NB: not gc safe
+// @unsafe
 void scan_heap(void *start, void*end, PtrFn fn) {
   while(start < end) {
     assert(pointer_is_aligned(start));
@@ -959,6 +969,7 @@ void scan_heap(void *start, void*end, PtrFn fn) {
   }
 }
 
+// @safe @noalloc
 void vm_count_objects_on_heap(VM *vm) {
   u64 count = 0;
   scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it){
@@ -1163,6 +1174,7 @@ void gc(VM *vm) {
 
 /* ---------------------------------------- */
 
+// @safe
 auto make_base_class(VM *vm, const char* name, u64 ivar_count) {
   auto defaultPrint = NIL;
   Ptr slots[] = {make_string(vm,name), make_number(ivar_count), defaultPrint};
@@ -1171,6 +1183,7 @@ auto make_base_class(VM *vm, const char* name, u64 ivar_count) {
 
 /* ---------------------------------------- */
 
+// @safe
 bool consp(VM *vm, Ptr p) {
   if (!is(Standard, p)) return false;
   auto obj = as(Standard, p);
@@ -1178,28 +1191,33 @@ bool consp(VM *vm, Ptr p) {
   return res;
 }
 
+// @safe
 Ptr car(VM *vm, Ptr p) {
   if (isNil(p)) return NIL;
   assert(consp(vm, p));
   return standard_object_get_ivar(as(Standard, p), 0);
 }
 
+// @safe
 void set_car(VM *vm, Ptr cons, Ptr value) {
   assert(consp(vm, cons));
   standard_object_set_ivar(as(Standard, cons), 0, value);
 }
 
+// @safe
 Ptr cdr(VM *vm, Ptr p) {
   if (isNil(p)) return NIL;
   assert(consp(vm, p));
   return standard_object_get_ivar(as(Standard, p), 1);
 }
 
+// @safe
 void set_cdr(VM *vm, Ptr cons, Ptr value) {
   assert(consp(vm, cons));
   standard_object_set_ivar(as(Standard, cons), 1, value);
 }
 
+// @safe
 Ptr nth_or_nil(VM *vm, Ptr p, u64 idx) {
   assert(idx >= 0);
   if (isNil(p)) return NIL;
@@ -1207,7 +1225,7 @@ Ptr nth_or_nil(VM *vm, Ptr p, u64 idx) {
   else return nth_or_nil(vm, cdr(vm, p), idx - 1);
 }
 
-
+// @safe
 Ptr cons(VM *vm, Ptr car, Ptr cdr) {
   auto obj = make_standard_object(vm, vm->globals->Cons, (Ptr[]){car, cdr});
   auto res = objToPtr(obj);
@@ -1215,6 +1233,7 @@ Ptr cons(VM *vm, Ptr car, Ptr cdr) {
   return res;
 }
 
+// @safe
 Ptr assoc(VM *vm, Ptr item, Ptr alist) {
   while (!isNil(alist)) {
     auto pair = car(vm, alist);
@@ -1224,6 +1243,7 @@ Ptr assoc(VM *vm, Ptr item, Ptr alist) {
   return NIL;
 }
 
+// @safe
 void set_assoc(VM *vm, Ptr *alistref, Ptr item, Ptr value) {
   auto existing = assoc(vm, item, *alistref);
   if (isNil(existing)) {
@@ -1235,12 +1255,14 @@ void set_assoc(VM *vm, Ptr *alistref, Ptr item, Ptr value) {
   }
 }
 
+// @safe
 Ptr make_list(VM *vm, u64 len, Ptr* ptrs) {
   if (len == 0) return NIL;
   // TODO: iterative solution
   return cons(vm, *ptrs, make_list(vm, len - 1, ptrs + 1));
 }
 
+// @safe
 void debug_print_list(ostream &os, Ptr p) {
   VM *vm = CURRENT_DEBUG_VM;
   os << "(";
@@ -1259,14 +1281,16 @@ void debug_print_list(ostream &os, Ptr p) {
   os << ")";
 }
 
-// NB: not gc safe
+// @safe
 void do_list(VM *vm, Ptr it, PtrFn cb) {
   while (!isNil(it)) {
+    prot_ptr(it);
     cb(car(vm, it));
-    it = cdr(vm, it);
+    it = cdr(vm, unprot_ptr(it));
   }
 }
 
+// @safe
 u64 list_length(VM *vm, Ptr it) {
   u64 count = 0;
   do_list(vm, it, [&](Ptr p){ count++; });
@@ -1275,6 +1299,7 @@ u64 list_length(VM *vm, Ptr it) {
 
 /* ---------------------------------------- */
 
+// @unsafe
 void initialize_classes(VM *vm)
 {
   auto Base = alloc_standard_object(vm, 0, BaseClassEnd);
@@ -1291,6 +1316,7 @@ void initialize_classes(VM *vm)
   g->Symbol = make_base_class(vm, "Symbol", 0);
 }
 
+// @safe
 Ptr intern(VM *vm, const char* cstr, int len) {
   string name = string(cstr, len);
   auto tab = vm->globals->symtab;
@@ -1303,21 +1329,25 @@ Ptr intern(VM *vm, const char* cstr, int len) {
   return res;
 }
 
+// @safe
 Ptr intern(VM *vm, string name) {
   auto str = name.c_str();
   return intern(vm, str, strlen(str));
 }
 
+// @safe
 Ptr set_global(VM *vm, Ptr sym, Ptr value) {
   assert(is(Symbol, sym));
   set_assoc(vm, &vm->globals->env, sym, value);
   return sym;
 }
 
+// @safe
 Ptr set_global(VM *vm, const char* name, Ptr value) {
   return set_global(vm, intern(vm, name), value);
 }
 
+// @safe
 Ptr get_global(VM *vm,  const char*name) {
   auto pair = assoc(vm, intern(vm, name), vm->globals->env);
   if (isNil(pair)) return pair;
@@ -1325,6 +1355,8 @@ Ptr get_global(VM *vm,  const char*name) {
 }
 
 /* -------------------------------------------------- */
+// @safe
+
 #include "./chars.cpp"
 
 auto is_digitchar(char ch) {
@@ -1357,14 +1389,15 @@ auto is_nlchar(char ch) {
 
 /* -------------------------------------------------- */
 
+// @safe
 auto quote_form(VM *vm, Ptr it) {
   auto q = intern(vm, "quote");
   prot_ptr(q);
   auto res = cons(vm, it, NIL);
-  prot_ptr(res);
-  return cons(vm, unprot_ptr(q), unprot_ptr(res));
+  return cons(vm, unprot_ptr(q), res);
 }
 
+// @safe
 void eat_ws(const char **remaining, const char *end) {
   auto input = *remaining;
   while (input < end) {

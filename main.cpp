@@ -105,6 +105,9 @@ struct Ptr {
   u64 value;
 };
 
+inline bool operator == (Ptr a, Ptr b) {
+  return a.value == b.value;
+}
 
 bool ptr_eq(Ptr a, Ptr b) {
   return a.value == b.value;
@@ -2190,44 +2193,36 @@ public:
 
 /* -------------------------------------------------- */
 
-enum VariableScope {
-  VariableScope_Global,
-  VariableScope_Argument,
-  VariableScope_Closure,
-  VariableScope_Let,
-};
+#define VariableScope_Global   (Ptr){0 << TAG_BITS}
+#define VariableScope_Argument (Ptr){1 << TAG_BITS}
+#define VariableScope_Closure  (Ptr){2 << TAG_BITS}
+#define VariableScope_Let      (Ptr){3 << TAG_BITS}
 
-enum CompilerEnvType {
-  CompilerEnvType_Unknown,
-  CompilerEnvType_Lambda,
-  CompilerEnvType_Let
-};
+#define CompilerEnvType_Unknown (Ptr){0 << TAG_BITS}
+#define CompilerEnvType_Lambda  (Ptr){1 << TAG_BITS}
+#define CompilerEnvType_Let     (Ptr){2 << TAG_BITS}
 
-struct VariableInfo {
-  VariableScope scope;
-  u64 argument_index;
-  u64 closure_index;
-};
+defstruct(VariableInfo, scope, argument_index, closure_index)
 
 struct VariableBinding {
   u64 binding_depth;
-  VariableInfo *info;
+  Ptr variable_info;
 };
 
 // TODO: would be nicer to represent this in the VM itself.
 struct CompilerEnv {
   CompilerEnv *prev;
   // @gc
-  unordered_map<u64, VariableInfo> *info;  // symbol -> VariableInfo
+  unordered_map<u64, Ptr> *info;  // symbol -> VariableInfo
   // @gc
   unordered_map<u64, CompilerEnv*> *sub_envs; // symbol -> CompilerEnv *
   // @gc ?
   vector<u64> *closed_over; // [symbol]
   bool has_closure;
-  CompilerEnvType type;
+  Ptr type;
   CompilerEnv(CompilerEnv * parent_env) {
     prev = parent_env;
-    info = new unordered_map<u64, VariableInfo>();
+    info = new unordered_map<u64, Ptr>();
     sub_envs = new unordered_map<u64, CompilerEnv*>();
     closed_over = new vector<u64>();
     has_closure = false;
@@ -2254,24 +2249,26 @@ auto compiler_env_get_subenv(CompilerEnv *env, Ptr it) {
   return env->sub_envs->find(key)->second;
 }
 
-VariableInfo GLOBAL_INFO = (VariableInfo){ VariableScope_Global, 0, 0};
+#define GLOBAL_INFO  make_VariableInfo(vm, VariableScope_Global, \
+                                       to(Fixnum,0), to(Fixnum, 0))
 
 // @gc
-VariableBinding compiler_env_binding(CompilerEnv *env, Ptr sym) {
-  if (!env) return (VariableBinding){0, &GLOBAL_INFO};
+VariableBinding compiler_env_binding(VM *vm, CompilerEnv *env, Ptr sym) {
+  if (!env) return (VariableBinding){0, GLOBAL_INFO};
   auto existing = env->info->find(sym.value);
   if (existing == env->info->end()) {
-    auto outer = compiler_env_binding(env->prev, sym);
+    auto outer = compiler_env_binding(vm, env->prev, sym);
     auto from_lambda = env->prev && env->prev->type == CompilerEnvType_Lambda;
-    if (outer.info->scope == VariableScope_Argument && from_lambda) {
+    auto scope = VariableInfo_get_scope(outer.variable_info);
+    if (scope == VariableScope_Argument && from_lambda) {
       cout << "  ERROR: variable should have been marked for closure: " << sym << endl;
       assert(false);
     }
     auto depth = outer.binding_depth + 1;
-    auto info  = outer.info;
+    auto info  = outer.variable_info;
     return (VariableBinding){depth, info};
   }
-  return (VariableBinding){0, &existing->second};
+  return (VariableBinding){0, existing->second};
 }
 
 void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env);
@@ -2332,9 +2329,10 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env)
     // cout << "   form  = " << it << endl;
     for (auto raw: *env->closed_over) {
       Ptr ptr = {raw};
-      auto binding = compiler_env_binding(env, ptr);
+      auto binding = compiler_env_binding(vm, env, ptr);
       // cout << "  closing over: " << ptr  << " idx: " << info.argument_index << endl;
-      builder->loadArg(binding.info->argument_index);
+      auto index = as(Fixnum, VariableInfo_get_argument_index(binding.variable_info));
+      builder->loadArg(index);
     }
     builder->pushClosureEnv(closed_count);
     auto body = cdr(vm, cdr(vm, it));
@@ -2361,9 +2359,10 @@ void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* p_env) {
       auto sym = nth_or_nil(vm, lst, 0);
       auto expr = nth_or_nil(vm, lst, 1);
       assert(is(Symbol, sym));
-      auto binding = compiler_env_binding(env, sym);
-      auto idx = binding.info->argument_index + start_index;
-      binding.info->argument_index = idx;
+      auto binding = compiler_env_binding(vm, env, sym);
+      auto argidx  = VariableInfo_get_argument_index(binding.variable_info);
+      auto idx     = as(Fixnum, argidx) + start_index;
+      VariableInfo_set_argument_index(binding.variable_info, to(Fixnum, idx));
 
       emit_expr(vm, builder, expr, p_env);
       builder->storeFrameRel(idx);
@@ -2374,9 +2373,10 @@ void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* p_env) {
     auto closed_count = env->closed_over->size();
     for (auto raw: *env->closed_over) {
       Ptr ptr = {raw};
-      auto binding = compiler_env_binding(env, ptr);
+      auto binding = compiler_env_binding(vm, env, ptr);
       // cout << "  closing over: " << ptr  << " idx: " << info.argument_index << endl;
-      builder->loadFrameRel(binding.info->argument_index);
+      auto argidx  = VariableInfo_get_argument_index(binding.variable_info);
+      builder->loadFrameRel(as(Fixnum, argidx));
     }
     builder->pushClosureEnv(closed_count);
   }
@@ -2412,20 +2412,23 @@ void emit_if(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
 // @gc
 void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
   if (is(Symbol, it)) {
-    auto binding = compiler_env_binding(env, it);
-    auto info = binding.info;
-    if (info->scope == VariableScope_Global) {
+    auto binding = compiler_env_binding(vm, env, it);
+    auto info = binding.variable_info;
+    auto scope = VariableInfo_get_scope(info);
+    auto argument_index = VariableInfo_get_argument_index(info);
+    auto closure_index = VariableInfo_get_closure_index(info);
+    if (scope == VariableScope_Global) {
       builder->loadGlobal(it);
-    } else if (info->scope == VariableScope_Argument) {
-      builder->loadArg(info->argument_index);
-    } else if (info->scope == VariableScope_Closure) {
-      auto index = info->closure_index;
+    } else if (scope == VariableScope_Argument) {
+      builder->loadArg(as(Fixnum, argument_index));
+    } else if (scope == VariableScope_Closure) {
+      auto index = closure_index;
       auto depth = binding.binding_depth;
       // cout << " closure scope, " << index << " " << depth << endl;
-      builder->loadClosure(index, depth);
-    } else if (info->scope == VariableScope_Let) {
-      // cout << " Loading FR REL: " << info->argument_index << endl;
-      builder->loadFrameRel(info->argument_index); // LAZY reusing argument_index
+      builder->loadClosure(as(Fixnum, index), depth);
+    } else if (scope == VariableScope_Let) {
+      // cout << " Loading FR REL: " << argument_index << endl;
+      builder->loadFrameRel(as(Fixnum, argument_index)); // LAZY reusing argument_index
     } else {
       assert(false);
     }
@@ -2473,10 +2476,12 @@ bool mark_variable_for_closure
     if (!saw_lambda) return false;
 
     // otherwise, was found in an outer scope, and we need to create a closure.
-    auto info = &existing->second;
-    if (info->scope == VariableScope_Closure) return true;
-    info->scope = VariableScope_Closure;
-    info->closure_index = env->closed_over->size();
+    auto info = existing->second;
+    auto scope = VariableInfo_get_scope(info);
+    if (scope == VariableScope_Closure) return true;
+    VariableInfo_set_scope(info,  VariableScope_Closure);
+    auto index = env->closed_over->size();
+    VariableInfo_set_closure_index(info, to(Fixnum, index));
     env->closed_over->push_back(sym.value);
     env->has_closure = true;
     return true;
@@ -2502,7 +2507,7 @@ void mark_lambda_closed_over_variables(VM *vm, Ptr it, CompilerEnv *p_env) {
   while (!isNil(args)) {
     auto arg = car(vm, args);
     assert(is(Symbol, arg));
-    auto info = (VariableInfo){VariableScope_Argument, idx++, 0};
+    auto info = make_VariableInfo(vm, VariableScope_Argument, to(Fixnum, idx++), to(Fixnum,0));
     env->info->insert(make_pair(arg.value, info));
     args = cdr(vm, args);
   }
@@ -2530,7 +2535,7 @@ void mark_let_closed_over_variables(VM *vm, Ptr it, CompilerEnv* p_env) {
       assert(is(Symbol, sym));
 
       // idx is altered in the emit phase to account for surrounding lets
-      auto info = (VariableInfo){VariableScope_Let, idx, 0};
+      auto info = make_VariableInfo(vm, VariableScope_Let, to(Fixnum, idx), to(Fixnum, 0));
       env->info->insert(make_pair(sym.value, info));
 
       mark_closed_over_variables(vm, expr, p_env);

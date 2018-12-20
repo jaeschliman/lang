@@ -1,7 +1,7 @@
 /*
 
  g++ main.cpp -Werror -std=c++14 && ./a.out
- 
+
 (setq flycheck-clang-language-standard "c++14")
 
 DONE: stack traces
@@ -34,6 +34,7 @@ DONE: remove the 'ffi' stuff
 DONE: scan_heap(mem *start, mem*end) fn (linear scan of objects on the heap)
 DONE: garbage collection (cheney?)
 TODO: initial audit of requred gc_protect calls
+DONE: gc_protect for ptrs
 TODO: growable ptr array
 TODO: growable identity map
 TODO: gc-safe reader
@@ -98,6 +99,7 @@ struct Ptr {
   u64 value;
 };
 
+
 bool ptr_eq(Ptr a, Ptr b) {
   return a.value == b.value;
 }
@@ -106,10 +108,17 @@ struct Header {
   ObjectType object_type;
   // u64 flags;
 };
-  
+
 struct Object {
   Header header;
 };
+
+// TODO: rename this function
+inline Ptr objToPtr(Object *ref) {
+  Ptr p;
+  p.value = ((u64) ref) |  0b1;
+  return p;
+}
 
 struct VM;
 
@@ -124,6 +133,7 @@ void gc_unprotect_reference(VM *vm, Object **);
     auto _ref = (Object **)&it;                 \
     gc_unprotect_reference(vm, _ref);           \
   } while(0)
+
 
 struct U64ArrayObject : Object {
   u64 length;
@@ -264,12 +274,6 @@ struct StandardObject : Object { // really more of a structure object
 // not so sure about this...
 #define NIL objToPtr((Object *)0)
 
-inline Ptr objToPtr(Object *ref) {
-  Ptr p;
-  p.value = ((u64) ref) |  0b1;
-  return p;
-}
-
 Object *asObject(Ptr self) {
   return (Object *)(self.value & EXTRACT_PTR_MASK);
 }
@@ -301,7 +305,7 @@ inline bool isNonNilObject(Ptr it) {
   inline type##Object * as##type(Ptr it) {                              \
     assert(is(type, it));                                               \
     return (type##Object *)as(Object, it);                              \
-  } 
+  }
 
 
 type_test(any, it) { return true; }
@@ -330,12 +334,62 @@ object_type(StackFrame)
   }                                                    \
   auto name = as(type, _##name);
 
+/* ---------------------------------------- */
+
+struct GCPtr {
+  Ptr ptr;
+  Object *object;
+  bool is_object;
+  VM *vm;
+};
+
+#define protect_ptr(var, it)                    \
+  GCPtr var;                                    \
+  wrap_ptr(vm, &var, it)
+
+
+inline void wrap_ptr(VM *vm, GCPtr* var, Ptr it)  {
+  var->ptr = it;
+  if (isNonNilObject(it)) {
+    var->is_object = true;
+    var->object = as(Object, it);
+    var->vm = vm;
+    gc_protect(var->object);
+  } else {
+    var->is_object = false;
+  }
+}
+
+inline Ptr unwrap_ptr(GCPtr *it) {
+  if (it->is_object) {
+    auto vm = it->vm;
+    gc_unprotect(it->object);
+    it->ptr = objToPtr(it->object);
+  }
+  return it->ptr;
+}
+
+#define prot_ptr(it) protect_ptr(safe__##it, it)
+#define unprot_ptr(it) unwrap_ptr(&safe__##it)
+
+#define protect_ptr_vector(var, count, vector)  \
+  GCPtr var[count];                             \
+  {                                             \
+    u64 ___count = count;                       \
+    for (u64 i = 0; i < ___count; i++) {        \
+      wrap_ptr(vm, var + i, vector[i]);         \
+    }                                           \
+  }
+
+
+/* ---------------------------------------- */
+
 inline s64 toS64(Ptr self) {
   return ((s64)self.value) >> TAG_BITS;
 }
 
 inline Ptr s64ToPtr(s64 value) {
-  // TODO: overflow checking
+  // TODO: overflow check
   Ptr p;
   p.value = value << TAG_BITS;
   return p;
@@ -420,6 +474,7 @@ PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   return obj;
 }
 
+// FIXME: should this should be an AS not a TO
 PtrArrayObject *toPtrArrayObject(Ptr it) {
   assert(is(PtrArray,it));
   return (PtrArrayObject *)as(Object, it);
@@ -430,11 +485,13 @@ type_test(Array, it) {
 }
 
 StandardObject *alloc_standard_object(VM *vm, StandardObject *klass, u64 ivar_count) {
+  gc_protect(klass);
   auto byte_count = (sizeof(StandardObject)) + ivar_count * (sizeof(Ptr));
   auto result = (StandardObject *)vm_alloc(vm, byte_count);
   result->header.object_type = Standard_ObjectType;
   result->klass = klass;
   result->ivar_count = ivar_count;
+  gc_unprotect(klass);
   return result;
 }
 
@@ -450,7 +507,9 @@ Ptr standard_object_set_ivar(StandardObject *object, u64 idx, Ptr value) {
 
 Ptr make_bytecode(VM *vm, u64 code_len) {
   auto bc = alloc_bytecode(vm);
+  gc_protect(bc);
   auto code = alloc_u64ao(vm, code_len);
+  gc_unprotect(bc);
   bc->code = code;
   return objToPtr(bc);
 }
@@ -484,9 +543,10 @@ Ptr make_symbol(VM *vm, const char* str) {
 Ptr make_number(s64 value) { return s64ToPtr(value); }
 
 Ptr make_array(VM *vm, u64 len, Ptr objs[]) {
+  protect_ptr_vector(safe_objs, len, objs);
   auto array = alloc_pao(vm, Array, len);
   for (u64 i = 0; i < len; i++) {
-    array->data[i] = objs[i];
+    array->data[i] = unwrap_ptr(safe_objs + i);
   }
   return objToPtr(array);
 }
@@ -506,10 +566,12 @@ void array_set(Ptr array, u64 index, Ptr value) {
 Ptr make_closure(VM *vm, Ptr code, Ptr env) {
   assert(is(ByteCode, code));
   assert(isNil(env) || is(PtrArray, env));
-  auto it = alloc_pao(vm, Closure, 2); 
+  prot_ptr(code);
+  prot_ptr(env);
+  auto it = alloc_pao(vm, Closure, 2);
   auto c = objToPtr(it);
-  array_set(c, 0, code);
-  array_set(c, 1, env);
+  array_set(c, 0, unprot_ptr(code));
+  array_set(c, 1, unprot_ptr(env));
   return c;
 }
 
@@ -530,13 +592,13 @@ Ptr closure_env(Ptr closure) {
 // size of object in bytes
 // note that obj_size of stack frame does not take into account temporaries.
 
-u64 obj_size(U64ArrayObject *it)  { return sizeof(U64ArrayObject) + it->length * 8;    } 
-u64 obj_size(ByteCodeObject *it)  { return sizeof(ByteCodeObject) + 0;                 } 
-u64 obj_size(ByteArrayObject *it) { return sizeof(ByteArrayObject) + it->length;       } 
-u64 obj_size(PtrArrayObject *it)  { return sizeof(PtrArrayObject) + it->length * 8;    } 
+u64 obj_size(U64ArrayObject *it)  { return sizeof(U64ArrayObject) + it->length * 8;    }
+u64 obj_size(ByteCodeObject *it)  { return sizeof(ByteCodeObject) + 0;                 }
+u64 obj_size(ByteArrayObject *it) { return sizeof(ByteArrayObject) + it->length;       }
+u64 obj_size(PtrArrayObject *it)  { return sizeof(PtrArrayObject) + it->length * 8;    }
 u64 obj_size(StandardObject *it)  { return sizeof(StandardObject) + it->ivar_count * 8;}
 // TODO: include padding
-u64 obj_size(StackFrameObject*it) { return sizeof(StackFrameObject) + it->argc * 8;    } 
+u64 obj_size(StackFrameObject*it) { return sizeof(StackFrameObject) + it->argc * 8;    }
 
 auto size_of(Ptr it) {
   if (isNil(it) || !is(Object, it)) return (u64)0;
@@ -580,24 +642,24 @@ void obj_refs(VM *vm, StackFrameObject *it, PtrFn fn) {
   if (it->prev_frame) fn(objToPtr(it->prev_frame));
 }
 
-void obj_refs(VM *vm, U64ArrayObject *it, PtrFn fn) { return; } 
+void obj_refs(VM *vm, U64ArrayObject *it, PtrFn fn) { return; }
 void obj_refs(VM *vm, ByteCodeObject *it, PtrFn fn) {
   fn(objToPtr(it->code));
   fn(objToPtr(it->literals));
-} 
-void obj_refs(VM *vm, ByteArrayObject *it, PtrFn fn) { return; } 
+}
+void obj_refs(VM *vm, ByteArrayObject *it, PtrFn fn) { return; }
 void obj_refs(VM *vm, PtrArrayObject *it, PtrFn fn) {
   for (u64 i = 0; i < it->length; i++) {
     fn(it->data[i]);
   }
-} 
+}
 
 void obj_refs(VM *vm, StandardObject *it, PtrFn fn) {
   fn(objToPtr(it->klass));
   for (u64 i = 0; i < it->ivar_count; i++) {
     fn(it->ivars[i]);
   }
-} 
+}
 
 void map_refs(VM *vm, Ptr it, PtrFn fn) {
   if (isNil(it) || !is(Object, it)) return;
@@ -633,7 +695,7 @@ enum BuiltInDebugPrintIndex : u64 {
 
 std::ostream &operator<<(std::ostream &os, Ptr p);
 
-std::ostream &operator<<(std::ostream &os, Object *obj) { 
+std::ostream &operator<<(std::ostream &os, Object *obj) {
   auto otype = obj->header.object_type;
   switch (otype) {
   case ByteArray_ObjectType: {
@@ -646,7 +708,7 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
       }
       os << "\"";
       return os;
-    case Symbol: 
+    case Symbol:
       for (uint i = 0; i < vobj->length; i++) {
         os << vobj->data[i];
       }
@@ -699,7 +761,7 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
   return os << "don't know how to print object: " << otype << (void*)obj << endl;
 }
 
-std::ostream &operator<<(std::ostream &os, Ptr p) { 
+std::ostream &operator<<(std::ostream &os, Ptr p) {
   if (isNil(p)) {
     return os << "nil";
   } else if (is(Object, p)) {
@@ -798,38 +860,17 @@ StandardObject *make_standard_object(VM *vm, StandardObject *klass, Ptr*ivars) {
   auto ivar_count_object = standard_object_get_ivar(klass, BaseClassIvarCount);
   assert(is(Fixnum, ivar_count_object));
   auto ivar_count = toS64(ivar_count_object);
+
+  protect_ptr_vector(safe_ivars, ivar_count, ivars);
+
   auto result = alloc_standard_object(vm, klass, ivar_count);
+
   for (auto i = 0; i < ivar_count; i++) {
-    standard_object_set_ivar(result, i, ivars[i]);
+    standard_object_set_ivar(result, i, unwrap_ptr(safe_ivars + i));
   }
+
   return result;
 }
-
-bool isStdObj(Ptr p) {
-  if (isNil(p)) return false;
-  return is(Object, p) && (as(Object, p)->header.object_type == Standard_ObjectType);
-}
-
-/* ---------------------------------------- */
-
-
-typedef void *(*compiled)();
-
-//  void *my_arg_grabber() {
-//    asm(
-//        "addq %rsi, %rdi\n"
-//        "movq %rdi, %rax\n"
-//        "popq %rbp\n"
-//        "ret\n"
-//        );
-//  
-//    // to silence the warnings
-//    return 0;
-//  }
-//  
-//  void my_arg_setter(u64 a, u64 b) {
-//    //  asm("" :: "rsi"(a), "rdi"(b));
-//  }
 
 /* ---------------------------------------- */
 
@@ -1093,23 +1134,23 @@ bool consp(VM *vm, Ptr p) {
 Ptr car(VM *vm, Ptr p) {
   if (isNil(p)) return NIL;
   assert(consp(vm, p));
-  return standard_object_get_ivar((StandardObject *)as(Object, p), 0);
+  return standard_object_get_ivar(as(Standard, p), 0);
 }
 
 void set_car(VM *vm, Ptr cons, Ptr value) {
   assert(consp(vm, cons));
-  standard_object_set_ivar((StandardObject *)as(Object, cons), 0, value);
+  standard_object_set_ivar(as(Standard, cons), 0, value);
 }
 
 Ptr cdr(VM *vm, Ptr p) {
   if (isNil(p)) return NIL;
   assert(consp(vm, p));
-  return standard_object_get_ivar((StandardObject *)as(Object, p), 1);
+  return standard_object_get_ivar(as(Standard, p), 1);
 }
 
 void set_cdr(VM *vm, Ptr cons, Ptr value) {
   assert(consp(vm, cons));
-  standard_object_set_ivar((StandardObject *)as(Object, cons), 1, value);
+  standard_object_set_ivar(as(Standard, cons), 1, value);
 }
 
 Ptr nth_or_nil(VM *vm, Ptr p, u64 idx) {
@@ -1207,7 +1248,7 @@ Ptr intern(VM *vm, const char* cstr, int len) {
   auto tab = vm->globals->symtab;
   if (tab->find(name) == tab->end()) {
     auto sym = make_symbol(vm, cstr, len);
-    tab->insert(make_pair(name, sym));   
+    tab->insert(make_pair(name, sym));
   }
   auto res = tab->find(name)->second;
   return res;
@@ -1357,7 +1398,7 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
       const char* start = input;
       int len = 1;
       while(input < end && is_symbodychar(*(++input))) {
-       len++; 
+       len++;
       }
       auto result = intern(vm, start, len);
       *remaining = input;
@@ -1611,7 +1652,7 @@ void vm_interp(VM* vm) {
       u64 jump = vm_adv_instr(vm);
       if ((u64)it.value == 0) {
         vm->pc = jump - 1; //-1 to acct for pc advancing
-      } 
+      }
       break;
     }
     case BR_IF_NOT_ZERO: {
@@ -1619,7 +1660,7 @@ void vm_interp(VM* vm) {
       u64 jump = vm_adv_instr(vm);
       if ((u64)it.value != 0) {
         vm->pc = jump - 1; //-1 to acct for pc advancing
-      } 
+      }
       break;
     }
     case BR_IF_FALSE: {
@@ -1627,7 +1668,7 @@ void vm_interp(VM* vm) {
       u64 jump = vm_adv_instr(vm);
       if (ptr_eq(it, FALSE)) {
         vm->pc = jump - 1; //-1 to acct for pc advancing
-      } 
+      }
       break;
     }
     case JUMP: {
@@ -2199,7 +2240,7 @@ bool mark_variable_for_closure
   } else {
     if (env->type == CompilerEnvType_Lambda) saw_lambda = true;
     auto closed = mark_variable_for_closure(vm, sym, env->prev, level + 1, saw_lambda);
-    if (closed) env->has_closure = true; 
+    if (closed) env->has_closure = true;
     return closed;
   }
 }
@@ -2359,7 +2400,7 @@ void run_string(const char* str) {
     gc_unprotect(bc);
 
     gc(vm);
-  
+
     if (vm->error) {
       puts("VM ERROR: ");
       puts(vm->error);
@@ -2391,7 +2432,7 @@ void run_string(const char* str) {
 const char *read_file_contents(string path) {
   ifstream istream(path);
   stringstream buffer;
-  buffer << istream.rdbuf(); 
+  buffer << istream.rdbuf();
   auto str = buffer.str();
   // TODO: does this require freeing later?
   auto cstr = str.c_str();
@@ -2413,4 +2454,3 @@ int main() {
   run_file("./hello.lisp");
   return 0;
 }
-

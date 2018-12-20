@@ -2192,6 +2192,45 @@ public:
 };
 
 /* -------------------------------------------------- */
+// stopgap append-only identity 'map'. O(N) lookups and insertions
+
+Ptr make_imap(VM *vm) {
+  return make_extensible_array(vm);
+}
+
+bool imap_contains(Ptr map, Ptr key) {
+  u64 max = extensible_array_used(map);
+  Ptr *mem = extensible_array_memory(map);
+  for (u64 i = 0; i < max; i += 2) {
+    if (mem[i] == key) return true;
+  }
+  return false;
+}
+
+Ptr imap_get(Ptr map, Ptr key) {
+  u64 max = extensible_array_used(map);
+  Ptr *mem = extensible_array_memory(map);
+  for (u64 i = 0; i < max; i += 2) {
+    if (mem[i] == key) return mem[i + 1];
+  }
+  return NIL;
+}
+
+void imap_set(VM *vm, Ptr map, Ptr key, Ptr value) {
+  u64 max = extensible_array_used(map);
+  Ptr *mem = extensible_array_memory(map);
+  for (u64 i = 0; i < max; i += 2) {
+    if (mem[i] == key) {
+      mem[i + 1] = value;
+      return;
+    }
+  }
+  extensible_array_push(vm, map, key);
+  extensible_array_push(vm, map, value);
+}
+
+
+/* -------------------------------------------------- */
 
 #define VariableScope_Global   (Ptr){0 << TAG_BITS}
 #define VariableScope_Argument (Ptr){1 << TAG_BITS}

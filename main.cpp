@@ -691,11 +691,22 @@ Ptr *extensible_array_memory(Ptr array) {
 // would then support is(..) etc.
 // would be nice to have parameter typechecking as well, but, well...
 
-#define _define_structure_maker(name, ...)      \
-  Ptr alloc_##name(VM *vm) {                    \
-    auto len = PP_NARG(__VA_ARGS__);            \
-    auto res = make_zf_array(vm, len);          \
-    return res;                                 \
+#define _def_struct_arg(x) Ptr x
+#define _def_struct_args(...) MAP_WITH_COMMAS(_def_struct_arg, __VA_ARGS__)
+#define _def_struct_set_arg(slot, name, idx) name##_set_##slot(result, slot);
+
+#define _define_structure_maker(name, ...)                              \
+  Ptr alloc_##name(VM *vm) {                                            \
+    auto len = PP_NARG(__VA_ARGS__);                                    \
+    auto res = make_zf_array(vm, len);                                  \
+    return res;                                                         \
+  }                                                                     \
+  Ptr make_##name(VM *vm, _def_struct_args(__VA_ARGS__)) {              \
+    prot_ptrs(__VA_ARGS__);                                             \
+    auto result = alloc_##name(vm);                                     \
+    unprot_ptrs(__VA_ARGS__);                                           \
+    MAP_WITH_ARG_AND_INDEX(_def_struct_set_arg, name, __VA_ARGS__ );    \
+    return result;                                                      \
   }
 
 #define _define_structure_accessors(slot, name, idx)    \
@@ -706,13 +717,14 @@ Ptr *extensible_array_memory(Ptr array) {
     array_set(obj, idx, value);                         \
   } 
 
-#define defstruct(name, ...) \
-  _define_structure_maker(name, _VA_ARGS_); \
-  MAP_WITH_ARG_AND_INDEX(_define_structure_accessors, name, __VA_ARGS__);
+// @safe
+#define defstruct(name, ...)                                              \
+  MAP_WITH_ARG_AND_INDEX(_define_structure_accessors, name, __VA_ARGS__); \
+  _define_structure_maker(name, __VA_ARGS__);
 
 defstruct(atest, a, b);
 void test_defstruct_compiles(VM *vm) {
-  auto it = alloc_atest(vm);
+  auto it = make_atest(vm, NIL, NIL);
   atest_get_a(it);
   atest_get_b(it);
   atest_set_a(it, NIL);

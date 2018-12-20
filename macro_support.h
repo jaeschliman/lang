@@ -58,3 +58,25 @@
 #define MAP_WITH_ARG_AND_INDEXX6(X, Y, a,b,c,d,e,f) X(a,Y,0) X(b,Y,1) X(c,Y, 2) X(d,Y,3) X(e,Y,4) X(f,Y,5)
 #define MAP_WITH_ARG_AND_INDEXX_(M, X, Y,  ...) M(X, Y,  __VA_ARGS__)
 #define MAP_WITH_ARG_AND_INDEX(X, Y, ...) MAP_WITH_ARG_AND_INDEXX_(XPASTE(MAP_WITH_ARG_AND_INDEXX, PP_NARG(__VA_ARGS__)), X, Y, __VA_ARGS__)
+
+
+
+#define MAP_WITH_COMMASX1(X, a)           X(a)
+#define MAP_WITH_COMMASX2(X, a,b)         X(a), X(b)
+#define MAP_WITH_COMMASX3(X, a,b,c)       X(a), X(b), X(c)
+#define MAP_WITH_COMMASX4(X, a,b,c,d)     X(a), X(b), X(c), X(d)
+#define MAP_WITH_COMMASX5(X, a,b,c,d,e)   X(a), X(b), X(c), X(d), X(e)
+#define MAP_WITH_COMMASX6(X, a,b,c,d,e,f) X(a), X(b), X(c), X(d), X(e), X(f)
+#define MAP_WITH_COMMASX7(X, a,b,c,d,e,f,g) X(a), X(b), X(c), X(d), X(e), X(f), X(g)
+#define MAP_WITH_COMMASX8(X, a,b,c,d,e,f,g,h) X(a), X(b), X(c), X(d), X(e), X(f), X(g), X(h)
+#define MAP_WITH_COMMASX9(X, a,b,c,d,e,f,g,h,i) X(a), X(b), X(c), X(d), X(e), X(f), X(g), X(h), X(i)
+#define MAP_WITH_COMMASX10(X, a,b,c,d,e,f,g,h,i,j) X(a), X(b), X(c), X(d), X(e), X(f), X(g), X(h), X(i), X(j)
+#define MAP_WITH_COMMASX11(X, a,b,c,d,e,f,g,h,i,j,k) X(a), X(b), X(c), X(d), X(e), X(f), X(g), X(h), X(i), X(j), X(k)
+#define MAP_WITH_COMMASX12(X, a,b,c,d,e,f,g,h,i,j,k,l) X(a), X(b), X(c), X(d), X(e), X(f), X(g), X(h), X(i), X(j), X(k), X(l)
+#define MAP_WITH_COMMASX13(X, a,b,c,d,e,f,g,h,i,j,k,l,m) X(a), X(b), X(c), X(d), X(e), X(f), X(g), X(h), X(i), X(j), X(k), X(l), X(m)
+#define MAP_WITH_COMMASX14(X, a,b,c,d,e,f,g,h,i,j,k,l,m,n) X(a), X(b), X(c), X(d), X(e), X(f), X(g), X(h), X(i), X(j), X(k), X(l), X(m), X(n)
+#define MAP_WITH_COMMASX15(X, a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) X(a), X(b), X(c), X(d), X(e), X(f), X(g), X(h), X(i), X(j), X(k), X(l), X(m), X(n), X(o)
+#define MAP_WITH_COMMASX_(M, X,  ...) M(X, __VA_ARGS__)
+#define MAP_WITH_COMMAS(X, ...) MAP_WITH_COMMASX_(XPASTE(MAP_WITH_COMMASX, PP_NARG(__VA_ARGS__)), X, __VA_ARGS__)
+
+

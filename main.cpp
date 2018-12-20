@@ -457,7 +457,7 @@ ByteArrayObject *alloc_bao(VM *vm, BAOType ty, uint len) {
 
 type_test(Symbol, it){
   if (!is(ByteArray, it)) return false;
-  auto bao = (ByteArrayObject *)as(Object, it);
+  auto bao = as(ByteArray, it);
   return bao->bao_type == Symbol;
 }
 
@@ -602,43 +602,29 @@ u64 obj_size(StackFrameObject*it) { return sizeof(StackFrameObject) + it->argc *
 
 auto size_of(Ptr it) {
   if (isNil(it) || !is(Object, it)) return (u64)0;
-  if (is(U64Array, it))       return obj_size(as(U64Array, it))  ;
-  if (is(ByteCode, it))       return obj_size(as(ByteCode, it))  ;
-  if (is(ByteArray, it))      return obj_size(as(ByteArray, it)) ;
-  if (is(PtrArray, it))       return obj_size(as(PtrArray, it))  ;
-  if (is(Standard, it))       return obj_size(as(Standard, it))  ;
-  if (is(StackFrame, it))     return obj_size(as(StackFrame, it));
+  if (is(U64Array, it))   return obj_size(as(U64Array, it));
+  if (is(ByteCode, it))   return obj_size(as(ByteCode, it));
+  if (is(ByteArray, it))  return obj_size(as(ByteArray, it));
+  if (is(PtrArray, it))   return obj_size(as(PtrArray, it));
+  if (is(Standard, it))   return obj_size(as(Standard, it));
+  if (is(StackFrame, it)) return obj_size(as(StackFrame, it));
   cout << " unknown object type in object_size " << endl;
   assert(false);
 }
 
-auto copy_object(VM *vm, Ptr it) {
-  auto count = size_of(it);
-  if (!count) return it;
-  auto bytes = vm_alloc(vm, count);
-  auto from  = as(Object, it);
-  auto to    = (Object *)bytes;
-  memcpy(to, from, count);
-  return objToPtr(to);
-}
-
 /* ---------------------------------------- */
-
 // walk object references
-
+// NB. not gc safe
 
 typedef std::function<void(Ptr)> PtrFn;
 
+// NB: cannot track items currently on the stack from this function
+//     unless we do a full stack scan.
 void obj_refs(VM *vm, StackFrameObject *it, PtrFn fn) {
   for (u64 i = 0; i < it->argc; i++) {
     fn(it->argv[it->pad_count + i]);
   }
   fn(it->closed_over);
-  // TODO: how to track items currently on the stack?
-  //       don't want to add bookkeeping...
-  //       we will need /something/ once we start copying stack frames around...
-  //       or will we really?
-  //       just handle stack frames specially? not the end of the world.
   if (it->prev_frame) fn(objToPtr(it->prev_frame));
 }
 
@@ -672,7 +658,6 @@ void map_refs(VM *vm, Ptr it, PtrFn fn) {
   cout << " unknown object type in map_refs" << endl;
   assert(false);
 }
-
 
 /* ---------------------------------------- */
 
@@ -880,6 +865,7 @@ struct Globals {
   Ptr env;
 };
 
+// NB: not gc safe
 auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
   set<u64> seen;
   PtrFn recurse = [&](Ptr it) {
@@ -908,6 +894,7 @@ void vm_count_reachable_refs(VM *vm) {
   cout << "  " << count << "  reachable objects." << endl;
 }
 
+// NB: not gc safe
 void scan_heap(void *start, void*end, PtrFn fn) {
   while(start < end) {
     assert(pointer_is_aligned(start));
@@ -962,11 +949,21 @@ Object *gc_forwarding_address(Object *obj) {
   return (Object *)*ptr;
 }
 
+auto gc_copy_object(VM *vm, Ptr it) {
+  auto count = size_of(it);
+  if (!count) return it;
+  auto bytes = vm_alloc(vm, count);
+  auto from  = as(Object, it);
+  auto to    = (Object *)bytes;
+  memcpy(to, from, count);
+  return objToPtr(to);
+}
+
 Ptr gc_move_object(VM *vm, Object *obj) {
   assert(!gc_is_broken_heart(obj));
   auto ptr = objToPtr(obj);
   assert(size_of(ptr) > 0);
-  auto new_ptr = copy_object(vm, ptr);
+  auto new_ptr = gc_copy_object(vm, ptr);
   Object *addr = as(Object, new_ptr);
   gc_break_heart(obj, addr);
   return new_ptr;
@@ -1212,6 +1209,7 @@ void debug_print_list(ostream &os, Ptr p) {
   os << ")";
 }
 
+// NB: not gc safe
 void do_list(VM *vm, Ptr it, PtrFn cb) {
   while (!isNil(it)) {
     cb(car(vm, it));
@@ -1248,7 +1246,8 @@ Ptr intern(VM *vm, const char* cstr, int len) {
   auto tab = vm->globals->symtab;
   if (tab->find(name) == tab->end()) {
     auto sym = make_symbol(vm, cstr, len);
-    tab->insert(make_pair(name, sym));
+    // NB: symtab may have changed if make_symbol triggered a gc
+    vm->globals->symtab->insert(make_pair(name, sym));
   }
   auto res = tab->find(name)->second;
   return res;
@@ -1309,9 +1308,11 @@ auto is_nlchar(char ch) {
 /* -------------------------------------------------- */
 
 auto quote_form(VM *vm, Ptr it) {
-  auto res = cons(vm, it, NIL);
   auto q = intern(vm, "quote");
-  return cons(vm, q, res);
+  prot_ptr(q);
+  auto res = cons(vm, it, NIL);
+  prot_ptr(res);
+  return cons(vm, unprot_ptr(q), unprot_ptr(res));
 }
 
 void eat_ws(const char **remaining, const char *end) {
@@ -1617,7 +1618,6 @@ void vm_interp(VM* vm) {
       break;
     }
     case BUILD_CLOSURE: {
-      // @gc
       auto lambda = vm_pop(vm);
       auto array = vm->frame->closed_over;
       auto closure = make_closure(vm, lambda, array);
@@ -1626,7 +1626,6 @@ void vm_interp(VM* vm) {
     }
     case PUSH_CLOSURE_ENV: {
       u64 count = vm_adv_instr(vm);
-      // @gc
       auto array = objToPtr(alloc_pao(vm, Array, count + 1));
       array_set(array, 0, vm->frame->closed_over);
       while (count--) {
@@ -1803,7 +1802,7 @@ public:
     // alternatively, just keep raw memory for the most part,
     // and vm_alloc at end. so long as we protect the literal vector be ok?
     // @gc
-    bc = (ByteCodeObject *)as(Object, make_bytecode(vm, 1024));
+    bc = as(ByteCode, make_bytecode(vm, 1024));
     // @gc
     bc_mem = bc->code->data;
     // @gc ?

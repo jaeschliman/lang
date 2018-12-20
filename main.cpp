@@ -39,7 +39,7 @@ TODO: gc-safe list manipulation functions
 TODO: gc-safe allocators / make- functions
 TODO: growable ptr array
 TODO: growable identity map
-TODO: gc-safe reader
+DONE: gc-safe reader
 DONE: gc-safe ByteCodeBuilder
 TODO: gc-safe compiler
 TODO: automatic garbage collection (need to use gc_protect)
@@ -72,6 +72,7 @@ how to represent U32 and U64?
 #include <fstream>
 #include <sstream>
 #include <functional>
+#include "./macro_support.h"
 
 using namespace std;
 
@@ -394,6 +395,19 @@ inline Ptr unwrap_ptr(GCPtr *it) {
 
 #define std_vector_mem(vector) &(*vector->begin())
 
+#define __prot_ptr(x) prot_ptr(x);
+#define prot_ptrs(...) MAP(__prot_ptr, __VA_ARGS__)
+#define __unprot_ptr(x) unprot_ptr(x);
+#define unprot_ptrs(...) MAP(__unprot_ptr, __VA_ARGS__)
+
+// would be nice to have a version with expr in trailing brackets.
+#define call_with_ptrs(ptrs, expr)              \
+  {                                             \
+    prot_ptrs ptrs                              \
+    expr;                                       \
+    unprot_ptrs ptrs                            \
+  }
+
 
 /* ---------------------------------------- */
 
@@ -650,11 +664,9 @@ void extensible_array_push(VM *vm, Ptr array, Ptr item) {
   if (used + 1 >= cap) {
     auto new_cap = cap * 2;
     auto old_arr = array_get(array, 1);
-    prot_ptr(array);
-    prot_ptr(old_arr);
+    prot_ptrs(array, old_arr);
     auto new_arr = make_zf_array(vm, new_cap);
-    unprot_ptr(old_arr);
-    unprot_ptr(array);
+    unprot_ptrs(array, old_arr);
     for (u64 i = 0; i < cap; i++) {
       array_set(new_arr, i, array_get(old_arr, i));
     }
@@ -675,12 +687,10 @@ Ptr *extensible_array_memory(Ptr array) {
 Ptr make_closure(VM *vm, Ptr code, Ptr env) {
   assert(is(ByteCode, code));
   assert(isNil(env) || is(PtrArray, env));
-  prot_ptr(code);
-  prot_ptr(env);
+  prot_ptrs(code, env);
   auto it = alloc_pao(vm, Closure, 2);
   auto c = objToPtr(it);
-  unprot_ptr(code);
-  unprot_ptr(env);
+  unprot_ptrs(code, env);
   array_set(c, 0, code);
   array_set(c, 1, env);
   return c;
@@ -1487,14 +1497,16 @@ auto read_delimited_list(VM *vm, const char **remaining, const char *end, Ptr do
   auto items = make_extensible_array(vm);
 
   while(input < end && *input != delim) {
-    prot_ptr(items);
-    auto item = read(vm, &input, end, done);
-    unprot_ptr(items);
+    // would be nice to have some sort of with_protected() here...
+    Ptr item;
+    call_with_ptrs((items, done),
+                   item = read(vm, &input, end, done));
     if(ptr_eq(item, done)) {
       vm->error = "unexpected end of input";
       return done;
     }
-    extensible_array_push(vm, items, item);
+    call_with_ptrs((items, done),
+                   extensible_array_push(vm, items, item));
     eat_ws(&input, end);
   }
   auto used = extensible_array_used(items);
@@ -1505,6 +1517,7 @@ auto read_delimited_list(VM *vm, const char **remaining, const char *end, Ptr do
   return res;
 }
 
+// @safe
 Ptr read_character(VM *vm, const char **remaining, const char *end, Ptr done) {
   // TODO: would be nice read named characters
   auto input = *remaining;
@@ -1524,6 +1537,8 @@ Ptr read_character(VM *vm, const char **remaining, const char *end, Ptr done) {
     return res;
   }
 }
+
+// @safe
 Ptr read_bool(VM *vm, const char **remaining, const char *end, Ptr done) {
   auto input = *remaining;
   if (input >= end) { goto error; }
@@ -1542,13 +1557,14 @@ Ptr read_bool(VM *vm, const char **remaining, const char *end, Ptr done) {
   }
 }
 
-// @gc
+// @safe
 Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
   const char *input = *remaining;
   while (input < end) {
     eat_ws(&input, end);
     if (input >= end) break;
     if (is_symchar(*input)) {
+      // @safe
       const char* start = input;
       int len = 1;
       while(input < end && is_symbodychar(*(++input))) {
@@ -1559,19 +1575,24 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
       return result;
     } else if (*input == '\'') {
       input++;
-      // @gc
+      // @safe
+      prot_ptr(done);
       auto result = quote_form(vm, read(vm, &input, end, done));
+      unprot_ptr(done);
       *remaining = input;
       return result;
     } else if (*input == '(') {
       input++;
-      // @gc
+      // @safe
+      prot_ptr(done);
       auto res = read_delimited_list(vm, &input, end, done, ')');
+      unprot_ptr(done);
       *remaining = input;
       return res;
     } else if (*input == '#') {
       auto ch = *(++input);
       Ptr res;
+      // @safe
       if (ch == '\\') {
         res = read_character(vm, &input, end, done);
       } else {
@@ -1582,6 +1603,7 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
     } else if (is_digitchar(*input)) {
       u64 num = *input - '0';
       input++;
+      // @safe
       while(input < end && is_digitchar(*input)) {
         num *= 10;
         num += *input - '0';
@@ -1595,26 +1617,33 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
   return done;
 }
 
+// @safe
 Ptr read(VM *vm, const char* input) {
   auto len = strlen(input);
   return read(vm, &input, input+len, NIL);
 }
 
+// @safe
 Ptr read_all(VM *vm, const char* input) {
   auto done = cons(vm, NIL, NIL);
   auto len = strlen(input);
-  // @gc
-  vector<Ptr> items;
+ 
+  auto items = make_extensible_array(vm);
   auto end = input + len;
-  auto item = read(vm, &input, end, done);
+  Ptr item;
+  call_with_ptrs((items, done),
+                 item = read(vm, &input, end, done));
   while (input < end && !ptr_eq(item, done)) {
     assert(input < end);
-    items.push_back(item);
-    item = read(vm, &input, end, done);
+    call_with_ptrs((items, done),
+                   extensible_array_push(vm, items, item));
+    call_with_ptrs((items, done),
+                   item = read(vm, &input, end, done));
     assert(input <= end);
   }
-  // @gc
-  auto res = make_list(vm, items.size(), &items[0]);
+  auto used = extensible_array_used(items);
+  auto mem  = extensible_array_memory(items);
+  auto res  = make_list(vm, used, mem);
   return res;
 }
 

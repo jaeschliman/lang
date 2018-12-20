@@ -380,8 +380,8 @@ inline Ptr unwrap_ptr(GCPtr *it) {
   return it->ptr;
 }
 
-#define prot_ptr(it) protect_ptr(safe__##it, it)
-#define unprot_ptr(it) unwrap_ptr(&safe__##it)
+#define prot_ptr(it)   protect_ptr(safe__##it, it)
+#define unprot_ptr(it) it = unwrap_ptr(&safe__##it)
 
 #define protect_ptr_vector(var, count, vector)  \
   GCPtr var[count];                             \
@@ -596,6 +596,16 @@ Ptr make_array(VM *vm, u64 len, Ptr objs[]) {
 }
 
 // @safe
+Ptr make_zf_array(VM *vm, u64 len) {
+  auto array = alloc_pao(vm, Array, len);
+  auto zero = to(Fixnum, 0);
+  for (u64 i = 0; i < len; i++) {
+    array->data[i] = zero;
+  }
+  return objToPtr(array);
+}
+
+// @safe
 Ptr array_get(Ptr array, u64 index) {
   auto a = toPtrArrayObject(array);
   assert(index < a->length);
@@ -610,6 +620,58 @@ void array_set(Ptr array, u64 index, Ptr value) {
 }
 
 // @safe
+u64 array_capacity(Ptr array) {
+  auto a = toPtrArrayObject(array);
+  return a->length;
+}
+
+// using a 2 element array to hold count and buffer for now
+// @safe
+Ptr make_extensible_array(VM *vm) {
+  auto used = to(Fixnum, 0);
+  Ptr buffer = make_zf_array(vm, 4);
+  return make_array(vm, 2, (Ptr[]){used, buffer});
+}
+
+// @safe
+u64 extensible_array_capacity(Ptr array) {
+  return as(PtrArray, array_get(array, 1))->length;
+}
+
+// @safe
+u64 extensible_array_used(Ptr array) {
+  return as(Fixnum, array_get(array, 0));
+}
+
+// @safe
+void extensible_array_push(VM *vm, Ptr array, Ptr item) {
+  auto used = extensible_array_used(array);
+  auto cap = extensible_array_capacity(array);
+  if (used + 1 >= cap) {
+    auto new_cap = cap * 2;
+    auto old_arr = array_get(array, 1);
+    prot_ptr(array);
+    prot_ptr(old_arr);
+    auto new_arr = make_zf_array(vm, new_cap);
+    unprot_ptr(old_arr);
+    unprot_ptr(array);
+    for (u64 i = 0; i < cap; i++) {
+      array_set(new_arr, i, array_get(old_arr, i));
+    }
+    array_set(array, 1, new_arr);
+  }
+  array_set(array_get(array, 1), used, item);
+  array_set(array, 0, to(Fixnum, used + 1));
+}
+
+// @safe
+Ptr *extensible_array_memory(Ptr array) {
+  auto buff = as(PtrArray, array_get(array, 1));
+  return buff->data;
+}
+
+
+// @safe
 Ptr make_closure(VM *vm, Ptr code, Ptr env) {
   assert(is(ByteCode, code));
   assert(isNil(env) || is(PtrArray, env));
@@ -617,8 +679,10 @@ Ptr make_closure(VM *vm, Ptr code, Ptr env) {
   prot_ptr(env);
   auto it = alloc_pao(vm, Closure, 2);
   auto c = objToPtr(it);
-  array_set(c, 0, unprot_ptr(code));
-  array_set(c, 1, unprot_ptr(env));
+  unprot_ptr(code);
+  unprot_ptr(env);
+  array_set(c, 0, code);
+  array_set(c, 1, env);
   return c;
 }
 
@@ -1286,7 +1350,8 @@ void do_list(VM *vm, Ptr it, PtrFn cb) {
   while (!isNil(it)) {
     prot_ptr(it);
     cb(car(vm, it));
-    it = cdr(vm, unprot_ptr(it));
+    unprot_ptr(it);
+    it = cdr(vm, it);
   }
 }
 
@@ -1394,7 +1459,8 @@ auto quote_form(VM *vm, Ptr it) {
   auto q = intern(vm, "quote");
   prot_ptr(q);
   auto res = cons(vm, it, NIL);
-  return cons(vm, unprot_ptr(q), res);
+  unprot_ptr(q);
+  return cons(vm, q, res);
 }
 
 // @safe
@@ -1414,22 +1480,26 @@ void eat_ws(const char **remaining, const char *end) {
 // TODO: need to make all branches of read GC safe.
 Ptr read(VM *vm, const char **remaining, const char *end, Ptr done);
 
-// @gc
+// @safe
 auto read_delimited_list(VM *vm, const char **remaining, const char *end, Ptr done, char delim) {
   auto input = *remaining;
-  // @gc
-  vector<Ptr> items; // could replace this with a built-in 'extensible vector'
+
+  auto items = make_extensible_array(vm);
+
   while(input < end && *input != delim) {
+    prot_ptr(items);
     auto item = read(vm, &input, end, done);
+    unprot_ptr(items);
     if(ptr_eq(item, done)) {
       vm->error = "unexpected end of input";
       return done;
     }
-    items.push_back(item);
+    extensible_array_push(vm, items, item);
     eat_ws(&input, end);
   }
-  // @gc
-  auto res = make_list(vm, items.size(), &items[0]);
+  auto used = extensible_array_used(items);
+  auto mem  = extensible_array_memory(items);
+  auto res  = make_list(vm, used, mem);
   if (*input == delim) input++;
   *remaining = input;
   return res;

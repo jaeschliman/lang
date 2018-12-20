@@ -35,9 +35,12 @@ DONE: scan_heap(mem *start, mem*end) fn (linear scan of objects on the heap)
 DONE: garbage collection (cheney?)
 TODO: initial audit of requred gc_protect calls
 DONE: gc_protect for ptrs
+TODO: gc-safe list manipulation functions
+TODO: gc-safe allocators / make- functions
 TODO: growable ptr array
 TODO: growable identity map
 TODO: gc-safe reader
+DONE: gc-safe ByteCodeBuilder
 TODO: gc-safe compiler
 TODO: automatic garbage collection (need to use gc_protect)
 TODO: move stack memory into vm-managed heap
@@ -380,6 +383,8 @@ inline Ptr unwrap_ptr(GCPtr *it) {
       wrap_ptr(vm, var + i, vector[i]);         \
     }                                           \
   }
+
+#define std_vector_mem(vector) &(*vector->begin())
 
 
 /* ---------------------------------------- */
@@ -1743,10 +1748,11 @@ private:
   u64 lit_index;
 
   ByteCodeObject *bc;
-  map<string, u64> *labelsMap;
-  vector<branch_entry> *branchLocations;
-  vector<Ptr> *labelContextStack;
-  Ptr labelContext;
+  map<string, u64> *labelsMap; // label -> bc_index
+  vector<branch_entry> *branchLocations; // tuple of label and &bc_mem
+  u64 labelContextCounter;
+  vector<u64> *labelContextStack;
+  u64 labelContext;
 
   u64 *temp_count;
   vector<Ptr> *literals;
@@ -1765,7 +1771,7 @@ private:
   }
   string labelify(const char * raw_name) {
     string name = raw_name;
-    name += "____" + to_string(labelContext.value);
+    name += "____" + to_string(labelContext);
     return name;
   }
   ByteCodeBuilder* pushJumpLocation(const char* raw_name) {
@@ -1784,34 +1790,37 @@ private:
   }
   void finalizeByteCode() {
     auto literal_count = literals->size();
+    auto literal_mem = std_vector_mem(literals);
+
+    protect_ptr_vector(safe_literals, literal_count, literal_mem);
     auto array = alloc_pao(vm, Array, literal_count);
-    bc->literals = array;
     for (u64 i = 0; i < literal_count; i++) {
-      array->data[i] = literals->at(i);
+      array->data[i] = unwrap_ptr(safe_literals + i);
     }
-  }
-  u64 currentAddress() {
-    return bc_index;
+
+    gc_protect(array);
+    bc = as(ByteCode, make_bytecode(vm, bc_index + 1));
+    gc_unprotect(array);
+
+    bc->literals = array;
+    for (u64 i = 0; i < bc_index; i++) {
+      bc->code->data[i] = bc_mem[i];
+    }
+    free(bc_mem);
+    delete literals;
+    bc_mem = 0;
   }
 public:
   ByteCodeBuilder(VM* vm) {
     this->vm = vm;
     bc_index = 0;
     lit_index = 0;
-    // is there a way to disable vm allocations during BC building?
-    // alternatively, just keep raw memory for the most part,
-    // and vm_alloc at end. so long as we protect the literal vector be ok?
-    // @gc
-    bc = as(ByteCode, make_bytecode(vm, 1024));
-    // @gc
-    bc_mem = bc->code->data;
-    // @gc ?
+    bc_mem = (u64 *)calloc(1024, 1); // TODO: realloc when needed
     labelsMap = new map<string, u64>;
     branchLocations = new vector<branch_entry>;
-    labelContext = s64ToPtr(0);
-    // @gc -- can just be ints instead of Ptrs anyway
-    labelContextStack = new vector<Ptr>;
-    // @gc
+    labelContextCounter = 0;
+    labelContext = labelContextCounter;
+    labelContextStack = new vector<u64>;
     literals = new vector<Ptr>;
 
     pushOp(STACK_RESERVE);
@@ -1842,10 +1851,9 @@ public:
     pushU64(idx);
     return this;
   }
-  // using Ptr's raw value as a unique id. we could just increment an integer as well.
-  auto pushLabelContext(Ptr context) {
+  auto pushLabelContext() {
     labelContextStack->push_back(labelContext);
-    labelContext = context;
+    labelContext = ++labelContextCounter;
     return this;
   }
   auto popLabelContext() {
@@ -1859,7 +1867,7 @@ public:
   }
   auto label(const char *name) {
     string key = labelify(name);
-    (*labelsMap)[key] = currentAddress();
+    (*labelsMap)[key] = bc_index;
     return this;
   }
   auto branchIfZero(const char *name) {
@@ -1885,16 +1893,6 @@ public:
   auto call(u64 argc) {
     pushOp(CALL);
     pushU64(argc);
-    return this;
-  }
-  auto call(u64 argc, ByteCodeObject* bc) {
-    pushLit(make_closure(vm, objToPtr(bc), NIL));
-    call(argc);
-    return this;
-  }
-  auto selfcall(u64 argc) {
-    pushLit(objToPtr(bc));
-    call(argc);
     return this;
   }
   auto pop(){
@@ -2156,7 +2154,7 @@ void emit_if(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
   auto test = nth_or_nil(vm, it, 1);
   auto _thn = nth_or_nil(vm, it, 2);
   auto _els = nth_or_nil(vm, it, 3);
-  builder->pushLabelContext(it);
+  builder->pushLabelContext();
   emit_expr(vm, builder, test, env);
   builder->branchIfFalse("else");
   emit_expr(vm, builder, _thn, env);

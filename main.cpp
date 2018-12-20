@@ -117,6 +117,7 @@ struct Object {
 };
 
 // TODO: rename this function
+// @safe
 inline Ptr objToPtr(Object *ref) {
   Ptr p;
   p.value = ((u64) ref) |  0b1;
@@ -277,10 +278,12 @@ struct StandardObject : Object { // really more of a structure object
 // not so sure about this...
 #define NIL objToPtr((Object *)0)
 
+// @safe
 Object *asObject(Ptr self) {
   return (Object *)(self.value & EXTRACT_PTR_MASK);
 }
 
+// @safe
 inline bool isNonNilObject(Ptr it) {
   return it.value != 1 && ((it.value & TAG_MASK) == OBJECT_TAG);
 }
@@ -300,6 +303,7 @@ inline bool isNonNilObject(Ptr it) {
     return (it.value & TAG_MASK) == type##_Mask; \
   }
 
+// @safe
 #define object_type(type)                                               \
   type_test(type, it) {                                                 \
     return (isNonNilObject(it) &&                                       \
@@ -311,7 +315,10 @@ inline bool isNonNilObject(Ptr it) {
   }
 
 
+// @safe
 type_test(any, it) { return true; }
+
+// @safe
 inline Ptr asany(Ptr it) { return it; }
 
 prim_type(Fixnum)
@@ -338,6 +345,7 @@ object_type(StackFrame)
   auto name = as(type, _##name);
 
 /* ---------------------------------------- */
+// Ptr protection
 
 struct GCPtr {
   Ptr ptr;
@@ -389,10 +397,12 @@ inline Ptr unwrap_ptr(GCPtr *it) {
 
 /* ---------------------------------------- */
 
+// @safe
 inline s64 toS64(Ptr self) {
   return ((s64)self.value) >> TAG_BITS;
 }
 
+// @safe
 inline Ptr s64ToPtr(s64 value) {
   // TODO: overflow check
   Ptr p;
@@ -400,37 +410,49 @@ inline Ptr s64ToPtr(s64 value) {
   return p;
 }
 
+// @safe
 inline Ptr toFixnum(s64 value) {
   return s64ToPtr(value);
 }
+
+// @safe
 inline s64 asFixnum(Ptr self) {
   return ((s64)self.value) >> TAG_BITS;
 }
 
+// @safe
 inline Ptr toPrimOp(u64 raw_value){
   return (Ptr){raw_value};
 }
 
 // TODO: convert this to type-test
+// @safe
 inline bool isNil(Ptr self) {
   return self.value == OBJECT_TAG;
 }
 
+// @safe
 inline bool asBool(Ptr self) {
   return (self.value >> TAG_BITS) ? true : false;
 }
+
+// @safe
 inline Ptr toBool(bool tf) {
   return tf ? TRUE : FALSE;
 }
 
+// @safe
 char asChar(Ptr self) {
   return self.value >> TAG_BITS;
 }
+
+// @safe
 Ptr charToPtr(char ch) {
   auto val = ((u64)ch << TAG_BITS)|CHAR_TAG;
   return (Ptr){val};
 }
 
+// @safe
 U64ArrayObject *alloc_u64ao(VM *vm, uint len) {
   auto byte_count = sizeof(U64ArrayObject) + (len * sizeof(u64));
   U64ArrayObject* obj = (U64ArrayObject *)vm_alloc(vm, byte_count);
@@ -439,6 +461,7 @@ U64ArrayObject *alloc_u64ao(VM *vm, uint len) {
   return obj;
 }
 
+// @safe
 ByteCodeObject *alloc_bytecode(VM *vm) {
   auto byte_count = sizeof(ByteCodeObject);
   ByteCodeObject *obj = (ByteCodeObject *)vm_alloc(vm, byte_count);
@@ -446,11 +469,13 @@ ByteCodeObject *alloc_bytecode(VM *vm) {
   return obj;
 }
 
+// @safe
 ByteCodeObject *toBytecode(Ptr it) {
   assert(is(ByteCode, it));
   return (ByteCodeObject *)as(Object, it);
 }
 
+// @safe
 ByteArrayObject *alloc_bao(VM *vm, BAOType ty, uint len) {
   auto byte_count = sizeof(ByteArrayObject) + len;
   ByteArrayObject* obj = (ByteArrayObject *)vm_alloc(vm, byte_count);
@@ -460,16 +485,19 @@ ByteArrayObject *alloc_bao(VM *vm, BAOType ty, uint len) {
   return obj;
 }
 
+// @safe
 type_test(Symbol, it){
   if (!is(ByteArray, it)) return false;
   auto bao = as(ByteArray, it);
   return bao->bao_type == Symbol;
 }
 
+// @safe
 inline ByteArrayObject * asSymbol(Ptr it) {
   return as(ByteArray, it);
 }
 
+// @safe
 PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   auto byte_count = sizeof(PtrArrayObject) + (len * sizeof(Ptr));
   PtrArrayObject* obj = (PtrArrayObject *)vm_alloc(vm, byte_count);
@@ -480,15 +508,18 @@ PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
 }
 
 // FIXME: should this should be an AS not a TO
+// @safe
 PtrArrayObject *toPtrArrayObject(Ptr it) {
   assert(is(PtrArray,it));
   return (PtrArrayObject *)as(Object, it);
 }
 
+// @safe
 type_test(Array, it) {
   return is(PtrArray, it) && (toPtrArrayObject(it))->pao_type == Array;
 }
 
+// @safe
 StandardObject *alloc_standard_object(VM *vm, StandardObject *klass, u64 ivar_count) {
   gc_protect(klass);
   auto byte_count = (sizeof(StandardObject)) + ivar_count * (sizeof(Ptr));
@@ -500,16 +531,19 @@ StandardObject *alloc_standard_object(VM *vm, StandardObject *klass, u64 ivar_co
   return result;
 }
 
+// @safe
 Ptr standard_object_get_ivar(StandardObject *object, u64 idx) {
   assert(idx < object->ivar_count);
   return object->ivars[idx];
 }
 
+// @safe
 Ptr standard_object_set_ivar(StandardObject *object, u64 idx, Ptr value) {
   assert(idx < object->ivar_count);
   return object->ivars[idx] = value;
 }
 
+// @safe
 Ptr make_bytecode(VM *vm, u64 code_len) {
   auto bc = alloc_bytecode(vm);
   gc_protect(bc);
@@ -519,6 +553,7 @@ Ptr make_bytecode(VM *vm, u64 code_len) {
   return objToPtr(bc);
 }
 
+// @safe
 Ptr make_string(VM *vm, const char* str) {
   ByteArrayObject *obj = alloc_bao(vm, String, strlen(str));
   const char *from = str;
@@ -530,6 +565,7 @@ Ptr make_string(VM *vm, const char* str) {
   return objToPtr(obj);
 }
 
+// @safe
 Ptr make_symbol(VM *vm, const char* str, u64 len) {
   ByteArrayObject *obj = alloc_bao(vm, Symbol, len);
   const char *from = str;
@@ -541,12 +577,15 @@ Ptr make_symbol(VM *vm, const char* str, u64 len) {
   return objToPtr(obj);
 }
 
+// @safe
 Ptr make_symbol(VM *vm, const char* str) {
   return make_symbol(vm, str, strlen(str));
 }
 
+// @safe
 Ptr make_number(s64 value) { return s64ToPtr(value); }
 
+// @safe
 Ptr make_array(VM *vm, u64 len, Ptr objs[]) {
   protect_ptr_vector(safe_objs, len, objs);
   auto array = alloc_pao(vm, Array, len);
@@ -556,18 +595,21 @@ Ptr make_array(VM *vm, u64 len, Ptr objs[]) {
   return objToPtr(array);
 }
 
+// @safe
 Ptr array_get(Ptr array, u64 index) {
   auto a = toPtrArrayObject(array);
   assert(index < a->length);
   return a->data[index];
 }
 
+// @safe
 void array_set(Ptr array, u64 index, Ptr value) {
   auto a = toPtrArrayObject(array);
   assert(index < a->length);
   a->data[index] = value;
 }
 
+// @safe
 Ptr make_closure(VM *vm, Ptr code, Ptr env) {
   assert(is(ByteCode, code));
   assert(isNil(env) || is(PtrArray, env));
@@ -580,14 +622,17 @@ Ptr make_closure(VM *vm, Ptr code, Ptr env) {
   return c;
 }
 
+// @safe
 type_test(Closure, it) {
   return is(PtrArray, it) && (toPtrArrayObject(it))->pao_type == Closure;
 }
 
+// @safe
 ByteCodeObject *closure_code(Ptr closure) {
   return as(ByteCode, array_get(closure, 0));
 }
 
+// @safe
 Ptr closure_env(Ptr closure) {
   return array_get(closure, 1);
 }

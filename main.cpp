@@ -83,6 +83,8 @@ how to represent U32 and U64?
 #include "./stacktrace.h"
 #include "./macro_support.h"
 
+#define GC_DEBUG 0
+
 using namespace std;
 
 typedef unsigned int uint;
@@ -1045,6 +1047,7 @@ void debug_walk(VM *vm, Ptr it) {
 auto vm_map_stack_refs(VM *vm, PtrFn fn) {
   StackFrameObject *fr = vm->frame;
   Ptr *stack = vm->stack;
+  ByteCodeObject *bytecode = vm->bc;
   while (fr) {
     fn(fr->closed_over);
     auto pad = fr->pad_count;
@@ -1052,11 +1055,13 @@ auto vm_map_stack_refs(VM *vm, PtrFn fn) {
       auto arg = fr->argv[pad + (fr->argc - i)];
       fn(arg);
     }
+    fn(objToPtr(bytecode));
     auto on_stack = (Ptr*)(void *)fr;
     while (on_stack > stack) {
       on_stack--;
       fn(*on_stack);
     }
+    bytecode = fr->prev_fn;
     stack = &fr->argv[fr->argc + pad];
     fr = fr->prev_frame;
   }
@@ -1283,12 +1288,18 @@ void gc_update_copied_object(VM *vm, Ptr it) {
 void gc_update_stack(VM *vm) {
   StackFrameObject *fr = vm->frame;
   Ptr *stack = vm->stack;
+  ByteCodeObject **bytecode = &vm->bc;
   while (fr) {
     gc_update_ptr(vm, &fr->closed_over);
     auto pad = fr->pad_count;
     for (u64 i = 1; i <= fr->argc; i++) {
-      auto arg = fr->argv[pad + (fr->argc - i)];
-      gc_update_ptr(vm, &arg);
+      auto offs = pad + (fr->argc - i);
+      gc_update_ptr(vm, fr->argv + offs);
+    }
+    {
+      Ptr bc = objToPtr(*bytecode);
+      gc_update_ptr(vm, &bc);
+      *bytecode = as(ByteCode, bc);
     }
     auto on_stack = (Ptr*)(void *)fr;
     while (on_stack > stack) {
@@ -1296,6 +1307,7 @@ void gc_update_stack(VM *vm) {
       gc_update_ptr(vm, on_stack);
     }
     stack = &fr->argv[fr->argc + pad];
+    bytecode = &fr->prev_fn;
     fr = fr->prev_frame;
   }
 }
@@ -1342,7 +1354,7 @@ inline void gc_protect_reference(VM *vm, Object **ref){
   if (found == map->end()) {
     vm->gc_protected->insert(make_pair(ref, 1));
   } else {
-    found->second++;
+    found->second++; 
   }
 }
 inline void gc_unprotect_reference(VM *vm, Object **ref){
@@ -1361,6 +1373,14 @@ inline void gc_unprotect_reference(VM *vm, Object **ref){
 
 void gc(VM *vm) {
   vm->gc_count++;
+
+  if (GC_DEBUG) {
+    vm_map_reachable_refs(vm, [&](Ptr it){
+        if (is(BrokenHeart, it)) {
+          die("found broken heart before gc");
+        }
+      });
+  }
 
   // prepare_vm
   gc_prepare_vm(vm);
@@ -1387,7 +1407,15 @@ void gc(VM *vm) {
   }
 
   vm->gc_compacted_size_in_bytes = (u64)vm->heap_end - (u64)vm->heap_mem;
-  // TODO: memset old heap for safety.
+
+  if (GC_DEBUG) {
+    vm_map_reachable_refs(vm, [&](Ptr it){
+        if (is(BrokenHeart, it)) {
+          die("found broken heart after gc");
+        }
+      });
+  }
+
 }
 
 

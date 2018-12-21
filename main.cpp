@@ -2570,7 +2570,7 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env) {
 }
 
 // returns true if variable was closed over, false otherwise
-// @gc
+// @safe
 bool mark_variable_for_closure
 (VM *vm, Ptr sym, Ptr env, u64 level, bool saw_lambda)
 {
@@ -2593,14 +2593,16 @@ bool mark_variable_for_closure
     auto closed_over = cenv_get_closed_over(env);
     auto index = xarray_used(closed_over);
     varinfo_set_closure_index(info, to(Fixnum, index));
-    xarray_push(vm, closed_over, sym);
+    call_with_ptrs((env), xarray_push(vm, closed_over, sym));
     cenv_set_has_closure(env, TRUE);
     return true;
 
   } else {
     if (cenv_is_lambda(env)) saw_lambda = true;
     auto prev = cenv_get_prev(env);
+    prot_ptr(env);
     auto closed = mark_variable_for_closure(vm, sym, prev, level + 1, saw_lambda);
+    unprot_ptr(env);
     if (closed) cenv_set_has_closure(env, TRUE);
     return closed;
   }

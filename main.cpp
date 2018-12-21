@@ -2534,12 +2534,12 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env) {
   } else if (consp(vm, it)) { // @safe
     auto fst = car(vm, it);
     if (is(Symbol, fst)) {
-      prot_ptrs(it, env);
+      prot_ptrs(it, env, fst);
       auto _if    = intern(vm, "if");     prot_ptr(_if);
       auto quote  = intern(vm, "quote");  prot_ptr(quote);
       auto lambda = intern(vm, "lambda"); prot_ptr(lambda);
-      auto let = intern(vm, "let");
-      unprot_ptrs(_if, quote, lambda, it, env);
+      auto let    = intern(vm, "let");
+      unprot_ptrs(_if, quote, lambda, it, env, fst);
       if (ptr_eq(lambda, fst)) {
         emit_lambda(vm, builder, it, env);
         return;
@@ -2634,57 +2634,74 @@ void mark_lambda_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {
       });
 }
 
-// @gc
+// @safe
 void mark_let_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {
-  auto env = compiler_env_get_subenv(vm, p_env, it);
+  Ptr decl(env, (it, p_env), compiler_env_get_subenv(vm, p_env, it));
   cenv_set_type(env, CompilerEnvType_Let);
 
   auto vars = nth_or_nil(vm, it, 1);
 
+  // @safe
   u64 idx = 0;
+  auto zero = to(Fixnum, 0);
   do_list(vm, vars, [&](Ptr lst){
       auto sym = nth_or_nil(vm, lst, 0);
       auto expr = nth_or_nil(vm, lst, 1);
       assert(is(Symbol, sym));
 
       // idx is altered in the emit phase to account for surrounding lets
-      auto info = make_varinfo(vm, VariableScope_Let, to(Fixnum, idx), to(Fixnum, 0));
-      auto var_info = cenv_get_info(env);
-      imap_set(vm, var_info, sym, info);
+      auto index = to(Fixnum, idx);
+      Ptr decl(info, (sym, expr, p_env),
+               make_varinfo(vm, VariableScope_Let, index, zero));
+      prot_ptrs(expr, p_env);
+      imap_set(vm, cenv_get_info(env), sym, info);
+      unprot_ptrs(expr, p_env);
       mark_closed_over_variables(vm, expr, p_env);
       idx++;
     });
 
-  auto body = cdr(vm, cdr(vm, it));
-  do_list(vm, body, [&](Ptr expr) {
-      mark_closed_over_variables(vm, expr, env);
-    });
+  // @safe
+  {
+    auto body = cdr(vm, cdr(vm, it));
+    auto env = compiler_env_get_subenv(vm, p_env, it);
+    do_list(vm, body, [&](Ptr expr) {
+        mark_closed_over_variables(vm, expr, env);
+      });
+  }
 }
 
-// @gc
+// @safe
 void mark_closed_over_variables(VM *vm, Ptr it, Ptr env) {
   if (is(Symbol, it)) {
     mark_variable_for_closure(vm, it, env, 0, false);
   } else if (consp(vm, it)) {
     auto fst = car(vm, it);
-    if (is(Symbol, fst) && ptr_eq(intern(vm, "lambda"), fst)) {
+    auto is_sym = is(Symbol, fst);
+    prot_ptrs(it, fst, env);
+    auto _if    = intern(vm, "if");     prot_ptr(_if);
+    auto quote  = intern(vm, "quote");  prot_ptr(quote);
+    auto lambda = intern(vm, "lambda"); prot_ptr(lambda);
+    auto let    = intern(vm, "let");
+    unprot_ptrs(_if, quote, lambda, it, fst, env);
+    if (is_sym && ptr_eq(lambda, fst)) {
       mark_lambda_closed_over_variables(vm, it, env);
-    } else if (is(Symbol, fst) && ptr_eq(intern(vm, "quote"), fst)) {
+    } else if (is_sym && ptr_eq(quote, fst)) {
       // do nothing
-    } else if (is(Symbol, fst) && ptr_eq(intern(vm, "if"), fst)) {
+    } else if (is_sym && ptr_eq(_if, fst)) {
       auto test = nth_or_nil(vm, it, 1);
+      call_with_ptrs((it, env), mark_closed_over_variables(vm, test, env));
       auto _thn = nth_or_nil(vm, it, 2);
+      call_with_ptrs((it, env), mark_closed_over_variables(vm, _thn, env));
       auto _els = nth_or_nil(vm, it, 3);
-      mark_closed_over_variables(vm, test, env);
-      mark_closed_over_variables(vm, _thn, env);
       mark_closed_over_variables(vm, _els, env);
-    } else if (is(Symbol, fst) && ptr_eq(intern(vm, "let"), fst)) {
+    } else if (is_sym && ptr_eq(let, fst)) {
       mark_let_closed_over_variables(vm, it, env);
     } else {
-      while(!isNil(it)) {
-        mark_closed_over_variables(vm, car(vm, it), env);
-        it = cdr(vm, it);
-      }
+      do_list(vm, it, [&](Ptr expr){
+          prot_ptr(env);
+          mark_closed_over_variables(vm, expr, env);
+          unprot_ptr(env);
+        });
     }
   }
 }

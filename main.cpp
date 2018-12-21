@@ -20,7 +20,7 @@ DONE: obj_ptrs function // walk Ptr s of obj (use a lambda)
 DONE: make stack frames objects
 TODO: read string
 TODO: tests! (something like an assert)
-TODO: bounds checking for heap allocation
+DONE: bounds checking for heap allocation
 DONE: memory usage report function
 DONE: if compiler
 DONE: simple let
@@ -43,7 +43,10 @@ DONE: gc-safe reader
 DONE: gc-safe ByteCodeBuilder
 DONE: move varinfo & CompilerEnv into gc heap
 DONE: gc-safe compiler
-TODO: automatic garbage collection (need to use gc_protect)
+DONE: automatic garbage collection (need to use gc_protect)
+TODO: identity hash function
+TODO: proper imap
+TODO: make cons a defstruct
 TODO: move stack memory into vm-managed heap
 TODO: continuations / exceptions / signals
 TODO: dump/restore image
@@ -54,6 +57,7 @@ TODO: single floats
 TODO: U32 Array etc
 TODO: more prim instrs
 TODO: maybe expose bytecode prims as special forms? %push %call etc...
+TODO: growable heap
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -201,6 +205,7 @@ struct VM {
   bool gc_disabled;
   u64 gc_count;
   u64 gc_threshold_in_bytes;
+  u64 gc_compacted_size_in_bytes;
   u64 allocation_high_watermark;
   unordered_map<Object **, u64> *gc_protected;
 };
@@ -229,6 +234,16 @@ inline bool pointer_is_aligned(void* mem) {
 
 void gc(VM *vm);
 
+inline u64 vm_heap_used(VM *vm) {
+  return (u64)vm->heap_end - (u64)vm->heap_mem;
+}
+
+void die(const char *message) {
+  print_stacktrace();
+  cerr << message << endl;
+  exit(1);
+}
+
 void * vm_alloc(VM *vm, u64 bytes) {
   auto preserved_heap_end = vm->heap_end;
   auto result = (void *)vm->heap_end;
@@ -236,16 +251,23 @@ void * vm_alloc(VM *vm, u64 bytes) {
   vm->heap_end = align_pointer_with_offset(vm->heap_end, bytes);
   assert(pointer_is_aligned(vm->heap_end));
   vm->allocation_count++;
-  double byte_count = (u64)vm->heap_end - (u64)vm->heap_mem;
+  u64 byte_count = vm_heap_used(vm);
 
-  // @gc really we should track allocations since last gc
-  auto threshold = 1 * 1024 * 1024 * 0.5;
-  if (byte_count > threshold && !vm->gc_disabled) {
+  u64 threshold = 1 * 1024 * 1024 * 0.5;
+
+  u64 last_byte_count = vm->gc_compacted_size_in_bytes;
+  u64 limit = min(threshold + last_byte_count, vm->heap_size_in_bytes);
+
+  if (byte_count > limit && !vm->gc_disabled) {
       vm->heap_end = preserved_heap_end;
-      // print_stacktrace();
       gc(vm);
-      // @gc could wind up in an infinite loop here
+      if (vm_heap_used(vm) + bytes + 16 > vm->heap_size_in_bytes) {
+        die("heap exhausted after gc");
+      }
       return vm_alloc(vm, bytes);
+  }
+  if (byte_count > vm->heap_size_in_bytes) {
+    die("heap exhausted");
   }
 
   if (byte_count > vm->allocation_high_watermark)
@@ -257,10 +279,11 @@ void * vm_alloc(VM *vm, u64 bytes) {
 void report_memory_usage(VM *vm) {
   double byte_count = (u64)vm->heap_end - (u64)vm->heap_mem;
   double max_byte_count = vm->allocation_high_watermark;
-  cout << "Memory usage, MB : " << (byte_count / (1024 * 1024)) << endl;
-  cout << "High Water Mark MB : " << (max_byte_count / (1024 * 1024)) << endl;
+  cerr << " heap used MB: " << (byte_count / (1024 * 1024));
+  cerr << " max heap used MB: " << (max_byte_count / (1024 * 1024)) << endl;
 }
 
+// @cleanup we only need this to print conses, becuase consp still requires VM access.
 VM *CURRENT_DEBUG_VM;
 
 /* -------------------------------------------------- */
@@ -1359,6 +1382,8 @@ void gc(VM *vm) {
     start = end;
     end = vm->heap_end;
   }
+
+  vm->gc_compacted_size_in_bytes = (u64)vm->heap_end - (u64)vm->heap_mem;
   // TODO: memset old heap for safety.
 }
 
@@ -2317,22 +2342,23 @@ void imap_set(VM *vm, Ptr map, Ptr key, Ptr value) {
 #define CompilerEnvType_Lambda  (Ptr){1 << TAG_BITS}
 #define CompilerEnvType_Let     (Ptr){2 << TAG_BITS}
 
-defstruct(varinfo, scope, argument_index, closure_index)
+defstruct(varinfo,
+          scope,          // VariableScope
+          argument_index, // Fixnum
+          closure_index); // Fixnum
 
 struct VariableBinding {
   u64 binding_depth;
   Ptr variable_info;
 };
 
-// TODO: would be nicer to represent this in the VM itself.
 defstruct(cenv,
           prev,        // cenv
           info,        // imap[symbol -> varinfo]
           closed_over, // xarray[symbol]
           sub_envs,    // imap[symbol -> cenv]
           has_closure, // bool
-          type         // CompilerEnvType
-          );
+          type);       // CompilerEnvType
 
 // @safe
 Ptr cenv(VM *vm, Ptr prev) {
@@ -2384,6 +2410,7 @@ auto compiler_env_get_subenv(VM *vm, Ptr env, Ptr it) {
   return cenv_get_subenv_for(env, it);
 }
 
+// @safe
 auto global_env_binding(VM *vm) {
   auto info = make_varinfo(vm, VariableScope_Global,
                            to(Fixnum,0), to(Fixnum, 0));
@@ -2494,7 +2521,7 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, Ptr p_env) {
   }
 }
 
-// @gc error
+// @safe
 void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr p_env) {
   Ptr decl(env, (it, p_env), compiler_env_get_subenv(vm, p_env, it));
 
@@ -2873,9 +2900,9 @@ void run_string(const char* str) {
       });
 
     vm_count_objects_on_heap(vm);
+    cerr << " executed " << vm->instruction_count << " instructions." << endl;
+    cerr << " gc count: " << vm->gc_count;
     report_memory_usage(vm);
-    cout << " executed " << vm->instruction_count << " instructions." << endl;
-    cout << " gc count: " << vm->gc_count << endl;
     unprot_ptr(kept_head);
 
     this_thread::sleep_for(chrono::milliseconds(100));

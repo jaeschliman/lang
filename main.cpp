@@ -687,6 +687,12 @@ Ptr *extensible_array_memory(Ptr array) {
   return buff->data;
 }
 
+// @safe
+Ptr extensible_array_at(Ptr array, u64 idx) {
+  assert(idx < extensible_array_used(array));
+  return extensible_array_memory(array)[idx];
+}
+
 /* ---------------------------------------- */
 // defstruct macro
 // primitive 'structures' based on arrays
@@ -2258,25 +2264,26 @@ struct VariableBinding {
 // TODO: would be nicer to represent this in the VM itself.
 struct CompilerEnv {
   CompilerEnv *prev;
-  // @gc
-  // unordered_map<u64, Ptr> *info;  // symbol -> VariableInfo
   Ptr info; // imap[symbol -> VariableInfo]
+  Ptr closed_over; // [symbol]
   // @gc
   unordered_map<u64, CompilerEnv*> *sub_envs; // symbol -> CompilerEnv *
-  // @gc ?
-  vector<u64> *closed_over; // [symbol]
   bool has_closure;
   Ptr type;
   CompilerEnv(CompilerEnv * parent_env, VM *vm) {
     prev = parent_env;
-    info = make_imap(vm);
+
+    info = make_imap(vm);                    prot_ptr(info);
+    closed_over = make_extensible_array(vm); prot_ptr(closed_over);
+
     sub_envs = new unordered_map<u64, CompilerEnv*>();
-    closed_over = new vector<u64>();
     has_closure = false;
+
     type = CompilerEnvType_Unknown;
+
+    unprot_ptrs(info, closed_over);
   }
   ~CompilerEnv() {
-    delete closed_over;
     for (auto pair : *sub_envs) {
       delete pair.second;
     }
@@ -2369,12 +2376,13 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env)
   CompilerEnv *env = compiler_env_get_subenv(vm, p_env, it);
   auto has_closure = env->has_closure;
   if (has_closure) {
-    auto closed_count = env->closed_over->size();
+    auto closed_count = extensible_array_used(env->closed_over);
     auto builder = new ByteCodeBuilder(vm);
     // cout << " closing over " << closed_count << " arguments." << endl;
     // cout << "   form  = " << it << endl;
-    for (auto raw: *env->closed_over) {
-      Ptr ptr = {raw};
+
+    for (u64 i = 0; i < closed_count; i++) {
+      Ptr ptr = extensible_array_at(env->closed_over, i);
       auto binding = compiler_env_binding(vm, env, ptr);
       // cout << "  closing over: " << ptr  << " idx: " << info.argument_index << endl;
       auto index = as(Fixnum, VariableInfo_get_argument_index(binding.variable_info));
@@ -2416,9 +2424,9 @@ void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* p_env) {
 
   auto has_closure = env->has_closure;
   if (has_closure) {
-    auto closed_count = env->closed_over->size();
-    for (auto raw: *env->closed_over) {
-      Ptr ptr = {raw};
+    auto closed_count = extensible_array_used(env->closed_over);
+    for (u64 i = 0; i < closed_count; i++) {
+      Ptr ptr = extensible_array_at(env->closed_over, i);
       auto binding = compiler_env_binding(vm, env, ptr);
       // cout << "  closing over: " << ptr  << " idx: " << info.argument_index << endl;
       auto argidx  = VariableInfo_get_argument_index(binding.variable_info);
@@ -2526,9 +2534,9 @@ bool mark_variable_for_closure
     auto scope = VariableInfo_get_scope(info);
     if (scope == VariableScope_Closure) return true;
     VariableInfo_set_scope(info,  VariableScope_Closure);
-    auto index = env->closed_over->size();
+    auto index = extensible_array_used(env->closed_over);
     VariableInfo_set_closure_index(info, to(Fixnum, index));
-    env->closed_over->push_back(sym.value);
+    extensible_array_push(vm, env->closed_over, sym);
     env->has_closure = true;
     return true;
 

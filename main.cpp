@@ -2262,56 +2262,70 @@ struct VariableBinding {
 };
 
 // TODO: would be nicer to represent this in the VM itself.
-struct CompilerEnv {
-  CompilerEnv *prev;
-  Ptr info; // imap[symbol -> VariableInfo]
-  Ptr closed_over; // [symbol]
-  // @gc
-  unordered_map<u64, CompilerEnv*> *sub_envs; // symbol -> CompilerEnv *
-  bool has_closure;
-  Ptr type;
-  CompilerEnv(CompilerEnv * parent_env, VM *vm) {
-    prev = parent_env;
+defstruct(cenv,
+          prev,        // cenv
+          info,        // imap[symbol -> VariableInfo]
+          closed_over, // xarray[symbol]
+          sub_envs,    // imap[symbol -> cenv]
+          has_closure, // bool
+          type         // CompilerEnvType
+          );
 
-    info = make_imap(vm);                    prot_ptr(info);
-    closed_over = make_extensible_array(vm); prot_ptr(closed_over);
+// @safe
+Ptr cenv(VM *vm, Ptr prev) {
+  prot_ptr(prev);
+  auto info = make_imap(vm);                    prot_ptr(info);
+  auto closed_over = make_extensible_array(vm); prot_ptr(closed_over);
+  auto sub_envs = make_imap(vm);                prot_ptr(sub_envs);
+  auto has_closure = FALSE;
+  auto type = CompilerEnvType_Unknown;
+  unprot_ptrs(prev, info, closed_over, sub_envs);
+  return make_cenv(vm, prev, info, closed_over, sub_envs, has_closure, type);
+}
 
-    sub_envs = new unordered_map<u64, CompilerEnv*>();
-    has_closure = false;
+bool cenv_has_subenv_for(Ptr cenv, Ptr key) {
+  return imap_has(cenv_get_sub_envs(cenv), key);
+}
 
-    type = CompilerEnvType_Unknown;
+Ptr cenv_get_subenv_for(Ptr cenv, Ptr key) {
+  return imap_get(cenv_get_sub_envs(cenv), key);
+}
+void cenv_set_subenv_for(VM *vm, Ptr cenv, Ptr key, Ptr subenv) {
+  imap_set(vm, cenv_get_sub_envs(cenv), key, subenv);
+}
 
-    unprot_ptrs(info, closed_over);
+bool cenv_is_lambda(Ptr cenv) {
+  if (isNil(cenv)) return false;
+  return cenv_get_type(cenv) == CompilerEnvType_Lambda;
+}
+
+bool cenv_has_closure(Ptr cenv) {
+  return as(Bool, cenv_get_has_closure(cenv));
+}
+
+// @safe
+auto compiler_env_get_subenv(VM *vm, Ptr env, Ptr it) {
+  if (!cenv_has_subenv_for(env, it)) {
+    auto created = cenv(vm, env);              prot_ptr(created);
+    cenv_set_subenv_for(vm, env, it, created); unprot_ptr(created);
+    return created;
   }
-  ~CompilerEnv() {
-    for (auto pair : *sub_envs) {
-      delete pair.second;
-    }
-    delete sub_envs;
-  }
-};
-
-
-// @gc
-auto compiler_env_get_subenv(VM *vm, CompilerEnv *env, Ptr it) {
-  auto key = it.value;
-  if (env->sub_envs->find(key) == env->sub_envs->end()) {
-    auto created = new CompilerEnv(env, vm);
-    env->sub_envs->insert(make_pair(key, created));
-  }
-  return env->sub_envs->find(key)->second;
+  return cenv_get_subenv_for(env, it);
 }
 
 #define GLOBAL_INFO  make_VariableInfo(vm, VariableScope_Global, \
                                        to(Fixnum,0), to(Fixnum, 0))
 
 // @gc
-VariableBinding compiler_env_binding(VM *vm, CompilerEnv *env, Ptr sym) {
-  if (!env) return (VariableBinding){0, GLOBAL_INFO};
-  auto existing = imap_has(env->info, sym);
+VariableBinding compiler_env_binding(VM *vm, Ptr env, Ptr sym) {
+  if (isNil(env)) return (VariableBinding){0, GLOBAL_INFO};
+
+  auto var_info = cenv_get_info(env);
+  auto existing = imap_has(var_info, sym);
   if (!existing) {
-    auto outer = compiler_env_binding(vm, env->prev, sym);
-    auto from_lambda = env->prev && env->prev->type == CompilerEnvType_Lambda;
+    auto prev  = cenv_get_prev(env);
+    auto outer = compiler_env_binding(vm, prev, sym);
+    auto from_lambda = cenv_is_lambda(prev);
     auto scope = VariableInfo_get_scope(outer.variable_info);
     if (scope == VariableScope_Argument && from_lambda) {
       cout << "  ERROR: variable should have been marked for closure: " << sym << endl;
@@ -2321,13 +2335,13 @@ VariableBinding compiler_env_binding(VM *vm, CompilerEnv *env, Ptr sym) {
     auto info  = outer.variable_info;
     return (VariableBinding){depth, info};
   }
-  return (VariableBinding){0, imap_get(env->info, sym)};
+  return (VariableBinding){0, imap_get(var_info, sym)};
 }
 
-void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env);
+void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env);
 
 // @safe
-void emit_call(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
+void emit_call(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env) {
   auto fn = car(vm, it);
   auto args = cdr(vm, it);
   auto argc = 0;
@@ -2345,7 +2359,7 @@ void emit_call(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
 }
 
 // @safe
-void emit_lambda_body(VM *vm, ByteCodeBuilder *builder, Ptr body, CompilerEnv *env) {
+void emit_lambda_body(VM *vm, ByteCodeBuilder *builder, Ptr body, Ptr env) {
   if (isNil(body)) {
     builder->pushLit(NIL);
     return;
@@ -2361,7 +2375,7 @@ void emit_lambda_body(VM *vm, ByteCodeBuilder *builder, Ptr body, CompilerEnv *e
 }
 
 // @safe
-auto emit_flat_lambda(VM *vm, Ptr it, CompilerEnv *env) {
+auto emit_flat_lambda(VM *vm, Ptr it, Ptr env) {
   it = cdr(vm, it);
   auto builder = new ByteCodeBuilder(vm);
   auto body = cdr(vm, it);
@@ -2371,18 +2385,19 @@ auto emit_flat_lambda(VM *vm, Ptr it, CompilerEnv *env) {
   return make_closure(vm, bc, NIL);
 }
 
-void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env) {
+void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, Ptr p_env) {
   // @gc
-  CompilerEnv *env = compiler_env_get_subenv(vm, p_env, it);
-  auto has_closure = env->has_closure;
+  Ptr env = compiler_env_get_subenv(vm, p_env, it);
+  auto has_closure = cenv_has_closure(env);
   if (has_closure) {
-    auto closed_count = extensible_array_used(env->closed_over);
+    auto closed_over = cenv_get_closed_over(env);
+    auto closed_count = extensible_array_used(closed_over);
     auto builder = new ByteCodeBuilder(vm);
     // cout << " closing over " << closed_count << " arguments." << endl;
     // cout << "   form  = " << it << endl;
 
     for (u64 i = 0; i < closed_count; i++) {
-      Ptr ptr = extensible_array_at(env->closed_over, i);
+      Ptr ptr = extensible_array_at(closed_over, i);
       auto binding = compiler_env_binding(vm, env, ptr);
       // cout << "  closing over: " << ptr  << " idx: " << info.argument_index << endl;
       auto index = as(Fixnum, VariableInfo_get_argument_index(binding.variable_info));
@@ -2403,8 +2418,8 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, CompilerEnv* p_env)
 }
 
 // @gc
-void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* p_env) {
-  CompilerEnv *env = compiler_env_get_subenv(vm, p_env, it);
+void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr p_env) {
+  Ptr env = compiler_env_get_subenv(vm, p_env, it);
   auto vars = nth_or_nil(vm, it, 1);
   auto count = list_length(vm, vars);
   auto start_index = builder->reserveTemps(count);
@@ -2422,11 +2437,12 @@ void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* p_env) {
       builder->storeFrameRel(idx);
     });
 
-  auto has_closure = env->has_closure;
+  auto has_closure = cenv_has_closure(env);
+  auto closed_over = cenv_get_closed_over(env);
   if (has_closure) {
-    auto closed_count = extensible_array_used(env->closed_over);
+    auto closed_count = extensible_array_used(closed_over);
     for (u64 i = 0; i < closed_count; i++) {
-      Ptr ptr = extensible_array_at(env->closed_over, i);
+      Ptr ptr = extensible_array_at(closed_over, i);
       auto binding = compiler_env_binding(vm, env, ptr);
       // cout << "  closing over: " << ptr  << " idx: " << info.argument_index << endl;
       auto argidx  = VariableInfo_get_argument_index(binding.variable_info);
@@ -2449,7 +2465,7 @@ void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* p_env) {
 
 
 // @gc
-void emit_if(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
+void emit_if(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env) {
   auto test = nth_or_nil(vm, it, 1);
   auto _thn = nth_or_nil(vm, it, 2);
   auto _els = nth_or_nil(vm, it, 3);
@@ -2464,7 +2480,7 @@ void emit_if(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
 }
 
 // @gc
-void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
+void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env) {
   if (is(Symbol, it)) {
     auto binding = compiler_env_binding(vm, env, it);
     auto info = binding.variable_info;
@@ -2517,10 +2533,11 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, CompilerEnv* env) {
 // returns true if variable was closed over, false otherwise
 // @gc
 bool mark_variable_for_closure
-(VM *vm, Ptr sym, CompilerEnv *env, u64 level, bool saw_lambda)
+(VM *vm, Ptr sym, Ptr env, u64 level, bool saw_lambda)
 {
-  if (!env) return false; // global scope
-  auto exists = imap_has(env->info, sym);
+  if (isNil(env)) return false; // global scope
+  auto var_map = cenv_get_info(env);
+  auto exists = imap_has(var_map, sym);
 
   // symbol is bound at this scope.
   if (exists) {
@@ -2530,30 +2547,33 @@ bool mark_variable_for_closure
     if (!saw_lambda) return false;
 
     // otherwise, was found in an outer scope, and we need to create a closure.
-    auto info = imap_get(env->info, sym);
+    auto info = imap_get(var_map, sym);
     auto scope = VariableInfo_get_scope(info);
     if (scope == VariableScope_Closure) return true;
     VariableInfo_set_scope(info,  VariableScope_Closure);
-    auto index = extensible_array_used(env->closed_over);
+    auto closed_over = cenv_get_closed_over(env);
+    auto index = extensible_array_used(closed_over);
     VariableInfo_set_closure_index(info, to(Fixnum, index));
-    extensible_array_push(vm, env->closed_over, sym);
-    env->has_closure = true;
+    extensible_array_push(vm, closed_over, sym);
+    cenv_set_has_closure(env, TRUE);
     return true;
 
   } else {
-    if (env->type == CompilerEnvType_Lambda) saw_lambda = true;
-    auto closed = mark_variable_for_closure(vm, sym, env->prev, level + 1, saw_lambda);
-    if (closed) env->has_closure = true;
+    if (cenv_is_lambda(env)) saw_lambda = true;
+    auto prev = cenv_get_prev(env);
+    auto closed = mark_variable_for_closure(vm, sym, prev, level + 1, saw_lambda);
+    if (closed) cenv_set_has_closure(env, TRUE);
     return closed;
   }
 }
 
-void mark_closed_over_variables(VM *vm, Ptr it, CompilerEnv* env);
+void mark_closed_over_variables(VM *vm, Ptr it, Ptr env);
 
 // @gc
-void mark_lambda_closed_over_variables(VM *vm, Ptr it, CompilerEnv *p_env) {
-  CompilerEnv *env = compiler_env_get_subenv(vm, p_env, it);
-  env->type = CompilerEnvType_Lambda;
+void mark_lambda_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {
+  Ptr env = compiler_env_get_subenv(vm, p_env, it);
+  cenv_set_type(env,  CompilerEnvType_Lambda);
+  assert(cenv_is_lambda(env));
 
   it = cdr(vm, it);
   auto args = car(vm, it);
@@ -2562,7 +2582,8 @@ void mark_lambda_closed_over_variables(VM *vm, Ptr it, CompilerEnv *p_env) {
     auto arg = car(vm, args);
     assert(is(Symbol, arg));
     auto info = make_VariableInfo(vm, VariableScope_Argument, to(Fixnum, idx++), to(Fixnum,0));
-    imap_set(vm, env->info, arg, info);
+    auto var_map = cenv_get_info(env);
+    imap_set(vm, var_map, arg, info);
     args = cdr(vm, args);
   }
   auto body = cdr(vm, it);
@@ -2576,9 +2597,9 @@ void mark_lambda_closed_over_variables(VM *vm, Ptr it, CompilerEnv *p_env) {
 }
 
 // @gc
-void mark_let_closed_over_variables(VM *vm, Ptr it, CompilerEnv* p_env) {
+void mark_let_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {
   auto env = compiler_env_get_subenv(vm, p_env, it);
-  env->type = CompilerEnvType_Let;
+  cenv_set_type(env, CompilerEnvType_Let);
 
   auto vars = nth_or_nil(vm, it, 1);
 
@@ -2590,7 +2611,8 @@ void mark_let_closed_over_variables(VM *vm, Ptr it, CompilerEnv* p_env) {
 
       // idx is altered in the emit phase to account for surrounding lets
       auto info = make_VariableInfo(vm, VariableScope_Let, to(Fixnum, idx), to(Fixnum, 0));
-      imap_set(vm, env->info, sym, info);
+      auto var_info = cenv_get_info(env);
+      imap_set(vm, var_info, sym, info);
       mark_closed_over_variables(vm, expr, p_env);
       idx++;
     });
@@ -2602,7 +2624,7 @@ void mark_let_closed_over_variables(VM *vm, Ptr it, CompilerEnv* p_env) {
 }
 
 // @gc
-void mark_closed_over_variables(VM *vm, Ptr it, CompilerEnv* env) {
+void mark_closed_over_variables(VM *vm, Ptr it, Ptr env) {
   if (is(Symbol, it)) {
     mark_variable_for_closure(vm, it, env, 0, false);
   } else if (consp(vm, it)) {
@@ -2631,11 +2653,10 @@ void mark_closed_over_variables(VM *vm, Ptr it, CompilerEnv* env) {
 
 // @gc
 auto compile_toplevel_expression(VM *vm, Ptr it) {
-  auto env = new CompilerEnv(nullptr, vm);
+  auto env = cenv(vm, NIL);
   auto builder = new ByteCodeBuilder(vm);
   mark_closed_over_variables(vm, it, env);
   emit_expr(vm, builder, it, env);
-  delete env;
   return builder->build();
 }
 

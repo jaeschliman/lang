@@ -391,6 +391,10 @@ object_type(PtrArray)
 object_type(Standard)
 object_type(StackFrame)
 
+type_test(BrokenHeart, it) {
+  return is(Object, it) && as(Object, it)->header.object_type == BrokenHeart;
+}
+
 #undef prim_type
 #undef object_type
 
@@ -731,9 +735,9 @@ void xarray_push(VM *vm, Ptr array, Ptr item) {
   if (used + 1 >= cap) {
     auto new_cap = cap * 2;
     auto old_arr = array_get(array, 1);
-    prot_ptrs(array, old_arr);
+    prot_ptrs(array, old_arr, item);
     auto new_arr = make_zf_array(vm, new_cap);
-    unprot_ptrs(array, old_arr);
+    unprot_ptrs(array, old_arr, item);
     for (u64 i = 0; i < cap; i++) {
       array_set(new_arr, i, array_get(old_arr, i));
     }
@@ -1347,7 +1351,6 @@ inline void gc_unprotect_reference(VM *vm, Object **ref){
   if (found == map->end()) {
     cout << "ERROR: tried to unprotect a non-protected reference." << endl;
     assert(false);
-    // vm->gc_protected->insert(make_pair(ref, 1));
   } else {
     found->second--;
     if (found->second == 0) {
@@ -1463,8 +1466,11 @@ Ptr assoc(VM *vm, Ptr item, Ptr alist) {
 void set_assoc(VM *vm, Ptr *alistref, Ptr item, Ptr value) {
   auto existing = assoc(vm, item, *alistref);
   if (isNil(existing)) {
+    auto old = *alistref;
+    prot_ptr(old);
     auto pair = cons(vm, item, value);
-    auto newalist = cons(vm, pair, *alistref);
+    unprot_ptr(old);
+    auto newalist = cons(vm, pair, old);
     *alistref = newalist;
   } else {
     set_cdr(vm, existing, value);
@@ -2123,7 +2129,7 @@ private:
       for (u64 i = 0; i < literal_count; i++) {
         array->data[i] = literal_mem[i];
       }
-      gc_unprotect(literals);
+      gc_unprotect(this->literals);
       literals = 0;
     }
 
@@ -2141,16 +2147,18 @@ private:
 public:
   ByteCodeBuilder(VM* vm) {
     this->vm = vm;
-    bc_index = 0;
-    lit_index = 0;
-    bc_mem = (u64 *)calloc(1024, 1); // TODO: realloc when needed
-    labelsMap = new map<string, u64>;
-    branchLocations = new vector<branch_entry>;
+
+    bc_index            = 0;
+    lit_index           = 0;
+    bc_mem              = (u64 *)calloc(1024, 1); // TODO: realloc when needed
+    labelsMap           = new map<string, u64>;
+    branchLocations     = new vector<branch_entry>;
     labelContextCounter = 0;
-    labelContext = labelContextCounter;
-    labelContextStack = new vector<u64>;
-    literals = as(Object, make_xarray(vm));
-    gc_protect(literals);
+    labelContext        = labelContextCounter;
+    labelContextStack   = new vector<u64>;
+
+    this->literals = as(Object, make_xarray(vm));
+    gc_protect(this->literals);
 
     pushOp(STACK_RESERVE);
     temp_count = &bc_mem[bc_index];
@@ -2164,7 +2172,7 @@ public:
   }
   auto pushLit(Ptr literal) {
     // TODO: deduplicate them
-    xarray_push(vm, objToPtr(literals), literal);
+    xarray_push(vm, objToPtr(this->literals), literal);
     pushOp(PUSHLIT);
     pushOp(lit_index);
     lit_index++;
@@ -2251,10 +2259,6 @@ public:
     pushOp(LOAD_GLOBAL);
     return this;
   }
-  auto loadGlobal(const char *name) {
-    auto sym = intern(vm, name);
-    return loadGlobal(sym);
-  }
   auto loadClosure(u64 slot, u64 depth) {
     pushOp(LOAD_CLOSURE);
     pushU64(slot);
@@ -2270,11 +2274,6 @@ public:
   }
   auto popClosureEnv() {
     pushOp(POP_CLOSURE_ENV);
-  }
-  auto call(u64 argc, const char *name) {
-    loadGlobal(name);
-    call(argc);
-    return this;
   }
   ByteCodeObject *build() {
     pushOp(END);
@@ -2446,13 +2445,10 @@ void emit_call(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env) {
   auto args = cdr(vm, it);
   auto argc = 0;
   prot_ptr(fn);
-  while (!isNil(args)) {
-    assert(consp(vm, args));
-    argc++;
-    call_with_ptrs((args, env),
-                   emit_expr(vm, builder, car(vm, args), env));
-    args = cdr(vm, args);
-  }
+  do_list(vm, args, [&](Ptr arg){
+      argc++;
+      call_with_ptrs((env), emit_expr(vm, builder, arg, env));
+    });
   unprot_ptr(fn);
   emit_expr(vm, builder, fn, env);
   builder->call(argc);

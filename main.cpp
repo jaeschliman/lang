@@ -33,16 +33,16 @@ DONE: code-generate the prims table. elisp?
 DONE: remove the 'ffi' stuff
 DONE: scan_heap(mem *start, mem*end) fn (linear scan of objects on the heap)
 DONE: garbage collection (cheney?)
-TODO: initial audit of requred gc_protect calls
+DONE: initial audit of requred gc_protect calls
 DONE: gc_protect for ptrs
 DONE: gc-safe list manipulation functions
 DONE: gc-safe allocators / make- functions
 DONE: growable ptr array
-TODO: growable identity map
+DONE: growable identity map
 DONE: gc-safe reader
 DONE: gc-safe ByteCodeBuilder
-TODO: move varinfo & CompilerEnv into gc heap
-TODO: gc-safe compiler
+DONE: move varinfo & CompilerEnv into gc heap
+DONE: gc-safe compiler
 TODO: automatic garbage collection (need to use gc_protect)
 TODO: move stack memory into vm-managed heap
 TODO: continuations / exceptions / signals
@@ -1994,7 +1994,7 @@ void vm_interp(VM* vm) {
 
 typedef tuple<u64*, string> branch_entry;
 
-// @gc -- all safe except pushLit
+// @safe
 class ByteCodeBuilder {
 private:
   VM* vm;
@@ -2010,7 +2010,7 @@ private:
   u64 labelContext;
 
   u64 *temp_count;
-  vector<Ptr> *literals; // @gc convert to xarray (raw Object * ptr)
+  Object *literals; // xarray[any]
 
   ByteCodeBuilder* pushOp(u8 op) {
     return pushU64(op);
@@ -2044,13 +2044,16 @@ private:
     }
   }
   void finalizeByteCode() {
-    auto literal_count = literals->size();
-    auto literal_mem = std_vector_mem(literals);
-
-    protect_ptr_vector(safe_literals, literal_count, literal_mem);
-    auto array = alloc_pao(vm, Array, literal_count);
-    for (u64 i = 0; i < literal_count; i++) {
-      array->data[i] = unwrap_ptr(safe_literals + i);
+    PtrArrayObject *array;
+    {
+      auto literal_count = xarray_used(objToPtr(literals));
+      array = alloc_pao(vm, Array, literal_count);
+      auto literal_mem = xarray_memory(objToPtr(literals));
+      for (u64 i = 0; i < literal_count; i++) {
+        array->data[i] = literal_mem[i];
+      }
+      gc_unprotect(literals);
+      literals = 0;
     }
 
     gc_protect(array);
@@ -2062,7 +2065,6 @@ private:
       bc->code->data[i] = bc_mem[i];
     }
     free(bc_mem);
-    delete literals;
     bc_mem = 0;
   }
 public:
@@ -2076,7 +2078,8 @@ public:
     labelContextCounter = 0;
     labelContext = labelContextCounter;
     labelContextStack = new vector<u64>;
-    literals = new vector<Ptr>;
+    literals = as(Object, make_xarray(vm));
+    gc_protect(literals);
 
     pushOp(STACK_RESERVE);
     temp_count = &bc_mem[bc_index];
@@ -2088,10 +2091,9 @@ public:
     *temp_count += count;
     return start;
   }
-  // @gc -- these literals could be moved during bc building.
   auto pushLit(Ptr literal) {
     // TODO: deduplicate them
-    literals->push_back(literal);
+    xarray_push(vm, objToPtr(literals), literal);
     pushOp(PUSHLIT);
     pushOp(lit_index);
     lit_index++;
@@ -2395,7 +2397,9 @@ void emit_lambda_body(VM *vm, ByteCodeBuilder *builder, Ptr body, Ptr env) {
 // @safe
 auto emit_flat_lambda(VM *vm, Ptr it, Ptr env) {
   it = cdr(vm, it);
+  prot_ptrs(it, env);
   auto builder = new ByteCodeBuilder(vm);
+  unprot_ptrs(it, env);
   auto body = cdr(vm, it);
   emit_lambda_body(vm, builder, body, env);
   builder->ret();
@@ -2410,10 +2414,11 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, Ptr p_env) {
   if (has_closure) {
     auto closed_over = cenv_get_closed_over(env);
     auto closed_count = xarray_used(closed_over);
-    auto builder = new ByteCodeBuilder(vm);
 
     // @safe
-    prot_ptrs(it, p_env);
+    prot_ptrs(it, p_env, env, closed_over);
+    auto builder = new ByteCodeBuilder(vm);
+    unprot_ptrs(env, closed_over);
     for (u64 i = 0; i < closed_count; i++) {
       Ptr ptr = xarray_at(closed_over, i);
       VariableBinding decl(binding, (env, ptr), compiler_env_binding(vm, env, ptr));
@@ -2486,7 +2491,7 @@ void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr p_env) {
   // @safe
   {
     auto body = cdr(vm, cdr(vm, it));
-    builder->pushLit(NIL); // LAZY
+    call_with_ptrs((body), builder->pushLit(NIL));
     do_list(vm, body, [&](Ptr expr){
         builder->pop();
         call_with_ptrs((env), emit_expr(vm, builder, expr, env));

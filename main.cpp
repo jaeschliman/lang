@@ -729,7 +729,7 @@ Ptr extensible_array_at(Ptr array, u64 idx) {
   }                                                     \
   void name##_set_##slot(Ptr obj, Ptr value) {          \
     array_set(obj, idx, value);                         \
-  } 
+  }
 
 // @safe
 #define defstruct(name, ...)                                              \
@@ -1275,10 +1275,10 @@ void gc_update_protected_references(VM *vm) {
   }
 }
 
-void gc_protect_reference(VM *vm, Object **ref){
+inline void gc_protect_reference(VM *vm, Object **ref){
   vm->gc_protected->insert(ref);
 }
-void gc_unprotect_reference(VM *vm, Object **ref){
+inline void gc_unprotect_reference(VM *vm, Object **ref){
   vm->gc_protected->erase(ref);
 }
 
@@ -1691,7 +1691,7 @@ Ptr read(VM *vm, const char* input) {
 Ptr read_all(VM *vm, const char* input) {
   auto done = cons(vm, NIL, NIL);
   auto len = strlen(input);
- 
+
   auto items = make_extensible_array(vm);
   auto end = input + len;
   Ptr item;
@@ -2427,46 +2427,62 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, Ptr p_env) {
   }
 }
 
-// @gc
+// @safe
 void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr p_env) {
-  Ptr env = compiler_env_get_subenv(vm, p_env, it);
-  auto vars = nth_or_nil(vm, it, 1);
-  auto count = list_length(vm, vars);
-  auto start_index = builder->reserveTemps(count);
+  Ptr decl(env, (it, p_env), compiler_env_get_subenv(vm, p_env, it));
 
-  do_list(vm, vars, [&](Ptr lst){
-      auto sym = nth_or_nil(vm, lst, 0);
-      auto expr = nth_or_nil(vm, lst, 1);
-      assert(is(Symbol, sym));
-      auto binding = compiler_env_binding(vm, env, sym);
-      auto argidx  = VariableInfo_get_argument_index(binding.variable_info);
-      auto idx     = as(Fixnum, argidx) + start_index;
-      VariableInfo_set_argument_index(binding.variable_info, to(Fixnum, idx));
+  // @safe
+  {
+    auto vars        = nth_or_nil(vm, it, 1);
+    auto count       = list_length(vm, vars);
+    auto start_index = builder->reserveTemps(count);
 
-      emit_expr(vm, builder, expr, p_env);
-      builder->storeFrameRel(idx);
-    });
+    do_list(vm, vars, [&](Ptr lst){
+        auto sym = nth_or_nil(vm, lst, 0);
+        assert(is(Symbol, sym));
+        auto expr = nth_or_nil(vm, lst, 1);
+
+        VariableBinding decl(binding, (it, p_env, env, expr),
+                             compiler_env_binding(vm, env, sym));
+
+        auto argidx  = VariableInfo_get_argument_index(binding.variable_info);
+        auto idx     = as(Fixnum, argidx) + start_index;
+        VariableInfo_set_argument_index(binding.variable_info, to(Fixnum, idx));
+
+        call_with_ptrs((it, p_env),
+                       emit_expr(vm, builder, expr, p_env));
+
+        builder->storeFrameRel(idx);
+      });
+  }
 
   auto has_closure = cenv_has_closure(env);
   auto closed_over = cenv_get_closed_over(env);
+
+  // @safe
   if (has_closure) {
     auto closed_count = extensible_array_used(closed_over);
+
     for (u64 i = 0; i < closed_count; i++) {
-      Ptr ptr = extensible_array_at(closed_over, i);
-      auto binding = compiler_env_binding(vm, env, ptr);
-      // cout << "  closing over: " << ptr  << " idx: " << info.argument_index << endl;
+      Ptr var = extensible_array_at(closed_over, i);
+      VariableBinding decl(binding, (closed_over, it),
+                           compiler_env_binding(vm, env, var));
+
       auto argidx  = VariableInfo_get_argument_index(binding.variable_info);
       builder->loadFrameRel(as(Fixnum, argidx));
     }
     builder->pushClosureEnv(closed_count);
   }
 
-  auto body = cdr(vm, cdr(vm, it));
-  builder->pushLit(NIL); // LAZY
-  do_list(vm, body, [&](Ptr expr){
-      builder->pop();
-      emit_expr(vm, builder, expr, env);
-    });
+  // @safe
+  {
+    auto body = cdr(vm, cdr(vm, it));
+    builder->pushLit(NIL); // LAZY
+    do_list(vm, body, [&](Ptr expr){
+        builder->pop();
+        call_with_ptrs((env), emit_expr(vm, builder, expr, env));
+      });
+  }
 
   if (has_closure) {
     builder->popClosureEnv();

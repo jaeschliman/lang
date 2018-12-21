@@ -651,26 +651,26 @@ u64 array_capacity(Ptr array) {
 
 // using a 2 element array to hold count and buffer for now
 // @safe
-Ptr make_extensible_array(VM *vm) {
+Ptr make_xarray(VM *vm) {
   auto used = to(Fixnum, 0);
   Ptr buffer = make_zf_array(vm, 4);
   return make_array(vm, 2, (Ptr[]){used, buffer});
 }
 
 // @safe
-u64 extensible_array_capacity(Ptr array) {
+u64 xarray_capacity(Ptr array) {
   return as(PtrArray, array_get(array, 1))->length;
 }
 
 // @safe
-u64 extensible_array_used(Ptr array) {
+u64 xarray_used(Ptr array) {
   return as(Fixnum, array_get(array, 0));
 }
 
 // @safe
-void extensible_array_push(VM *vm, Ptr array, Ptr item) {
-  auto used = extensible_array_used(array);
-  auto cap = extensible_array_capacity(array);
+void xarray_push(VM *vm, Ptr array, Ptr item) {
+  auto used = xarray_used(array);
+  auto cap = xarray_capacity(array);
   if (used + 1 >= cap) {
     auto new_cap = cap * 2;
     auto old_arr = array_get(array, 1);
@@ -687,15 +687,15 @@ void extensible_array_push(VM *vm, Ptr array, Ptr item) {
 }
 
 // @safe
-Ptr *extensible_array_memory(Ptr array) {
+Ptr *xarray_memory(Ptr array) {
   auto buff = as(PtrArray, array_get(array, 1));
   return buff->data;
 }
 
 // @safe
-Ptr extensible_array_at(Ptr array, u64 idx) {
-  assert(idx < extensible_array_used(array));
-  return extensible_array_memory(array)[idx];
+Ptr xarray_at(Ptr array, u64 idx) {
+  assert(idx < xarray_used(array));
+  return xarray_memory(array)[idx];
 }
 
 /* ---------------------------------------- */
@@ -1558,7 +1558,7 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done);
 auto read_delimited_list(VM *vm, const char **remaining, const char *end, Ptr done, char delim) {
   auto input = *remaining;
 
-  auto items = make_extensible_array(vm);
+  auto items = make_xarray(vm);
 
   while(input < end && *input != delim) {
     // would be nice to have some sort of with_protected() here...
@@ -1570,11 +1570,11 @@ auto read_delimited_list(VM *vm, const char **remaining, const char *end, Ptr do
       return done;
     }
     call_with_ptrs((items, done),
-                   extensible_array_push(vm, items, item));
+                   xarray_push(vm, items, item));
     eat_ws(&input, end);
   }
-  auto used = extensible_array_used(items);
-  auto mem  = extensible_array_memory(items);
+  auto used = xarray_used(items);
+  auto mem  = xarray_memory(items);
   auto res  = make_list(vm, used, mem);
   if (*input == delim) input++;
   *remaining = input;
@@ -1692,7 +1692,7 @@ Ptr read_all(VM *vm, const char* input) {
   auto done = cons(vm, NIL, NIL);
   auto len = strlen(input);
 
-  auto items = make_extensible_array(vm);
+  auto items = make_xarray(vm);
   auto end = input + len;
   Ptr item;
   call_with_ptrs((items, done),
@@ -1700,13 +1700,13 @@ Ptr read_all(VM *vm, const char* input) {
   while (input < end && !ptr_eq(item, done)) {
     assert(input < end);
     call_with_ptrs((items, done),
-                   extensible_array_push(vm, items, item));
+                   xarray_push(vm, items, item));
     call_with_ptrs((items, done),
                    item = read(vm, &input, end, done));
     assert(input <= end);
   }
-  auto used = extensible_array_used(items);
-  auto mem  = extensible_array_memory(items);
+  auto used = xarray_used(items);
+  auto mem  = xarray_memory(items);
   auto res  = make_list(vm, used, mem);
   return res;
 }
@@ -2002,7 +2002,7 @@ private:
   u64 labelContext;
 
   u64 *temp_count;
-  vector<Ptr> *literals; // @gc convert to extensible_array (raw Object * ptr)
+  vector<Ptr> *literals; // @gc convert to xarray (raw Object * ptr)
 
   ByteCodeBuilder* pushOp(u8 op) {
     return pushU64(op);
@@ -2209,13 +2209,13 @@ public:
 
 // @safe
 Ptr make_imap(VM *vm) {
-  return make_extensible_array(vm);
+  return make_xarray(vm);
 }
 
 // @safe
 bool imap_has(Ptr map, Ptr key) {
-  u64 max = extensible_array_used(map);
-  Ptr *mem = extensible_array_memory(map);
+  u64 max = xarray_used(map);
+  Ptr *mem = xarray_memory(map);
   for (u64 i = 0; i < max; i += 2) {
     if (mem[i] == key) return true;
   }
@@ -2224,8 +2224,8 @@ bool imap_has(Ptr map, Ptr key) {
 
 // @safe
 Ptr imap_get(Ptr map, Ptr key) {
-  u64 max = extensible_array_used(map);
-  Ptr *mem = extensible_array_memory(map);
+  u64 max = xarray_used(map);
+  Ptr *mem = xarray_memory(map);
   for (u64 i = 0; i < max; i += 2) {
     if (mem[i] == key) return mem[i + 1];
   }
@@ -2234,8 +2234,8 @@ Ptr imap_get(Ptr map, Ptr key) {
 
 // @safe
 void imap_set(VM *vm, Ptr map, Ptr key, Ptr value) {
-  u64 max = extensible_array_used(map);
-  Ptr *mem = extensible_array_memory(map);
+  u64 max = xarray_used(map);
+  Ptr *mem = xarray_memory(map);
   for (u64 i = 0; i < max; i += 2) {
     if (mem[i] == key) {
       mem[i + 1] = value;
@@ -2243,9 +2243,9 @@ void imap_set(VM *vm, Ptr map, Ptr key, Ptr value) {
     }
   }
   prot_ptrs(map,value);
-  extensible_array_push(vm, map, key);
+  xarray_push(vm, map, key);
   unprot_ptrs(map, value);
-  extensible_array_push(vm, map, value);
+  xarray_push(vm, map, value);
 }
 
 
@@ -2281,7 +2281,7 @@ defstruct(cenv,
 Ptr cenv(VM *vm, Ptr prev) {
   prot_ptr(prev);
   auto info = make_imap(vm);                    prot_ptr(info);
-  auto closed_over = make_extensible_array(vm); prot_ptr(closed_over);
+  auto closed_over = make_xarray(vm); prot_ptr(closed_over);
   auto sub_envs = make_imap(vm);                prot_ptr(sub_envs);
   auto has_closure = FALSE;
   auto type = CompilerEnvType_Unknown;
@@ -2401,13 +2401,13 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, Ptr p_env) {
   auto has_closure = cenv_has_closure(env);
   if (has_closure) {
     auto closed_over = cenv_get_closed_over(env);
-    auto closed_count = extensible_array_used(closed_over);
+    auto closed_count = xarray_used(closed_over);
     auto builder = new ByteCodeBuilder(vm);
 
     // @safe
     prot_ptrs(it, p_env);
     for (u64 i = 0; i < closed_count; i++) {
-      Ptr ptr = extensible_array_at(closed_over, i);
+      Ptr ptr = xarray_at(closed_over, i);
       VariableBinding decl(binding, (env, ptr), compiler_env_binding(vm, env, ptr));
       auto index = as(Fixnum, varinfo_get_argument_index(binding.variable_info));
       builder->loadArg(index);
@@ -2462,10 +2462,10 @@ void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr p_env) {
 
   // @safe
   if (has_closure) {
-    auto closed_count = extensible_array_used(closed_over);
+    auto closed_count = xarray_used(closed_over);
 
     for (u64 i = 0; i < closed_count; i++) {
-      Ptr var = extensible_array_at(closed_over, i);
+      Ptr var = xarray_at(closed_over, i);
       VariableBinding decl(binding, (closed_over, it),
                            compiler_env_binding(vm, env, var));
 
@@ -2583,9 +2583,9 @@ bool mark_variable_for_closure
     if (scope == VariableScope_Closure) return true;
     varinfo_set_scope(info,  VariableScope_Closure);
     auto closed_over = cenv_get_closed_over(env);
-    auto index = extensible_array_used(closed_over);
+    auto index = xarray_used(closed_over);
     varinfo_set_closure_index(info, to(Fixnum, index));
-    extensible_array_push(vm, closed_over, sym);
+    xarray_push(vm, closed_over, sym);
     cenv_set_has_closure(env, TRUE);
     return true;
 

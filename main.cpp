@@ -196,7 +196,8 @@ struct VM {
   u64 gc_count;
   u64 gc_threshold_in_bytes;
   u64 allocation_high_watermark;
-  set<Object **>  *gc_protected;
+  set<Object **>  *gc_protected; // @gc -- FIXME this should actually
+                                 // be a refcount, not set membership
 };
 
 typedef Ptr (*PrimitiveFunction)(VM*);
@@ -2783,40 +2784,40 @@ void run_string(const char* str) {
   gc_protect(bc);
 
   auto exprs = read_all(vm, str);
-  auto raw_exprs = as(Object, exprs);
+  auto kept_head = cons(vm, NIL, exprs);
+  auto error = false;
 
-  while (!isNil(exprs)) {
-    gc_protect(raw_exprs);
+  {
+    prot_ptr(kept_head);
 
-    auto expr = car(vm, exprs);
-    auto bc = compile_toplevel_expression(vm, expr);
+    do_list(vm, cdr(vm, kept_head), [&](Ptr expr){
+        if (error) return;
 
-    gc_protect(bc);
-    vm_push_stack_frame(vm, 0, bc);
+        auto bc = compile_toplevel_expression(vm, expr);
 
-    vm_interp(vm);
+        gc_protect(bc);
+        vm_push_stack_frame(vm, 0, bc);
 
-    vm_pop_stack_frame(vm);
-    gc_unprotect(bc);
+        vm_interp(vm);
 
-    gc(vm);
+        vm_pop_stack_frame(vm);
+        gc_unprotect(bc);
 
-    if (vm->error) {
-      puts("VM ERROR: ");
-      puts(vm->error);
-      return;
-    }
+        gc(vm);
 
-    // it would really be nice if there was an easier way to do this...
-    gc_unprotect(raw_exprs);
-    exprs = objToPtr(raw_exprs);
-    exprs = cdr(vm, exprs);
-    raw_exprs = as(Object, exprs);
-    gc_protect(raw_exprs);
+        if (vm->error) {
+          puts("VM ERROR: ");
+          puts(vm->error);
+          error = true;
+          return;
+        }
+      });
+
+    unprot_ptr(kept_head);
   }
 
   gc_unprotect(bc);
-  gc_unprotect(raw_exprs);
+  
 
   vm_count_objects_on_heap(vm);
   vm_count_reachable_refs(vm);

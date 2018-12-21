@@ -2714,16 +2714,17 @@ void mark_closed_over_variables(VM *vm, Ptr it, Ptr env) {
   }
 }
 
-// @gc
+// @safe
 auto compile_toplevel_expression(VM *vm, Ptr it) {
+  prot_ptr(it);
   auto env = cenv(vm, NIL);
+  prot_ptr(env);
   auto builder = new ByteCodeBuilder(vm);
-  mark_closed_over_variables(vm, it, env);
+  unprot_ptrs(it, env);
+  call_with_ptrs((it, env), mark_closed_over_variables(vm, it, env));
   emit_expr(vm, builder, it, env);
   return builder->build();
 }
-
-// @gc -- continue audit from here
 
 /* -------------------------------------------------- */
 

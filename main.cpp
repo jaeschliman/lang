@@ -74,6 +74,9 @@ how to represent U32 and U64?
 #include <fstream>
 #include <sstream>
 #include <functional>
+#include <chrono>
+#include <thread>
+#include "./stacktrace.h"
 #include "./macro_support.h"
 
 using namespace std;
@@ -104,6 +107,8 @@ enum ObjectType : u64 {
 struct Ptr {
   u64 value;
 };
+
+std::ostream &operator<<(std::ostream &os, Ptr p);
 
 inline bool operator == (Ptr a, Ptr b) {
   return a.value == b.value;
@@ -193,11 +198,11 @@ struct VM {
   const char* error;
   u64 instruction_count;
   Globals *globals;
+  bool gc_disabled;
   u64 gc_count;
   u64 gc_threshold_in_bytes;
   u64 allocation_high_watermark;
-  set<Object **>  *gc_protected; // @gc -- FIXME this should actually
-                                 // be a refcount, not set membership
+  unordered_map<Object **, u64> *gc_protected;
 };
 
 typedef Ptr (*PrimitiveFunction)(VM*);
@@ -221,15 +226,31 @@ inline bool pointer_is_aligned(void* mem) {
   return ((u64)mem & 0b1111) == 0;
 }
 
+
+void gc(VM *vm);
+
 void * vm_alloc(VM *vm, u64 bytes) {
+  auto preserved_heap_end = vm->heap_end;
   auto result = (void *)vm->heap_end;
   assert(pointer_is_aligned(result));
   vm->heap_end = align_pointer_with_offset(vm->heap_end, bytes);
   assert(pointer_is_aligned(vm->heap_end));
   vm->allocation_count++;
   double byte_count = (u64)vm->heap_end - (u64)vm->heap_mem;
+
+  // @gc really we should track allocations since last gc
+  auto threshold = 1 * 1024 * 1024 * 0.5;
+  if (byte_count > threshold && !vm->gc_disabled) {
+      vm->heap_end = preserved_heap_end;
+      // print_stacktrace();
+      gc(vm);
+      // @gc could wind up in an infinite loop here
+      return vm_alloc(vm, bytes);
+  }
+
   if (byte_count > vm->allocation_high_watermark)
     vm->allocation_high_watermark = byte_count;
+  bzero(result, bytes);
   return result;
 }
 
@@ -390,6 +411,7 @@ inline Ptr unwrap_ptr(GCPtr *it) {
     auto vm = it->vm;
     gc_unprotect(it->object);
     it->ptr = objToPtr(it->object);
+    assert(is(Object, it->ptr));
   }
   return it->ptr;
 }
@@ -661,8 +683,12 @@ u64 array_capacity(Ptr array) {
 // @safe
 Ptr make_xarray(VM *vm) {
   auto used = to(Fixnum, 0);
-  Ptr buffer = make_zf_array(vm, 4);
-  return make_array(vm, 2, (Ptr[]){used, buffer});
+  Ptr buffer = make_zf_array(vm, 4); prot_ptr(buffer);
+  Ptr result = make_zf_array(vm, 2);
+  array_set(result, 0, used);
+  unprot_ptr(buffer);
+  array_set(result, 1, buffer);
+  return result;
 }
 
 // @safe
@@ -876,7 +902,6 @@ enum BuiltInDebugPrintIndex : u64 {
   DebugPrint_End
 };
 
-std::ostream &operator<<(std::ostream &os, Ptr p);
 
 std::ostream &operator<<(std::ostream &os, Object *obj) {
   auto otype = obj->header.object_type;
@@ -1192,12 +1217,12 @@ void gc_update_ptr(VM *vm, Ptr *p) {
 // already been copied over.
 // StackFrameObject is handled specially.
 void gc_update(VM *vm, ByteCodeObject* it) {
-  {
+  if (it->code) {
     Ptr p = objToPtr(it->code);
     gc_update_ptr(vm, &p);
     it->code = as(U64Array, p);
   }
-  {
+  if (it->literals) {
     Ptr p = objToPtr(it->literals);
     gc_update_ptr(vm, &p);
     it->literals = as(PtrArray, p);
@@ -1211,7 +1236,7 @@ void gc_update(VM *vm, PtrArrayObject* it) {
 }
 
 void gc_update(VM *vm, StandardObject* it) {
-  {
+  if (it->klass){
     Ptr p = objToPtr(it->klass);
     gc_update_ptr(vm, &p);
     it->klass = as(Standard, p);
@@ -1274,7 +1299,8 @@ void gc_copy_symtab(VM *vm) {
 }
 
 void gc_update_protected_references(VM *vm) {
-  for (Object **ref : *vm->gc_protected) {
+  for (auto pair : *vm->gc_protected) {
+    Object **ref = pair.first;
     auto obj = *ref;
     auto ptr = objToPtr(obj);
     gc_update_ptr(vm, &ptr);
@@ -1284,13 +1310,32 @@ void gc_update_protected_references(VM *vm) {
 }
 
 inline void gc_protect_reference(VM *vm, Object **ref){
-  vm->gc_protected->insert(ref);
+  auto map = vm->gc_protected;
+  auto found = map->find(ref);
+  if (found == map->end()) {
+    vm->gc_protected->insert(make_pair(ref, 1));
+  } else {
+    found->second++;
+  }
 }
 inline void gc_unprotect_reference(VM *vm, Object **ref){
-  vm->gc_protected->erase(ref);
+  auto map = vm->gc_protected;
+  auto found = map->find(ref);
+  if (found == map->end()) {
+    cout << "ERROR: tried to unprotect a non-protected reference." << endl;
+    assert(false);
+    // vm->gc_protected->insert(make_pair(ref, 1));
+  } else {
+    found->second--;
+    if (found->second == 0) {
+      map->erase(ref);
+    }
+  }
 }
 
 void gc(VM *vm) {
+  vm->gc_count++;
+
   // prepare_vm
   gc_prepare_vm(vm);
   // copy symtab
@@ -2047,9 +2092,9 @@ private:
   void finalizeByteCode() {
     PtrArrayObject *array;
     {
-      auto literal_count = xarray_used(objToPtr(literals));
+      auto literal_count = xarray_used(objToPtr(this->literals));
       array = alloc_pao(vm, Array, literal_count);
-      auto literal_mem = xarray_memory(objToPtr(literals));
+      auto literal_mem = xarray_memory(objToPtr(this->literals));
       for (u64 i = 0; i < literal_count; i++) {
         array->data[i] = literal_mem[i];
       }
@@ -2220,7 +2265,8 @@ public:
 
 // @safe
 Ptr make_imap(VM *vm) {
-  return make_xarray(vm);
+  auto result = make_xarray(vm);
+  return result;
 }
 
 // @safe
@@ -2291,9 +2337,9 @@ defstruct(cenv,
 // @safe
 Ptr cenv(VM *vm, Ptr prev) {
   prot_ptr(prev);
-  auto info = make_imap(vm);                    prot_ptr(info);
+  auto info        = make_imap(vm);   prot_ptr(info);
   auto closed_over = make_xarray(vm); prot_ptr(closed_over);
-  auto sub_envs = make_imap(vm);                prot_ptr(sub_envs);
+  auto sub_envs    = make_imap(vm);   prot_ptr(sub_envs);
   auto has_closure = FALSE;
   auto type = CompilerEnvType_Unknown;
   unprot_ptrs(prev, info, closed_over, sub_envs);
@@ -2329,23 +2375,29 @@ bool cenv_has_closure(Ptr cenv) {
 // @safe
 auto compiler_env_get_subenv(VM *vm, Ptr env, Ptr it) {
   if (!cenv_has_subenv_for(env, it)) {
-    auto created = cenv(vm, env);              prot_ptr(created);
-    cenv_set_subenv_for(vm, env, it, created); unprot_ptr(created);
+    Ptr decl(created, (env, it), cenv(vm, env))
+    prot_ptr(created);
+    cenv_set_subenv_for(vm, env, it, created);
+    unprot_ptr(created);
     return created;
   }
   return cenv_get_subenv_for(env, it);
 }
 
-#define GLOBAL_INFO  make_varinfo(vm, VariableScope_Global, \
-                                       to(Fixnum,0), to(Fixnum, 0))
+auto global_env_binding(VM *vm) {
+  auto info = make_varinfo(vm, VariableScope_Global,
+                           to(Fixnum,0), to(Fixnum, 0));
+  return (VariableBinding){0, info}; 
+}
 
 // @safe
 VariableBinding compiler_env_binding(VM *vm, Ptr env, Ptr sym) {
-  if (isNil(env)) return (VariableBinding){0, GLOBAL_INFO};
+  if (isNil(env)) return global_env_binding(vm);
 
   if (!imap_has(cenv_get_info(env), sym)) {
-    VariableBinding decl(outer, (sym, env),
-                         compiler_env_binding(vm, cenv_get_prev(env), sym));
+    prot_ptrs(sym, env);
+    VariableBinding outer = compiler_env_binding(vm, cenv_get_prev(env), sym);
+    unprot_ptrs(sym, env)
     auto from_lambda = cenv_is_lambda(cenv_get_prev(env));
     auto scope = varinfo_get_scope(outer.variable_info);
     if (scope == VariableScope_Argument && from_lambda) {
@@ -2370,7 +2422,7 @@ void emit_call(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env) {
   while (!isNil(args)) {
     assert(consp(vm, args));
     argc++;
-    call_with_ptrs((args),
+    call_with_ptrs((args, env),
                    emit_expr(vm, builder, car(vm, args), env));
     args = cdr(vm, args);
   }
@@ -2442,8 +2494,9 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, Ptr p_env) {
   }
 }
 
-// @safe
+// @gc error
 void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr p_env) {
+  vm->gc_disabled = true;
   Ptr decl(env, (it, p_env), compiler_env_get_subenv(vm, p_env, it));
 
   // @safe
@@ -2502,6 +2555,7 @@ void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr p_env) {
   if (has_closure) {
     builder->popClosureEnv();
   }
+  vm->gc_disabled = false;
 }
 
 
@@ -2618,7 +2672,9 @@ void mark_closed_over_variables(VM *vm, Ptr it, Ptr env);
 
 // @safe
 void mark_lambda_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {
-  Ptr decl(env, (it, p_env), compiler_env_get_subenv(vm, p_env, it));
+  prot_ptrs(it, p_env);
+  Ptr env = compiler_env_get_subenv(vm, p_env, it);
+  unprot_ptrs(it, p_env);
   cenv_set_type(env, CompilerEnvType_Lambda);
   assert(cenv_is_lambda(env));
 
@@ -2652,6 +2708,7 @@ void mark_lambda_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {
 
 // @safe
 void mark_let_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {
+  vm->gc_disabled = true;
   Ptr decl(env, (it, p_env), compiler_env_get_subenv(vm, p_env, it));
   cenv_set_type(env, CompilerEnvType_Let);
 
@@ -2684,6 +2741,7 @@ void mark_let_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {
         mark_closed_over_variables(vm, expr, env);
       });
   }
+  vm->gc_disabled = false;
 }
 
 // @safe
@@ -2731,7 +2789,8 @@ auto compile_toplevel_expression(VM *vm, Ptr it) {
   unprot_ptrs(it, env);
   call_with_ptrs((it, env), mark_closed_over_variables(vm, it, env));
   emit_expr(vm, builder, it, env);
-  return builder->build();
+  auto result = builder->build();
+  return result;
 }
 
 /* -------------------------------------------------- */
@@ -2764,7 +2823,7 @@ void run_string(const char* str) {
   vm->gc_count = 0;
   vm->gc_threshold_in_bytes = 1 * 1024 * 1024;
 
-  vm->gc_protected = new set<Object **>;
+  vm->gc_protected = new unordered_map<Object **, u64>;
 
   vm->frame = 0;
   vm->error = 0;
@@ -2787,6 +2846,8 @@ void run_string(const char* str) {
   auto kept_head = cons(vm, NIL, exprs);
   auto error = false;
 
+  
+  while(!error)
   {
     prot_ptr(kept_head);
 
@@ -2803,7 +2864,7 @@ void run_string(const char* str) {
         vm_pop_stack_frame(vm);
         gc_unprotect(bc);
 
-        gc(vm);
+        // gc(vm);
 
         if (vm->error) {
           puts("VM ERROR: ");
@@ -2813,7 +2874,13 @@ void run_string(const char* str) {
         }
       });
 
+    vm_count_objects_on_heap(vm);
+    report_memory_usage(vm);
+    cout << " executed " << vm->instruction_count << " instructions." << endl;
+    cout << " gc count: " << vm->gc_count << endl;
     unprot_ptr(kept_head);
+
+    this_thread::sleep_for(chrono::milliseconds(100));
   }
 
   gc_unprotect(bc);

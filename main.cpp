@@ -2496,7 +2496,6 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, Ptr p_env) {
 
 // @gc error
 void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr p_env) {
-  vm->gc_disabled = true;
   Ptr decl(env, (it, p_env), compiler_env_get_subenv(vm, p_env, it));
 
   // @safe
@@ -2517,7 +2516,7 @@ void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr p_env) {
         auto idx     = as(Fixnum, argidx) + start_index;
         varinfo_set_argument_index(binding.variable_info, to(Fixnum, idx));
 
-        call_with_ptrs((it, p_env),
+        call_with_ptrs((it, p_env, env),
                        emit_expr(vm, builder, expr, p_env));
 
         builder->storeFrameRel(idx);
@@ -2545,7 +2544,7 @@ void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr p_env) {
   // @safe
   {
     auto body = cdr(vm, cdr(vm, it));
-    call_with_ptrs((body), builder->pushLit(NIL));
+    call_with_ptrs((env, body), builder->pushLit(NIL));
     do_list(vm, body, [&](Ptr expr){
         builder->pop();
         call_with_ptrs((env), emit_expr(vm, builder, expr, env));
@@ -2555,7 +2554,6 @@ void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr p_env) {
   if (has_closure) {
     builder->popClosureEnv();
   }
-  vm->gc_disabled = false;
 }
 
 

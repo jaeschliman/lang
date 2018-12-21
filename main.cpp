@@ -191,9 +191,11 @@ struct VM {
   u64 pc;
   ByteCodeObject *bc;
   const char* error;
+  u64 instruction_count;
   Globals *globals;
   u64 gc_count;
   u64 gc_threshold_in_bytes;
+  u64 allocation_high_watermark;
   set<Object **>  *gc_protected;
 };
 
@@ -224,12 +226,17 @@ void * vm_alloc(VM *vm, u64 bytes) {
   vm->heap_end = align_pointer_with_offset(vm->heap_end, bytes);
   assert(pointer_is_aligned(vm->heap_end));
   vm->allocation_count++;
+  double byte_count = (u64)vm->heap_end - (u64)vm->heap_mem;
+  if (byte_count > vm->allocation_high_watermark)
+    vm->allocation_high_watermark = byte_count;
   return result;
 }
 
 void report_memory_usage(VM *vm) {
   double byte_count = (u64)vm->heap_end - (u64)vm->heap_mem;
+  double max_byte_count = vm->allocation_high_watermark;
   cout << "Memory usage, MB : " << (byte_count / (1024 * 1024)) << endl;
+  cout << "High Water Mark MB : " << (max_byte_count / (1024 * 1024)) << endl;
 }
 
 VM *CURRENT_DEBUG_VM;
@@ -1827,6 +1834,7 @@ inline u64 vm_adv_instr(VM *vm) {
 void vm_interp(VM* vm) {
   u64 instr;
   while ((instr = vm_curr_instr(vm))) {
+    vm->instruction_count++;
     switch (instr){
     case STACK_RESERVE: {
       u64 count = vm_adv_instr(vm);
@@ -2809,6 +2817,7 @@ void run_string(const char* str) {
   vm_count_objects_on_heap(vm);
   vm_count_reachable_refs(vm);
   report_memory_usage(vm);
+  cout << " executed " << vm->instruction_count << " instructions." << endl;
 
   // TODO: clean up
 }

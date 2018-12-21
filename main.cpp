@@ -413,6 +413,11 @@ inline Ptr unwrap_ptr(GCPtr *it) {
     unprot_ptrs ptrs                            \
   }
 
+// not sure about this name
+#define decl(varname, ptrs, expr) \
+  varname;                                 \
+  call_with_ptrs(ptrs, varname = expr)
+
 
 /* ---------------------------------------- */
 
@@ -2283,22 +2288,28 @@ Ptr cenv(VM *vm, Ptr prev) {
   return make_cenv(vm, prev, info, closed_over, sub_envs, has_closure, type);
 }
 
+// @safe
 bool cenv_has_subenv_for(Ptr cenv, Ptr key) {
   return imap_has(cenv_get_sub_envs(cenv), key);
 }
 
+// @safe
 Ptr cenv_get_subenv_for(Ptr cenv, Ptr key) {
   return imap_get(cenv_get_sub_envs(cenv), key);
 }
+
+// @safe
 void cenv_set_subenv_for(VM *vm, Ptr cenv, Ptr key, Ptr subenv) {
   imap_set(vm, cenv_get_sub_envs(cenv), key, subenv);
 }
 
+// @safe
 bool cenv_is_lambda(Ptr cenv) {
   if (isNil(cenv)) return false;
   return cenv_get_type(cenv) == CompilerEnvType_Lambda;
 }
 
+// @safe
 bool cenv_has_closure(Ptr cenv) {
   return as(Bool, cenv_get_has_closure(cenv));
 }
@@ -2316,16 +2327,14 @@ auto compiler_env_get_subenv(VM *vm, Ptr env, Ptr it) {
 #define GLOBAL_INFO  make_VariableInfo(vm, VariableScope_Global, \
                                        to(Fixnum,0), to(Fixnum, 0))
 
-// @gc
+// @safe
 VariableBinding compiler_env_binding(VM *vm, Ptr env, Ptr sym) {
   if (isNil(env)) return (VariableBinding){0, GLOBAL_INFO};
 
-  auto var_info = cenv_get_info(env);
-  auto existing = imap_has(var_info, sym);
-  if (!existing) {
-    auto prev  = cenv_get_prev(env);
-    auto outer = compiler_env_binding(vm, prev, sym);
-    auto from_lambda = cenv_is_lambda(prev);
+  if (!imap_has(cenv_get_info(env), sym)) {
+    VariableBinding decl(outer, (sym, env),
+                         compiler_env_binding(vm, cenv_get_prev(env), sym));
+    auto from_lambda = cenv_is_lambda(cenv_get_prev(env));
     auto scope = VariableInfo_get_scope(outer.variable_info);
     if (scope == VariableScope_Argument && from_lambda) {
       cout << "  ERROR: variable should have been marked for closure: " << sym << endl;
@@ -2335,7 +2344,7 @@ VariableBinding compiler_env_binding(VM *vm, Ptr env, Ptr sym) {
     auto info  = outer.variable_info;
     return (VariableBinding){depth, info};
   }
-  return (VariableBinding){0, imap_get(var_info, sym)};
+  return (VariableBinding){0, imap_get(cenv_get_info(env), sym)};
 }
 
 void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env);
@@ -2385,27 +2394,28 @@ auto emit_flat_lambda(VM *vm, Ptr it, Ptr env) {
   return make_closure(vm, bc, NIL);
 }
 
+// @safe
 void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, Ptr p_env) {
-  // @gc
-  Ptr env = compiler_env_get_subenv(vm, p_env, it);
+  Ptr decl(env, (it, p_env), compiler_env_get_subenv(vm, p_env, it));
   auto has_closure = cenv_has_closure(env);
   if (has_closure) {
     auto closed_over = cenv_get_closed_over(env);
     auto closed_count = extensible_array_used(closed_over);
     auto builder = new ByteCodeBuilder(vm);
-    // cout << " closing over " << closed_count << " arguments." << endl;
-    // cout << "   form  = " << it << endl;
 
+    // @safe
+    prot_ptrs(it, p_env);
     for (u64 i = 0; i < closed_count; i++) {
       Ptr ptr = extensible_array_at(closed_over, i);
-      auto binding = compiler_env_binding(vm, env, ptr);
-      // cout << "  closing over: " << ptr  << " idx: " << info.argument_index << endl;
+      VariableBinding decl(binding, (env, ptr), compiler_env_binding(vm, env, ptr));
       auto index = as(Fixnum, VariableInfo_get_argument_index(binding.variable_info));
       builder->loadArg(index);
     }
+    unprot_ptrs(it, p_env);
+
+    // @safe
     builder->pushClosureEnv(closed_count);
     auto body = cdr(vm, cdr(vm, it));
-    // @gc
     emit_lambda_body(vm, builder, body, env);
     builder->ret();
     p_builder->pushLit(objToPtr(builder->build()));

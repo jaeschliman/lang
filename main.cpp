@@ -2600,31 +2600,38 @@ bool mark_variable_for_closure
 
 void mark_closed_over_variables(VM *vm, Ptr it, Ptr env);
 
-// @gc
+// @safe
 void mark_lambda_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {
-  Ptr env = compiler_env_get_subenv(vm, p_env, it);
+  Ptr decl(env, (it, p_env), compiler_env_get_subenv(vm, p_env, it));
   cenv_set_type(env, CompilerEnvType_Lambda);
   assert(cenv_is_lambda(env));
 
   it = cdr(vm, it);
-  auto args = car(vm, it);
+  auto zero = to(Fixnum, 0);
   u64 idx = 0;
-  while (!isNil(args)) {
-    auto arg = car(vm, args);
-    assert(is(Symbol, arg));
-    auto info = make_varinfo(vm, VariableScope_Argument, to(Fixnum, idx++), to(Fixnum,0));
+
+  // @safe
+  {
+    prot_ptrs(it, env);
+    auto args = car(vm, it);
     auto var_map = cenv_get_info(env);
-    imap_set(vm, var_map, arg, info);
-    args = cdr(vm, args);
+    do_list(vm, args, [&](Ptr arg){
+        assert(is(Symbol, arg));
+        auto index = to(Fixnum, idx++);
+        Ptr decl(info, (arg, var_map),
+                 make_varinfo(vm, VariableScope_Argument, index, zero));
+        call_with_ptrs((var_map), imap_set(vm, var_map, arg, info));
+      });
+    unprot_ptrs(it, env);
   }
+
+  // @safe
   auto body = cdr(vm, it);
   if (isNil(body)) return;
   assert(consp(vm, body));
-  while(!isNil(body)) {
-    auto expr = car(vm, body);
-    mark_closed_over_variables(vm, expr, env);
-    body = cdr(vm, body);
-  }
+  do_list(vm, body, [&](Ptr expr){
+        call_with_ptrs((env), mark_closed_over_variables(vm, expr, env));
+      });
 }
 
 // @gc

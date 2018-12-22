@@ -85,6 +85,8 @@ how to represent U32 and U64?
 
 #define GC_DEBUG 0
 
+#define unused(x) (void)(x)
+
 using namespace std;
 
 typedef unsigned int uint;
@@ -377,7 +379,7 @@ inline bool isNonNilObject(Ptr it) {
 
 
 // @safe
-type_test(any, it) { return true; }
+type_test(any, it) { unused(it); return true; }
 
 // @safe
 inline Ptr asany(Ptr it) { return it; }
@@ -419,11 +421,7 @@ struct GCPtr {
   VM *vm;
 };
 
-#define protect_ptr(var, it)                    \
-  GCPtr var;                                    \
-  wrap_ptr(vm, &var, it)
-
-
+// @deprecated
 inline void wrap_ptr(VM *vm, GCPtr* var, Ptr it)  {
   var->ptr = it;
   if (isNonNilObject(it)) {
@@ -436,6 +434,7 @@ inline void wrap_ptr(VM *vm, GCPtr* var, Ptr it)  {
   }
 }
 
+// @deprecated
 inline Ptr unwrap_ptr(GCPtr *it) {
   if (it->is_object) {
     auto vm = it->vm;
@@ -445,7 +444,6 @@ inline Ptr unwrap_ptr(GCPtr *it) {
   }
   return it->ptr;
 }
-
 
 inline void gc_unprotect_ptr(VM *vm, Ptr *ref);
 inline void gc_protect_ptr(VM *vm, Ptr *ref);
@@ -582,27 +580,20 @@ PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   return obj;
 }
 
-// FIXME: should this should be an AS not a TO
-// @safe
-PtrArrayObject *toPtrArrayObject(Ptr it) {
-  assert(is(PtrArray,it));
-  return (PtrArrayObject *)as(Object, it);
-}
-
 // @safe
 type_test(Array, it) {
-  return is(PtrArray, it) && (toPtrArrayObject(it))->pao_type == Array;
+  return is(PtrArray, it) && (as(PtrArray, it))->pao_type == Array;
 }
 
 // @safe
 StandardObject *alloc_standard_object(VM *vm, StandardObject *klass, u64 ivar_count) {
-  gc_protect(klass);
   auto byte_count = (sizeof(StandardObject)) + ivar_count * (sizeof(Ptr));
+  gc_protect(klass);
   auto result = (StandardObject *)vm_alloc(vm, byte_count);
+  gc_unprotect(klass);
   result->header.object_type = Standard_ObjectType;
   result->klass = klass;
   result->ivar_count = ivar_count;
-  gc_unprotect(klass);
   return result;
 }
 
@@ -672,21 +663,21 @@ Ptr make_zf_array(VM *vm, u64 len) {
 
 // @safe
 Ptr array_get(Ptr array, u64 index) {
-  auto a = toPtrArrayObject(array);
+  auto a = as(PtrArray, array);
   assert(index < a->length);
   return a->data[index];
 }
 
 // @safe
 void array_set(Ptr array, u64 index, Ptr value) {
-  auto a = toPtrArrayObject(array);
+  auto a = as(PtrArray, array);
   assert(index < a->length);
   a->data[index] = value;
 }
 
 // @safe
 u64 array_capacity(Ptr array) {
-  auto a = toPtrArrayObject(array);
+  auto a = as(PtrArray, array);
   return a->length;
 }
 
@@ -807,7 +798,7 @@ Ptr make_closure(VM *vm, Ptr code, Ptr env) {
 
 // @safe
 type_test(Closure, it) {
-  return is(PtrArray, it) && (toPtrArrayObject(it))->pao_type == Closure;
+  return is(PtrArray, it) && (as(PtrArray, it))->pao_type == Closure;
 }
 
 // @safe
@@ -827,7 +818,7 @@ Ptr closure_env(Ptr closure) {
 // note that obj_size of stack frame does not take into account temporaries.
 
 u64 obj_size(U64ArrayObject *it)  { return sizeof(U64ArrayObject) + it->length * 8;    }
-u64 obj_size(ByteCodeObject *it)  { return sizeof(ByteCodeObject) + 0;                 }
+u64 obj_size(ByteCodeObject *)    { return sizeof(ByteCodeObject) + 0;                 }
 u64 obj_size(ByteArrayObject *it) { return sizeof(ByteArrayObject) + it->length;       }
 u64 obj_size(PtrArrayObject *it)  { return sizeof(PtrArrayObject) + it->length * 8;    }
 u64 obj_size(StandardObject *it)  { return sizeof(StandardObject) + it->ivar_count * 8;}
@@ -855,6 +846,7 @@ typedef std::function<void(Ptr)> PtrFn;
 // NB: cannot track items currently on the stack from this function
 //     unless we do a full stack scan.
 void obj_refs(VM *vm, StackFrameObject *it, PtrFn fn) {
+  unused(vm);
   for (u64 i = 0; i < it->argc; i++) {
     fn(it->argv[it->pad_count + i]);
   }
@@ -862,19 +854,20 @@ void obj_refs(VM *vm, StackFrameObject *it, PtrFn fn) {
   if (it->prev_frame) fn(objToPtr(it->prev_frame));
 }
 
-void obj_refs(VM *vm, U64ArrayObject *it, PtrFn fn) { return; }
 void obj_refs(VM *vm, ByteCodeObject *it, PtrFn fn) {
+  unused(vm);
   fn(objToPtr(it->code));
   fn(objToPtr(it->literals));
 }
-void obj_refs(VM *vm, ByteArrayObject *it, PtrFn fn) { return; }
 void obj_refs(VM *vm, PtrArrayObject *it, PtrFn fn) {
+  unused(vm);
   for (u64 i = 0; i < it->length; i++) {
     fn(it->data[i]);
   }
 }
 
 void obj_refs(VM *vm, StandardObject *it, PtrFn fn) {
+  unused(vm);
   fn(objToPtr(it->klass));
   for (u64 i = 0; i < it->ivar_count; i++) {
     fn(it->ivars[i]);
@@ -883,9 +876,9 @@ void obj_refs(VM *vm, StandardObject *it, PtrFn fn) {
 
 void map_refs(VM *vm, Ptr it, PtrFn fn) {
   if (isNil(it) || !is(Object, it)) return;
-  if (is(U64Array, it))   return obj_refs(vm, as(U64Array, it),   fn);
+  if (is(U64Array, it))   return; // no refs
+  if (is(ByteArray, it))  return; // no refs
   if (is(ByteCode, it))   return obj_refs(vm, as(ByteCode, it),   fn);
-  if (is(ByteArray, it))  return obj_refs(vm, as(ByteArray, it),  fn);
   if (is(PtrArray, it))   return obj_refs(vm, as(PtrArray, it),   fn);
   if (is(Standard, it))   return obj_refs(vm, as(Standard, it),   fn);
   if (is(StackFrame, it)) return obj_refs(vm, as(StackFrame, it), fn);
@@ -1134,9 +1127,7 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
 // @safe @noalloc
 void vm_count_reachable_refs(VM *vm) {
   u64 count = 0;
-  vm_map_reachable_refs(vm, [&](Ptr it){
-      count++;
-    });
+  vm_map_reachable_refs(vm, [&](Ptr it){ unused(it); count++; });
   cout << "  " << count << "  reachable objects." << endl;
 }
 
@@ -1158,9 +1149,7 @@ void scan_heap(void *start, void*end, PtrFn fn) {
 // @safe @noalloc
 void vm_count_objects_on_heap(VM *vm) {
   u64 count = 0;
-  scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it){
-      count++;
-    });
+  scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it){ unused(it); count++; });
   cout << " counted " << count << " objects on heap. " << endl;
   cout << " allocation count is : " << vm->allocation_count << endl;
 }
@@ -1554,7 +1543,7 @@ void do_list(VM *vm, Ptr it, PtrFn cb) {
 // @safe
 u64 list_length(VM *vm, Ptr it) {
   u64 count = 0;
-  do_list(vm, it, [&](Ptr p){ count++; });
+  do_list(vm, it, [&](Ptr p){ unused(p); count++; });
   return count;
 }
 

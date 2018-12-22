@@ -87,14 +87,14 @@ Ptr PRIM_CONS_impl(VM *vm) {
 Ptr PRIM_CAR_impl(VM *vm) {
    VM_ARG(any,a);
 
- return car(vm, a);
+ return car(a);
 }
 
 // Primitive 9
 Ptr PRIM_CDR_impl(VM *vm) {
    VM_ARG(any,a);
 
- return cdr(vm, a);
+ return cdr(a);
 }
 
 // Primitive 10

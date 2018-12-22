@@ -290,9 +290,6 @@ void report_memory_usage(VM *vm) {
   cerr << " max heap used MB: " << (max_byte_count / (1024 * 1024)) << endl;
 }
 
-// @cleanup we only need this to print conses, becuase consp still requires VM access.
-VM *CURRENT_DEBUG_VM;
-
 /* -------------------------------------------------- */
 
 typedef enum {
@@ -1474,43 +1471,38 @@ auto make_base_class(VM *vm, const char* name, u64 ivar_count) {
 /* ---------------------------------------- */
 
 // @safe
-inline bool consp(VM *vm, Ptr p) {
-  unused(vm);
-  return is(cons, p);
+inline bool consp(Ptr it) {
+  return is(cons, it);
 }
 
 // @safe
-inline Ptr car(VM *vm, Ptr p) {
-  unused(vm);
-  if (isNil(p)) return NIL;
-  return cons_get_car(p);
+inline Ptr car(Ptr it) {
+  if (isNil(it)) return NIL;
+  return cons_get_car(it);
 }
 
 // @safe
-inline void set_car(VM *vm, Ptr cons, Ptr value) {
-  unused(vm);
+inline void set_car(Ptr cons, Ptr value) {
   cons_set_car(cons, value);
 }
 
 // @safe
-inline Ptr cdr(VM *vm, Ptr p) {
-  unused(vm);
-  if (isNil(p)) return NIL;
-  return cons_get_cdr(p);
+inline Ptr cdr(Ptr it) {
+  if (isNil(it)) return NIL;
+  return cons_get_cdr(it);
 }
 
 // @safe
-inline void set_cdr(VM *vm, Ptr cons, Ptr value) {
-  unused(vm);
-  cons_set_cdr(cons, value);
+inline void set_cdr(Ptr it, Ptr value) {
+  cons_set_cdr(it, value);
 }
 
 // @safe
-Ptr nth_or_nil(VM *vm, Ptr p, u64 idx) {
+Ptr nth_or_nil(Ptr it, u64 idx) {
   assert(idx >= 0);
-  if (isNil(p)) return NIL;
-  if (idx == 0) return car(vm, p);
-  else return nth_or_nil(vm, cdr(vm, p), idx - 1);
+  if (isNil(it)) return NIL;
+  if (idx == 0) return car(it);
+  else return nth_or_nil(cdr(it), idx - 1);
 }
 
 // @safe
@@ -1519,18 +1511,18 @@ inline Ptr cons(VM *vm, Ptr car, Ptr cdr) {
 }
 
 // @safe
-Ptr assoc(VM *vm, Ptr item, Ptr alist) {
+Ptr assoc(Ptr item, Ptr alist) {
   while (!isNil(alist)) {
-    auto pair = car(vm, alist);
-    if (ptr_eq(car(vm, pair), item)) return pair;
-    alist = cdr(vm, alist);
+    auto pair = car(alist);
+    if (ptr_eq(car(pair), item)) return pair;
+    alist = cdr(alist);
   }
   return NIL;
 }
 
 // @safe -- but only on static *alistref
 void set_assoc(VM *vm, Ptr *alistref, Ptr item, Ptr value) {
-  auto existing = assoc(vm, item, *alistref);
+  auto existing = assoc(item, *alistref);
   if (isNil(existing)) {
     auto old = *alistref; prot_ptr(old);
     auto pair = cons(vm, item, value);
@@ -1538,7 +1530,7 @@ void set_assoc(VM *vm, Ptr *alistref, Ptr item, Ptr value) {
     auto newalist = cons(vm, pair, old);
     *alistref = newalist;
   } else {
-    set_cdr(vm, existing, value);
+    set_cdr(existing, value);
   }
 }
 
@@ -1551,15 +1543,14 @@ Ptr make_list(VM *vm, u64 len, Ptr* ptrs) {
 
 // @safe
 void debug_print_list(ostream &os, Ptr p) {
-  VM *vm = CURRENT_DEBUG_VM;
   os << "(";
-  auto a = car(vm, p);
+  auto a = car(p);
   os << a;
-  p = cdr(vm, p);
+  p = cdr(p);
   while (!isNil(p)) {
-    if (consp(vm, p)) {
-      os << " " << car(vm, p);
-      p = cdr(vm, p);
+    if (consp(p)) {
+      os << " " << car(p);
+      p = cdr(p);
     } else {
       os << " . " << p;
       break;
@@ -1572,9 +1563,9 @@ void debug_print_list(ostream &os, Ptr p) {
 void do_list(VM *vm, Ptr it, PtrFn cb) {
   while (!isNil(it)) {
     prot_ptr(it);
-    cb(car(vm, it));
+    cb(car(it));
     unprot_ptr(it);
-    it = cdr(vm, it);
+    it = cdr(it);
   }
 }
 
@@ -1641,9 +1632,9 @@ Ptr set_global(VM *vm, const char* name, Ptr value) {
 
 // @safe
 Ptr get_global(VM *vm,  const char*name) {
-  auto pair = assoc(vm, intern(vm, name), vm->globals->env);
+  auto pair = assoc(intern(vm, name), vm->globals->env);
   if (isNil(pair)) return pair;
-  return cdr(vm, pair);
+  return cdr(pair);
 }
 
 /* -------------------------------------------------- */
@@ -2007,7 +1998,7 @@ void vm_interp(VM* vm) {
     case LOAD_GLOBAL: {
       // assumes it comes after a pushlit of a cell in the env alist.
       auto it = vm_pop(vm);
-      vm_push(vm, cdr(vm, it));
+      vm_push(vm, cdr(it));
       break;
     }
     case LOAD_CLOSURE: {
@@ -2314,8 +2305,8 @@ public:
       cout << " ERROR: " << sym << " is not a symbol.";
       assert(false);
     }
-    auto pair = assoc(vm, sym, vm->globals->env);
-    if (!consp(vm, pair)) {
+    auto pair = assoc(sym, vm->globals->env);
+    if (!consp(pair)) {
       cout << " ERROR: " << sym << " is not defined in the global environment.";
       assert(false);
     }
@@ -2505,8 +2496,8 @@ void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env);
 // @safe
 void emit_call(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
   prot_ptr(env);
-  auto fn   = car(vm, it); prot_ptr(fn);
-  auto args = cdr(vm, it); prot_ptr(args);
+  auto fn   = car(it); prot_ptr(fn);
+  auto args = cdr(it); prot_ptr(args);
   auto argc = 0;
   do_list(vm, args, [&](Ptr arg){
       argc++;
@@ -2523,11 +2514,11 @@ void emit_lambda_body(VM *vm, BCBuilder *builder, Ptr body, Ptr env) {
     builder->pushLit(NIL);
     return;
   }
-  assert(consp(vm, body));
+  assert(consp(body));
   prot_ptrs(env, body);
   builder->pushLit(NIL);
-  emit_expr(vm, builder, car(vm, body), env);
-  do_list(vm, cdr(vm, body), [&](Ptr expr){
+  emit_expr(vm, builder, car(body), env);
+  do_list(vm, cdr(body), [&](Ptr expr){
       builder->pop();
       emit_expr(vm, builder, expr, env);
     });
@@ -2536,10 +2527,10 @@ void emit_lambda_body(VM *vm, BCBuilder *builder, Ptr body, Ptr env) {
 
 // @safe
 auto emit_flat_lambda(VM *vm, Ptr it, Ptr env) {
-  it = cdr(vm, it);
+  it = cdr(it);
   prot_ptrs(it, env);
   auto builder = new BCBuilder(vm);
-  auto body = cdr(vm, it);
+  auto body = cdr(it);
   emit_lambda_body(vm, builder, body, env);
   builder->ret();
   auto bc = objToPtr(builder->build());
@@ -2567,7 +2558,7 @@ void emit_lambda(VM *vm, BCBuilder *parent, Ptr it, Ptr p_env) {  prot_ptrs(it, 
 
     // @safe
     builder->pushClosureEnv(closed_count);
-    auto body = cdr(vm, cdr(vm, it));
+    auto body = cdr(cdr(it));
     emit_lambda_body(vm, builder, body, env);
     builder->ret();
     parent->pushLit(objToPtr(builder->build()));
@@ -2586,14 +2577,14 @@ void emit_let (VM *vm, BCBuilder *builder, Ptr it, Ptr p_env) {  prot_ptrs(it, p
 
   // @safe
   {
-    auto vars        = nth_or_nil(vm, it, 1);
+    auto vars        = nth_or_nil(it, 1);
     auto count       = list_length(vm, vars);
     auto start_index = builder->reserveTemps(count);
 
     do_list(vm, vars, [&](Ptr lst){
-        auto sym = nth_or_nil(vm, lst, 0);
+        auto sym = nth_or_nil(lst, 0);
         assert(is(Symbol, sym));
-        auto expr = nth_or_nil(vm, lst, 1);
+        auto expr = nth_or_nil(lst, 1);
         auto binding = compiler_env_binding(vm, env, sym);
 
         auto argidx  = varinfo_get_argument_index(binding.variable_info);
@@ -2626,7 +2617,7 @@ void emit_let (VM *vm, BCBuilder *builder, Ptr it, Ptr p_env) {  prot_ptrs(it, p
 
   // @safe
   {
-    auto body = cdr(vm, cdr(vm, it));                            prot_ptr(body);
+    auto body = cdr(cdr(it));                            prot_ptr(body);
     builder->pushLit(NIL);
     do_list(vm, body, [&](Ptr expr){
         builder->pop();
@@ -2645,9 +2636,9 @@ void emit_let (VM *vm, BCBuilder *builder, Ptr it, Ptr p_env) {  prot_ptrs(it, p
 
 // @safe
 void emit_if(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
-  auto test = nth_or_nil(vm, it, 1);
-  auto _thn = nth_or_nil(vm, it, 2);
-  auto _els = nth_or_nil(vm, it, 3);
+  auto test = nth_or_nil(it, 1);
+  auto _thn = nth_or_nil(it, 2);
+  auto _els = nth_or_nil(it, 3);
   prot_ptrs(env, test, _thn, _els);
 
   builder->pushLabelContext();
@@ -2686,8 +2677,8 @@ void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
       assert(false);
     }
     unprot_ptrs(it, env);
-  } else if (consp(vm, it)) { // @safe
-    auto fst = car(vm, it);
+  } else if (consp(it)) { // @safe
+    auto fst = car(it);
     if (is(Symbol, fst)) {                                     prot_ptrs(it, env, fst);
       auto _if    = intern(vm, "if");                          prot_ptr(_if);
       auto quote  = intern(vm, "quote");                       prot_ptr(quote);
@@ -2698,7 +2689,7 @@ void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
         emit_lambda(vm, builder, it, env);
         return;
       } else if (ptr_eq(quote, fst)) {
-        auto item = car(vm, cdr(vm, it));
+        auto item = car(cdr(it));
         builder->pushLit(item);
         return;
       } else if (ptr_eq(_if, fst)) {
@@ -2765,13 +2756,13 @@ mark_lambda_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {  prot_ptrs(it, p_
   cenv_set_type(env, CompilerEnvType_Lambda);
   assert(cenv_is_lambda(env));
 
-  it = cdr(vm, it);
+  it = cdr(it);
   auto zero = to(Fixnum, 0);
   u64 idx = 0;
 
   // @safe
   {
-    auto args    = car(vm, it);                                 prot_ptr(args);
+    auto args    = car(it);                                 prot_ptr(args);
     auto var_map = cenv_get_info(env);                          prot_ptr(var_map);
     do_list(vm, args, [&](Ptr arg){                             prot_ptrs(arg);
         assert(is(Symbol, arg));
@@ -2784,9 +2775,9 @@ mark_lambda_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {  prot_ptrs(it, p_
   }
 
   // @safe
-  auto body = cdr(vm, it);
+  auto body = cdr(it);
   if (!isNil(body)) {
-    assert(consp(vm, body));
+    assert(consp(body));
     do_list(vm, body, [&](Ptr expr){
         mark_closed_over_variables(vm, expr, env);
       });
@@ -2801,12 +2792,12 @@ void mark_let_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {  prot_ptrs(it, 
   cenv_set_type(env, CompilerEnvType_Let);
 
   // @safe
-  auto vars = nth_or_nil(vm, it, 1);
+  auto vars = nth_or_nil(it, 1);
   u64 idx   = 0;
   auto zero = to(Fixnum, 0);
   do_list(vm, vars, [&](Ptr lst){
-      auto sym  = nth_or_nil(vm, lst, 0);                         prot_ptr(sym);
-      auto expr = nth_or_nil(vm, lst, 1);                         prot_ptr(expr);
+      auto sym  = nth_or_nil(lst, 0);                             prot_ptr(sym);
+      auto expr = nth_or_nil(lst, 1);                             prot_ptr(expr);
       assert(is(Symbol, sym));
 
       // idx is altered in the emit phase to account for surrounding lets
@@ -2821,7 +2812,7 @@ void mark_let_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {  prot_ptrs(it, 
 
   // @safe
   {
-    auto body = cdr(vm, cdr(vm, it));
+    auto body = cdr(cdr(it));
     do_list(vm, body, [&](Ptr expr) {
         mark_closed_over_variables(vm, expr, env);
       });
@@ -2833,8 +2824,8 @@ void mark_let_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {  prot_ptrs(it, 
 void mark_closed_over_variables(VM *vm, Ptr it, Ptr env) {  prot_ptrs(it, env);
   if (is(Symbol, it)) {
     mark_variable_for_closure(vm, it, env, 0, false);
-  } else if (consp(vm, it)) {
-    auto fst    = car(vm, it);                              prot_ptr(fst);
+  } else if (consp(it)) {
+    auto fst    = car(it);                                  prot_ptr(fst);
     auto _if    = intern(vm, "if");                         prot_ptr(_if);
     auto quote  = intern(vm, "quote");                      prot_ptr(quote);
     auto lambda = intern(vm, "lambda");                     prot_ptr(lambda);
@@ -2846,9 +2837,9 @@ void mark_closed_over_variables(VM *vm, Ptr it, Ptr env) {  prot_ptrs(it, env);
     } else if (is_sym && ptr_eq(quote, fst)) {
       // do nothing
     } else if (is_sym && ptr_eq(_if, fst)) {
-      auto test = nth_or_nil(vm, it, 1);                    prot_ptr(test);
-      auto _thn = nth_or_nil(vm, it, 2);                    prot_ptr(_thn);
-      auto _els = nth_or_nil(vm, it, 3);                    prot_ptr(_els);
+      auto test = nth_or_nil(it, 1);                        prot_ptr(test);
+      auto _thn = nth_or_nil(it, 2);                        prot_ptr(_thn);
+      auto _els = nth_or_nil(it, 3);                        prot_ptr(_els);
       mark_closed_over_variables(vm, test, env);
       mark_closed_over_variables(vm, _thn, env);
       mark_closed_over_variables(vm, _els, env);
@@ -2920,9 +2911,6 @@ void run_string(const char* str, bool soak) {
   initialize_classes(vm);
   initialize_primitive_functions(vm);
 
-  // purely for debug printing. would be nice to get rid of this
-  CURRENT_DEBUG_VM = vm;
-
   // so we have a root frame
   auto bc = (new BCBuilder(vm))->build();
   vm_push_stack_frame(vm, 0, bc);
@@ -2935,7 +2923,7 @@ void run_string(const char* str, bool soak) {
 
     prot_ptr(kept_head);
 
-    do_list(vm, cdr(vm, kept_head), [&](Ptr expr){
+    do_list(vm, cdr(kept_head), [&](Ptr expr){
 
         auto bc = compile_toplevel_expression(vm, expr);
 

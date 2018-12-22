@@ -118,8 +118,8 @@ void initialize_primitive_functions(VM *vm) {
   (prim >     GT     ((a Fixnum) (b Fixnum)) Bool   "a > b")
   (prim %     MOD    ((a Fixnum) (b Fixnum)) Fixnum "a % b")
   (prim cons  CONS   ((a any) (b any))       any    "cons(vm, a, b)")
-  (prim car   CAR    ((a any))               any    "car(vm, a)")
-  (prim cdr   CDR    ((a any))               any    "cdr(vm, a)")
+  (prim car   CAR    ((a any))               any    "car(a)")
+  (prim cdr   CDR    ((a any))               any    "cdr(a)")
   (prim eq    EQ     ((a any) (b any))       Bool   "ptr_eq(a, b)")
   (prim print PRINT  ((a any))               any    "primitive_print(a)")
 

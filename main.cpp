@@ -40,7 +40,7 @@ DONE: gc-safe allocators / make- functions
 DONE: growable ptr array
 DONE: growable identity map
 DONE: gc-safe reader
-DONE: gc-safe ByteCodeBuilder
+DONE: gc-safe BCBuilder
 DONE: move varinfo & CompilerEnv into gc heap
 DONE: gc-safe compiler
 DONE: automatic garbage collection (need to use gc_protect)
@@ -2128,7 +2128,7 @@ void vm_interp(VM* vm) {
 typedef tuple<u64*, string> branch_entry;
 
 // @safe
-class ByteCodeBuilder {
+class BCBuilder {
 private:
   VM* vm;
   u64* bc_mem;
@@ -2145,10 +2145,10 @@ private:
   u64 *temp_count;
   Object *literals; // xarray[any]
 
-  ByteCodeBuilder* pushOp(u8 op) {
+  BCBuilder* pushOp(u8 op) {
     return pushU64(op);
   }
-  ByteCodeBuilder* pushU64(u64 it) {
+  BCBuilder* pushU64(u64 it) {
     bc_mem[bc_index++] = it;
     return this;
   }
@@ -2162,7 +2162,7 @@ private:
     name += "____" + to_string(labelContext);
     return name;
   }
-  ByteCodeBuilder* pushJumpLocation(const char* raw_name) {
+  BCBuilder* pushJumpLocation(const char* raw_name) {
     auto name = labelify(raw_name);
     auto location = pushEmptyRef();
     branchLocations->push_back(make_tuple(location,name));
@@ -2201,7 +2201,7 @@ private:
     bc_mem = 0;
   }
 public:
-  ByteCodeBuilder(VM* vm) {
+  BCBuilder(VM* vm) {
     this->vm = vm;
 
     bc_index            = 0;
@@ -2493,10 +2493,10 @@ VariableBinding compiler_env_binding(VM *vm, Ptr env, Ptr sym) {
   return (VariableBinding){0, imap_get(cenv_get_info(env), sym)};
 }
 
-void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env);
+void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env);
 
 // @safe
-void emit_call(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env) {
+void emit_call(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
   prot_ptr(env);
   auto fn   = car(vm, it); prot_ptr(fn);
   auto args = cdr(vm, it); prot_ptr(args);
@@ -2511,7 +2511,7 @@ void emit_call(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env) {
 }
 
 // @safe
-void emit_lambda_body(VM *vm, ByteCodeBuilder *builder, Ptr body, Ptr env) {
+void emit_lambda_body(VM *vm, BCBuilder *builder, Ptr body, Ptr env) {
   if (isNil(body)) {
     builder->pushLit(NIL);
     return;
@@ -2531,7 +2531,7 @@ void emit_lambda_body(VM *vm, ByteCodeBuilder *builder, Ptr body, Ptr env) {
 auto emit_flat_lambda(VM *vm, Ptr it, Ptr env) {
   it = cdr(vm, it);
   prot_ptrs(it, env);
-  auto builder = new ByteCodeBuilder(vm);
+  auto builder = new BCBuilder(vm);
   auto body = cdr(vm, it);
   emit_lambda_body(vm, builder, body, env);
   builder->ret();
@@ -2541,44 +2541,41 @@ auto emit_flat_lambda(VM *vm, Ptr it, Ptr env) {
 }
 
 // @safe
-void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, Ptr p_env) {
-  prot_ptrs(it, p_env);
-  auto env = compiler_env_get_subenv(vm, p_env, it); prot_ptr(env);
+void emit_lambda(VM *vm, BCBuilder *parent, Ptr it, Ptr p_env) {  prot_ptrs(it, p_env);
+  auto env = compiler_env_get_subenv(vm, p_env, it);              prot_ptr(env);
   auto has_closure = cenv_has_closure(env);
   if (has_closure) {
-    auto closed_over = cenv_get_closed_over(env);
-    auto closed_count = xarray_used(closed_over);
+    auto closed = cenv_get_closed_over(env);                      prot_ptrs(closed);
+    auto closed_count = xarray_used(closed);
 
     // @safe
-    prot_ptrs(closed_over);
-    auto builder = new ByteCodeBuilder(vm);
+    auto builder = new BCBuilder(vm);
     for (u64 i = 0; i < closed_count; i++) {
-      auto ptr = xarray_at(closed_over, i);
+      auto ptr     = xarray_at(closed, i);
       auto binding = compiler_env_binding(vm, env, ptr);
-      auto index = as(Fixnum, varinfo_get_argument_index(binding.variable_info));
+      auto index   = as(Fixnum, varinfo_get_argument_index(binding.variable_info));
       builder->loadArg(index);
     }
-    unprot_ptrs(closed_over);
+    unprot_ptrs(closed);
 
     // @safe
     builder->pushClosureEnv(closed_count);
     auto body = cdr(vm, cdr(vm, it));
     emit_lambda_body(vm, builder, body, env);
     builder->ret();
-    p_builder->pushLit(objToPtr(builder->build()));
-    p_builder->buildClosure();
+    parent->pushLit(objToPtr(builder->build()));
+    parent->buildClosure();
   } else {
     // @safe
     auto closure = emit_flat_lambda(vm, it, env);
-    p_builder->pushLit(closure);
+    parent->pushLit(closure);
   }
   unprot_ptrs(it, p_env, env);
 }
 
 // @safe
-void emit_let
-(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr p_env) {  prot_ptrs(it, p_env);
-  auto env = compiler_env_get_subenv(vm, p_env, it);     prot_ptr(env);
+void emit_let (VM *vm, BCBuilder *builder, Ptr it, Ptr p_env) {  prot_ptrs(it, p_env);
+  auto env = compiler_env_get_subenv(vm, p_env, it);             prot_ptr(env);
 
   // @safe
   {
@@ -2606,7 +2603,7 @@ void emit_let
 
   // @safe
   if (has_closure) {
-    auto closed_over = cenv_get_closed_over(env);        prot_ptr(closed_over);
+    auto closed_over = cenv_get_closed_over(env);                prot_ptr(closed_over);
     auto closed_count = xarray_used(closed_over);
 
     for (u64 i = 0; i < closed_count; i++) {
@@ -2622,7 +2619,7 @@ void emit_let
 
   // @safe
   {
-    auto body = cdr(vm, cdr(vm, it));                    prot_ptr(body);
+    auto body = cdr(vm, cdr(vm, it));                            prot_ptr(body);
     builder->pushLit(NIL);
     do_list(vm, body, [&](Ptr expr){
         builder->pop();
@@ -2640,7 +2637,7 @@ void emit_let
 
 
 // @safe
-void emit_if(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env) {
+void emit_if(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
   auto test = nth_or_nil(vm, it, 1);
   auto _thn = nth_or_nil(vm, it, 2);
   auto _els = nth_or_nil(vm, it, 3);
@@ -2659,7 +2656,7 @@ void emit_if(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env) {
 }
 
 // @safe
-void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env) {
+void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
   if (is(Symbol, it)) { /*                                  */ prot_ptrs(it, env);
     auto binding        = compiler_env_binding(vm, env, it);
     auto info           = binding.variable_info;
@@ -2863,7 +2860,7 @@ void mark_closed_over_variables(VM *vm, Ptr it, Ptr env) {  prot_ptrs(it, env);
 // @safe
 auto compile_toplevel_expression(VM *vm, Ptr it) { prot_ptr(it);
   auto env = cenv(vm, NIL);                        prot_ptr(env);
-  auto builder = new ByteCodeBuilder(vm);
+  auto builder = new BCBuilder(vm);
   mark_closed_over_variables(vm, it, env);
   emit_expr(vm, builder, it, env);
   auto result = builder->build();
@@ -2919,7 +2916,7 @@ void run_string(const char* str, bool soak) {
   CURRENT_DEBUG_VM = vm;
 
   // so we have a root frame
-  auto bc = (new ByteCodeBuilder(vm))->build();
+  auto bc = (new BCBuilder(vm))->build();
   vm_push_stack_frame(vm, 0, bc);
   gc_protect(bc);
 

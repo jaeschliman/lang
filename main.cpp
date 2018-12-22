@@ -64,15 +64,6 @@ maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
 
 how to represent U32 and U64?
-
-RE: GC protection, may be simpler write a block-style
-    protection_start(existing, ...decls)
-    protection_end()
-which could somehow promise that any use of existing / decls[n] within
-its body is safe... (where existing etc are Ptr)
-maybe we need a second gc_protected map of *Ptr
-that would probably simplify a few things and reduce stack
-
 */
 
 #include <cassert>
@@ -462,7 +453,7 @@ inline void gc_protect_ptr(VM *vm, Ptr *ref);
 #define prot_ptr(it) gc_protect_ptr(vm, &it)
 #define unprot_ptr(it) gc_unprotect_ptr(vm, &it)
 
-// @deprecated
+// @deprecated -- should be a function that registers the first element and count
 #define protect_ptr_vector(var, count, vector)  \
   GCPtr var[count];                             \
   {                                             \

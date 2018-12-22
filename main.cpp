@@ -479,20 +479,6 @@ inline void gc_protect_ptr(VM *vm, Ptr *ref);
 #define __unprot_ptr(x) unprot_ptr(x);
 #define unprot_ptrs(...) MAP(__unprot_ptr, __VA_ARGS__)
 
-// would be nice to have a version with expr in trailing brackets.
-#define call_with_ptrs(ptrs, expr)              \
-  {                                             \
-    prot_ptrs ptrs                              \
-    expr;                                       \
-    unprot_ptrs ptrs                            \
-  }
-
-// not sure about this name
-#define decl(varname, ptrs, expr) \
-  varname;                                 \
-  call_with_ptrs(ptrs, varname = expr)
-
-
 /* ---------------------------------------- */
 
 // @safe
@@ -2454,12 +2440,11 @@ bool cenv_has_closure(Ptr cenv) {
 }
 
 // @safe
-auto compiler_env_get_subenv(VM *vm, Ptr env, Ptr it) {
-  if (!cenv_has_subenv_for(env, it)) {
-    Ptr decl(created, (env, it), cenv(vm, env))
-    prot_ptr(created);
+auto compiler_env_get_subenv(VM *vm, Ptr env, Ptr it) { 
+  if (!cenv_has_subenv_for(env, it)) {  prot_ptrs(env, it);
+    auto created = cenv(vm, env);       prot_ptr(created);
     cenv_set_subenv_for(vm, env, it, created);
-    unprot_ptr(created);
+    unprot_ptrs(created, env, it);
     return created;
   }
   return cenv_get_subenv_for(env, it);

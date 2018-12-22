@@ -65,6 +65,14 @@ have each compiler pass output to previous one in the stack
 
 how to represent U32 and U64?
 
+RE: GC protection, may be simpler write a block-style
+    protection_start(existing, ...decls)
+    protection_end()
+which could somehow promise that any use of existing / decls[n] within
+its body is safe... (where existing etc are Ptr)
+maybe we need a second gc_protected map of *Ptr
+that would probably simplify a few things and reduce stack
+
 */
 
 #include <cassert>
@@ -2843,7 +2851,7 @@ Ptr primitive_print(Ptr a) { cout << a << endl; return a; }
 
 /* -------------------------------------------------- */
 
-void run_string(const char* str) {
+void run_string(const char* str, bool soak) {
   VM *vm;
   vm = (VM *)calloc(sizeof(VM), 1);
 
@@ -2886,15 +2894,12 @@ void run_string(const char* str) {
 
   auto exprs = read_all(vm, str);
   auto kept_head = cons(vm, NIL, exprs);
-  auto error = false;
 
-  
-  while(!error)
-  {
+  do {
+
     prot_ptr(kept_head);
 
     do_list(vm, cdr(vm, kept_head), [&](Ptr expr){
-        if (error) return;
 
         auto bc = compile_toplevel_expression(vm, expr);
 
@@ -2906,37 +2911,28 @@ void run_string(const char* str) {
         vm_pop_stack_frame(vm);
         gc_unprotect(bc);
 
-        // gc(vm);
-
         if (vm->error) {
-          puts("VM ERROR: ");
-          puts(vm->error);
-          error = true;
-          return;
+          cerr << "VM ERROR: " << vm->error << endl;
+          exit(3);
         }
       });
 
-    vm_count_objects_on_heap(vm);
-    cerr << " executed " << vm->instruction_count << " instructions." << endl;
-    cerr << " gc count: " << vm->gc_count;
-    report_memory_usage(vm);
+    if (soak) {
+      vm_count_objects_on_heap(vm);
+      vm_count_reachable_refs(vm);
+      cerr << " executed " << vm->instruction_count << " instructions." << endl;
+      cerr << " gc count: " << vm->gc_count;
+      report_memory_usage(vm);
+      // this_thread::sleep_for(chrono::milliseconds(10));
+      // this_thread::sleep_for(chrono::milliseconds(100));
+    }
+
     unprot_ptr(kept_head);
 
-    this_thread::sleep_for(chrono::milliseconds(100));
-  }
+  } while(soak);
 
   gc_unprotect(bc);
   
-
-  vm_count_objects_on_heap(vm);
-  vm_count_reachable_refs(vm);
-  cout << " running gc..." << endl;
-  gc(vm);
-  vm_count_objects_on_heap(vm);
-  vm_count_reachable_refs(vm);
-  report_memory_usage(vm);
-  cout << " executed " << vm->instruction_count << " instructions." << endl;
-
   // TODO: clean up
 }
 
@@ -2953,15 +2949,40 @@ const char *read_file_contents(string path) {
   return (const char *)mem;
 }
 
-auto run_file(string path) {
+auto run_file(string path, bool soak_test) {
   auto contents = read_file_contents(path);
-  run_string(contents);
+  run_string(contents, soak_test);
   // TODO: free contents
 }
 
 /* ---------------------------------------- */
 
-int main() {
-  run_file("./hello.lisp");
+int main(int argc, const char** argv) {
+  const char *file = 0;
+
+  if (argc > 1) {
+    file = argv[1];
+  } else {
+    cerr << "must provide a file to run" << endl;
+    return 1;
+  }
+
+  const char *invoked = argv[0];
+  const char *curr = argv[0];
+
+  while (*curr) {
+    if (*curr == '/') invoked = curr + 1;
+    curr++;
+  }
+
+  // pretty hacky way of avoiding checking flags, I'll admit...
+  if (strcmp(invoked, "run-file") == 0) { 
+    run_file(file, false);
+  } else if (strcmp(invoked, "soak") == 0){
+    run_file(file, true);
+  } else {
+    cerr << " unrecognized invocation: " << invoked << endl;
+    return 2;
+  }
   return 0;
 }

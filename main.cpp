@@ -219,6 +219,7 @@ struct VM {
   u64 gc_compacted_size_in_bytes;
   u64 allocation_high_watermark;
   unordered_map<Object **, u64> *gc_protected;
+  unordered_map<Ptr *, u64> *gc_protected_ptrs;
 };
 
 typedef Ptr (*PrimitiveFunction)(VM*);
@@ -454,8 +455,12 @@ inline Ptr unwrap_ptr(GCPtr *it) {
   return it->ptr;
 }
 
-#define prot_ptr(it)   protect_ptr(safe__##it, it)
-#define unprot_ptr(it) it = unwrap_ptr(&safe__##it)
+
+inline void gc_unprotect_ptr(VM *vm, Ptr *ref);
+inline void gc_protect_ptr(VM *vm, Ptr *ref);
+
+#define prot_ptr(it) gc_protect_ptr(vm, &it)
+#define unprot_ptr(it) gc_unprotect_ptr(vm, &it)
 
 // @deprecated
 #define protect_ptr_vector(var, count, vector)  \
@@ -1347,6 +1352,9 @@ void gc_update_protected_references(VM *vm) {
     auto new_obj = as(Object, ptr);
     *ref = new_obj;
   }
+  for (auto pair : *vm->gc_protected_ptrs) {
+    gc_update_ptr(vm, pair.first);
+  }
 }
 
 inline void gc_protect_reference(VM *vm, Object **ref){
@@ -1360,6 +1368,30 @@ inline void gc_protect_reference(VM *vm, Object **ref){
 }
 inline void gc_unprotect_reference(VM *vm, Object **ref){
   auto map = vm->gc_protected;
+  auto found = map->find(ref);
+  if (found == map->end()) {
+    cout << "ERROR: tried to unprotect a non-protected reference." << endl;
+    assert(false);
+  } else {
+    found->second--;
+    if (found->second == 0) {
+      map->erase(ref);
+    }
+  }
+}
+
+inline void gc_protect_ptr(VM *vm, Ptr *ref){
+  auto map = vm->gc_protected_ptrs;
+  auto found = map->find(ref);
+  if (found == map->end()) {
+    vm->gc_protected_ptrs->insert(make_pair(ref, 1));
+  } else {
+    found->second++; 
+  }
+}
+
+inline void gc_unprotect_ptr(VM *vm, Ptr *ref){
+  auto map = vm->gc_protected_ptrs;
   auto found = map->find(ref);
   if (found == map->end()) {
     cout << "ERROR: tried to unprotect a non-protected reference." << endl;
@@ -2874,6 +2906,7 @@ void run_string(const char* str, bool soak) {
   vm->gc_threshold_in_bytes = 1 * 1024 * 1024;
 
   vm->gc_protected = new unordered_map<Object **, u64>;
+  vm->gc_protected_ptrs = new unordered_map<Ptr *, u64>;
 
   vm->frame = 0;
   vm->error = 0;

@@ -59,6 +59,7 @@ TODO: more prim instrs
 TODO: maybe expose bytecode prims as special forms? %push %call etc...
 TODO: growable heap
 TODO: looping primitive
+TODO: repl / notebook
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -165,7 +166,8 @@ struct U64ArrayObject : Object {
 
 typedef enum {
   Array,
-  Closure
+  Closure,
+  Struct
 } PAOType;
 
 struct PtrArrayObject : Object {
@@ -586,6 +588,11 @@ type_test(Array, it) {
 }
 
 // @safe
+type_test(Struct, it) {
+  return is(PtrArray, it) && (as(PtrArray, it))->pao_type == Struct;
+}
+
+// @safe
 StandardObject *alloc_standard_object(VM *vm, StandardObject *klass, u64 ivar_count) {
   auto byte_count = (sizeof(StandardObject)) + ivar_count * (sizeof(Ptr));
   gc_protect(klass);
@@ -658,6 +665,18 @@ Ptr make_zf_array(VM *vm, u64 len) {
   for (u64 i = 0; i < len; i++) {
     array->data[i] = zero;
   }
+  return objToPtr(array);
+}
+
+// @safe
+Ptr make_zf_struct(VM *vm, u64 len, Ptr tag) { prot_ptr(tag);
+  auto array = alloc_pao(vm, Struct, len + 1);
+  auto zero = to(Fixnum, 0);
+  array->data[0] = tag;
+  for (u64 i = 1; i < len; i++) {
+    array->data[i] = zero;
+  }
+  unprot_ptr(tag);
   return objToPtr(array);
 }
 
@@ -745,10 +764,10 @@ Ptr xarray_at(Ptr array, u64 idx) {
 #define _def_struct_args(...) MAP_WITH_COMMAS(_def_struct_arg, __VA_ARGS__)
 #define _def_struct_set_arg(slot, name, idx) name##_set_##slot(result, slot);
 
-#define _define_structure_maker(name, ...)                              \
+#define _define_structure_maker(name, tag, ...)                         \
   Ptr alloc_##name(VM *vm) {                                            \
     auto len = PP_NARG(__VA_ARGS__);                                    \
-    auto res = make_zf_array(vm, len);                                  \
+    auto res = make_zf_struct(vm, len, to(Fixnum, tag));                \
     return res;                                                         \
   }                                                                     \
   Ptr make_##name(VM *vm, _def_struct_args(__VA_ARGS__)) {              \
@@ -759,27 +778,32 @@ Ptr xarray_at(Ptr array, u64 idx) {
     return result;                                                      \
   }
 
+#define _define_structure_type_test(name, tag)          \
+  type_test(name, it) {                                 \
+    return is(Struct, it) &&                            \
+      ptr_eq(to(Fixnum, tag), array_get(it, 0));        \
+  }
+
 #define _define_structure_accessors(slot, name, idx)    \
   Ptr name##_get_##slot(Ptr obj) {                      \
-    return array_get(obj, idx);                         \
+    return array_get(obj, idx + 1);                     \
   }                                                     \
   void name##_set_##slot(Ptr obj, Ptr value) {          \
-    array_set(obj, idx, value);                         \
+    array_set(obj, idx + 1, value);                     \
   }
 
 // @safe
-#define defstruct(name, ...)                                              \
+#define defstruct(name, tag, ...)                                       \
   MAP_WITH_ARG_AND_INDEX(_define_structure_accessors, name, __VA_ARGS__); \
-  _define_structure_maker(name, __VA_ARGS__);
+  _define_structure_maker(name, tag, __VA_ARGS__);                      \
+  _define_structure_type_test(name, tag);
 
-defstruct(atest, a, b);
-void test_defstruct_compiles(VM *vm) {
-  auto it = make_atest(vm, NIL, NIL);
-  atest_get_a(it);
-  atest_get_b(it);
-  atest_set_a(it, NIL);
-  atest_set_b(it, NIL);
-}
+enum StructTag : u64 {
+  StructTag_Cons,
+  StructTag_VarInfo,
+  StructTag_CompilerEnv,
+  StructTag_End
+};
 
 /* ---------------------------------------- */
 
@@ -929,14 +953,19 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
   }
   case PtrArray_ObjectType: {
     const PtrArrayObject *vobj = (const PtrArrayObject*)(obj);
-    os << "[";
-    if (vobj->length > 0) {
-      cout << vobj->data[0];
+    switch (vobj->pao_type) {
+    case Struct: // TODO: custom print table
+    case Array:
+    case Closure:
+      os << "[";
+      if (vobj->length > 0) {
+        cout << vobj->data[0];
+      }
+      for (uint i = 1; i < vobj->length; i++) {
+        cout << " " << vobj->data[i];
+      }
+      os << "]";
     }
-    for (uint i = 1; i < vobj->length; i++) {
-      cout << " " << vobj->data[i];
-    }
-    os << "]";
     return os;
   }
   case Standard_ObjectType: {
@@ -2363,7 +2392,7 @@ void imap_set(VM *vm, Ptr map, Ptr key, Ptr value) {
 #define CompilerEnvType_Lambda  (Ptr){1 << TAG_BITS}
 #define CompilerEnvType_Let     (Ptr){2 << TAG_BITS}
 
-defstruct(varinfo,
+defstruct(varinfo, StructTag_VarInfo,
           scope,          // VariableScope
           argument_index, // Fixnum
           closure_index); // Fixnum
@@ -2373,7 +2402,7 @@ struct VariableBinding {
   Ptr variable_info;
 };
 
-defstruct(cenv,
+defstruct(cenv, StructTag_CompilerEnv,
           prev,        // cenv
           info,        // imap[symbol -> varinfo]
           closed_over, // xarray[symbol]

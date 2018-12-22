@@ -2641,26 +2641,28 @@ void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr p_env) {
 
 // @safe
 void emit_if(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env) {
-  builder->pushLabelContext();
-
   auto test = nth_or_nil(vm, it, 1);
-  call_with_ptrs((it, env), emit_expr(vm, builder, test, env));
-  builder->branchIfFalse("else");
-
   auto _thn = nth_or_nil(vm, it, 2);
-  call_with_ptrs((it, env), emit_expr(vm, builder, _thn, env));
-  builder->jump("endif")->label("else");
-
   auto _els = nth_or_nil(vm, it, 3);
+  prot_ptrs(env, test, _thn, _els);
+
+  builder->pushLabelContext();
+  emit_expr(vm, builder, test, env);
+  builder->branchIfFalse("else");
+  emit_expr(vm, builder, _thn, env);
+  builder->jump("endif")->label("else");
   emit_expr(vm, builder, _els, env);
   builder->label("endif");
   builder->popLabelContext();
+
+  unprot_ptrs(env, test, _thn, _els);
 }
 
 // @safe
 void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env) {
   if (is(Symbol, it)) { // @safe
-    VariableBinding decl(binding, (it, env), compiler_env_binding(vm, env, it));
+    prot_ptrs(it, env);
+    auto binding        = compiler_env_binding(vm, env, it);
     auto info           = binding.variable_info;
     auto scope          = varinfo_get_scope(info);
     auto argument_index = varinfo_get_argument_index(info);
@@ -2670,15 +2672,16 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env) {
     } else if (scope == VariableScope_Argument) {
       builder->loadArg(as(Fixnum, argument_index));
     } else if (scope == VariableScope_Closure) {
-      auto index = closure_index;
+      auto index = as(Fixnum, closure_index);
       auto depth = binding.binding_depth;
-      builder->loadClosure(as(Fixnum, index), depth);
+      builder->loadClosure(index, depth);
     } else if (scope == VariableScope_Let) {
       builder->loadFrameRel(as(Fixnum, argument_index)); // LAZY reusing argument_index
     } else {
       cout << "unexpected variable scope: " << scope << endl;
       assert(false);
     }
+    unprot_ptrs(it, env);
   } else if (consp(vm, it)) { // @safe
     auto fst = car(vm, it);
     if (is(Symbol, fst)) {
@@ -2711,9 +2714,7 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env) {
 
 // returns true if variable was closed over, false otherwise
 // @safe
-bool mark_variable_for_closure
-(VM *vm, Ptr sym, Ptr env, u64 level, bool saw_lambda)
-{
+bool mark_variable_for_closure (VM *vm, Ptr sym, Ptr env, u64 level, bool saw_lambda) {
   if (isNil(env)) return false; // global scope
   auto var_map = cenv_get_info(env);
   auto exists = imap_has(var_map, sym);
@@ -2729,21 +2730,25 @@ bool mark_variable_for_closure
     auto info = imap_get(var_map, sym);
     auto scope = varinfo_get_scope(info);
     if (scope == VariableScope_Closure) return true;
+
+    prot_ptrs(sym, env, var_map);
     varinfo_set_scope(info,  VariableScope_Closure);
     auto closed_over = cenv_get_closed_over(env);
     auto index = xarray_used(closed_over);
     varinfo_set_closure_index(info, to(Fixnum, index));
-    call_with_ptrs((env), xarray_push(vm, closed_over, sym));
+    xarray_push(vm, closed_over, sym);
     cenv_set_has_closure(env, TRUE);
+    unprot_ptrs(sym, env, var_map);
+
     return true;
 
   } else {
+    prot_ptr(env);
     if (cenv_is_lambda(env)) saw_lambda = true;
     auto prev = cenv_get_prev(env);
-    prot_ptr(env);
     auto closed = mark_variable_for_closure(vm, sym, prev, level + 1, saw_lambda);
-    unprot_ptr(env);
     if (closed) cenv_set_has_closure(env, TRUE);
+    unprot_ptr(env);
     return closed;
   }
 }
@@ -2753,8 +2758,7 @@ void mark_closed_over_variables(VM *vm, Ptr it, Ptr env);
 // @safe
 void mark_lambda_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {
   prot_ptrs(it, p_env);
-  Ptr env = compiler_env_get_subenv(vm, p_env, it);
-  unprot_ptrs(it, p_env);
+  auto env = compiler_env_get_subenv(vm, p_env, it); prot_ptr(env);
   cenv_set_type(env, CompilerEnvType_Lambda);
   assert(cenv_is_lambda(env));
 
@@ -2764,26 +2768,29 @@ void mark_lambda_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {
 
   // @safe
   {
-    prot_ptrs(it, env);
-    auto args = car(vm, it);
-    auto var_map = cenv_get_info(env);
+    auto args    = car(vm, it);        prot_ptr(args);
+    auto var_map = cenv_get_info(env); prot_ptr(var_map);
     do_list(vm, args, [&](Ptr arg){
+        prot_ptrs(arg);
         assert(is(Symbol, arg));
         auto index = to(Fixnum, idx++);
-        Ptr decl(info, (arg, var_map),
-                 make_varinfo(vm, VariableScope_Argument, index, zero));
-        call_with_ptrs((var_map), imap_set(vm, var_map, arg, info));
+        auto info  = make_varinfo(vm, VariableScope_Argument, index, zero);
+        imap_set(vm, var_map, arg, info);
+        unprot_ptrs(arg);
       });
-    unprot_ptrs(it, env);
+    unprot_ptrs(args, var_map);
   }
 
   // @safe
   auto body = cdr(vm, it);
-  if (isNil(body)) return;
-  assert(consp(vm, body));
-  do_list(vm, body, [&](Ptr expr){
-        call_with_ptrs((env), mark_closed_over_variables(vm, expr, env));
+  if (!isNil(body)) {
+    assert(consp(vm, body));
+    do_list(vm, body, [&](Ptr expr){
+        mark_closed_over_variables(vm, expr, env);
       });
+  }
+
+  unprot_ptrs(it, p_env, env);
 }
 
 // @safe

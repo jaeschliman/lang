@@ -1701,21 +1701,18 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done);
 
 // @safe
 auto read_delimited_list(VM *vm, const char **remaining, const char *end, Ptr done, char delim) {
+  prot_ptrs(done);
   auto input = *remaining;
-
-  auto items = make_xarray(vm);
+  auto items = make_xarray(vm); prot_ptrs(items);
 
   while(input < end && *input != delim) {
-    // would be nice to have some sort of with_protected() here...
-    Ptr item;
-    call_with_ptrs((items, done),
-                   item = read(vm, &input, end, done));
+    auto item = read(vm, &input, end, done);
     if(ptr_eq(item, done)) {
       vm->error = "unexpected end of input";
+      unprot_ptrs(items, done);
       return done;
     }
-    call_with_ptrs((items, done),
-                   xarray_push(vm, items, item));
+    xarray_push(vm, items, item);
     eat_ws(&input, end);
   }
   auto used = xarray_used(items);
@@ -1723,6 +1720,7 @@ auto read_delimited_list(VM *vm, const char **remaining, const char *end, Ptr do
   auto res  = make_list(vm, used, mem);
   if (*input == delim) input++;
   *remaining = input;
+  unprot_ptrs(items, done);
   return res;
 }
 
@@ -1834,25 +1832,22 @@ Ptr read(VM *vm, const char* input) {
 
 // @safe
 Ptr read_all(VM *vm, const char* input) {
-  auto done = cons(vm, NIL, NIL);
+  auto done = cons(vm, NIL, NIL); prot_ptrs(done);
   auto len = strlen(input);
 
-  auto items = make_xarray(vm);
-  auto end = input + len;
-  Ptr item;
-  call_with_ptrs((items, done),
-                 item = read(vm, &input, end, done));
+  auto items = make_xarray(vm); prot_ptrs(items);
+  auto end   = input + len;
+  auto item  = read(vm, &input, end, done); prot_ptrs(item);
   while (input < end && !ptr_eq(item, done)) {
     assert(input < end);
-    call_with_ptrs((items, done),
-                   xarray_push(vm, items, item));
-    call_with_ptrs((items, done),
-                   item = read(vm, &input, end, done));
+    xarray_push(vm, items, item);
+    item = read(vm, &input, end, done);
     assert(input <= end);
   }
   auto used = xarray_used(items);
   auto mem  = xarray_memory(items);
   auto res  = make_list(vm, used, mem);
+  unprot_ptrs(done, items, item);
   return res;
 }
 
@@ -2502,17 +2497,17 @@ void emit_expr(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env);
 
 // @safe
 void emit_call(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr env) {
-  auto fn = car(vm, it);
-  auto args = cdr(vm, it);
+  prot_ptr(env);
+  auto fn   = car(vm, it); prot_ptr(fn);
+  auto args = cdr(vm, it); prot_ptr(args);
   auto argc = 0;
-  prot_ptr(fn);
   do_list(vm, args, [&](Ptr arg){
       argc++;
-      call_with_ptrs((env), emit_expr(vm, builder, arg, env));
+      emit_expr(vm, builder, arg, env);
     });
-  unprot_ptr(fn);
   emit_expr(vm, builder, fn, env);
   builder->call(argc);
+  unprot_ptrs(env, fn, args);
 }
 
 // @safe
@@ -2522,13 +2517,14 @@ void emit_lambda_body(VM *vm, ByteCodeBuilder *builder, Ptr body, Ptr env) {
     return;
   }
   assert(consp(vm, body));
-  while(!isNil(body)) {
-    auto expr = car(vm, body);
-    call_with_ptrs((body),
-                   emit_expr(vm, builder, expr, env));
-    body = cdr(vm, body);
-    if (!isNil(body)) builder->pop();
-  }
+  prot_ptrs(env, body);
+  builder->pushLit(NIL);
+  emit_expr(vm, builder, car(vm, body), env);
+  do_list(vm, cdr(vm, body), [&](Ptr expr){
+      builder->pop();
+      emit_expr(vm, builder, expr, env);
+    });
+  unprot_ptrs(env, body);
 }
 
 // @safe
@@ -2536,33 +2532,33 @@ auto emit_flat_lambda(VM *vm, Ptr it, Ptr env) {
   it = cdr(vm, it);
   prot_ptrs(it, env);
   auto builder = new ByteCodeBuilder(vm);
-  unprot_ptrs(it, env);
   auto body = cdr(vm, it);
   emit_lambda_body(vm, builder, body, env);
   builder->ret();
   auto bc = objToPtr(builder->build());
+  unprot_ptrs(it, env);
   return make_closure(vm, bc, NIL);
 }
 
 // @safe
 void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, Ptr p_env) {
-  Ptr decl(env, (it, p_env), compiler_env_get_subenv(vm, p_env, it));
+  prot_ptrs(it, p_env);
+  auto env = compiler_env_get_subenv(vm, p_env, it); prot_ptr(env);
   auto has_closure = cenv_has_closure(env);
   if (has_closure) {
     auto closed_over = cenv_get_closed_over(env);
     auto closed_count = xarray_used(closed_over);
 
     // @safe
-    prot_ptrs(it, p_env, env, closed_over);
+    prot_ptrs(closed_over);
     auto builder = new ByteCodeBuilder(vm);
-    unprot_ptrs(env, closed_over);
     for (u64 i = 0; i < closed_count; i++) {
-      Ptr ptr = xarray_at(closed_over, i);
-      VariableBinding decl(binding, (env, ptr), compiler_env_binding(vm, env, ptr));
+      auto ptr = xarray_at(closed_over, i);
+      auto binding = compiler_env_binding(vm, env, ptr);
       auto index = as(Fixnum, varinfo_get_argument_index(binding.variable_info));
       builder->loadArg(index);
     }
-    unprot_ptrs(it, p_env);
+    unprot_ptrs(closed_over);
 
     // @safe
     builder->pushClosureEnv(closed_count);
@@ -2576,11 +2572,13 @@ void emit_lambda(VM *vm, ByteCodeBuilder *p_builder, Ptr it, Ptr p_env) {
     auto closure = emit_flat_lambda(vm, it, env);
     p_builder->pushLit(closure);
   }
+  unprot_ptrs(it, p_env, env);
 }
 
 // @safe
 void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr p_env) {
-  Ptr decl(env, (it, p_env), compiler_env_get_subenv(vm, p_env, it));
+  prot_ptrs(it, p_env);
+  auto env = compiler_env_get_subenv(vm, p_env, it); prot_ptr(env);
 
   // @safe
   {
@@ -2592,52 +2590,52 @@ void emit_let(VM *vm, ByteCodeBuilder *builder, Ptr it, Ptr p_env) {
         auto sym = nth_or_nil(vm, lst, 0);
         assert(is(Symbol, sym));
         auto expr = nth_or_nil(vm, lst, 1);
-
-        VariableBinding decl(binding, (it, p_env, env, expr),
-                             compiler_env_binding(vm, env, sym));
+        auto binding = compiler_env_binding(vm, env, sym);
 
         auto argidx  = varinfo_get_argument_index(binding.variable_info);
         auto idx     = as(Fixnum, argidx) + start_index;
         varinfo_set_argument_index(binding.variable_info, to(Fixnum, idx));
 
-        call_with_ptrs((it, p_env, env),
-                       emit_expr(vm, builder, expr, p_env));
+        emit_expr(vm, builder, expr, p_env);
 
         builder->storeFrameRel(idx);
       });
   }
 
   auto has_closure = cenv_has_closure(env);
-  auto closed_over = cenv_get_closed_over(env);
 
   // @safe
   if (has_closure) {
+    auto closed_over = cenv_get_closed_over(env); prot_ptr(closed_over);
     auto closed_count = xarray_used(closed_over);
 
     for (u64 i = 0; i < closed_count; i++) {
       Ptr var = xarray_at(closed_over, i);
-      VariableBinding decl(binding, (closed_over, it),
-                           compiler_env_binding(vm, env, var));
+      auto binding = compiler_env_binding(vm, env, var);
 
       auto argidx  = varinfo_get_argument_index(binding.variable_info);
       builder->loadFrameRel(as(Fixnum, argidx));
     }
     builder->pushClosureEnv(closed_count);
+    unprot_ptrs(closed_over);
   }
 
   // @safe
   {
-    auto body = cdr(vm, cdr(vm, it));
-    call_with_ptrs((env, body), builder->pushLit(NIL));
+    auto body = cdr(vm, cdr(vm, it)); prot_ptr(body);
+    builder->pushLit(NIL);
     do_list(vm, body, [&](Ptr expr){
         builder->pop();
-        call_with_ptrs((env), emit_expr(vm, builder, expr, env));
+        emit_expr(vm, builder, expr, env);
       });
+    unprot_ptr(body);
   }
 
   if (has_closure) {
     builder->popClosureEnv();
   }
+
+  unprot_ptrs(it, p_env, env);
 }
 
 
@@ -2907,6 +2905,8 @@ void run_string(const char* str, bool soak) {
 
   vm->gc_protected = new unordered_map<Object **, u64>;
   vm->gc_protected_ptrs = new unordered_map<Ptr *, u64>;
+  vm->gc_protected->reserve(100);
+  vm->gc_protected_ptrs->reserve(100);
 
   vm->frame = 0;
   vm->error = 0;

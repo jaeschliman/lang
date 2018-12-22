@@ -786,17 +786,19 @@ Ptr xarray_at(Ptr array, u64 idx) {
 
 #define _define_structure_accessors(slot, name, idx)    \
   Ptr name##_get_##slot(Ptr obj) {                      \
+    assert(is(name, obj));                              \
     return array_get(obj, idx + 1);                     \
   }                                                     \
   void name##_set_##slot(Ptr obj, Ptr value) {          \
+    assert(is(name, obj));                              \
     array_set(obj, idx + 1, value);                     \
   }
 
 // @safe
 #define defstruct(name, tag, ...)                                       \
+  _define_structure_type_test(name, tag);                               \
   MAP_WITH_ARG_AND_INDEX(_define_structure_accessors, name, __VA_ARGS__); \
-  _define_structure_maker(name, tag, __VA_ARGS__);                      \
-  _define_structure_type_test(name, tag);
+  _define_structure_maker(name, tag, __VA_ARGS__);
 
 enum StructTag : u64 {
   StructTag_Cons,
@@ -804,6 +806,10 @@ enum StructTag : u64 {
   StructTag_CompilerEnv,
   StructTag_End
 };
+
+/* ---------------------------------------- */
+
+defstruct(cons, StructTag_Cons, car, cdr);
 
 /* ---------------------------------------- */
 
@@ -922,6 +928,9 @@ enum {
 
 typedef void(*DebugPrintFunction)(std::ostream &os, Ptr p);
 
+DebugPrintFunction StructPrintTable[StructTag_End] = {0};
+
+// @deprecated
 #define DEBUG_PRINT_MAX 255
 DebugPrintFunction DebugPrintTable[DEBUG_PRINT_MAX] = {0};
 enum BuiltInDebugPrintIndex : u64 {
@@ -954,7 +963,13 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
   case PtrArray_ObjectType: {
     const PtrArrayObject *vobj = (const PtrArrayObject*)(obj);
     switch (vobj->pao_type) {
-    case Struct: // TODO: custom print table
+    case Struct: {
+      auto index = as(Fixnum, vobj->data[0]);
+      auto fn = StructPrintTable[index];
+      if (fn) { fn(os, objToPtr(obj)); }
+      else { os << "#<Struct[" << index << "] " << (void *)obj << ">" ;}
+      return os;
+    }
     case Array:
     case Closure:
       os << "[";
@@ -1459,37 +1474,35 @@ auto make_base_class(VM *vm, const char* name, u64 ivar_count) {
 /* ---------------------------------------- */
 
 // @safe
-bool consp(VM *vm, Ptr p) {
-  if (!is(Standard, p)) return false;
-  auto obj = as(Standard, p);
-  auto res = (void *)obj->klass == (void *)vm->globals->Cons;
-  return res;
+inline bool consp(VM *vm, Ptr p) {
+  unused(vm);
+  return is(cons, p);
 }
 
 // @safe
-Ptr car(VM *vm, Ptr p) {
+inline Ptr car(VM *vm, Ptr p) {
+  unused(vm);
   if (isNil(p)) return NIL;
-  assert(consp(vm, p));
-  return standard_object_get_ivar(as(Standard, p), 0);
+  return cons_get_car(p);
 }
 
 // @safe
-void set_car(VM *vm, Ptr cons, Ptr value) {
-  assert(consp(vm, cons));
-  standard_object_set_ivar(as(Standard, cons), 0, value);
+inline void set_car(VM *vm, Ptr cons, Ptr value) {
+  unused(vm);
+  cons_set_car(cons, value);
 }
 
 // @safe
-Ptr cdr(VM *vm, Ptr p) {
+inline Ptr cdr(VM *vm, Ptr p) {
+  unused(vm);
   if (isNil(p)) return NIL;
-  assert(consp(vm, p));
-  return standard_object_get_ivar(as(Standard, p), 1);
+  return cons_get_cdr(p);
 }
 
 // @safe
-void set_cdr(VM *vm, Ptr cons, Ptr value) {
-  assert(consp(vm, cons));
-  standard_object_set_ivar(as(Standard, cons), 1, value);
+inline void set_cdr(VM *vm, Ptr cons, Ptr value) {
+  unused(vm);
+  cons_set_cdr(cons, value);
 }
 
 // @safe
@@ -1501,11 +1514,8 @@ Ptr nth_or_nil(VM *vm, Ptr p, u64 idx) {
 }
 
 // @safe
-Ptr cons(VM *vm, Ptr car, Ptr cdr) {
-  auto obj = make_standard_object(vm, vm->globals->Cons, (Ptr[]){car, cdr});
-  auto res = objToPtr(obj);
-  assert(consp(vm, res));
-  return res;
+inline Ptr cons(VM *vm, Ptr car, Ptr cdr) {
+  return make_cons(vm, car, cdr);
 }
 
 // @safe
@@ -1518,12 +1528,11 @@ Ptr assoc(VM *vm, Ptr item, Ptr alist) {
   return NIL;
 }
 
-// @safe
+// @safe -- but only on static *alistref
 void set_assoc(VM *vm, Ptr *alistref, Ptr item, Ptr value) {
   auto existing = assoc(vm, item, *alistref);
   if (isNil(existing)) {
-    auto old = *alistref;
-    prot_ptr(old);
+    auto old = *alistref; prot_ptr(old);
     auto pair = cons(vm, item, value);
     unprot_ptr(old);
     auto newalist = cons(vm, pair, old);
@@ -1577,6 +1586,10 @@ u64 list_length(VM *vm, Ptr it) {
 }
 
 /* ---------------------------------------- */
+
+void initialize_struct_printers() {
+  StructPrintTable[StructTag_Cons] = &debug_print_list;
+}
 
 // @unsafe
 void initialize_classes(VM *vm)
@@ -2903,6 +2916,7 @@ void run_string(const char* str, bool soak) {
   vm->globals = (Globals *)calloc(sizeof(Globals), 1);
   vm->globals->symtab = new unordered_map<string, Ptr>;
   vm->globals->env = NIL;
+
   initialize_classes(vm);
   initialize_primitive_functions(vm);
 
@@ -2988,6 +3002,8 @@ int main(int argc, const char** argv) {
     cerr << "must provide a file to run" << endl;
     return 1;
   }
+
+  initialize_struct_printers();
 
   const char *invoked = argv[0];
   const char *curr = argv[0];

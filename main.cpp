@@ -58,6 +58,7 @@ TODO: U32 Array etc
 TODO: more prim instrs
 TODO: maybe expose bytecode prims as special forms? %push %call etc...
 TODO: growable heap
+TODO: looping primitive
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -448,6 +449,7 @@ inline Ptr unwrap_ptr(GCPtr *it) {
 #define prot_ptr(it)   protect_ptr(safe__##it, it)
 #define unprot_ptr(it) it = unwrap_ptr(&safe__##it)
 
+// @deprecated
 #define protect_ptr_vector(var, count, vector)  \
   GCPtr var[count];                             \
   {                                             \
@@ -667,16 +669,6 @@ Ptr make_symbol(VM *vm, const char* str) {
 
 // @safe
 Ptr make_number(s64 value) { return s64ToPtr(value); }
-
-// @safe
-Ptr make_array(VM *vm, u64 len, Ptr objs[]) {
-  protect_ptr_vector(safe_objs, len, objs);
-  auto array = alloc_pao(vm, Array, len);
-  for (u64 i = 0; i < len; i++) {
-    array->data[i] = unwrap_ptr(safe_objs + i);
-  }
-  return objToPtr(array);
-}
 
 // @safe
 Ptr make_zf_array(VM *vm, u64 len) {
@@ -1108,6 +1100,7 @@ StandardObject *make_standard_object(VM *vm, StandardObject *klass, Ptr*ivars) {
   assert(is(Fixnum, ivar_count_object));
   auto ivar_count = toS64(ivar_count_object);
 
+  // @deprecated
   protect_ptr_vector(safe_ivars, ivar_count, ivars);
 
   auto result = alloc_standard_object(vm, klass, ivar_count);

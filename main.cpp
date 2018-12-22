@@ -2794,89 +2794,82 @@ void mark_lambda_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {
 }
 
 // @safe
-void mark_let_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {
-  vm->gc_disabled = true;
-  Ptr decl(env, (it, p_env), compiler_env_get_subenv(vm, p_env, it));
+void mark_let_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {  prot_ptrs(it, p_env);
+  auto env = compiler_env_get_subenv(vm, p_env, it);              prot_ptr(env);
   cenv_set_type(env, CompilerEnvType_Let);
 
-  auto vars = nth_or_nil(vm, it, 1);
-
   // @safe
-  u64 idx = 0;
+  auto vars = nth_or_nil(vm, it, 1);
+  u64 idx   = 0;
   auto zero = to(Fixnum, 0);
   do_list(vm, vars, [&](Ptr lst){
-      auto sym = nth_or_nil(vm, lst, 0);
-      auto expr = nth_or_nil(vm, lst, 1);
+      auto sym  = nth_or_nil(vm, lst, 0);                         prot_ptr(sym);
+      auto expr = nth_or_nil(vm, lst, 1);                         prot_ptr(expr);
       assert(is(Symbol, sym));
 
       // idx is altered in the emit phase to account for surrounding lets
       auto index = to(Fixnum, idx);
-      Ptr decl(info, (sym, expr, p_env),
-               make_varinfo(vm, VariableScope_Let, index, zero));
-      prot_ptrs(expr, p_env);
+      auto scope = VariableScope_Let;
+      auto info  = make_varinfo(vm, scope, index, zero);          prot_ptrs(info);
       imap_set(vm, cenv_get_info(env), sym, info);
-      unprot_ptrs(expr, p_env);
       mark_closed_over_variables(vm, expr, p_env);
       idx++;
+      unprot_ptrs(sym, expr, info)
     });
 
   // @safe
   {
     auto body = cdr(vm, cdr(vm, it));
-    auto env = compiler_env_get_subenv(vm, p_env, it);
     do_list(vm, body, [&](Ptr expr) {
         mark_closed_over_variables(vm, expr, env);
       });
   }
-  vm->gc_disabled = false;
+  unprot_ptrs(it, p_env, env);
 }
 
 // @safe
-void mark_closed_over_variables(VM *vm, Ptr it, Ptr env) {
+void mark_closed_over_variables(VM *vm, Ptr it, Ptr env) {  prot_ptrs(it, env);
   if (is(Symbol, it)) {
     mark_variable_for_closure(vm, it, env, 0, false);
   } else if (consp(vm, it)) {
-    auto fst = car(vm, it);
-    auto is_sym = is(Symbol, fst);
-    prot_ptrs(it, fst, env);
-    auto _if    = intern(vm, "if");     prot_ptr(_if);
-    auto quote  = intern(vm, "quote");  prot_ptr(quote);
-    auto lambda = intern(vm, "lambda"); prot_ptr(lambda);
+    auto fst    = car(vm, it);                              prot_ptr(fst);
+    auto _if    = intern(vm, "if");                         prot_ptr(_if);
+    auto quote  = intern(vm, "quote");                      prot_ptr(quote);
+    auto lambda = intern(vm, "lambda");                     prot_ptr(lambda);
     auto let    = intern(vm, "let");
-    unprot_ptrs(_if, quote, lambda, it, fst, env);
+    auto is_sym = is(Symbol, fst);
+    unprot_ptrs(fst, _if, quote, lambda);
     if (is_sym && ptr_eq(lambda, fst)) {
       mark_lambda_closed_over_variables(vm, it, env);
     } else if (is_sym && ptr_eq(quote, fst)) {
       // do nothing
     } else if (is_sym && ptr_eq(_if, fst)) {
-      auto test = nth_or_nil(vm, it, 1);
-      call_with_ptrs((it, env), mark_closed_over_variables(vm, test, env));
-      auto _thn = nth_or_nil(vm, it, 2);
-      call_with_ptrs((it, env), mark_closed_over_variables(vm, _thn, env));
-      auto _els = nth_or_nil(vm, it, 3);
+      auto test = nth_or_nil(vm, it, 1);                    prot_ptr(test);
+      auto _thn = nth_or_nil(vm, it, 2);                    prot_ptr(_thn);
+      auto _els = nth_or_nil(vm, it, 3);                    prot_ptr(_els);
+      mark_closed_over_variables(vm, test, env);
+      mark_closed_over_variables(vm, _thn, env);
       mark_closed_over_variables(vm, _els, env);
+      unprot_ptrs(test, _thn, _els);
     } else if (is_sym && ptr_eq(let, fst)) {
       mark_let_closed_over_variables(vm, it, env);
     } else {
       do_list(vm, it, [&](Ptr expr){
-          prot_ptr(env);
           mark_closed_over_variables(vm, expr, env);
-          unprot_ptr(env);
         });
     }
   }
+  unprot_ptrs(it, env);
 }
 
 // @safe
-auto compile_toplevel_expression(VM *vm, Ptr it) {
-  prot_ptr(it);
-  auto env = cenv(vm, NIL);
-  prot_ptr(env);
+auto compile_toplevel_expression(VM *vm, Ptr it) { prot_ptr(it);
+  auto env = cenv(vm, NIL);                        prot_ptr(env);
   auto builder = new ByteCodeBuilder(vm);
-  unprot_ptrs(it, env);
-  call_with_ptrs((it, env), mark_closed_over_variables(vm, it, env));
+  mark_closed_over_variables(vm, it, env);
   emit_expr(vm, builder, it, env);
   auto result = builder->build();
+  unprot_ptrs(it, env);
   return result;
 }
 

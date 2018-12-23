@@ -238,18 +238,16 @@ inline bool pointer_is_aligned(void* mem) {
   return ((u64)mem & 0b1111) == 0;
 }
 
-
-void gc(VM *vm);
-
 inline u64 vm_heap_used(VM *vm) {
   return (u64)vm->heap_end - (u64)vm->heap_mem;
 }
-
 void die(const char *message) {
   print_stacktrace();
   cerr << message << endl;
   exit(1);
 }
+
+void gc(VM *vm);
 
 void * vm_alloc(VM *vm, u64 bytes) {
   auto preserved_heap_end = vm->heap_end;
@@ -258,14 +256,15 @@ void * vm_alloc(VM *vm, u64 bytes) {
   vm->heap_end = align_pointer_with_offset(vm->heap_end, bytes);
   assert(pointer_is_aligned(vm->heap_end));
   vm->allocation_count++;
-  u64 byte_count = vm_heap_used(vm);
+
+  u64 used_byte_count = vm_heap_used(vm);
 
   u64 threshold = 1 * 1024 * 1024 * 0.5;
 
   u64 last_byte_count = vm->gc_compacted_size_in_bytes;
   u64 limit = min(threshold + last_byte_count, vm->heap_size_in_bytes);
 
-  if (byte_count > limit && !vm->gc_disabled) {
+  if (used_byte_count > limit && !vm->gc_disabled) {
       vm->heap_end = preserved_heap_end;
       gc(vm);
       if (vm_heap_used(vm) + bytes + 16 > vm->heap_size_in_bytes) {
@@ -273,12 +272,15 @@ void * vm_alloc(VM *vm, u64 bytes) {
       }
       return vm_alloc(vm, bytes);
   }
-  if (byte_count > vm->heap_size_in_bytes) {
+
+  if (used_byte_count > vm->heap_size_in_bytes) {
     die("heap exhausted");
   }
 
-  if (byte_count > vm->allocation_high_watermark)
-    vm->allocation_high_watermark = byte_count;
+  if (used_byte_count > vm->allocation_high_watermark) {
+    vm->allocation_high_watermark = used_byte_count;
+  }
+
   bzero(result, bytes);
   return result;
 }
@@ -350,16 +352,18 @@ inline bool isNonNilObject(Ptr it) {
   return it.value != 1 && ((it.value & TAG_MASK) == OBJECT_TAG);
 }
 
-#define type_test_name(type) is_##type##_Impl
+#define _type_test_name(type) is_##type##_Impl
+#define _ptr_creation_name(type) to_##type##_Ptr_Impl
 
 // IS it of this type
-#define is(type, it) type_test_name(type)(it)
+#define is(type, it) _type_test_name(type)(it)
 // AS this type (like a primitive cast, or conversion) -- returns CPP type
 #define as(type, it) as##type(it)
 // TO the Ptr representing this type
-#define to(type, it) to##type(it)
+#define to(type, it) _ptr_creation_name(type)(it)
 
-#define type_test(type, var) inline bool type_test_name(type)(Ptr var)
+#define type_test(type, var) inline bool _type_test_name(type)(Ptr var)
+#define create_ptr_for(type, var) inline Ptr _ptr_creation_name(type)(var)
 
 #define prim_type(type) type_test(type, it){     \
     return (it.value & TAG_MASK) == type##_Mask; \
@@ -384,9 +388,30 @@ type_test(any, it) { unused(it); return true; }
 inline Ptr asany(Ptr it) { return it; }
 
 prim_type(Fixnum)
+create_ptr_for(Fixnum, s64 value) {
+  // TODO: overflow check
+  Ptr p;
+  p.value = value << TAG_BITS;
+  return p;
+}
+
 prim_type(Char)
+create_ptr_for(Char, char ch) {
+  // TODO wide char support (there's room in the Ptr)
+  auto val = ((u64)ch << TAG_BITS)|CHAR_TAG;
+  return (Ptr){val};
+}
+
 prim_type(Bool)
+create_ptr_for(Bool, bool tf) {
+  return tf ? TRUE : FALSE;
+}
+
 prim_type(PrimOp)
+create_ptr_for(PrimOp, u64 raw_value) {
+  return (Ptr){raw_value};
+}
+
 type_test(Object, it) { return isNonNilObject(it); }
 object_type(ByteCode)
 object_type(ByteArray)
@@ -469,32 +494,10 @@ inline void gc_protect_ptr(VM *vm, Ptr *ref);
 
 /* ---------------------------------------- */
 
-// @safe
-inline s64 toS64(Ptr self) {
-  return ((s64)self.value) >> TAG_BITS;
-}
-
-// @safe
-inline Ptr s64ToPtr(s64 value) {
-  // TODO: overflow check
-  Ptr p;
-  p.value = value << TAG_BITS;
-  return p;
-}
-
-// @safe
-inline Ptr toFixnum(s64 value) {
-  return s64ToPtr(value);
-}
 
 // @safe
 inline s64 asFixnum(Ptr self) {
   return ((s64)self.value) >> TAG_BITS;
-}
-
-// @safe
-inline Ptr toPrimOp(u64 raw_value){
-  return (Ptr){raw_value};
 }
 
 // TODO: convert this to type-test
@@ -509,19 +512,8 @@ inline bool asBool(Ptr self) {
 }
 
 // @safe
-inline Ptr toBool(bool tf) {
-  return tf ? TRUE : FALSE;
-}
-
-// @safe
 char asChar(Ptr self) {
   return self.value >> TAG_BITS;
-}
-
-// @safe
-Ptr charToPtr(char ch) {
-  auto val = ((u64)ch << TAG_BITS)|CHAR_TAG;
-  return (Ptr){val};
 }
 
 // @safe
@@ -653,7 +645,7 @@ Ptr make_symbol(VM *vm, const char* str) {
 }
 
 // @safe
-Ptr make_number(s64 value) { return s64ToPtr(value); }
+Ptr make_number(s64 value) { return to(Fixnum, value); }
 
 // @safe
 Ptr make_zf_array(VM *vm, u64 len) {
@@ -1122,7 +1114,7 @@ auto vm_print_debug_stack_trace(VM *vm) {
 StandardObject *make_standard_object(VM *vm, StandardObject *klass, Ptr*ivars) {
   auto ivar_count_object = standard_object_get_ivar(klass, BaseClassIvarCount);
   assert(is(Fixnum, ivar_count_object));
-  auto ivar_count = toS64(ivar_count_object);
+  auto ivar_count = as(Fixnum, ivar_count_object);
 
   // @deprecated
   protect_ptr_vector(safe_ivars, ivar_count, ivars);
@@ -1543,9 +1535,7 @@ Ptr make_list(VM *vm, u64 len, Ptr* ptrs) {
 
 // @safe
 void debug_print_list(ostream &os, Ptr p) {
-  os << "(";
-  auto a = car(p);
-  os << a;
+  os << "(" << car(p);
   p = cdr(p);
   while (!isNil(p)) {
     if (consp(p)) {
@@ -1560,13 +1550,12 @@ void debug_print_list(ostream &os, Ptr p) {
 }
 
 // @safe
-void do_list(VM *vm, Ptr it, PtrFn cb) {
+void do_list(VM *vm, Ptr it, PtrFn cb) { prot_ptr(it);
   while (!isNil(it)) {
-    prot_ptr(it);
     cb(car(it));
-    unprot_ptr(it);
     it = cdr(it);
   }
+  unprot_ptr(it);
 }
 
 // @safe
@@ -1608,7 +1597,7 @@ Ptr intern(VM *vm, const char* cstr, int len) {
     // NB: symtab may have changed if make_symbol triggered a gc
     vm->globals->symtab->insert(make_pair(name, sym));
   }
-  auto res = tab->find(name)->second;
+  auto res = vm->globals->symtab->find(name)->second;
   return res;
 }
 
@@ -1737,7 +1726,7 @@ Ptr read_character(VM *vm, const char **remaining, const char *end, Ptr done) {
     return done;
   }
  ok: {
-    auto res = charToPtr(*input);
+    auto res = to(Char, *input);
     input++;
     *remaining = input;
     return res;
@@ -1816,7 +1805,7 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
         input++;
       }
       *remaining = input;
-      return s64ToPtr(num);
+      return to(Fixnum, num);
     }
     input++;
   }

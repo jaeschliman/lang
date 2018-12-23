@@ -649,22 +649,14 @@ Ptr make_number(s64 value) { return to(Fixnum, value); }
 
 // @safe
 Ptr make_zf_array(VM *vm, u64 len) {
-  auto array = alloc_pao(vm, Array, len);
-  auto zero = to(Fixnum, 0);
-  for (u64 i = 0; i < len; i++) {
-    array->data[i] = zero;
-  }
+  auto array = alloc_pao(vm, Array, len); // alloc is zf
   return objToPtr(array);
 }
 
 // @safe
 Ptr make_zf_struct(VM *vm, u64 len, Ptr tag) { prot_ptr(tag);
-  auto array = alloc_pao(vm, Struct, len + 1);
-  auto zero = to(Fixnum, 0);
+  auto array = alloc_pao(vm, Struct, len + 1); // alloc is zf
   array->data[0] = tag;
-  for (u64 i = 1; i < len; i++) {
-    array->data[i] = zero;
-  }
   unprot_ptr(tag);
   return objToPtr(array);
 }
@@ -696,8 +688,8 @@ Ptr make_xarray(VM *vm) {
   Ptr buffer = make_zf_array(vm, 4); prot_ptr(buffer);
   Ptr result = make_zf_array(vm, 2);
   array_set(result, 0, used);
-  unprot_ptr(buffer);
   array_set(result, 1, buffer);
+  unprot_ptr(buffer);
   return result;
 }
 
@@ -715,16 +707,15 @@ u64 xarray_used(Ptr array) {
 void xarray_push(VM *vm, Ptr array, Ptr item) {
   auto used = xarray_used(array);
   auto cap = xarray_capacity(array);
-  if (used + 1 >= cap) {
+  if (used + 1 >= cap) {                 prot_ptrs(array, item);
     auto new_cap = cap * 2;
-    auto old_arr = array_get(array, 1);
-    prot_ptrs(array, old_arr, item);
+    auto old_arr = array_get(array, 1);  prot_ptr(old_arr);
     auto new_arr = make_zf_array(vm, new_cap);
-    unprot_ptrs(array, old_arr, item);
-    for (u64 i = 0; i < cap; i++) {
+    for (u64 i = 0; i < cap; i++) { // @speed could do a memcpy here
       array_set(new_arr, i, array_get(old_arr, i));
     }
     array_set(array, 1, new_arr);
+    unprot_ptrs(array, item, old_arr);
   }
   array_set(array_get(array, 1), used, item);
   array_set(array, 0, to(Fixnum, used + 1));
@@ -789,7 +780,7 @@ Ptr xarray_at(Ptr array, u64 idx) {
   MAP_WITH_ARG_AND_INDEX(_define_structure_accessors, name, __VA_ARGS__); \
   _define_structure_maker(name, tag, __VA_ARGS__);
 
-enum StructTag : u64 {
+enum StructTag : s64 {
   StructTag_Cons,
   StructTag_VarInfo,
   StructTag_CompilerEnv,
@@ -954,6 +945,7 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
     switch (vobj->pao_type) {
     case Struct: {
       auto index = as(Fixnum, vobj->data[0]);
+      assert(index >= 0 && index < StructTag_End);
       auto fn = StructPrintTable[index];
       if (fn) { fn(os, objToPtr(obj)); }
       else { os << "#<Struct[" << index << "] " << (void *)obj << ">" ;}
@@ -1820,14 +1812,13 @@ Ptr read(VM *vm, const char* input) {
 
 // @safe
 Ptr read_all(VM *vm, const char* input) {
-  auto done = cons(vm, NIL, NIL); prot_ptrs(done);
+  auto done = cons(vm, NIL, NIL);            prot_ptrs(done);
   auto len = strlen(input);
 
-  auto items = make_xarray(vm); prot_ptrs(items);
+  auto items = make_xarray(vm);              prot_ptrs(items);
   auto end   = input + len;
-  auto item  = read(vm, &input, end, done); prot_ptrs(item);
-  while (input < end && !ptr_eq(item, done)) {
-    assert(input < end);
+  auto item  = read(vm, &input, end, done);  prot_ptrs(item);
+  while (input <= end && !ptr_eq(item, done)) {
     xarray_push(vm, items, item);
     item = read(vm, &input, end, done);
     assert(input <= end);
@@ -2907,7 +2898,33 @@ VM *vm_create() {
   return vm;
 }
 
-void run_string(const char* str, bool soak) {
+Ptr eval(VM *vm, Ptr expr) {
+  auto bc = compile_toplevel_expression(vm, expr);
+
+  vm_push_stack_frame(vm, 0, bc);
+
+  vm_interp(vm);
+  Ptr result = vm_pop(vm);
+
+  vm_pop_stack_frame(vm);
+
+  if (vm->error) {
+    cerr << "VM ERROR: " << vm->error << endl;
+    exit(3);
+  }
+  return result;
+}
+
+Ptr run_string(VM *vm, const char *str) {
+  auto exprs = read_all(vm, str);
+  Ptr result = NIL;
+  do_list(vm, exprs, [&](Ptr expr){
+      result = eval(vm, expr);
+    });
+  return result;
+}
+
+void start_up_and_run_string(const char* str, bool soak) {
   VM *vm = vm_create();
 
   auto exprs = read_all(vm, str);
@@ -2915,19 +2932,7 @@ void run_string(const char* str, bool soak) {
   do {
 
     do_list(vm, cdr(kept_head), [&](Ptr expr){
-
-        auto bc = compile_toplevel_expression(vm, expr);
-
-        vm_push_stack_frame(vm, 0, bc);
-
-        vm_interp(vm);
-
-        vm_pop_stack_frame(vm);
-
-        if (vm->error) {
-          cerr << "VM ERROR: " << vm->error << endl;
-          exit(3);
-        }
+        eval(vm, expr);
       });
 
     if (soak) {
@@ -2940,12 +2945,22 @@ void run_string(const char* str, bool soak) {
       // this_thread::sleep_for(chrono::milliseconds(100));
     }
 
-
   } while(soak);
 
   unprot_ptr(kept_head);
   
   // TODO: clean up
+}
+
+void start_up_and_run_repl() {
+  VM *vm = vm_create();
+  while (true) {
+    cout << "lang>";
+    string input;
+    getline(cin, input);
+    auto result = run_string(vm, input.c_str());
+    cout << result << endl;
+  }
 }
 
 const char *read_file_contents(string path) {
@@ -2963,21 +2978,22 @@ const char *read_file_contents(string path) {
 
 auto run_file(string path, bool soak_test) {
   auto contents = read_file_contents(path);
-  run_string(contents, soak_test);
+  start_up_and_run_string(contents, soak_test);
   // TODO: free contents
 }
 
 /* ---------------------------------------- */
 
-int main(int argc, const char** argv) {
-  const char *file = 0;
-
+const char *require_provided_file(int argc, const char** argv) {
   if (argc > 1) {
-    file = argv[1];
+    return argv[1];
   } else {
     cerr << "must provide a file to run" << endl;
-    return 1;
+    exit(1);
   }
+}
+
+int main(int argc, const char** argv) {
 
   initialize_struct_printers();
 
@@ -2991,9 +3007,13 @@ int main(int argc, const char** argv) {
 
   // pretty hacky way of avoiding checking flags, I'll admit...
   if (strcmp(invoked, "run-file") == 0) { 
+    auto file = require_provided_file(argc, argv);
     run_file(file, false);
   } else if (strcmp(invoked, "soak") == 0){
+    auto file = require_provided_file(argc, argv);
     run_file(file, true);
+  } else if (strcmp(invoked, "repl") == 0){
+    start_up_and_run_repl();
   } else {
     cerr << " unrecognized invocation: " << invoked << endl;
     return 2;

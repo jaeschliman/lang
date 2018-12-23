@@ -46,7 +46,7 @@ DONE: gc-safe compiler
 DONE: automatic garbage collection (need to use gc_protect)
 TODO: identity hash function
 TODO: proper imap
-TODO: make cons a defstruct
+DONE: make cons a defstruct
 TODO: move stack memory into vm-managed heap
 TODO: continuations / exceptions / signals
 TODO: dump/restore image
@@ -60,6 +60,8 @@ TODO: maybe expose bytecode prims as special forms? %push %call etc...
 TODO: growable heap
 TODO: looping primitive
 TODO: repl / notebook
+TODO: 'load file' vs run file
+TODO: rewrite the codegen in the lang itself 
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -567,10 +569,16 @@ PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
 type_test(Array, it) {
   return is(PtrArray, it) && (as(PtrArray, it))->pao_type == Array;
 }
+unwrap_ptr_for(Array, it) {
+  return as(ByteArray, it);
+}
 
 // @safe
 type_test(Struct, it) {
   return is(PtrArray, it) && (as(PtrArray, it))->pao_type == Struct;
+}
+unwrap_ptr_for(Struct, it) {
+  return as(ByteArray, it);
 }
 
 // @safe
@@ -2855,7 +2863,7 @@ Ptr primitive_print(Ptr a) { cout << a << endl; return a; }
 
 /* -------------------------------------------------- */
 
-void run_string(const char* str, bool soak) {
+VM *vm_create() {
   VM *vm;
   vm = (VM *)calloc(sizeof(VM), 1);
 
@@ -2895,26 +2903,26 @@ void run_string(const char* str, bool soak) {
   // so we have a root frame
   auto bc = (new BCBuilder(vm))->build();
   vm_push_stack_frame(vm, 0, bc);
-  gc_protect(bc);
+
+  return vm;
+}
+
+void run_string(const char* str, bool soak) {
+  VM *vm = vm_create();
 
   auto exprs = read_all(vm, str);
-  auto kept_head = cons(vm, NIL, exprs);
-
+  auto kept_head = cons(vm, NIL, exprs); prot_ptr(kept_head);
   do {
-
-    prot_ptr(kept_head);
 
     do_list(vm, cdr(kept_head), [&](Ptr expr){
 
         auto bc = compile_toplevel_expression(vm, expr);
 
-        gc_protect(bc);
         vm_push_stack_frame(vm, 0, bc);
 
         vm_interp(vm);
 
         vm_pop_stack_frame(vm);
-        gc_unprotect(bc);
 
         if (vm->error) {
           cerr << "VM ERROR: " << vm->error << endl;
@@ -2932,11 +2940,10 @@ void run_string(const char* str, bool soak) {
       // this_thread::sleep_for(chrono::milliseconds(100));
     }
 
-    unprot_ptr(kept_head);
 
   } while(soak);
 
-  gc_unprotect(bc);
+  unprot_ptr(kept_head);
   
   // TODO: clean up
 }

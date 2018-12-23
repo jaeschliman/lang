@@ -342,50 +342,49 @@ struct StandardObject : Object { // really more of a structure object
 // not so sure about this...
 #define NIL objToPtr((Object *)0)
 
-// @safe
-Object *asObject(Ptr self) {
-  return (Object *)(self.value & EXTRACT_PTR_MASK);
-}
+#define _type_test_name(type) is_##type##__Impl
+#define _ptr_creation_name(type) to_##type##_Ptr__Impl
+#define _ptr_conversion_name(type) as##type##__Impl
 
-// @safe
-inline bool isNonNilObject(Ptr it) {
-  return it.value != 1 && ((it.value & TAG_MASK) == OBJECT_TAG);
-}
-
-#define _type_test_name(type) is_##type##_Impl
-#define _ptr_creation_name(type) to_##type##_Ptr_Impl
-
-// IS it of this type
+// IS Ptr it of this type Ptr -> bool
 #define is(type, it) _type_test_name(type)(it)
-// AS this type (like a primitive cast, or conversion) -- returns CPP type
-#define as(type, it) as##type(it)
-// TO the Ptr representing this type
+// AS this type (like a primitive cast, or conversion) Ptr -> raw type
+#define as(type, it) _ptr_conversion_name(type)(it)
+// TO the Ptr representing this type raw type -> Ptr
 #define to(type, it) _ptr_creation_name(type)(it)
 
 #define type_test(type, var) inline bool _type_test_name(type)(Ptr var)
 #define create_ptr_for(type, var) inline Ptr _ptr_creation_name(type)(var)
+#define unwrap_ptr_for(type, var) inline auto _ptr_conversion_name(type)(Ptr var)
 
 #define prim_type(type) type_test(type, it){     \
     return (it.value & TAG_MASK) == type##_Mask; \
   }
 
 // @safe
+unwrap_ptr_for(Object, self) {
+  return (Object *)(self.value & EXTRACT_PTR_MASK);
+}
+
+// @safe
+type_test(NonNilObject, it) {
+  return it.value != 1 && ((it.value & TAG_MASK) == OBJECT_TAG);
+}
+
+type_test(any, it) { unused(it); return true; }
+unwrap_ptr_for(any, it) { return it; }
+
+// @safe
 #define object_type(type)                                               \
   type_test(type, it) {                                                 \
-    return (isNonNilObject(it) &&                                       \
+    return (is(NonNilObject, it) &&                                      \
             (as(Object, it))->header.object_type == type##_ObjectType); \
   };                                                                    \
-  inline type##Object * as##type(Ptr it) {                              \
+  unwrap_ptr_for(type, it) {                                            \
     assert(is(type, it));                                               \
     return (type##Object *)as(Object, it);                              \
   }
 
-
-// @safe
-type_test(any, it) { unused(it); return true; }
-
-// @safe
-inline Ptr asany(Ptr it) { return it; }
 
 prim_type(Fixnum)
 create_ptr_for(Fixnum, s64 value) {
@@ -394,17 +393,26 @@ create_ptr_for(Fixnum, s64 value) {
   p.value = value << TAG_BITS;
   return p;
 }
+unwrap_ptr_for(Fixnum, it) {
+  return (s64)(((s64)it.value) >> TAG_BITS);
+}
 
 prim_type(Char)
 create_ptr_for(Char, char ch) {
-  // TODO wide char support (there's room in the Ptr)
+  // TODO wide char support? (there's room in the Ptr)
   auto val = ((u64)ch << TAG_BITS)|CHAR_TAG;
   return (Ptr){val};
+}
+unwrap_ptr_for(Char, it) {
+  return (char)(it.value >> TAG_BITS);
 }
 
 prim_type(Bool)
 create_ptr_for(Bool, bool tf) {
   return tf ? TRUE : FALSE;
+}
+unwrap_ptr_for(Bool, it){
+  return (it.value >> TAG_BITS) ? true : false;
 }
 
 prim_type(PrimOp)
@@ -412,7 +420,7 @@ create_ptr_for(PrimOp, u64 raw_value) {
   return (Ptr){raw_value};
 }
 
-type_test(Object, it) { return isNonNilObject(it); }
+type_test(Object, it) { return is(NonNilObject, it); }
 object_type(ByteCode)
 object_type(ByteArray)
 object_type(U64Array)
@@ -448,7 +456,7 @@ struct GCPtr {
 // @deprecated
 inline void wrap_ptr(VM *vm, GCPtr* var, Ptr it)  {
   var->ptr = it;
-  if (isNonNilObject(it)) {
+  if (is(NonNilObject, it)) {
     var->is_object = true;
     var->object = as(Object, it);
     var->vm = vm;
@@ -495,26 +503,12 @@ inline void gc_protect_ptr(VM *vm, Ptr *ref);
 /* ---------------------------------------- */
 
 
-// @safe
-inline s64 asFixnum(Ptr self) {
-  return ((s64)self.value) >> TAG_BITS;
-}
-
 // TODO: convert this to type-test
 // @safe
 inline bool isNil(Ptr self) {
   return self.value == OBJECT_TAG;
 }
 
-// @safe
-inline bool asBool(Ptr self) {
-  return (self.value >> TAG_BITS) ? true : false;
-}
-
-// @safe
-char asChar(Ptr self) {
-  return self.value >> TAG_BITS;
-}
 
 // @safe
 U64ArrayObject *alloc_u64ao(VM *vm, uint len) {
@@ -550,14 +544,12 @@ ByteArrayObject *alloc_bao(VM *vm, BAOType ty, uint len) {
 }
 
 // @safe
-type_test(Symbol, it){
+type_test(Symbol, it) {
   if (!is(ByteArray, it)) return false;
   auto bao = as(ByteArray, it);
   return bao->bao_type == Symbol;
 }
-
-// @safe
-inline ByteArrayObject * asSymbol(Ptr it) {
+unwrap_ptr_for(Symbol, it) {
   return as(ByteArray, it);
 }
 
@@ -1140,7 +1132,7 @@ struct Globals {
 auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
   set<u64> seen;
   PtrFn recurse = [&](Ptr it) {
-    if (!isNonNilObject(it)) return;
+    if (!is(NonNilObject, it)) return;
     if (seen.find(it.value) != seen.end()) return;
     seen.insert(it.value);
     fn(it);
@@ -1240,7 +1232,7 @@ Ptr gc_move_object(VM *vm, Object *obj) {
 
 void gc_update_ptr(VM *vm, Ptr *p) {
   auto ptr = *p;
-  if (!isNonNilObject(ptr)) return;
+  if (!is(NonNilObject, ptr)) return;
   auto obj = as(Object, ptr);
   if (!gc_is_broken_heart(obj)) {
     gc_move_object(vm, obj);

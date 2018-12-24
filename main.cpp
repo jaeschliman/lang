@@ -167,7 +167,6 @@ struct Object {
 };
 
 // TODO: rename this function
-// @safe
 inline Ptr objToPtr(Object *ref) {
   Ptr p;
   p.value = ((u64) ref) |  0b1;
@@ -389,12 +388,10 @@ struct StandardObject : Object { // really more of a structure object
     return (it.value & TAG_MASK) == type##_Tag; \
   }
 
-// @safe
 unwrap_ptr_for(Object, self) {
   return (Object *)(self.value & EXTRACT_PTR_MASK);
 }
 
-// @safe
 type_test(NonNilObject, it) {
   return it.value != 1 && ((it.value & TAG_MASK) == Object_Tag);
 }
@@ -402,7 +399,6 @@ type_test(NonNilObject, it) {
 type_test(any, it) { unused(it); return true; }
 unwrap_ptr_for(any, it) { return it; }
 
-// @safe
 #define object_type(type)                                               \
   type_test(type, it) {                                                 \
     return (is(NonNilObject, it) &&                                     \
@@ -508,12 +504,10 @@ type_test(BrokenHeart, it) {
 /* ---------------------------------------- */
 
 // TODO: convert this to type-test
-// @safe
 inline bool isNil(Ptr self) {
   return self.value == Object_Tag;
 }
 
-// @safe
 U64ArrayObject *alloc_u64ao(VM *vm, uint len) {
   auto byte_count = sizeof(U64ArrayObject) + (len * sizeof(u64));
   U64ArrayObject* obj = (U64ArrayObject *)vm_alloc(vm, byte_count);
@@ -522,7 +516,6 @@ U64ArrayObject *alloc_u64ao(VM *vm, uint len) {
   return obj;
 }
 
-// @safe
 ByteCodeObject *alloc_bytecode(VM *vm) {
   auto byte_count = sizeof(ByteCodeObject);
   ByteCodeObject *obj = (ByteCodeObject *)vm_alloc(vm, byte_count);
@@ -530,13 +523,11 @@ ByteCodeObject *alloc_bytecode(VM *vm) {
   return obj;
 }
 
-// @safe
 ByteCodeObject *toBytecode(Ptr it) {
   assert(is(ByteCode, it));
   return (ByteCodeObject *)as(Object, it);
 }
 
-// @safe
 ByteArrayObject *alloc_bao(VM *vm, BAOType ty, uint len) {
   auto byte_count = sizeof(ByteArrayObject) + len;
   ByteArrayObject* obj = (ByteArrayObject *)vm_alloc(vm, byte_count);
@@ -546,7 +537,6 @@ ByteArrayObject *alloc_bao(VM *vm, BAOType ty, uint len) {
   return obj;
 }
 
-// @safe
 type_test(Symbol, it) {
   if (!is(ByteArray, it)) return false;
   auto bao = as(ByteArray, it);
@@ -556,7 +546,6 @@ unwrap_ptr_for(Symbol, it) {
   return as(ByteArray, it);
 }
 
-// @safe
 PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   auto byte_count = sizeof(PtrArrayObject) + (len * sizeof(Ptr));
   PtrArrayObject* obj = (PtrArrayObject *)vm_alloc(vm, byte_count);
@@ -566,7 +555,6 @@ PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   return obj;
 }
 
-// @safe
 type_test(Array, it) {
   return is(PtrArray, it) && (as(PtrArray, it))->pao_type == Array;
 }
@@ -574,7 +562,6 @@ unwrap_ptr_for(Array, it) {
   return as(ByteArray, it);
 }
 
-// @safe
 type_test(Struct, it) {
   return is(PtrArray, it) && (as(PtrArray, it))->pao_type == Struct;
 }
@@ -582,7 +569,6 @@ unwrap_ptr_for(Struct, it) {
   return as(ByteArray, it);
 }
 
-// @safe
 StandardObject *alloc_standard_object(VM *vm, StandardObject *klass, u64 ivar_count) {
   auto byte_count = (sizeof(StandardObject)) + ivar_count * (sizeof(Ptr));
   gc_protect(klass);
@@ -594,19 +580,16 @@ StandardObject *alloc_standard_object(VM *vm, StandardObject *klass, u64 ivar_co
   return result;
 }
 
-// @safe
 Ptr standard_object_get_ivar(StandardObject *object, u64 idx) {
   assert(idx < object->ivar_count);
   return object->ivars[idx];
 }
 
-// @safe
 Ptr standard_object_set_ivar(StandardObject *object, u64 idx, Ptr value) {
   assert(idx < object->ivar_count);
   return object->ivars[idx] = value;
 }
 
-// @safe
 Ptr make_bytecode(VM *vm, u64 code_len) {
   auto bc = alloc_bytecode(vm);
   gc_protect(bc);
@@ -616,7 +599,6 @@ Ptr make_bytecode(VM *vm, u64 code_len) {
   return objToPtr(bc);
 }
 
-// @safe
 Ptr make_string(VM *vm, const char* str) {
   ByteArrayObject *obj = alloc_bao(vm, String, strlen(str));
   const char *from = str;
@@ -628,7 +610,6 @@ Ptr make_string(VM *vm, const char* str) {
   return objToPtr(obj);
 }
 
-// @safe
 Ptr make_symbol(VM *vm, const char* str, u64 len) {
   ByteArrayObject *obj = alloc_bao(vm, Symbol, len);
   const char *from = str;
@@ -640,21 +621,17 @@ Ptr make_symbol(VM *vm, const char* str, u64 len) {
   return objToPtr(obj);
 }
 
-// @safe
 Ptr make_symbol(VM *vm, const char* str) {
   return make_symbol(vm, str, strlen(str));
 }
 
-// @safe
 Ptr make_number(s64 value) { return to(Fixnum, value); }
 
-// @safe
 Ptr make_zf_array(VM *vm, u64 len) {
   auto array = alloc_pao(vm, Array, len); // alloc is zf
   return objToPtr(array);
 }
 
-// @safe
 Ptr make_zf_struct(VM *vm, u64 len, Ptr tag) { prot_ptr(tag);
   auto array = alloc_pao(vm, Struct, len + 1); // alloc is zf
   array->data[0] = tag;
@@ -662,28 +639,24 @@ Ptr make_zf_struct(VM *vm, u64 len, Ptr tag) { prot_ptr(tag);
   return objToPtr(array);
 }
 
-// @safe
 Ptr array_get(Ptr array, u64 index) {
   auto a = as(PtrArray, array);
   assert(index < a->length);
   return a->data[index];
 }
 
-// @safe
 void array_set(Ptr array, u64 index, Ptr value) {
   auto a = as(PtrArray, array);
   assert(index < a->length);
   a->data[index] = value;
 }
 
-// @safe
 u64 array_capacity(Ptr array) {
   auto a = as(PtrArray, array);
   return a->length;
 }
 
 // using a 2 element array to hold count and buffer for now
-// @safe
 Ptr make_xarray(VM *vm) {
   auto used = to(Fixnum, 0);
   Ptr buffer = make_zf_array(vm, 4); prot_ptr(buffer);
@@ -694,17 +667,14 @@ Ptr make_xarray(VM *vm) {
   return result;
 }
 
-// @safe
 u64 xarray_capacity(Ptr array) {
   return as(PtrArray, array_get(array, 1))->length;
 }
 
-// @safe
 u64 xarray_used(Ptr array) {
   return as(Fixnum, array_get(array, 0));
 }
 
-// @safe
 void xarray_push(VM *vm, Ptr array, Ptr item) {
   auto used = xarray_used(array);
   auto cap = xarray_capacity(array);
@@ -722,13 +692,11 @@ void xarray_push(VM *vm, Ptr array, Ptr item) {
   array_set(array, 0, to(Fixnum, used + 1));
 }
 
-// @safe
 Ptr *xarray_memory(Ptr array) {
   auto buff = as(PtrArray, array_get(array, 1));
   return buff->data;
 }
 
-// @safe
 Ptr xarray_at(Ptr array, u64 idx) {
   assert(idx < xarray_used(array));
   return xarray_memory(array)[idx];
@@ -775,7 +743,6 @@ Ptr xarray_at(Ptr array, u64 idx) {
     array_set(obj, idx + 1, value);                     \
   }
 
-// @safe
 #define defstruct(name, tag, ...)                                       \
   _define_structure_type_test(name, tag);                               \
   MAP_WITH_ARG_AND_INDEX(_define_structure_accessors, name, __VA_ARGS__); \
@@ -794,7 +761,6 @@ defstruct(cons, StructTag_Cons, car, cdr);
 
 /* ---------------------------------------- */
 
-// @safe
 Ptr make_closure(VM *vm, Ptr code, Ptr env) {
   assert(is(ByteCode, code));
   assert(isNil(env) || is(PtrArray, env));
@@ -807,23 +773,19 @@ Ptr make_closure(VM *vm, Ptr code, Ptr env) {
   return c;
 }
 
-// @safe
 type_test(Closure, it) {
   return is(PtrArray, it) && (as(PtrArray, it))->pao_type == Closure;
 }
 
-// @safe
 ByteCodeObject *closure_code(Ptr closure) {
   return as(ByteCode, array_get(closure, 0));
 }
 
-// @safe
 Ptr closure_env(Ptr closure) {
   return array_get(closure, 1);
 }
 
 /* ---------------------------------------- */
-// @safe
 
 // size of object in bytes
 // note that obj_size of stack frame does not take into account temporaries.
@@ -898,7 +860,6 @@ void map_refs(VM *vm, Ptr it, PtrFn fn) {
 }
 
 /* ---------------------------------------- */
-// @safe @noalloc
 
 enum {
   BaseClassName = 0,
@@ -1018,7 +979,6 @@ std::ostream &operator<<(std::ostream &os, Ptr p) {
   }
 }
 
-// @safe @noalloc
 void vm_dump_args(VM *vm) {
   auto f = vm->frame;
   auto c = f->argc;
@@ -1028,7 +988,6 @@ void vm_dump_args(VM *vm) {
   }
 }
 
-// @safe @noalloc
 void _debug_walk(VM *vm, Ptr it, set<u64>*seen) {
   map_refs(vm, it, [&](Ptr p){
       if (seen->find(p.value) != seen->end()) return;
@@ -1038,7 +997,6 @@ void _debug_walk(VM *vm, Ptr it, set<u64>*seen) {
     });
 }
 
-// @safe @noalloc
 void debug_walk(VM *vm, Ptr it) {
   set<u64> seen;
   cout << "DEBUG WALK::" << endl;
@@ -1071,7 +1029,6 @@ auto vm_map_stack_refs(VM *vm, PtrFn fn) {
   }
 }
 
-// @safe @noalloc
 auto vm_print_stack_trace(VM *vm) {
   StackFrameObject *fr = vm->frame;
   Ptr *stack = vm->stack;
@@ -1092,7 +1049,6 @@ auto vm_print_stack_trace(VM *vm) {
   return Nil;
 }
 
-// @safe @noalloc
 auto vm_print_debug_stack_trace(VM *vm) {
   StackFrameObject *fr = vm->frame;
   debug_walk(vm, objToPtr(fr));
@@ -1106,7 +1062,6 @@ auto vm_print_debug_stack_trace(VM *vm) {
 
 /* ---------------------------------------- */
 
-// @safe
 StandardObject *make_standard_object(VM *vm, StandardObject *klass, Ptr*ivars) {
   auto ivar_count_object = standard_object_get_ivar(klass, BaseClassIvarCount);
   assert(is(Fixnum, ivar_count_object));
@@ -1154,7 +1109,6 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
   recurse(objToPtr(vm->globals->Symbol));
 }
 
-// @safe @noalloc
 void vm_count_reachable_refs(VM *vm) {
   u64 count = 0;
   vm_map_reachable_refs(vm, [&](Ptr it){ unused(it); count++; });
@@ -1176,7 +1130,6 @@ void scan_heap(void *start, void*end, PtrFn fn) {
   }
 }
 
-// @safe @noalloc
 void vm_count_objects_on_heap(VM *vm) {
   u64 count = 0;
   scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it){ unused(it); count++; });
@@ -1475,7 +1428,6 @@ void gc(VM *vm) {
 
 /* ---------------------------------------- */
 
-// @safe
 auto make_base_class(VM *vm, const char* name, u64 ivar_count) {
   auto defaultPrint = Nil;
   Ptr slots[] = {make_string(vm,name), make_number(ivar_count), defaultPrint};
@@ -1484,34 +1436,28 @@ auto make_base_class(VM *vm, const char* name, u64 ivar_count) {
 
 /* ---------------------------------------- */
 
-// @safe
 inline bool consp(Ptr it) {
   return is(cons, it);
 }
 
-// @safe
 inline Ptr car(Ptr it) {
   if (isNil(it)) return Nil;
   return cons_get_car(it);
 }
 
-// @safe
 inline void set_car(Ptr cons, Ptr value) {
   cons_set_car(cons, value);
 }
 
-// @safe
 inline Ptr cdr(Ptr it) {
   if (isNil(it)) return Nil;
   return cons_get_cdr(it);
 }
 
-// @safe
 inline void set_cdr(Ptr it, Ptr value) {
   cons_set_cdr(it, value);
 }
 
-// @safe
 Ptr nth_or_nil(Ptr it, u64 idx) {
   assert(idx >= 0);
   if (isNil(it)) return Nil;
@@ -1519,12 +1465,10 @@ Ptr nth_or_nil(Ptr it, u64 idx) {
   else return nth_or_nil(cdr(it), idx - 1);
 }
 
-// @safe
 inline Ptr cons(VM *vm, Ptr car, Ptr cdr) {
   return make_cons(vm, car, cdr);
 }
 
-// @safe
 Ptr assoc(Ptr item, Ptr alist) {
   while (!isNil(alist)) {
     auto pair = car(alist);
@@ -1534,7 +1478,6 @@ Ptr assoc(Ptr item, Ptr alist) {
   return Nil;
 }
 
-// @safe -- but only on static *alistref
 void set_assoc(VM *vm, Ptr *alistref, Ptr item, Ptr value) {
   auto existing = assoc(item, *alistref);
   if (isNil(existing)) {
@@ -1548,14 +1491,12 @@ void set_assoc(VM *vm, Ptr *alistref, Ptr item, Ptr value) {
   }
 }
 
-// @safe
 Ptr make_list(VM *vm, u64 len, Ptr* ptrs) {
   if (len == 0) return Nil;
   // TODO: iterative solution
   return cons(vm, *ptrs, make_list(vm, len - 1, ptrs + 1));
 }
 
-// @safe
 void debug_print_list(ostream &os, Ptr p) {
   os << "(" << car(p);
   p = cdr(p);
@@ -1571,7 +1512,6 @@ void debug_print_list(ostream &os, Ptr p) {
   os << ")";
 }
 
-// @safe
 void do_list(VM *vm, Ptr it, PtrFn cb) { prot_ptr(it);
   while (!isNil(it)) {
     cb(car(it));
@@ -1580,7 +1520,6 @@ void do_list(VM *vm, Ptr it, PtrFn cb) { prot_ptr(it);
   unprot_ptr(it);
 }
 
-// @safe
 u64 list_length(VM *vm, Ptr it) {
   u64 count = 0;
   do_list(vm, it, [&](Ptr p){ unused(p); count++; });
@@ -1610,7 +1549,6 @@ void initialize_classes(VM *vm)
   g->Symbol = make_base_class(vm, "Symbol", 0);
 }
 
-// @safe
 Ptr intern(VM *vm, const char* cstr, int len) {
   string name = string(cstr, len);
   auto tab = vm->globals->symtab;
@@ -1623,25 +1561,21 @@ Ptr intern(VM *vm, const char* cstr, int len) {
   return res;
 }
 
-// @safe
 Ptr intern(VM *vm, string name) {
   auto str = name.c_str();
   return intern(vm, str, strlen(str));
 }
 
-// @safe
 Ptr set_global(VM *vm, Ptr sym, Ptr value) {
   assert(is(Symbol, sym));
   set_assoc(vm, &vm->globals->env, sym, value);
   return sym;
 }
 
-// @safe
 Ptr set_global(VM *vm, const char* name, Ptr value) {
   return set_global(vm, intern(vm, name), value);
 }
 
-// @safe
 Ptr get_global(VM *vm,  const char*name) {
   auto pair = assoc(intern(vm, name), vm->globals->env);
   if (isNil(pair)) return pair;
@@ -1649,7 +1583,6 @@ Ptr get_global(VM *vm,  const char*name) {
 }
 
 /* -------------------------------------------------- */
-// @safe
 
 #include "./chars.cpp"
 
@@ -1683,7 +1616,6 @@ auto is_nlchar(char ch) {
 
 /* -------------------------------------------------- */
 
-// @safe
 auto quote_form(VM *vm, Ptr it) {
   auto q = intern(vm, "quote");
   prot_ptr(q);
@@ -1692,7 +1624,6 @@ auto quote_form(VM *vm, Ptr it) {
   return cons(vm, q, res);
 }
 
-// @safe
 void eat_ws(const char **remaining, const char *end) {
   auto input = *remaining;
   while (input < end) {
@@ -1708,7 +1639,6 @@ void eat_ws(const char **remaining, const char *end) {
 
 Ptr read(VM *vm, const char **remaining, const char *end, Ptr done);
 
-// @safe
 auto read_delimited_list(VM *vm, const char **remaining, const char *end, Ptr done, char delim) {
   prot_ptrs(done);
   auto input = *remaining;
@@ -1733,7 +1663,6 @@ auto read_delimited_list(VM *vm, const char **remaining, const char *end, Ptr do
   return res;
 }
 
-// @safe
 Ptr read_character(VM *vm, const char **remaining, const char *end, Ptr done) {
   // TODO: would be nice read named characters
   auto input = *remaining;
@@ -1754,7 +1683,6 @@ Ptr read_character(VM *vm, const char **remaining, const char *end, Ptr done) {
   }
 }
 
-// @safe
 Ptr read_bool(VM *vm, const char **remaining, const char *end, Ptr done) {
   auto input = *remaining;
   if (input >= end) { goto error; }
@@ -1818,7 +1746,6 @@ s64 read_int(VM *vm, const char **remaining, const char *end) {
     }
 }
 
-// @safe
 Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
   const char *input = *remaining;
   while (input < end) {
@@ -1881,13 +1808,11 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
   return done;
 }
 
-// @safe
 Ptr read(VM *vm, const char* input) {
   auto len = strlen(input);
   return read(vm, &input, input+len, Nil);
 }
 
-// @safe
 Ptr read_all(VM *vm, const char* input) {
   auto done = cons(vm, Nil, Nil);            prot_ptrs(done);
   auto len = strlen(input);
@@ -1987,17 +1912,14 @@ enum OpCode {
   POP_CLOSURE_ENV = 20,
 };
 
-// @safe
 void vm_push(VM* vm, Ptr value) {
   *(--vm->stack) = value;
 }
 
-// @safe
 Ptr vm_pop(VM* vm) {
   return *(vm->stack++);
 }
 
-// @safe
 auto vm_load_closure_value(VM *vm, u64 slot, u64 depth) {
   auto curr = vm->frame->closed_over;
   while (depth) {
@@ -2009,17 +1931,14 @@ auto vm_load_closure_value(VM *vm, u64 slot, u64 depth) {
   return array_get(curr, slot+1);
 }
 
-// @safe
 inline u64 vm_curr_instr(VM *vm) {
   return vm->bc->code->data[vm->pc];
 }
 
-// @safe
 inline u64 vm_adv_instr(VM *vm) {
   return vm->bc->code->data[++vm->pc];
 }
 
-// @safe
 void vm_interp(VM* vm) {
   u64 instr;
   while ((instr = vm_curr_instr(vm))) {
@@ -2183,7 +2102,6 @@ void vm_interp(VM* vm) {
 
 typedef tuple<u64*, string> branch_entry;
 
-// @safe
 class BCBuilder {
 private:
   VM* vm;
@@ -2397,13 +2315,11 @@ public:
 // stopgap append-only identity 'map'. O(N) lookups and insertions
 // TODO: a proper hash table
 
-// @safe
 Ptr make_imap(VM *vm) {
   auto result = make_xarray(vm);
   return result;
 }
 
-// @safe
 bool imap_has(Ptr map, Ptr key) {
   u64 max = xarray_used(map);
   Ptr *mem = xarray_memory(map);
@@ -2413,7 +2329,6 @@ bool imap_has(Ptr map, Ptr key) {
   return false;
 }
 
-// @safe
 Ptr imap_get(Ptr map, Ptr key) {
   u64 max = xarray_used(map);
   Ptr *mem = xarray_memory(map);
@@ -2423,7 +2338,6 @@ Ptr imap_get(Ptr map, Ptr key) {
   return Nil;
 }
 
-// @safe
 void imap_set(VM *vm, Ptr map, Ptr key, Ptr value) {
   u64 max = xarray_used(map);
   Ptr *mem = xarray_memory(map);
@@ -2469,7 +2383,6 @@ defstruct(cenv, StructTag_CompilerEnv,
           has_closure, // bool
           type);       // CompilerEnvType
 
-// @safe
 Ptr cenv(VM *vm, Ptr prev) {
   prot_ptr(prev);
   auto info        = make_imap(vm);   prot_ptr(info);
@@ -2481,22 +2394,18 @@ Ptr cenv(VM *vm, Ptr prev) {
   return make_cenv(vm, prev, info, closed_over, sub_envs, has_closure, type);
 }
 
-// @safe
 bool cenv_has_subenv_for(Ptr cenv, Ptr key) {
   return imap_has(cenv_get_sub_envs(cenv), key);
 }
 
-// @safe
 Ptr cenv_get_subenv_for(Ptr cenv, Ptr key) {
   return imap_get(cenv_get_sub_envs(cenv), key);
 }
 
-// @safe
 void cenv_set_subenv_for(VM *vm, Ptr cenv, Ptr key, Ptr subenv) {
   imap_set(vm, cenv_get_sub_envs(cenv), key, subenv);
 }
 
-// @safe
 bool cenv_is_lambda(Ptr cenv) {
   if (isNil(cenv)) return false;
   return cenv_get_type(cenv) == CompilerEnvType_Lambda;
@@ -2507,12 +2416,10 @@ bool cenv_is_let(Ptr cenv) {
   return cenv_get_type(cenv) == CompilerEnvType_Let;
 }
 
-// @safe
 bool cenv_has_closure(Ptr cenv) {
   return as(Bool, cenv_get_has_closure(cenv));
 }
 
-// @safe
 auto compiler_env_get_subenv(VM *vm, Ptr env, Ptr it) { 
   if (!cenv_has_subenv_for(env, it)) {  prot_ptrs(env, it);
     auto created = cenv(vm, env);       prot_ptr(created);
@@ -2523,14 +2430,12 @@ auto compiler_env_get_subenv(VM *vm, Ptr env, Ptr it) {
   return cenv_get_subenv_for(env, it);
 }
 
-// @safe
 auto global_env_binding(VM *vm) {
   auto info = make_varinfo(vm, VariableScope_Global,
                            to(Fixnum,0), to(Fixnum, 0));
   return (VariableBinding){0, info}; 
 }
 
-// @safe
 VariableBinding compiler_env_binding(VM *vm, Ptr env, Ptr sym) {
   if (isNil(env)) return global_env_binding(vm);
 
@@ -2554,7 +2459,6 @@ VariableBinding compiler_env_binding(VM *vm, Ptr env, Ptr sym) {
 
 void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env);
 
-// @safe
 void emit_call(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
   prot_ptr(env);
   auto fn   = car(it); prot_ptr(fn);
@@ -2569,7 +2473,6 @@ void emit_call(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
   unprot_ptrs(env, fn, args);
 }
 
-// @safe
 void emit_lambda_body(VM *vm, BCBuilder *builder, Ptr body, Ptr env) {
   if (isNil(body)) {
     builder->pushLit(Nil);
@@ -2586,7 +2489,6 @@ void emit_lambda_body(VM *vm, BCBuilder *builder, Ptr body, Ptr env) {
   unprot_ptrs(env, body);
 }
 
-// @safe
 auto emit_flat_lambda(VM *vm, Ptr it, Ptr env) {
   it = cdr(it);
   prot_ptrs(it, env);
@@ -2599,7 +2501,6 @@ auto emit_flat_lambda(VM *vm, Ptr it, Ptr env) {
   return make_closure(vm, bc, Nil);
 }
 
-// @safe
 void emit_lambda(VM *vm, BCBuilder *parent, Ptr it, Ptr p_env) {  prot_ptrs(it, p_env);
   auto env = compiler_env_get_subenv(vm, p_env, it);              prot_ptr(env);
   auto has_closure = cenv_has_closure(env);
@@ -2632,7 +2533,6 @@ void emit_lambda(VM *vm, BCBuilder *parent, Ptr it, Ptr p_env) {  prot_ptrs(it, 
   unprot_ptrs(it, p_env, env);
 }
 
-// @safe
 void emit_let (VM *vm, BCBuilder *builder, Ptr it, Ptr p_env) {  prot_ptrs(it, p_env);
   auto env = compiler_env_get_subenv(vm, p_env, it);             prot_ptr(env);
 
@@ -2695,7 +2595,6 @@ void emit_let (VM *vm, BCBuilder *builder, Ptr it, Ptr p_env) {  prot_ptrs(it, p
 }
 
 
-// @safe
 void emit_if(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
   auto test = nth_or_nil(it, 1);
   auto _thn = nth_or_nil(it, 2);
@@ -2714,7 +2613,6 @@ void emit_if(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
   unprot_ptrs(env, test, _thn, _els);
 }
 
-// @safe
 void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
   if (is(Symbol, it)) { /*                                  */ prot_ptrs(it, env);
     auto binding        = compiler_env_binding(vm, env, it);
@@ -2768,7 +2666,6 @@ void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
 }
 
 // returns true if variable was closed over, false otherwise
-// @safe
 bool mark_variable_for_closure (VM *vm, Ptr sym, Ptr env, u64 level, bool saw_lambda) {
   if (isNil(env)) return false; // global scope
   auto var_map = cenv_get_info(env);
@@ -2810,7 +2707,6 @@ bool mark_variable_for_closure (VM *vm, Ptr sym, Ptr env, u64 level, bool saw_la
 
 void mark_closed_over_variables(VM *vm, Ptr it, Ptr env);
 
-// @safe
 void
 mark_lambda_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {  prot_ptrs(it, p_env);
   auto env = compiler_env_get_subenv(vm, p_env, it);            prot_ptr(env);
@@ -2847,7 +2743,6 @@ mark_lambda_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {  prot_ptrs(it, p_
   unprot_ptrs(it, p_env, env);
 }
 
-// @safe
 void mark_let_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {  prot_ptrs(it, p_env);
   auto env = compiler_env_get_subenv(vm, p_env, it);              prot_ptr(env);
   cenv_set_type(env, CompilerEnvType_Let);
@@ -2881,7 +2776,6 @@ void mark_let_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {  prot_ptrs(it, 
   unprot_ptrs(it, p_env, env);
 }
 
-// @safe
 void mark_closed_over_variables(VM *vm, Ptr it, Ptr env) {  prot_ptrs(it, env);
   if (is(Symbol, it)) {
     mark_variable_for_closure(vm, it, env, 0, false);
@@ -2916,7 +2810,6 @@ void mark_closed_over_variables(VM *vm, Ptr it, Ptr env) {  prot_ptrs(it, env);
   unprot_ptrs(it, env);
 }
 
-// @safe
 auto compile_toplevel_expression(VM *vm, Ptr it) { prot_ptr(it);
   auto env = cenv(vm, Nil);                        prot_ptr(env);
   auto builder = new BCBuilder(vm);

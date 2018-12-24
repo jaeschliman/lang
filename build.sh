@@ -9,3 +9,4 @@ g++ main.cpp -Werror -O0 -std=c++14 -o build/run-file
 cd build
 ln run-file soak
 ln run-file repl
+ln run-file events

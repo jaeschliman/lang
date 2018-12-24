@@ -342,11 +342,11 @@ struct StandardObject : Object { // really more of a structure object
 // maybe have a pair of s30 ints as an imm?
 // what about a float?
 
-#define TRUE  ((Ptr){0b10100})
-#define FALSE ((Ptr){0b00100})
+#define True  ((Ptr){0b10100})
+#define False ((Ptr){0b00100})
 
 // not so sure about this...
-#define NIL objToPtr((Object *)0)
+#define Nil objToPtr((Object *)0)
 
 #define _type_test_name(type) is_##type##__Impl
 #define _ptr_creation_name(type) to_##type##_Ptr__Impl
@@ -415,7 +415,7 @@ unwrap_ptr_for(Char, it) {
 
 prim_type(Bool)
 create_ptr_for(Bool, bool tf) {
-  return tf ? TRUE : FALSE;
+  return tf ? True : False;
 }
 unwrap_ptr_for(Bool, it){
   return (it.value >> TAG_BITS) ? true : false;
@@ -445,7 +445,7 @@ type_test(BrokenHeart, it) {
   Ptr _##name = vm_pop(vm);                            \
   if (!is(type, _##name)) {                            \
     vm->error = " argument " #name " is not a " #type; \
-    return NIL;                                        \
+    return Nil;                                        \
   }                                                    \
   auto name = as(type, _##name);
 
@@ -1061,7 +1061,7 @@ auto vm_print_stack_trace(VM *vm) {
     stack = &fr->argv[fr->argc + pad];
     fr = fr->prev_frame;
   }
-  return NIL;
+  return Nil;
 }
 
 // @safe @noalloc
@@ -1073,7 +1073,7 @@ auto vm_print_debug_stack_trace(VM *vm) {
       cout << "    " << it << endl;
     });
   cout << "----------------------------------------" << endl;
-  return NIL;
+  return Nil;
 }
 
 /* ---------------------------------------- */
@@ -1444,7 +1444,7 @@ void gc(VM *vm) {
 
 // @safe
 auto make_base_class(VM *vm, const char* name, u64 ivar_count) {
-  auto defaultPrint = NIL;
+  auto defaultPrint = Nil;
   Ptr slots[] = {make_string(vm,name), make_number(ivar_count), defaultPrint};
   return make_standard_object(vm, vm->globals->Base, slots);
 }
@@ -1458,7 +1458,7 @@ inline bool consp(Ptr it) {
 
 // @safe
 inline Ptr car(Ptr it) {
-  if (isNil(it)) return NIL;
+  if (isNil(it)) return Nil;
   return cons_get_car(it);
 }
 
@@ -1469,7 +1469,7 @@ inline void set_car(Ptr cons, Ptr value) {
 
 // @safe
 inline Ptr cdr(Ptr it) {
-  if (isNil(it)) return NIL;
+  if (isNil(it)) return Nil;
   return cons_get_cdr(it);
 }
 
@@ -1481,7 +1481,7 @@ inline void set_cdr(Ptr it, Ptr value) {
 // @safe
 Ptr nth_or_nil(Ptr it, u64 idx) {
   assert(idx >= 0);
-  if (isNil(it)) return NIL;
+  if (isNil(it)) return Nil;
   if (idx == 0) return car(it);
   else return nth_or_nil(cdr(it), idx - 1);
 }
@@ -1498,7 +1498,7 @@ Ptr assoc(Ptr item, Ptr alist) {
     if (ptr_eq(car(pair), item)) return pair;
     alist = cdr(alist);
   }
-  return NIL;
+  return Nil;
 }
 
 // @safe -- but only on static *alistref
@@ -1517,7 +1517,7 @@ void set_assoc(VM *vm, Ptr *alistref, Ptr item, Ptr value) {
 
 // @safe
 Ptr make_list(VM *vm, u64 len, Ptr* ptrs) {
-  if (len == 0) return NIL;
+  if (len == 0) return Nil;
   // TODO: iterative solution
   return cons(vm, *ptrs, make_list(vm, len - 1, ptrs + 1));
 }
@@ -1654,7 +1654,7 @@ auto is_nlchar(char ch) {
 auto quote_form(VM *vm, Ptr it) {
   auto q = intern(vm, "quote");
   prot_ptr(q);
-  auto res = cons(vm, it, NIL);
+  auto res = cons(vm, it, Nil);
   unprot_ptr(q);
   return cons(vm, q, res);
 }
@@ -1733,7 +1733,7 @@ Ptr read_bool(VM *vm, const char **remaining, const char *end, Ptr done) {
   }
  ok: {
     auto ch = *input;
-    auto res = ch == 't' ? TRUE : FALSE; // TODO: error if not #f
+    auto res = ch == 't' ? True : False; // TODO: error if not #f
     input++;
     *remaining = input;
     return res;
@@ -1803,12 +1803,12 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
 // @safe
 Ptr read(VM *vm, const char* input) {
   auto len = strlen(input);
-  return read(vm, &input, input+len, NIL);
+  return read(vm, &input, input+len, Nil);
 }
 
 // @safe
 Ptr read_all(VM *vm, const char* input) {
-  auto done = cons(vm, NIL, NIL);            prot_ptrs(done);
+  auto done = cons(vm, Nil, Nil);            prot_ptrs(done);
   auto len = strlen(input);
 
   auto items = make_xarray(vm);              prot_ptrs(items);
@@ -1845,7 +1845,7 @@ void vm_pop_stack_frame(VM* vm) {
 void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over);
 
 void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn) {
-  vm_push_stack_frame(vm, argc, fn, NIL);
+  vm_push_stack_frame(vm, argc, fn, Nil);
 };
 
 void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
@@ -1898,7 +1898,7 @@ enum OpCode {
   LOAD_CLOSURE = 11,
   BUILD_CLOSURE = 12,
   PUSH_CLOSURE_ENV = 13,
-  BR_IF_FALSE = 14,
+  BR_IF_False = 14,
   JUMP = 15,
   STACK_RESERVE = 16,
   LOAD_FRAME_RELATIVE = 17,
@@ -1946,7 +1946,7 @@ void vm_interp(VM* vm) {
     switch (instr){
     case STACK_RESERVE: {
       u64 count = vm_adv_instr(vm);
-      while (count--) { vm_push(vm, NIL); }
+      while (count--) { vm_push(vm, Nil); }
       break;
     }
     case LOAD_FRAME_RELATIVE: {
@@ -2029,10 +2029,10 @@ void vm_interp(VM* vm) {
       }
       break;
     }
-    case BR_IF_FALSE: {
+    case BR_IF_False: {
       auto it = vm_pop(vm);
       u64 jump = vm_adv_instr(vm);
-      if (ptr_eq(it, FALSE)) {
+      if (ptr_eq(it, False)) {
         vm->pc = jump - 1; //-1 to acct for pc advancing
       }
       break;
@@ -2249,7 +2249,7 @@ public:
     return this;
   }
   auto branchIfFalse(const char *name) {
-    pushOp(BR_IF_FALSE);
+    pushOp(BR_IF_False);
     pushJumpLocation(name);
     return this;
   }
@@ -2341,7 +2341,7 @@ Ptr imap_get(Ptr map, Ptr key) {
   for (u64 i = 0; i < max; i += 2) {
     if (mem[i] == key) return mem[i + 1];
   }
-  return NIL;
+  return Nil;
 }
 
 // @safe
@@ -2396,7 +2396,7 @@ Ptr cenv(VM *vm, Ptr prev) {
   auto info        = make_imap(vm);   prot_ptr(info);
   auto closed_over = make_xarray(vm); prot_ptr(closed_over);
   auto sub_envs    = make_imap(vm);   prot_ptr(sub_envs);
-  auto has_closure = FALSE;
+  auto has_closure = False;
   auto type = CompilerEnvType_Unknown;
   unprot_ptrs(prev, info, closed_over, sub_envs);
   return make_cenv(vm, prev, info, closed_over, sub_envs, has_closure, type);
@@ -2487,12 +2487,12 @@ void emit_call(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
 // @safe
 void emit_lambda_body(VM *vm, BCBuilder *builder, Ptr body, Ptr env) {
   if (isNil(body)) {
-    builder->pushLit(NIL);
+    builder->pushLit(Nil);
     return;
   }
   assert(consp(body));
   prot_ptrs(env, body);
-  builder->pushLit(NIL);
+  builder->pushLit(Nil);
   emit_expr(vm, builder, car(body), env);
   do_list(vm, cdr(body), [&](Ptr expr){
       builder->pop();
@@ -2511,7 +2511,7 @@ auto emit_flat_lambda(VM *vm, Ptr it, Ptr env) {
   builder->ret();
   auto bc = objToPtr(builder->build());
   unprot_ptrs(it, env);
-  return make_closure(vm, bc, NIL);
+  return make_closure(vm, bc, Nil);
 }
 
 // @safe
@@ -2594,7 +2594,7 @@ void emit_let (VM *vm, BCBuilder *builder, Ptr it, Ptr p_env) {  prot_ptrs(it, p
   // @safe
   {
     auto body = cdr(cdr(it));                            prot_ptr(body);
-    builder->pushLit(NIL);
+    builder->pushLit(Nil);
     do_list(vm, body, [&](Ptr expr){
         builder->pop();
         emit_expr(vm, builder, expr, env);
@@ -2707,7 +2707,7 @@ bool mark_variable_for_closure (VM *vm, Ptr sym, Ptr env, u64 level, bool saw_la
     auto index = xarray_used(closed_over);
     varinfo_set_closure_index(info, to(Fixnum, index));
     xarray_push(vm, closed_over, sym);
-    cenv_set_has_closure(env, TRUE);
+    cenv_set_has_closure(env, True);
     unprot_ptrs(sym, env, var_map);
 
     return true;
@@ -2717,7 +2717,7 @@ bool mark_variable_for_closure (VM *vm, Ptr sym, Ptr env, u64 level, bool saw_la
     if (cenv_is_lambda(env)) saw_lambda = true;
     auto prev = cenv_get_prev(env);
     auto closed = mark_variable_for_closure(vm, sym, prev, level + 1, saw_lambda);
-    if (closed) cenv_set_has_closure(env, TRUE);
+    if (closed) cenv_set_has_closure(env, True);
     unprot_ptr(env);
     return closed;
   }
@@ -2833,7 +2833,7 @@ void mark_closed_over_variables(VM *vm, Ptr it, Ptr env) {  prot_ptrs(it, env);
 
 // @safe
 auto compile_toplevel_expression(VM *vm, Ptr it) { prot_ptr(it);
-  auto env = cenv(vm, NIL);                        prot_ptr(env);
+  auto env = cenv(vm, Nil);                        prot_ptr(env);
   auto builder = new BCBuilder(vm);
   mark_closed_over_variables(vm, it, env);
   emit_expr(vm, builder, it, env);
@@ -2884,7 +2884,7 @@ VM *vm_create() {
 
   vm->globals = (Globals *)calloc(sizeof(Globals), 1);
   vm->globals->symtab = new unordered_map<string, Ptr>;
-  vm->globals->env = NIL;
+  vm->globals->env = Nil;
 
   initialize_classes(vm);
   initialize_primitive_functions(vm);
@@ -2915,7 +2915,7 @@ Ptr eval(VM *vm, Ptr expr) {
 
 Ptr run_string(VM *vm, const char *str) {
   auto exprs = read_all(vm, str);
-  Ptr result = NIL;
+  Ptr result = Nil;
   do_list(vm, exprs, [&](Ptr expr){
       result = eval(vm, expr);
     });
@@ -2926,7 +2926,7 @@ void start_up_and_run_string(const char* str, bool soak) {
   VM *vm = vm_create();
 
   auto exprs = read_all(vm, str);
-  auto kept_head = cons(vm, NIL, exprs); prot_ptr(kept_head);
+  auto kept_head = cons(vm, Nil, exprs); prot_ptr(kept_head);
   do {
 
     do_list(vm, cdr(kept_head), [&](Ptr expr){
@@ -2980,6 +2980,42 @@ auto run_file(string path, bool soak_test) {
   // TODO: free contents
 }
 
+void load_file(VM *vm, const char *path) {
+  run_string(vm, read_file_contents(path));
+}
+
+// @speed: no need to allocate a new ByteCode for this every time...
+void vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
+
+  prot_ptr(symbol); protect_ptr_vector(argv, argc);
+
+  auto builder = new BCBuilder(vm);
+  for (u64 i = 0; i < argc; i++) {
+    builder->pushLit(argv[i]);
+  }
+  builder->loadGlobal(symbol);
+  builder->call(argc);
+  auto bc = builder->build();
+  
+  unprot_ptr(symbol); unprotect_ptr_vector(argv);
+
+  vm_push_stack_frame(vm, 0, bc);
+  vm_interp(vm);
+  vm_pop_stack_frame(vm);
+}
+
+void start_up_and_run_event_loop(const char *path) {
+  auto vm = vm_create();
+  load_file(vm, path);
+
+  // alas, 'raw' terminal mode is too much of a PITA to make this worth it RN
+  while(true){
+    int key = cin.get();
+    Ptr num = to(Fixnum, key);
+    vm_call_global(vm, intern(vm, "onkey"), 1, (Ptr[]){num});
+  }
+}
+
 /* ---------------------------------------- */
 
 const char *require_provided_file(int argc, const char** argv) {
@@ -3012,6 +3048,9 @@ int main(int argc, const char** argv) {
     run_file(file, true);
   } else if (strcmp(invoked, "repl") == 0){
     start_up_and_run_repl();
+  } else if (strcmp(invoked, "events") == 0){
+    auto file = require_provided_file(argc, argv);
+    start_up_and_run_event_loop(file);
   } else {
     cerr << " unrecognized invocation: " << invoked << endl;
     return 2;

@@ -1896,7 +1896,7 @@ void vm_pop_stack_frame(VM* vm) {
   vm->stack = fr->prev_stack + fr->argc;
   vm->frame = fr->prev_frame;
 
-  // cout << "return stack frome to :" << vm->stack << endl;
+  // cout << "return stack frame to :" << vm->stack << endl;
 }
 
 void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over);
@@ -3146,7 +3146,11 @@ void start_up_and_run_event_loop(const char *path) {
         auto y = event.motion.y;
         auto p = (point){x, y};
         auto pt = to(Point, p);
-        vm_call_global(vm, intern(vm, "onmousemove"), 1, (Ptr[]){pt});
+        if (event.motion.state & SDL_BUTTON_LMASK) {
+          vm_call_global(vm, intern(vm, "onmousedrag"), 1, (Ptr[]){pt});
+        } else {
+          vm_call_global(vm, intern(vm, "onmousemove"), 1, (Ptr[]){pt});
+        }
         break;
       }
       }

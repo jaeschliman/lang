@@ -294,11 +294,13 @@ inline bool pointer_is_aligned(void* mem) {
 inline u64 vm_heap_used(VM *vm) {
   return (u64)vm->heap_end - (u64)vm->heap_mem;
 }
-void die(const char *message) {
-  print_stacktrace();
-  cerr << message << endl;
-  exit(1);
-}
+
+#define _die_prefix(x) << x
+#define die(...) do {                           \
+    print_stacktrace();                         \
+    cerr MAP(_die_prefix, __VA_ARGS__) << endl; \
+    exit(1);                                    \
+  } while(0)
 
 void gc(VM *vm);
 
@@ -1372,8 +1374,7 @@ inline void gc_unprotect_reference(VM *vm, Object **ref){
   auto map = vm->gc_protected;
   auto found = map->find(ref);
   if (found == map->end()) {
-    cout << "ERROR: tried to unprotect a non-protected reference." << endl;
-    assert(false);
+    die("tried to protect a non-protected reference");
   } else {
     found->second--;
     if (found->second == 0) {
@@ -2358,13 +2359,11 @@ public:
   }
   auto loadGlobal(Ptr sym) {
     if (!is(Symbol, sym)) {
-      cout << " ERROR: " << sym << " is not a symbol.";
-      assert(false);
+      die(sym, " is not a symbol");
     }
     auto pair = assoc(sym, vm->globals->env);
     if (!consp(pair)) {
-      cout << " ERROR: " << sym << " is not defined in the global environment.";
-      assert(false);
+      die(sym, " is not defined in the global environment.");
     }
     pushLit(pair);
     pushOp(LOAD_GLOBAL);
@@ -2503,6 +2502,11 @@ bool cenv_is_lambda(Ptr cenv) {
   return cenv_get_type(cenv) == CompilerEnvType_Lambda;
 }
 
+bool cenv_is_let(Ptr cenv) {
+  if (isNil(cenv)) return false;
+  return cenv_get_type(cenv) == CompilerEnvType_Let;
+}
+
 // @safe
 bool cenv_has_closure(Ptr cenv) {
   return as(Bool, cenv_get_has_closure(cenv));
@@ -2535,10 +2539,11 @@ VariableBinding compiler_env_binding(VM *vm, Ptr env, Ptr sym) {
     VariableBinding outer = compiler_env_binding(vm, cenv_get_prev(env), sym);
     unprot_ptrs(sym, env)
     auto from_lambda = cenv_is_lambda(cenv_get_prev(env));
+    auto in_let = cenv_is_let(env);
     auto scope = varinfo_get_scope(outer.variable_info);
-    if (scope == VariableScope_Argument && from_lambda) {
-      cout << "  ERROR: variable should have been marked for closure: " << sym << endl;
-      assert(false);
+    // this is a pretty crude check...
+    if (scope == VariableScope_Argument && from_lambda && !in_let) {
+      die("variable should have been marked for closure: ", sym);
     }
     auto depth = outer.binding_depth + 1;
     auto info  = outer.variable_info;
@@ -3169,7 +3174,7 @@ void start_up_and_run_event_loop(const char *path) {
   bool running = true;
   SDL_Event event;
   while (running) {
-    if (SDL_PollEvent(&event)) {
+    if (SDL_WaitEvent(&event)) { //or SDL_PollEvent for continual updates
       switch (event.type) {
       case SDL_QUIT: running = false; break;
       case SDL_KEYDOWN : {
@@ -3190,6 +3195,14 @@ void start_up_and_run_event_loop(const char *path) {
         }
         break;
       }
+      case SDL_MOUSEBUTTONDOWN: {
+        auto x = event.button.x;
+        auto y = event.button.y;
+        auto p = (point){x, y};
+        auto pt = to(Point, p);
+        vm_call_global(vm, intern(vm, "onmousedown"), 1, (Ptr[]){pt});
+        break;
+      }
       }
     }
     SDL_UpdateWindowSurface(window);
@@ -3205,7 +3218,7 @@ void start_up_and_run_event_loop(const char *path) {
 
 /* ---------------------------------------- */
 
-const char *require_provided_file(int argc, const char** argv) {
+const char *require_argv_file(int argc, const char** argv) {
   if (argc > 1) {
     return argv[1];
   } else {
@@ -3228,15 +3241,15 @@ int main(int argc, const char** argv) {
 
   // pretty hacky way of avoiding checking flags, I'll admit...
   if (strcmp(invoked, "run-file") == 0) { 
-    auto file = require_provided_file(argc, argv);
+    auto file = require_argv_file(argc, argv);
     run_file(file, false);
   } else if (strcmp(invoked, "soak") == 0){
-    auto file = require_provided_file(argc, argv);
+    auto file = require_argv_file(argc, argv);
     run_file(file, true);
   } else if (strcmp(invoked, "repl") == 0){
     start_up_and_run_repl();
   } else if (strcmp(invoked, "events") == 0){
-    auto file = require_provided_file(argc, argv);
+    auto file = require_argv_file(argc, argv);
     start_up_and_run_event_loop(file);
   } else {
     cerr << " unrecognized invocation: " << invoked << endl;

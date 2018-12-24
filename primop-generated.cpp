@@ -15,6 +15,7 @@ enum PrimitiveOperation : u64 {
   PRIM_SET_SYM_VAL = ((12ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_PRINT_STACK = ((13ULL << 32) | (0ULL << 16) | PrimOp_Tag),
   PRIM_DBG_STACK = ((14ULL << 32) | (0ULL << 16) | PrimOp_Tag),
+  PRIM_SETPXL = ((15ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -132,6 +133,13 @@ Ptr PRIM_DBG_STACK_impl(VM *vm) {
  return vm_print_debug_stack_trace(vm);
 }
 
+// Primitive 15
+Ptr PRIM_SETPXL_impl(VM *vm) {
+   VM_ARG(Point,p);
+
+ return gfx_set_pixel(vm, p);
+}
+
 
 PrimitiveFunction PrimLookupTable[] = {
   &PRIM_PLUS_impl,
@@ -149,6 +157,7 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_SET_SYM_VAL_impl,
   &PRIM_PRINT_STACK_impl,
   &PRIM_DBG_STACK_impl,
+  &PRIM_SETPXL_impl,
 
   (PrimitiveFunction)(void *)0
 };
@@ -170,5 +179,6 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "set-symbol-value", to(PrimOp, PRIM_SET_SYM_VAL));
   set_global(vm, "print-stacktrace", to(PrimOp, PRIM_PRINT_STACK));
   set_global(vm, "debug-stacktrace", to(PrimOp, PRIM_DBG_STACK));
+  set_global(vm, "set-pixel", to(PrimOp, PRIM_SETPXL));
 
 }

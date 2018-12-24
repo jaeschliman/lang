@@ -126,6 +126,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim set-symbol-value SET_SYM_VAL ((a Symbol) (b any)) any "set_global(vm, objToPtr(a), b)")
   (prim print-stacktrace PRINT_STACK () any "vm_print_stack_trace(vm)")
   (prim debug-stacktrace DBG_STACK () any "vm_print_debug_stack_trace(vm)")
+  (prim set-pixel SETPXL ((p Point)) any "gfx_set_pixel(vm, p)")
 
   (setf *prims* (reverse *prims*)))
 
@@ -136,7 +137,8 @@ void initialize_primitive_functions(VM *vm) {
   (emit-prim-enum)
   (emit-all-prim-impls)
   (emit-prim-table)
-  (emit-prim-registration-function))
+  (emit-prim-registration-function)
+  (save-buffer))
 
 
 (provide 'prims)

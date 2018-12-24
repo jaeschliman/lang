@@ -265,6 +265,7 @@ struct VM {
   unordered_map<Object **, u64> *gc_protected;
   unordered_map<Ptr *, u64> *gc_protected_ptrs;
   unordered_map<Ptr *, u64> *gc_protected_ptr_vectors;
+  SDL_Surface *surface;
 };
 
 typedef Ptr (*PrimitiveFunction)(VM*);
@@ -2897,6 +2898,18 @@ auto compile_toplevel_expression(VM *vm, Ptr it) { prot_ptr(it);
 
 Ptr primitive_print(Ptr a) { cout << a << endl; return a; }
 
+Ptr gfx_set_pixel(VM *vm, point p) { // assumes 4 bytes pp
+  auto surface = vm->surface;
+  if (surface) {
+    if (p.x < 0 || p.x >= surface->w) return Nil;
+    if (p.y < 0 || p.y >= surface->h) return Nil;
+    u32 pixel = 0;
+    u8 *target_pixel = (u8 *)surface->pixels + p.y * surface->pitch + p.x * 4;
+    *(u32 *)target_pixel = pixel;
+  }
+  return Nil;
+}
+
 #include "./primop-generated.cpp"
 
 /* -------------------------------------------------- */
@@ -3071,6 +3084,15 @@ void start_up_and_run_event_loop(const char *path) {
   SDL_Init(SDL_INIT_VIDEO);
   window = SDL_CreateWindow(title, x, y, w, h, SDL_WINDOW_SHOWN);  
   if(!window) die("could not create window");
+  vm->surface = SDL_GetWindowSurface(window);
+  if (!vm->surface) die("could not create surface");
+
+  {
+    auto fmt = vm->surface->format;
+    SDL_FillRect(vm->surface, NULL, SDL_MapRGB(fmt, 255, 255, 255));
+    SDL_UpdateWindowSurface(window);
+  }
+
   bool running = true;
   SDL_Event event;
   while (running) {
@@ -3084,8 +3106,8 @@ void start_up_and_run_event_loop(const char *path) {
         break;
       }
       case SDL_MOUSEMOTION: {
-        auto x = event.motion.x - (w / 2);
-        auto y = event.motion.y - (h / 2);
+        auto x = event.motion.x;
+        auto y = event.motion.y;
         auto p = (point){x, y};
         auto pt = to(Point, p);
         vm_call_global(vm, intern(vm, "onmousemove"), 1, (Ptr[]){pt});
@@ -3093,9 +3115,14 @@ void start_up_and_run_event_loop(const char *path) {
       }
       }
     }
+    SDL_UpdateWindowSurface(window);
+    // SDL_Delay(10);
   }
 
   SDL_DestroyWindow(window);
+  cerr << " executed " << vm->instruction_count << " instructions." << endl;
+  cerr << " gc count: " << vm->gc_count;
+  report_memory_usage(vm);
   SDL_Quit();
 }
 

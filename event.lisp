@@ -3,5 +3,6 @@
                            (print code)))
 
 (set-symbol-value 'onmousemove (lambda (pt)
-                                 (print 'mousemove)
-                                 (print pt)))
+                                 ;; (print 'mousemove)
+                                 ;; (print pt)
+                                 (set-pixel pt)))

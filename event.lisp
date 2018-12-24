@@ -2,7 +2,6 @@
                            (print '(you pressed a key))
                            (print code)))
 
-(set-symbol-value 'onmousemove (lambda (x y)
+(set-symbol-value 'onmousemove (lambda (pt)
                                  (print 'mousemove)
-                                 (print x)
-                                 (print y)))
+                                 (print pt)))

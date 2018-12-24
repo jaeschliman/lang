@@ -88,6 +88,7 @@ how to represent U32 and U64?
 #include <functional>
 #include <chrono>
 #include <thread>
+#include <bitset>
 #include "./stacktrace.h"
 #include "./macro_support.h"
 
@@ -446,20 +447,29 @@ struct point { s32 x, y; };
 
 prim_type(Point)
 create_ptr_for(Point, point p) {
-  auto mask = ~(1ULL << 31);
+  // cout << " p.x = " << bitset<32>(p.x) << " p.y =" << bitset<32>(p.y) << endl;
+  auto mask      = (1ULL << 30) - 1;
   auto high_mask = mask << 34;
-  auto low_mask = mask << 4;
-  auto x_comp = ((s64)p.x << 34) & high_mask;
-  auto y_comp = ((s64)p.y << 4) & low_mask;
-  u64 value = x_comp | y_comp | Point_Tag;
+  auto low_mask  = mask << 4;
+  auto x_sign    = p.x < 0 ? (1ULL << 63) : 0;
+  u64 x_comp     = (((u64)p.x << 34) & high_mask) | x_sign;
+  auto y_sign    = p.y < 0 ? (1ULL << 33) : 0;
+  u64 y_comp     = (((u64)p.y << 4) & low_mask) | y_sign;
+  u64 value      = x_comp | y_comp | Point_Tag;
   return (Ptr){value};
 }
 unwrap_ptr_for(Point, it) {
   point p;
-  auto mask = ~(1ULL << 31);
+  auto mask = (1ULL << 30) - 1;
+  u64 xbit = it.value & (1ULL << 63) ? 0b11 : 0b00;
+  u64 ybit = it.value & (1ULL << 33) ? 0b11 : 0b00;
+  // cout << " x < 0 ? " << xbit << "   y < 0 ? " << ybit << endl;
   auto val = it.value >> 4;
-  p.y = val & mask;
-  p.x = (val >> 30) & mask;
+  u32 y = (val & mask) | (ybit << 30);
+  u32 x = ((val >> 30) & mask) | (xbit << 30);
+  p.x = (s32)x;
+  p.y = (s32)y;
+  // cout << " p.x = " << bitset<32>(p.x) << " p.y =" << bitset<32>(p.y) << endl;
   return p;
 }
 
@@ -3046,9 +3056,11 @@ void start_up_and_run_event_loop(const char *path) {
         break;
       }
       case SDL_MOUSEMOTION: {
-        auto x = to(Fixnum, event.motion.x);
-        auto y = to(Fixnum, event.motion.y);
-        vm_call_global(vm, intern(vm, "onmousemove"), 2, (Ptr[]){x, y});
+        auto x = event.motion.x - (w / 2);
+        auto y = event.motion.y - (h / 2);
+        auto p = (point){x, y};
+        auto pt = to(Point, p);
+        vm_call_global(vm, intern(vm, "onmousemove"), 1, (Ptr[]){pt});
         break;
       }
       }

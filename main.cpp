@@ -14,6 +14,7 @@ DONE: lambda compiler
 DONE: lambdas + closures compiler
 DONE: def or define or something
 TODO: varargs
+TODO: quasiquotation
 DONE: booleans
 DONE: characters
 DONE: obj_size function // heap size of object (can be 0 for imms)
@@ -61,18 +62,26 @@ TODO: maybe expose bytecode prims as special forms? %push %call etc...
 TODO: growable heap
 TODO: looping primitive
 DONE: repl
-TODO: notebook
+TODO: basic notebook
+TODO: notebook w/ event reactor
 DONE: 'load file' vs run file
 TODO: rewrite the codegen in the lang itself 
 TODO: 'apply'
 DONE: basic 'event reactor' runloop -- start with keycodes
 TODO: optimize global calls for more arities
-TODO: point functions
+DONE: point functions
+TODO: real 'built-in-classes' i.e. Cons Fixnum etc
+TODO: basic message definition, send facility
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
 
 how to represent U32 and U64?
+
+how will we pass callbacks through to the VM?  e.g. if I want to map
+values of a ht?  safe to 'just' push a stack frame?  but how do we
+yield control to the vm, and get it back?
+
 */
 
 #include <SDL2/SDL.h>
@@ -172,6 +181,7 @@ inline Ptr objToPtr(Object *ref) {
   p.value = ((u64) ref) |  0b1;
   return p;
 }
+
 
 /* ---------------------------------------- */
 //          GC protection macros
@@ -546,6 +556,15 @@ unwrap_ptr_for(Symbol, it) {
   return as(ByteArray, it);
 }
 
+type_test(String, it) {
+  if (!is(ByteArray, it)) return false;
+  auto bao = as(ByteArray, it);
+  return bao->bao_type == String;
+}
+unwrap_ptr_for(String, it) {
+  return as(ByteArray, it);
+}
+
 PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   auto byte_count = sizeof(PtrArrayObject) + (len * sizeof(Ptr));
   PtrArrayObject* obj = (PtrArrayObject *)vm_alloc(vm, byte_count);
@@ -656,15 +675,19 @@ u64 array_capacity(Ptr array) {
   return a->length;
 }
 
-// using a 2 element array to hold count and buffer for now
-Ptr make_xarray(VM *vm) {
-  auto used = to(Fixnum, 0);
-  Ptr buffer = make_zf_array(vm, 4); prot_ptr(buffer);
+// using a 2 element array to hold count and buffer for now -- could be a defstruct
+Ptr make_xarray_with_capacity_and_used(VM *vm, u64 cap, u64 used) {
+  assert(used <= cap);
+  Ptr buffer = make_zf_array(vm, cap); prot_ptr(buffer);
   Ptr result = make_zf_array(vm, 2);
-  array_set(result, 0, used);
+  array_set(result, 0, to(Fixnum,used));
   array_set(result, 1, buffer);
   unprot_ptr(buffer);
   return result;
+}
+
+Ptr make_xarray(VM *vm) {
+  return make_xarray_with_capacity_and_used(vm, 4, 0);
 }
 
 u64 xarray_capacity(Ptr array) {
@@ -701,6 +724,48 @@ Ptr xarray_at(Ptr array, u64 idx) {
   assert(idx < xarray_used(array));
   return xarray_memory(array)[idx];
 }
+
+/* ---------------------------------------- */
+//          basic hashing support
+//
+// use adapted djb2 for strings, random for everything else
+u32 djb2(unsigned char *str, u64 len) {
+  u32 hash = 5381;
+  u64 i = 0;
+
+  while (i++ < len)
+    hash = ((hash << 5) + hash) + (*str++); /* hash * 33 + c */
+
+  return hash;
+}
+
+// mindlessly cribbed from https://gist.github.com/badboy/6267743
+// we'll see if it works for now...
+u32 hash6432shift(u64 key)
+{
+  key = (~key) + (key << 18); // key = (key << 18) - key - 1;
+  key = key ^ (key >> 31);
+  key = key * 21; // key = (key + (key << 2)) + (key << 4);
+  key = key ^ (key >> 11);
+  key = key + (key << 6);
+  key = key ^ (key >> 22);
+  return (u32 )key;
+}
+
+u32 hash_code(Ptr it) {
+  if (!is(Object, it)) return hash6432shift(it.value);
+  auto obj = as(Object, it);
+  if (!obj->header.hashcode) {
+    if (is(String, it)) {
+      auto str = as(String, it);
+      obj->header.hashcode = djb2((u8*)str->data, str->length);
+    } else {
+      obj->header.hashcode = hash6432shift(it.value);
+    }
+  }
+  return obj->header.hashcode;
+} 
+
 
 /* ---------------------------------------- */
 // defstruct macro
@@ -752,12 +817,14 @@ enum StructTag : s64 {
   StructTag_Cons,
   StructTag_VarInfo,
   StructTag_CompilerEnv,
+  StructTag_HashTable,
   StructTag_End
 };
 
 /* ---------------------------------------- */
 
 defstruct(cons, StructTag_Cons, car, cdr);
+defstruct(ht, StructTag_HashTable, array);
 
 /* ---------------------------------------- */
 
@@ -1525,6 +1592,65 @@ u64 list_length(VM *vm, Ptr it) {
   do_list(vm, it, [&](Ptr p){ unused(p); count++; });
   return count;
 }
+/* ---------------------------------------- */
+
+Ptr ht(VM *vm) {
+  return make_ht(vm, make_xarray_with_capacity_and_used(vm, 64, 64));
+}
+
+Ptr ht_at(Ptr ht, Ptr key) {
+  auto array = ht_get_array(ht);
+  auto used  = xarray_used(array);
+  auto mem   = xarray_memory(array);
+  auto hash  = hash_code(key);
+  auto idx   = hash % used;
+  assert(idx < used); //:P
+  if (!mem[idx].value) return Nil;
+  auto cons = mem[idx];
+  while (!isNil(cons)) {
+    auto pair = car(cons);
+    if (car(pair) == key ) return cdr(pair);
+    cons = cdr(cons);
+  }
+  return Nil;
+}
+
+// TODO: grow table when it gets too full
+void ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) {  prot_ptrs(key, value);
+  auto array = ht_get_array(ht);                      prot_ptr(array);
+  auto used  = xarray_used(array);
+  auto mem   = xarray_memory(array);
+  auto hash  = hash_code(key);
+  auto idx   = hash % used;
+  assert(idx < used); //:P
+  if (!mem[idx].value) { // no entry
+    auto list = cons(vm, cons(vm, key, value), Nil);
+    auto mem  = xarray_memory(array); // mem may have moved
+    mem[idx] = list;
+    unprot_ptrs(key, value, array);
+    return;
+  } 
+  // collision
+  auto entry = mem[idx];
+  while (!isNil(entry)) { // existing entries
+    auto pair = car(entry);
+    if (car(pair) == key) {
+      set_cdr(pair, value);
+      unprot_ptrs(key, value, array); // found
+      return;
+    }
+    entry = cdr(entry);
+  }
+  // not found
+  auto list = cons(vm, cons(vm, key, value), mem[idx]);
+  {
+    auto mem = xarray_memory(array); // mem may have moved
+    mem[idx] = list;
+  }
+  unprot_ptrs(key, value, array);
+  return ;
+}
+
 
 /* ---------------------------------------- */
 
@@ -2312,45 +2438,24 @@ public:
 };
 
 /* -------------------------------------------------- */
+// @deprecated
 // stopgap append-only identity 'map'. O(N) lookups and insertions
 // TODO: a proper hash table
 
 Ptr make_imap(VM *vm) {
-  auto result = make_xarray(vm);
-  return result;
+  return ht(vm);
 }
 
 bool imap_has(Ptr map, Ptr key) {
-  u64 max = xarray_used(map);
-  Ptr *mem = xarray_memory(map);
-  for (u64 i = 0; i < max; i += 2) {
-    if (mem[i] == key) return true;
-  }
-  return false;
+  return !isNil(ht_at(map, key));
 }
 
 Ptr imap_get(Ptr map, Ptr key) {
-  u64 max = xarray_used(map);
-  Ptr *mem = xarray_memory(map);
-  for (u64 i = 0; i < max; i += 2) {
-    if (mem[i] == key) return mem[i + 1];
-  }
-  return Nil;
+  return ht_at(map, key);
 }
 
 void imap_set(VM *vm, Ptr map, Ptr key, Ptr value) {
-  u64 max = xarray_used(map);
-  Ptr *mem = xarray_memory(map);
-  for (u64 i = 0; i < max; i += 2) {
-    if (mem[i] == key) {
-      mem[i + 1] = value;
-      return;
-    }
-  }
-  prot_ptrs(map,value);
-  xarray_push(vm, map, key);
-  unprot_ptrs(map, value);
-  xarray_push(vm, map, value);
+  return ht_at_put(vm, map, key, value);
 }
 
 

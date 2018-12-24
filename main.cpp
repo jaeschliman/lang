@@ -53,7 +53,7 @@ TODO: continuations / exceptions / signals
 TODO: dump/restore image
 TODO: write macroexpander in the language itself
 TODO: write reader in the language itself
-TODO: sdl integration
+DONE: basic sdl integration
 TODO: single floats
 TODO: U32 Array etc
 TODO: more prim instrs
@@ -62,10 +62,11 @@ TODO: growable heap
 TODO: looping primitive
 DONE: repl
 TODO: notebook
-TODO: 'load file' vs run file
+DONE: 'load file' vs run file
 TODO: rewrite the codegen in the lang itself 
 TODO: 'apply'
-TODO: 'event reactor' runloop -- start with keycodes
+DONE: basic 'event reactor' runloop -- start with keycodes
+TODO: optimize global calls for more arities
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -446,6 +447,7 @@ create_ptr_for(PrimOp, u64 raw_value) {
 
 struct point { s32 x, y; };
 
+// @cleanup -- there's gotta be a way to do this with fewer instructions
 prim_type(Point)
 create_ptr_for(Point, point p) {
   // cout << " p.x = " << bitset<32>(p.x) << " p.y =" << bitset<32>(p.y) << endl;
@@ -3051,50 +3053,55 @@ void load_file(VM *vm, const char *path) {
   run_string(vm, read_file_contents(path));
 }
 
+ByteCodeObject *build_call(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
+  prot_ptr(symbol); protect_ptr_vector(argv, argc);
+  auto builder = new BCBuilder(vm);
+  for (u64 i = 0; i < argc; i++) {
+    builder->pushLit(argv[i]);
+  }
+  builder->loadGlobal(symbol);
+  builder->call(argc);
+  auto result = builder->build();
+  unprot_ptr(symbol); unprotect_ptr_vector(argv);
+  return result;
+}
+
+// use with care. assumes bc is laid out properly for patching.
+void patch_bytecode_for_call(VM *vm, ByteCodeObject *bc, Ptr symbol, u64 argc, Ptr argv[]) {
+    auto lits = objToPtr(bc->literals);
+    for (u64 i = 0; i < argc; i++) {
+      array_set(lits, i, argv[i]);
+    }
+    auto pair = assoc(symbol, vm->globals->env);
+    if (isNil(pair)) { die("bad vm_call_global"); }
+    array_set(lits, argc, pair);
+}
+
+
 /* should only be used as an 'entry' into the VM */
 /* IOW, we don't want two of these on the stack, they will interfere */
 void vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
-
   prot_ptr(symbol); protect_ptr_vector(argv, argc);
 
   ByteCodeObject *bc;
 
   if (argc == 1) { // TODO: bc patches for more arities
-
     if (!is(ByteCode, vm->globals->call1)) {
-      auto builder = new BCBuilder(vm);
-      for (u64 i = 0; i < argc; i++) {
-        builder->pushLit(argv[i]);
-      }
-      builder->loadGlobal(symbol);
-      builder->call(argc);
-      vm->globals->call1 = objToPtr(builder->build());
+      bc = build_call(vm, symbol, argc, argv);
+      vm->globals->call1 = objToPtr(bc);
+    } else {
+      bc = as(ByteCode, vm->globals->call1);
     }
-
-    bc = as(ByteCode, vm->globals->call1);
-
-    // patch it!
-    auto lits = objToPtr(bc->literals);
-    array_set(lits, 0, argv[0]);
-    auto pair = assoc(symbol, vm->globals->env);
-    if (isNil(pair)) { die("bad vm_call_global"); }
-    array_set(lits, 1, pair);
-    
+    patch_bytecode_for_call(vm, bc, symbol, argc, argv);
   } else {
-    auto builder = new BCBuilder(vm);
-    for (u64 i = 0; i < argc; i++) {
-      builder->pushLit(argv[i]);
-    }
-    builder->loadGlobal(symbol);
-    builder->call(argc);
-    bc = builder->build();
+    bc = build_call(vm, symbol, argc, argv);
   }
-  
-  unprot_ptr(symbol); unprotect_ptr_vector(argv);
 
   vm_push_stack_frame(vm, 0, bc);
   vm_interp(vm);
   vm_pop_stack_frame(vm);
+
+  unprot_ptr(symbol); unprotect_ptr_vector(argv);
 }
 
 

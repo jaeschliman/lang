@@ -67,6 +67,7 @@ TODO: rewrite the codegen in the lang itself
 TODO: 'apply'
 DONE: basic 'event reactor' runloop -- start with keycodes
 TODO: optimize global calls for more arities
+TODO: point functions
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -446,6 +447,8 @@ create_ptr_for(PrimOp, u64 raw_value) {
 }
 
 struct point { s32 x, y; };
+point operator +(point a, point b) { return (point){a.x + b.x, a.y + b.y}; }
+point operator -(point a, point b) { return (point){a.x - b.x, a.y - b.y}; }
 
 // @cleanup -- there's gotta be a way to do this with fewer instructions
 prim_type(Point)
@@ -2931,6 +2934,17 @@ Ptr gfx_set_pixel(VM *vm, point p) { // assumes 4 bytes pp
     u32 pixel = 0;
     u8 *target_pixel = (u8 *)surface->pixels + p.y * surface->pitch + p.x * 4;
     *(u32 *)target_pixel = pixel;
+  }
+  return Nil;
+}
+
+Ptr gfx_fill_rect(VM *vm, point a, point b, s64 color) {
+  auto surface = vm->surface;
+  if (surface) {
+    SDL_Rect r;
+    r.x = a.x; r.y = a.y;
+    r.w = b.x - a.x; r.h = b.y - a.y;
+    SDL_FillRect(surface, &r, (u32)color);
   }
   return Nil;
 }

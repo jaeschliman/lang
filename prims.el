@@ -126,7 +126,11 @@ void initialize_primitive_functions(VM *vm) {
   (prim set-symbol-value SET_SYM_VAL ((a Symbol) (b any)) any "set_global(vm, objToPtr(a), b)")
   (prim print-stacktrace PRINT_STACK () any "vm_print_stack_trace(vm)")
   (prim debug-stacktrace DBG_STACK () any "vm_print_debug_stack_trace(vm)")
+
   (prim set-pixel SETPXL ((p Point)) any "gfx_set_pixel(vm, p)")
+  (prim fill-rect FILLRCT ((a Point) (b Point) (color Fixnum)) any "gfx_fill_rect(vm, a, b, color)")
+  (prim point+ PTPLUS ((a Point) (b Point)) Point "a + b")
+  (prim point- PTMINUS ((a Point) (b Point)) Point "a - b")
 
   (setf *prims* (reverse *prims*)))
 

@@ -16,6 +16,9 @@ enum PrimitiveOperation : u64 {
   PRIM_PRINT_STACK = ((13ULL << 32) | (0ULL << 16) | PrimOp_Tag),
   PRIM_DBG_STACK = ((14ULL << 32) | (0ULL << 16) | PrimOp_Tag),
   PRIM_SETPXL = ((15ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_FILLRCT = ((16ULL << 32) | (3ULL << 16) | PrimOp_Tag),
+  PRIM_PTPLUS = ((17ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_PTMINUS = ((18ULL << 32) | (2ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -140,6 +143,31 @@ Ptr PRIM_SETPXL_impl(VM *vm) {
  return gfx_set_pixel(vm, p);
 }
 
+// Primitive 16
+Ptr PRIM_FILLRCT_impl(VM *vm) {
+   VM_ARG(Fixnum,color);
+   VM_ARG(Point,b);
+   VM_ARG(Point,a);
+
+ return gfx_fill_rect(vm, a, b, color);
+}
+
+// Primitive 17
+Ptr PRIM_PTPLUS_impl(VM *vm) {
+   VM_ARG(Point,b);
+   VM_ARG(Point,a);
+
+  return to(Point,(a + b));
+}
+
+// Primitive 18
+Ptr PRIM_PTMINUS_impl(VM *vm) {
+   VM_ARG(Point,b);
+   VM_ARG(Point,a);
+
+  return to(Point,(a - b));
+}
+
 
 PrimitiveFunction PrimLookupTable[] = {
   &PRIM_PLUS_impl,
@@ -158,6 +186,9 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_PRINT_STACK_impl,
   &PRIM_DBG_STACK_impl,
   &PRIM_SETPXL_impl,
+  &PRIM_FILLRCT_impl,
+  &PRIM_PTPLUS_impl,
+  &PRIM_PTMINUS_impl,
 
   (PrimitiveFunction)(void *)0
 };
@@ -180,5 +211,8 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "print-stacktrace", to(PrimOp, PRIM_PRINT_STACK));
   set_global(vm, "debug-stacktrace", to(PrimOp, PRIM_DBG_STACK));
   set_global(vm, "set-pixel", to(PrimOp, PRIM_SETPXL));
+  set_global(vm, "fill-rect", to(PrimOp, PRIM_FILLRCT));
+  set_global(vm, "point+", to(PrimOp, PRIM_PTPLUS));
+  set_global(vm, "point-", to(PrimOp, PRIM_PTMINUS));
 
 }

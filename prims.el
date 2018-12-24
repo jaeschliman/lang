@@ -65,7 +65,7 @@
 
 (defun emit-prim-encoding (idx argc)
   "Emit encoding for prim at IDX with ARGC."
-  (tmpl "(("idx"ULL << 32) | ("argc "ULL << 16) | PRIM_TAG)"))
+  (tmpl "(("idx"ULL << 32) | ("argc "ULL << 16) | PrimOp_Tag)"))
 
 (defun emit-prim-enum ()
   "Emit enum naming all prims."

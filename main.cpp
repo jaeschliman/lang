@@ -99,30 +99,39 @@ using namespace std;
 
 typedef unsigned int uint;
 typedef uint64_t u64;
+typedef uint32_t u32;
+typedef int32_t s32;
 typedef int64_t s64;
 typedef uint8_t u8;
 typedef int8_t s8;
 
-enum ObjectType : u64 {
-  ByteCode_ObjectType,
-  ByteArray_ObjectType,
-  U64Array_ObjectType,
-  PtrArray_ObjectType,
-  Standard_ObjectType,
-  StackFrame_ObjectType,
-  BrokenHeart
-};
+#define EXTRACT_PTR_MASK 0xFFFFFFFFFFFFFFF0
+#define TAG_MASK 0b1111
+#define TAG_BITS 4
 
-// so we can write the is(...) macro
-#define Fixnum_Mask 0b0000
-#define Object_Mask 0b0001
-#define Char_Mask   0b0011
-#define Bool_Mask   0b0100
-#define PrimOp_Mask 0b0101
+#define Fixnum_Tag 0b0000
+#define Object_Tag 0b0001
+#define Char_Tag   0b0011
+#define Bool_Tag   0b0100
+#define PrimOp_Tag 0b0101
+#define Point_Tag  0b0110
+// #define UNUSED_TAG 0b0111
+// #define UNUSED_TAG 0b1000
+// #define UNUSED_TAG 0b1001
+// #define UNUSED_TAG 0b1010
+// #define UNUSED_TAG 0b1011
+// #define UNUSED_TAG 0b1100
+// #define UNUSED_TAG 0b1101
+// #define UNUSED_TAG 0b1110
+// #define UNUSED_TAG 0b1111
+// what about a float?
 
-struct Ptr {
-  u64 value;
-};
+struct Ptr { u64 value; };
+
+#define True  ((Ptr){0b10100})
+#define False ((Ptr){0b00100})
+// do we really need nil?
+#define Nil   ((Ptr){0b0001})
 
 std::ostream &operator<<(std::ostream &os, Ptr p);
 
@@ -134,9 +143,20 @@ bool ptr_eq(Ptr a, Ptr b) {
   return a.value == b.value;
 }
 
+enum ObjectType : u32 {
+  ByteCode_ObjectType,
+  ByteArray_ObjectType,
+  U64Array_ObjectType,
+  PtrArray_ObjectType,
+  Standard_ObjectType,
+  StackFrame_ObjectType,
+  BrokenHeart
+};
+
 struct Header {
   ObjectType object_type;
-  // u64 flags;
+  u32 hashcode;
+  u64 flags;
 };
 
 struct Object {
@@ -151,10 +171,30 @@ inline Ptr objToPtr(Object *ref) {
   return p;
 }
 
-struct VM;
+/* ---------------------------------------- */
+//          GC protection macros
 
-void gc_protect_reference(VM *vm, Object **);
-void gc_unprotect_reference(VM *vm, Object **);
+struct VM;
+inline void gc_protect_ptr(VM *vm, Ptr *ref);
+inline void gc_unprotect_ptr(VM *vm, Ptr *ref);
+inline void gc_protect_ptr_vector(VM *vm, Ptr *ref, u64 count);
+inline void gc_unprotect_ptr_vector(VM *vm, Ptr *ref);
+inline void gc_protect_reference(VM *vm, Object **);
+inline void gc_unprotect_reference(VM *vm, Object **);
+
+#define prot_ptr(it) gc_protect_ptr(vm, &it)
+#define unprot_ptr(it) gc_unprotect_ptr(vm, &it)
+
+#define protect_ptr_vector(vector, count)  gc_protect_ptr_vector(vm, vector, count)
+
+#define unprotect_ptr_vector(vector)  gc_unprotect_ptr_vector(vm, vector)
+
+#define std_vector_mem(vector) &(*vector->begin())
+
+#define __prot_ptr(x) prot_ptr(x);
+#define prot_ptrs(...) MAP(__prot_ptr, __VA_ARGS__)
+#define __unprot_ptr(x) unprot_ptr(x);
+#define unprot_ptrs(...) MAP(__unprot_ptr, __VA_ARGS__)
 
 #define gc_protect(it) do {                     \
     auto _ref = (Object **)&it;                 \
@@ -165,6 +205,7 @@ void gc_unprotect_reference(VM *vm, Object **);
     gc_unprotect_reference(vm, _ref);           \
   } while(0)
 
+/* ---------------------------------------- */
 
 struct U64ArrayObject : Object {
   u64 length;
@@ -323,33 +364,6 @@ struct StandardObject : Object { // really more of a structure object
   Ptr ivars[];
 };
 
-#define EXTRACT_PTR_MASK 0xFFFFFFFFFFFFFFF0
-#define TAG_MASK 0b1111
-#define TAG_BITS 4
-#define FIXNUM_TAG 0b0000
-#define OBJECT_TAG 0b0001
-#define CHAR_TAG   0b0011
-#define BOOL_TAG   0b0100
-#define PRIM_TAG   0b0101
-// #define UNUSED_TAG 0b0110
-// #define UNUSED_TAG 0b0111
-// #define UNUSED_TAG 0b1000
-// #define UNUSED_TAG 0b1001
-// #define UNUSED_TAG 0b1010
-// #define UNUSED_TAG 0b1011
-// #define UNUSED_TAG 0b1100
-// #define UNUSED_TAG 0b1101
-// #define UNUSED_TAG 0b1110
-// #define UNUSED_TAG 0b1111
-// maybe have a pair of s30 ints as an imm?
-// what about a float?
-
-#define True  ((Ptr){0b10100})
-#define False ((Ptr){0b00100})
-
-// not so sure about this...
-#define Nil objToPtr((Object *)0)
-
 #define _type_test_name(type) is_##type##__Impl
 #define _ptr_creation_name(type) to_##type##_Ptr__Impl
 #define _ptr_conversion_name(type) as##type##__Impl
@@ -365,8 +379,8 @@ struct StandardObject : Object { // really more of a structure object
 #define create_ptr_for(type, var) inline Ptr _ptr_creation_name(type)(var)
 #define unwrap_ptr_for(type, var) inline auto _ptr_conversion_name(type)(Ptr var)
 
-#define prim_type(type) type_test(type, it){     \
-    return (it.value & TAG_MASK) == type##_Mask; \
+#define prim_type(type) type_test(type, it){    \
+    return (it.value & TAG_MASK) == type##_Tag; \
   }
 
 // @safe
@@ -376,7 +390,7 @@ unwrap_ptr_for(Object, self) {
 
 // @safe
 type_test(NonNilObject, it) {
-  return it.value != 1 && ((it.value & TAG_MASK) == OBJECT_TAG);
+  return it.value != 1 && ((it.value & TAG_MASK) == Object_Tag);
 }
 
 type_test(any, it) { unused(it); return true; }
@@ -385,7 +399,7 @@ unwrap_ptr_for(any, it) { return it; }
 // @safe
 #define object_type(type)                                               \
   type_test(type, it) {                                                 \
-    return (is(NonNilObject, it) &&                                      \
+    return (is(NonNilObject, it) &&                                     \
             (as(Object, it))->header.object_type == type##_ObjectType); \
   };                                                                    \
   unwrap_ptr_for(type, it) {                                            \
@@ -408,7 +422,7 @@ unwrap_ptr_for(Fixnum, it) {
 prim_type(Char)
 create_ptr_for(Char, char ch) {
   // TODO wide char support? (there's room in the Ptr)
-  auto val = ((u64)ch << TAG_BITS)|CHAR_TAG;
+  auto val = ((u64)ch << TAG_BITS)|Char_Tag;
   return (Ptr){val};
 }
 unwrap_ptr_for(Char, it) {
@@ -427,6 +441,28 @@ prim_type(PrimOp)
 create_ptr_for(PrimOp, u64 raw_value) {
   return (Ptr){raw_value};
 }
+
+struct point { s32 x, y; };
+
+prim_type(Point)
+create_ptr_for(Point, point p) {
+  auto mask = ~(1ULL << 31);
+  auto high_mask = mask << 34;
+  auto low_mask = mask << 4;
+  auto x_comp = ((s64)p.x << 34) & high_mask;
+  auto y_comp = ((s64)p.y << 4) & low_mask;
+  u64 value = x_comp | y_comp | Point_Tag;
+  return (Ptr){value};
+}
+unwrap_ptr_for(Point, it) {
+  point p;
+  auto mask = ~(1ULL << 31);
+  auto val = it.value >> 4;
+  p.y = val & mask;
+  p.x = (val >> 30) & mask;
+  return p;
+}
+
 
 type_test(Object, it) { return is(NonNilObject, it); }
 object_type(ByteCode)
@@ -452,42 +488,11 @@ type_test(BrokenHeart, it) {
   auto name = as(type, _##name);
 
 /* ---------------------------------------- */
-// Ptr protection
-
-struct GCPtr {
-  Ptr ptr;
-  Object *object;
-  bool is_object;
-  VM *vm;
-};
-
-inline void gc_protect_ptr(VM *vm, Ptr *ref);
-inline void gc_unprotect_ptr(VM *vm, Ptr *ref);
-inline void gc_protect_ptr_vector(VM *vm, Ptr *ref, u64 count);
-inline void gc_unprotect_ptr_vector(VM *vm, Ptr *ref);
-
-#define prot_ptr(it) gc_protect_ptr(vm, &it)
-#define unprot_ptr(it) gc_unprotect_ptr(vm, &it)
-
-#define protect_ptr_vector(vector, count)       \
-  gc_protect_ptr_vector(vm, vector, count)
-
-#define unprotect_ptr_vector(vector)            \
-  gc_unprotect_ptr_vector(vm, vector)
-
-#define std_vector_mem(vector) &(*vector->begin())
-
-#define __prot_ptr(x) prot_ptr(x);
-#define prot_ptrs(...) MAP(__prot_ptr, __VA_ARGS__)
-#define __unprot_ptr(x) unprot_ptr(x);
-#define unprot_ptrs(...) MAP(__unprot_ptr, __VA_ARGS__)
-
-/* ---------------------------------------- */
 
 // TODO: convert this to type-test
 // @safe
 inline bool isNil(Ptr self) {
-  return self.value == OBJECT_TAG;
+  return self.value == Object_Tag;
 }
 
 // @safe
@@ -987,6 +992,9 @@ std::ostream &operator<<(std::ostream &os, Ptr p) {
     return os << (as(Bool, p) ? "#t" : "#f");
   } else if (is(Char, p)) {
     return os << "#\\" << as(Char, p);
+  } else if (is(Point, p)) {
+    auto pt = as(Point, p);
+    return os << pt.x << "@" << pt.y;
   } else {
     return os << "don't know how to print ptr: " << (void *)p.value;
   }
@@ -1438,6 +1446,9 @@ void gc(VM *vm) {
         }
       });
   }
+
+  // cerr << " protected Object count : " << vm->gc_protected->size() << endl;
+  // cerr << " protected ptr    count : " << vm->gc_protected_ptrs->size() << endl;
 
 }
 

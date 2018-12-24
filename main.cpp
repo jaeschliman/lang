@@ -3,6 +3,7 @@
  g++ main.cpp -Werror -std=c++14 && ./a.out
 
 (setq flycheck-clang-language-standard "c++14")
+(setq flycheck-clang-include-path '("~/Library/Frameworks"))
 
 DONE: stack traces
 DONE: move allocations into vm-managed heap
@@ -72,6 +73,7 @@ have each compiler pass output to previous one in the stack
 how to represent U32 and U64?
 */
 
+#include <SDL2/SDL.h>
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -3004,16 +3006,46 @@ void vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
   vm_pop_stack_frame(vm);
 }
 
+
 void start_up_and_run_event_loop(const char *path) {
   auto vm = vm_create();
   load_file(vm, path);
 
-  // alas, 'raw' terminal mode is too much of a PITA to make this worth it RN
-  while(true){
-    int key = cin.get();
-    Ptr num = to(Fixnum, key);
-    vm_call_global(vm, intern(vm, "onkey"), 1, (Ptr[]){num});
+  SDL_Window *window;
+
+  auto x     = SDL_WINDOWPOS_CENTERED;
+  auto y     = SDL_WINDOWPOS_CENTERED;
+  auto w     = 640;
+  auto h     = 480;
+  auto title = "my window";
+
+  SDL_Init(SDL_INIT_VIDEO);
+  window = SDL_CreateWindow(title, x, y, w, h, SDL_WINDOW_SHOWN);  
+  if(!window) die("could not create window");
+  bool running = true;
+  SDL_Event event;
+  while (running) {
+    if (SDL_PollEvent(&event)) {
+      switch (event.type) {
+      case SDL_QUIT: running = false; break;
+      case SDL_KEYDOWN : {
+        auto key = event.key.keysym.scancode;
+        Ptr num = to(Fixnum, key);
+        vm_call_global(vm, intern(vm, "onkey"), 1, (Ptr[]){num});
+        break;
+      }
+      case SDL_MOUSEMOTION: {
+        auto x = to(Fixnum, event.motion.x);
+        auto y = to(Fixnum, event.motion.y);
+        vm_call_global(vm, intern(vm, "onmousemove"), 2, (Ptr[]){x, y});
+        break;
+      }
+      }
+    }
   }
+
+  SDL_DestroyWindow(window);
+  SDL_Quit();
 }
 
 /* ---------------------------------------- */

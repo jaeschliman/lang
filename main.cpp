@@ -59,9 +59,12 @@ TODO: more prim instrs
 TODO: maybe expose bytecode prims as special forms? %push %call etc...
 TODO: growable heap
 TODO: looping primitive
-TODO: repl / notebook
+DONE: repl
+TODO: notebook
 TODO: 'load file' vs run file
 TODO: rewrite the codegen in the lang itself 
+TODO: 'apply'
+TODO: 'event reactor' runloop -- start with keycodes
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -217,6 +220,7 @@ struct VM {
   u64 allocation_high_watermark;
   unordered_map<Object **, u64> *gc_protected;
   unordered_map<Ptr *, u64> *gc_protected_ptrs;
+  unordered_map<Ptr *, u64> *gc_protected_ptr_vectors;
 };
 
 typedef Ptr (*PrimitiveFunction)(VM*);
@@ -455,45 +459,19 @@ struct GCPtr {
   VM *vm;
 };
 
-// @deprecated
-inline void wrap_ptr(VM *vm, GCPtr* var, Ptr it)  {
-  var->ptr = it;
-  if (is(NonNilObject, it)) {
-    var->is_object = true;
-    var->object = as(Object, it);
-    var->vm = vm;
-    gc_protect(var->object);
-  } else {
-    var->is_object = false;
-  }
-}
-
-// @deprecated
-inline Ptr unwrap_ptr(GCPtr *it) {
-  if (it->is_object) {
-    auto vm = it->vm;
-    gc_unprotect(it->object);
-    it->ptr = objToPtr(it->object);
-    assert(is(Object, it->ptr));
-  }
-  return it->ptr;
-}
-
-inline void gc_unprotect_ptr(VM *vm, Ptr *ref);
 inline void gc_protect_ptr(VM *vm, Ptr *ref);
+inline void gc_unprotect_ptr(VM *vm, Ptr *ref);
+inline void gc_protect_ptr_vector(VM *vm, Ptr *ref, u64 count);
+inline void gc_unprotect_ptr_vector(VM *vm, Ptr *ref);
 
 #define prot_ptr(it) gc_protect_ptr(vm, &it)
 #define unprot_ptr(it) gc_unprotect_ptr(vm, &it)
 
-// @deprecated -- should be a function that registers the first element and count
-#define protect_ptr_vector(var, count, vector)  \
-  GCPtr var[count];                             \
-  {                                             \
-    u64 ___count = count;                       \
-    for (u64 i = 0; i < ___count; i++) {        \
-      wrap_ptr(vm, var + i, vector[i]);         \
-    }                                           \
-  }
+#define protect_ptr_vector(vector, count)       \
+  gc_protect_ptr_vector(vm, vector, count)
+
+#define unprotect_ptr_vector(vector)            \
+  gc_unprotect_ptr_vector(vm, vector)
 
 #define std_vector_mem(vector) &(*vector->begin())
 
@@ -504,13 +482,11 @@ inline void gc_protect_ptr(VM *vm, Ptr *ref);
 
 /* ---------------------------------------- */
 
-
 // TODO: convert this to type-test
 // @safe
 inline bool isNil(Ptr self) {
   return self.value == OBJECT_TAG;
 }
-
 
 // @safe
 U64ArrayObject *alloc_u64ao(VM *vm, uint len) {
@@ -1107,16 +1083,15 @@ StandardObject *make_standard_object(VM *vm, StandardObject *klass, Ptr*ivars) {
   auto ivar_count_object = standard_object_get_ivar(klass, BaseClassIvarCount);
   assert(is(Fixnum, ivar_count_object));
   auto ivar_count = as(Fixnum, ivar_count_object);
-
-  // @deprecated
-  protect_ptr_vector(safe_ivars, ivar_count, ivars);
+  protect_ptr_vector(ivars, ivar_count);
 
   auto result = alloc_standard_object(vm, klass, ivar_count);
 
   for (auto i = 0; i < ivar_count; i++) {
-    standard_object_set_ivar(result, i, unwrap_ptr(safe_ivars + i));
+    standard_object_set_ivar(result, i, ivars[i]);
   }
 
+  unprotect_ptr_vector(ivars);
   return result;
 }
 
@@ -1346,6 +1321,13 @@ void gc_update_protected_references(VM *vm) {
   for (auto pair : *vm->gc_protected_ptrs) {
     gc_update_ptr(vm, pair.first);
   }
+  for (auto pair : *vm->gc_protected_ptr_vectors) {
+    auto start = pair.first;
+    auto count = pair.second;
+    while (count--) {
+      gc_update_ptr(vm, start + count);
+    }
+  }
 }
 
 inline void gc_protect_reference(VM *vm, Object **ref){
@@ -1385,14 +1367,29 @@ inline void gc_unprotect_ptr(VM *vm, Ptr *ref){
   auto map = vm->gc_protected_ptrs;
   auto found = map->find(ref);
   if (found == map->end()) {
-    cout << "ERROR: tried to unprotect a non-protected reference." << endl;
-    assert(false);
+    die("tried to unprotect a non-protected reference.");
   } else {
     found->second--;
     if (found->second == 0) {
       map->erase(ref);
     }
   }
+}
+
+inline void gc_protect_ptr_vector(VM *vm, Ptr *ref, u64 count){
+  auto map = vm->gc_protected_ptr_vectors;
+  auto found = map->find(ref);
+  if (found == map->end()) {
+    map->insert(make_pair(ref, count));
+  } else {
+    if (found->second != count) {
+      die("bad ptr vector protection");
+    }
+  }
+}
+
+inline void gc_unprotect_ptr_vector(VM *vm, Ptr *ref){
+  vm->gc_protected_ptr_vectors->erase(ref);
 }
 
 void gc(VM *vm) {
@@ -1676,7 +1673,6 @@ void eat_ws(const char **remaining, const char *end) {
   *remaining = input;
 }
 
-// TODO: need to make all branches of read GC safe.
 Ptr read(VM *vm, const char **remaining, const char *end, Ptr done);
 
 // @safe
@@ -2878,8 +2874,10 @@ VM *vm_create() {
 
   vm->gc_protected = new unordered_map<Object **, u64>;
   vm->gc_protected_ptrs = new unordered_map<Ptr *, u64>;
+  vm->gc_protected_ptr_vectors = new unordered_map<Ptr *, u64>;
   vm->gc_protected->reserve(100);
   vm->gc_protected_ptrs->reserve(100);
+  vm->gc_protected_ptr_vectors->reserve(100);
 
   vm->frame = 0;
   vm->error = 0;

@@ -155,5 +155,5 @@
 (set-symbol-value 'test (cons 'test 'test))
 (print 42@43)
 (print -42)
-(print '(-42 -1234 -5@5 4@-456))
+(print '(-42 -1234 -5@5 4@-456 0xf 0xff 0xffff 0xc0c0c0))
 (print goodbye-message)

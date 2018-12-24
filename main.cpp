@@ -1773,6 +1773,13 @@ s64 read_int(VM *vm, const char **remaining, const char *end) {
   auto input = *remaining;
   s64 res = 0;
   if (input >= end) { goto error; }
+  if (*input == '0') {
+    input++;
+    if (input >= end) return 0;
+    if (*input == 'x') input++; // start reading hex
+    if (input >= end) goto error;
+    goto hex;
+  }
   if (*input == '-') {
     input++;
     if (input >= end || !is_digitchar(*input)) { goto error; }
@@ -1784,14 +1791,27 @@ s64 read_int(VM *vm, const char **remaining, const char *end) {
     vm->error = "invalid integer";
     return -1;
   }
- ok: {
-   while (input < end && is_digitchar(*input)) {
-     res *= 10; res += *input - '0';
-     input++;
-   }
+ hex: {
+    while (input < end && (is_digitchar(*input) || (*input >= 'a' && *input <= 'f'))) {
+      res *= 16;
+      if (is_digitchar(*input)) {
+        res += *input - '0';
+      } else {
+        res += (*input - 'a') + 10;
+      }
+      input++;
+    }
     *remaining = input;
     return res;
-  }
+ }
+ ok: {
+    while (input < end && is_digitchar(*input)) {
+      res *= 10; res += *input - '0';
+      input++;
+    }
+      *remaining = input;
+      return res;
+    }
 }
 
 // @safe

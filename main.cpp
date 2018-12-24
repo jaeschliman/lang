@@ -1763,6 +1763,31 @@ Ptr read_bool(VM *vm, const char **remaining, const char *end, Ptr done) {
   }
 }
 
+s64 read_int(VM *vm, const char **remaining, const char *end) {
+  auto input = *remaining;
+  s64 res = 0;
+  if (input >= end) { goto error; }
+  if (*input == '-') {
+    input++;
+    if (input >= end || !is_digitchar(*input)) { goto error; }
+    res = -1 * (*input - '0');
+  }
+  goto ok;
+ error: {
+    *remaining = end;
+    vm->error = "invalid integer";
+    return -1;
+  }
+ ok: {
+   while (input < end && is_digitchar(*input)) {
+     res *= 10; res += *input - '0';
+     input++;
+   }
+    *remaining = input;
+    return res;
+  }
+}
+
 // @safe
 Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
   const char *input = *remaining;
@@ -1806,17 +1831,20 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
       }
       *remaining = input;
       return res;
-    } else if (is_digitchar(*input)) {
-      u64 num = *input - '0';
-      input++;
+    } else if (is_digitchar(*input) || *input == '-') {
       // @safe
-      while(input < end && is_digitchar(*input)) {
-        num *= 10;
-        num += *input - '0';
+      s64 num = read_int(vm, &input, end);
+      Ptr res;
+      if (input < end && *input == '@') { // read point
         input++;
+        s64 num2 = read_int(vm, &input, end);
+        auto pt = (point){ (s32)num, (s32)num2};
+        res = to(Point, pt);
+      } else {
+        res = to(Fixnum, num);
       }
       *remaining = input;
-      return to(Fixnum, num);
+      return res;
     }
     input++;
   }

@@ -121,7 +121,10 @@ void initialize_primitive_functions(VM *vm) {
   (prim car   CAR    ((a any))               any    "car(a)")
   (prim cdr   CDR    ((a any))               any    "cdr(a)")
   (prim eq    EQ     ((a any) (b any))       Bool   "ptr_eq(a, b)")
+  (prim nil?  ISNIL  ((a any))               Bool   "isNil(a)")
+  (prim not   NOT    ((a any))               Bool   "a == False")
   (prim print PRINT  ((a any))               any    "primitive_print(a)")
+  (prim nth   NTH    ((a any) (idx Fixnum))  any    "nth_or_nil(a, idx)")
 
   (prim set-symbol-value SET_SYM_VAL ((a Symbol) (b any)) any "set_global(vm, objToPtr(a), b)")
   (prim print-stacktrace PRINT_STACK () any "vm_print_stack_trace(vm)")
@@ -129,8 +132,11 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim set-pixel SETPXL ((p Point)) any "gfx_set_pixel(vm, p)")
   (prim fill-rect FILLRCT ((a Point) (b Point) (color Fixnum)) any "gfx_fill_rect(vm, a, b, color)")
-  (prim point+ PTPLUS ((a Point) (b Point)) Point "a + b")
-  (prim point- PTMINUS ((a Point) (b Point)) Point "a - b")
+  (prim point+     PTPLUS  ((a Point) (b Point))   Point "a + b")
+  (prim point-     PTMINUS ((a Point) (b Point))   Point "a - b")
+  (prim make-point MKPOINT ((a Fixnum) (b Fixnum)) Point "(point){(s32)a, (s32)b}")
+  (prim point-x    PTX     ((p Point))             Fixnum "(s64)p.x")
+  (prim point-y    PTY     ((p Point))             Fixnum "(s64)p.y")
 
   (setf *prims* (reverse *prims*)))
 

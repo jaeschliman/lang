@@ -3160,6 +3160,9 @@ void start_up_and_run_event_loop(const char *path) {
   {
     auto fmt = vm->surface->format;
     SDL_FillRect(vm->surface, NULL, SDL_MapRGB(fmt, 255, 255, 255));
+    auto W = to(Fixnum, w);
+    auto H = to(Fixnum, h);
+    vm_call_global(vm, intern(vm, "onshow"), 1, (Ptr[]){W, H});
     SDL_UpdateWindowSurface(window);
   }
 

@@ -1122,6 +1122,7 @@ struct Globals {
   StandardObject *Base, *Cons, *Fixnum, *Symbol;
   unordered_map<string, Ptr> *symtab;
   Ptr env;
+  Ptr call1;
 };
 
 // @unsafe
@@ -1139,6 +1140,7 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
   for (auto pair : *vm->globals->symtab) {
     recurse(pair.second);
   }
+  recurse(vm->globals->call1);
   recurse(objToPtr(vm->globals->Base));
   recurse(objToPtr(vm->globals->Cons));
   recurse(objToPtr(vm->globals->Fixnum));
@@ -1312,6 +1314,7 @@ void gc_update_base_class(VM *vm, StandardObject **it) {
 }
 
 void gc_update_globals(VM *vm) {
+  gc_update_ptr(vm, &vm->globals->call1);
   gc_update_ptr(vm, &vm->globals->env);
   gc_update_base_class(vm, &vm->globals->Base);
   gc_update_base_class(vm, &vm->globals->Cons);
@@ -3048,18 +3051,44 @@ void load_file(VM *vm, const char *path) {
   run_string(vm, read_file_contents(path));
 }
 
-// @speed: no need to allocate a new ByteCode for this every time...
+/* should only be used as an 'entry' into the VM */
+/* IOW, we don't want two of these on the stack, they will interfere */
 void vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
 
   prot_ptr(symbol); protect_ptr_vector(argv, argc);
 
-  auto builder = new BCBuilder(vm);
-  for (u64 i = 0; i < argc; i++) {
-    builder->pushLit(argv[i]);
+  ByteCodeObject *bc;
+
+  if (argc == 1) { // TODO: bc patches for more arities
+
+    if (!is(ByteCode, vm->globals->call1)) {
+      auto builder = new BCBuilder(vm);
+      for (u64 i = 0; i < argc; i++) {
+        builder->pushLit(argv[i]);
+      }
+      builder->loadGlobal(symbol);
+      builder->call(argc);
+      vm->globals->call1 = objToPtr(builder->build());
+    }
+
+    bc = as(ByteCode, vm->globals->call1);
+
+    // patch it!
+    auto lits = objToPtr(bc->literals);
+    array_set(lits, 0, argv[0]);
+    auto pair = assoc(symbol, vm->globals->env);
+    if (isNil(pair)) { die("bad vm_call_global"); }
+    array_set(lits, 1, pair);
+    
+  } else {
+    auto builder = new BCBuilder(vm);
+    for (u64 i = 0; i < argc; i++) {
+      builder->pushLit(argv[i]);
+    }
+    builder->loadGlobal(symbol);
+    builder->call(argc);
+    bc = builder->build();
   }
-  builder->loadGlobal(symbol);
-  builder->call(argc);
-  auto bc = builder->build();
   
   unprot_ptr(symbol); unprotect_ptr_vector(argv);
 

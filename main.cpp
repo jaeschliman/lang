@@ -3065,7 +3065,7 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p) {
   auto out     = surface->pixels;
   auto mem     = (u32 *)image_data(img);
 
-  float scale = 0.3;
+  float scale = 0.5;
   float source_step = 1.0f / scale;
 
   float angle = _deg_to_rad((float)(_angle % 360));
@@ -3091,26 +3091,30 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p) {
 
   float u = src_x, v = src_y;
 
-  dbg("cx =", cx, " cy = ", cy, " u = ", u, " v = ", v);
-  dbg("du_col = ", du_col, " dv_col = ", dv_col );
-  dbg("du_row = ", du_row, " dv_row = ", dv_row );
+  // dbg("cx =", cx, " cy = ", cy, " u = ", u, " v = ", v);
+  // dbg("du_col = ", du_col, " dv_col = ", dv_col );
+  // dbg("du_row = ", du_row, " dv_row = ", dv_row );
 
-  u32 px_drawn = 0, px_skipped = 0;
+  // u32 px_drawn = 0, px_skipped = 0;
 
   float row_u = src_x, row_v = src_y;
 
+  float iscale = 1.0 / scale;
+  u32 offsx = p.x + img_w * scale * 0.5;
+  u32 offsy = p.y + img_h * scale * 0.5;
+
   for (u32 y = 0; y < img_h; y++) {
     u = row_u; v = row_v; 
-    auto dest_row = (p.y + y) * surface->pitch;
+    auto dest_row = (offsy + y) * surface->pitch;
     for (u32 x = 0; x < img_w; x++) {
       if (u >= 0.0f && v >= 0.0f && u <= (float)img_w && v <= (float)img_h
-          && p.x + x < scr_w && p.y + y < scr_h
+          && offsx + x < scr_w && offsy + y < scr_h
           ) {
-        px_drawn++;
+        // px_drawn++;
 
         u32 sx = floorf(u), sy = floorf(v);
 
-        u8* under = ((u8*)out + dest_row + (p.x + x) * 4);
+        u8* under = ((u8*)out + dest_row + (offsx + x) * 4);
         u8* over  = (u8*)(mem + sy * img_w + sx);
         
         float alpha  = over[3] / 255.0f;
@@ -3120,17 +3124,13 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p) {
         under[2] = over[2] * alpha + under[2] * ialpha;
 
       } else {
-        px_skipped++;
+        // px_skipped++;
       }
-      u += du_col; v += dv_col;
+      u += du_col * source_step; v += dv_col * source_step;
     }
-    // u = src_x + (0 * du_col * 1) + (y * du_row * 1);
-    // v = src_y + (y * dv_row * 1) + (0 * du_row * 1);
-
-    // u += du_col; v += dv_col;
-    row_u += du_row; row_v += dv_row;
+    row_u += du_row * source_step; row_v += dv_row * source_step;
   }
-  dbg("drawn: ", px_drawn, " skipped: ", px_skipped, " u = ", u, " v = ", v);
+  // dbg("drawn: ", px_drawn, " skipped: ", px_skipped, " u = ", u, " v = ", v);
   return Nil;
 }
 

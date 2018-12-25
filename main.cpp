@@ -71,7 +71,8 @@ DONE: point functions
 TODO: real 'built-in-classes' i.e. Cons Fixnum etc
 TODO: basic message definition, send facility
 DONE: image objects
-TODO: rotation + scale BitBlt like thing
+DONE: rotation + scale BitBlt like thing
+TODO: maybe store image data off-heap?
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -81,6 +82,11 @@ how to represent U32 and U64?
 how will we pass callbacks through to the VM?  e.g. if I want to map
 values of a ht?  safe to 'just' push a stack frame?  but how do we
 yield control to the vm, and get it back?
+
+RE: storing image data off-heap: could have a 'byte-blob' object type.
+after a gc, scan the old heap for byte-blobs that are not broken hearts,
+and free the mem. it's a tradeoff, two heap scans, but less copying.
+could become important as there will eventually be many images
 
 */
 
@@ -2541,8 +2547,7 @@ public:
 
 /* -------------------------------------------------- */
 // @deprecated
-// stopgap append-only identity 'map'. O(N) lookups and insertions
-// TODO: a proper hash table
+// just a wrapper for ht
 
 Ptr make_imap(VM *vm) {
   return ht(vm);

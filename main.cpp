@@ -2362,7 +2362,7 @@ private:
     return pushU64(op);
   }
   BCBuilder* pushU64(u64 it) {
-    if (bc_index >= bc_capacity) {
+    if (bc_index - 1 >= bc_capacity) {
       bc_capacity *= 2;
       bc_mem = (u64 *)realloc(bc_mem, bc_capacity);
     }

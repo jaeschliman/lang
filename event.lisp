@@ -46,20 +46,31 @@
                                                 (scale s half-img-width))))
                                     (point- p (make-point amt amt)))))
 
+(set-symbol-value 'draw-cows #f)
+(set-symbol-value 'draw-cows
+                  (lambda (p s r)
+                    (blit-at cow (center-image-at p s 250)
+                             s (point-x p))
+                    (if (> s 30)
+                        (let ()
+                          (draw-cows (point+ p -70@-50)
+                                     (scale s 70)
+                                     (- r 33))
+                          (draw-cows (point+ p -70@50)
+                                     (scale s 60)
+                                     (+ r 80))
+                          (draw-cows (point+ p 50@50)
+                                     (scale s 80)
+                                     (+ r 33))))))
+
 (set-symbol-value 'mouse-handler
                   (lambda (p)
                     (if (< (point-x p) color-well-size)
                         (choose-color p)
                         (let ((s (+ 50 (/ (point-y p) 24))))
                           (fill-rect 0@0 640@480 0xffffff)
-                          (blit-at cow (center-image-at p s 250)
-                                   s (point-x p))
-                          (blit-at cow (center-image-at (point+ p 50@50) 25 250)
-                                   25 (+ 50 (point-x p)))
-                          (blit-at cow (center-image-at (point- p 75@20) 15 250)
-                                   15 (- (point-x p) 30))
-                          (paint p)
-                          ))))
+                          (draw-cows p s (point-x p))
+                          (paint p)))))
 
 ;;;;;;; register event handlers
 

@@ -70,7 +70,7 @@ TODO: optimize global calls for more arities
 DONE: point functions
 TODO: real 'built-in-classes' i.e. Cons Fixnum etc
 TODO: basic message definition, send facility
-TODO: image objects
+DONE: image objects
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -3054,6 +3054,8 @@ Ptr gfx_fill_rect(VM *vm, point a, point b, s64 color) {
 Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p) {
   if (!is(Image, objToPtr(img))) die("gfx_blit_image: not an image");
 
+  float scale = 0.5;
+
   s32 sx = p.x;
   s32 sy = p.y;
 
@@ -3065,8 +3067,8 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p) {
   if (sx + img_w <= 0) return Nil;
   if (sy + img_h <= 0) return Nil;
 
-  u32 x0 = max(sx, 0), x1 = min(sx + img_w, scr_w);
-  u32 y0 = max(sy, 0), y1 = min(sy + img_h, scr_h);
+  u32 x0 = max(sx, 0), x1 = min(sx + (u32)(img_w * scale), scr_w);
+  u32 y0 = max(sy, 0), y1 = min(sy + (u32)(img_h * scale), scr_h);
 
   auto w = x1 - x0, h = y1 - y0;
   auto source_x = sx < 0 ? -sx : 0;
@@ -3075,12 +3077,16 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p) {
   auto surface = vm->surface;
   auto mem     = (u32 *)image_data(img);
 
+  auto source_step = 1.0f / scale;
+
   for (auto y = 0; y < h; y++) {
-    auto source_row = (y + source_y) * img_w;
+    auto scaled_y   = (u32)floorf((y + source_y) * source_step);
+    auto source_row = scaled_y * img_w;
     auto dest_row   = (y + y0) * surface->pitch;
     for (auto x = 0; x < w; x++) {
-      u8 *over  = (u8*)(mem + source_row + (x + source_x));
-      u8 *under = ((u8 *)surface->pixels + dest_row + (x + x0) * 4);
+      auto scaled_x = (u32)floorf(x * source_step + source_x);
+      u8 *over      = (u8*)(mem + source_row + scaled_x);
+      u8 *under     = ((u8 *)surface->pixels + dest_row + (x + x0) * 4);
       float alpha  = over[3] / 255.0f;
       float ialpha = 1.0 - alpha; 
       under[0] = over[0] * alpha + under[0] * ialpha;

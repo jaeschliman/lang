@@ -71,6 +71,7 @@ DONE: point functions
 TODO: real 'built-in-classes' i.e. Cons Fixnum etc
 TODO: basic message definition, send facility
 DONE: image objects
+TODO: rotation + scale BitBlt like thing
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -305,12 +306,14 @@ inline u64 vm_heap_used(VM *vm) {
   return (u64)vm->heap_end - (u64)vm->heap_mem;
 }
 
-#define _die_prefix(x) << x
+#define _ostream_prefix(x) << x
 #define die(...) do {                           \
     print_stacktrace();                         \
-    cerr MAP(_die_prefix, __VA_ARGS__) << endl; \
+    cerr MAP(_ostream_prefix, __VA_ARGS__) << endl; \
     exit(1);                                    \
   } while(0)
+
+#define dbg(...) cerr MAP(_ostream_prefix, __VA_ARGS__) << endl
 
 void gc(VM *vm);
 
@@ -3051,10 +3054,22 @@ Ptr gfx_fill_rect(VM *vm, point a, point b, s64 color) {
   return Nil;
 }
 
+#define _deg_to_rad(x) (x) * (M_PI / 180.0)
+
+u32 _angle = 0;
+
 Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p) {
   if (!is(Image, objToPtr(img))) die("gfx_blit_image: not an image");
 
-  float scale = 0.5;
+  auto surface = vm->surface;
+  auto out     = surface->pixels;
+  auto mem     = (u32 *)image_data(img);
+
+  float scale = 0.3;
+  float source_step = 1.0f / scale;
+
+  float angle = _deg_to_rad((float)(_angle % 360));
+  _angle+=10;
 
   s32 sx = p.x;
   s32 sy = p.y;
@@ -3062,38 +3077,60 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p) {
   u32 scr_w = vm->surface->w,   scr_h = vm->surface->h;
   u32 img_w = image_width(img), img_h = image_height(img);
 
-  if (sx > (s32)scr_w) return Nil;
-  if (sy > (s32)scr_h) return Nil;
-  if (sx + img_w <= 0) return Nil;
-  if (sy + img_h <= 0) return Nil;
+  float rvx = cosf(angle);
+  float rvy = sinf(angle);
 
-  u32 x0 = max(sx, 0), x1 = min(sx + (u32)(img_w * scale), scr_w);
-  u32 y0 = max(sy, 0), y1 = min(sy + (u32)(img_h * scale), scr_h);
+  float du_col = rvx, dv_col = rvy; 
+  float du_row = -rvy, dv_row = rvx;
 
-  auto w = x1 - x0, h = y1 - y0;
-  auto source_x = sx < 0 ? -sx : 0;
-  auto source_y = sy < 0 ? -sy : 0;
+  float cx = img_w * 0.5f, cy = img_h * 0.5f;
+  float dcx = scr_w * 0.5f, dcy = scr_h * 0.5f;
 
-  auto surface = vm->surface;
-  auto mem     = (u32 *)image_data(img);
+  float src_x = cx - (dcx * du_row + dcy * dv_row);
+  float src_y = cy - (dcy * dv_col + dcx * du_col);
 
-  auto source_step = 1.0f / scale;
+  float u = src_x, v = src_y;
 
-  for (auto y = 0; y < h; y++) {
-    auto scaled_y   = (u32)floorf((y + source_y) * source_step);
-    auto source_row = scaled_y * img_w;
-    auto dest_row   = (y + y0) * surface->pitch;
-    for (auto x = 0; x < w; x++) {
-      auto scaled_x = (u32)floorf(x * source_step + source_x);
-      u8 *over      = (u8*)(mem + source_row + scaled_x);
-      u8 *under     = ((u8 *)surface->pixels + dest_row + (x + x0) * 4);
-      float alpha  = over[3] / 255.0f;
-      float ialpha = 1.0 - alpha; 
-      under[0] = over[0] * alpha + under[0] * ialpha;
-      under[1] = over[1] * alpha + under[1] * ialpha;
-      under[2] = over[2] * alpha + under[2] * ialpha;
+  dbg("cx =", cx, " cy = ", cy, " u = ", u, " v = ", v);
+  dbg("du_col = ", du_col, " dv_col = ", dv_col );
+  dbg("du_row = ", du_row, " dv_row = ", dv_row );
+
+  u32 px_drawn = 0, px_skipped = 0;
+
+  float row_u = src_x, row_v = src_y;
+
+  for (u32 y = 0; y < img_h; y++) {
+    u = row_u; v = row_v; 
+    auto dest_row = (p.y + y) * surface->pitch;
+    for (u32 x = 0; x < img_w; x++) {
+      if (u >= 0.0f && v >= 0.0f && u <= (float)img_w && v <= (float)img_h
+          && p.x + x < scr_w && p.y + y < scr_h
+          ) {
+        px_drawn++;
+
+        u32 sx = floorf(u), sy = floorf(v);
+
+        u8* under = ((u8*)out + dest_row + (p.x + x) * 4);
+        u8* over  = (u8*)(mem + sy * img_w + sx);
+        
+        float alpha  = over[3] / 255.0f;
+        float ialpha = 1.0 - alpha; 
+        under[0] = over[0] * alpha + under[0] * ialpha;
+        under[1] = over[1] * alpha + under[1] * ialpha;
+        under[2] = over[2] * alpha + under[2] * ialpha;
+
+      } else {
+        px_skipped++;
+      }
+      u += du_col; v += dv_col;
     }
+    // u = src_x + (0 * du_col * 1) + (y * du_row * 1);
+    // v = src_y + (y * dv_row * 1) + (0 * du_row * 1);
+
+    // u += du_col; v += dv_col;
+    row_u += du_row; row_v += dv_row;
   }
+  dbg("drawn: ", px_drawn, " skipped: ", px_skipped, " u = ", u, " v = ", v);
   return Nil;
 }
 

@@ -43,6 +43,7 @@
                     (if (< (point-x p) color-well-size)
                         (choose-color p)
                         (let ()
+                          (fill-rect 0@0 640@480 0xffffff)
                           (blit-image cow (point- p 200@200))
                           (paint p)))))
 

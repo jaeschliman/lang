@@ -3073,7 +3073,6 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
   auto mem     = (u32 *)image_data(img);
 
   float scale = scale100 / 100.0f;
-  dbg("scale = ", scale);
   float iscale = 1.0f/scale;
   float source_step = iscale;
 
@@ -3089,10 +3088,12 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
   float du_row = -rvy, dv_row = rvx;
 
   float cx = img_w * 0.5f, cy = img_h * 0.5f;
-  float dcx = cx;//scr_w * 0.5f;
-  float dcy = cy;//scr_h * 0.5f;
 
-  // set the initial position by rotating the destination surface
+  // I don't understand exactly what dcx/dcy are for yet.
+  float dcx = cx;
+  float dcy = cy;
+
+  // set the initial position by rotating the 'destination' surface
   // I don't get why this works yet :P
   float src_x = cx - (dcx * du_row + dcy * dv_row);
   float src_y = cy - (dcy * dv_col + dcx * du_col);
@@ -3101,14 +3102,8 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
 
   float row_u = src_x, row_v = src_y;
 
-  s32 offsx = p.x + ((img_w * .5f) - (img_w * scale * .5f));// + img_w * scale * 0.5;
-  s32 offsy = p.y + ((img_h * .5f) - (img_h * scale * .5f));// + img_h * scale * 0.5;
-  // offsx = img_w * 0.5f;
-  // offsy = img_h * 0.5f;
-  // offsx = p.x - (img_w * .5f);
-  // offsy = p.y - (img_h * .5f);
-  offsx = p.x + cx/* - cx * scale*/; offsy = p.y + cy/* - cy * scale*/;
-  dbg("ox = ", offsx, " oy = ", offsy);
+  s32 offsx = p.x + cx;
+  s32 offsy = p.y + cy;
 
   for (u32 y = 0; y < img_h; y++) {
     u = row_u; v = row_v; 

@@ -12,8 +12,8 @@
                           (fill-rect ul lr color)
                           (draw-boxes (+ top size) size (cdr colors))))))
 
-;; (set-symbol-value 'cow (load-image "/Users/jsn/Downloads/cow.png"))
-(set-symbol-value 'cow (load-image "/Users/jsn/Downloads/test_pattern.png"))
+(set-symbol-value 'cow (load-image "/Users/jsn/Downloads/cow.png"))
+;; (set-symbol-value 'cow (load-image "/Users/jsn/Downloads/test_pattern.png"))
 
 (set-symbol-value 'colors
                   '(0xff0000
@@ -41,12 +41,10 @@
 
 (set-symbol-value 'scale (lambda (s v) (/ (* s v) 100)))
 
-(set-symbol-value 'offs-p (lambda (p s)
-                           (let ((amt (* 1 (+ 0 (scale s 112 )))
-                                  ;;(* 1 112)
-                                  ))
-                             ;; (print (make-point amt amt))
-                             (point- p (make-point amt amt)))))
+(set-symbol-value 'center-image-at (lambda (p s half-img-width)
+                                  (let ((amt (+ half-img-width
+                                                (scale s half-img-width))))
+                                    (point- p (make-point amt amt)))))
 
 (set-symbol-value 'mouse-handler
                   (lambda (p)
@@ -54,12 +52,7 @@
                         (choose-color p)
                         (let ((s (+ 50 (/ (point-y p) 24))))
                           (fill-rect 0@0 640@480 0xffffff)
-                          ;; (fill-rect p (point+ p 224@224) 0x00ff00)
-                          (blit-at cow
-                                   (offs-p p s)
-                                   s
-                                   (point-x p)
-                                   )
+                          (blit-at cow (center-image-at p s 250) s (point-x p))
                           (paint p)
                           ))))
 

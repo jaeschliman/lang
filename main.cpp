@@ -1,7 +1,5 @@
 /*
 
- g++ main.cpp -Werror -std=c++14 && ./a.out
-
 (setq flycheck-clang-language-standard "c++14")
 (setq flycheck-clang-include-path '("~/Library/Frameworks"))
 
@@ -46,8 +44,8 @@ DONE: gc-safe BCBuilder
 DONE: move varinfo & CompilerEnv into gc heap
 DONE: gc-safe compiler
 DONE: automatic garbage collection (need to use gc_protect)
-TODO: identity hash function
-TODO: proper imap
+DONE: identity hash function
+DONE: proper imap
 DONE: make cons a defstruct
 TODO: move stack memory into vm-managed heap
 TODO: continuations / exceptions / signals
@@ -60,7 +58,7 @@ TODO: U32 Array etc
 TODO: more prim instrs
 TODO: maybe expose bytecode prims as special forms? %push %call etc...
 TODO: growable heap
-TODO: looping primitive
+TODO: looping special form (while?)
 DONE: repl
 TODO: basic notebook
 TODO: notebook w/ event reactor
@@ -72,6 +70,7 @@ TODO: optimize global calls for more arities
 DONE: point functions
 TODO: real 'built-in-classes' i.e. Cons Fixnum etc
 TODO: basic message definition, send facility
+TODO: image objects
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -85,6 +84,7 @@ yield control to the vm, and get it back?
 */
 
 #include <SDL2/SDL.h>
+#include <SDL2_image/SDL_image.h>
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -334,7 +334,10 @@ void * vm_alloc(VM *vm, u64 bytes) {
       if (vm_heap_used(vm) + bytes + 16 > vm->heap_size_in_bytes) {
         die("heap exhausted after gc");
       }
-      return vm_alloc(vm, bytes);
+      vm->gc_disabled = true;
+      auto result = vm_alloc(vm, bytes);
+      vm->gc_disabled = false;
+      return result;
   }
 
   if (used_byte_count > vm->heap_size_in_bytes) {
@@ -360,7 +363,8 @@ void report_memory_usage(VM *vm) {
 
 typedef enum {
   String,
-  Symbol
+  Symbol,
+  Image
 } BAOType;
 
 struct ByteArrayObject : Object {
@@ -564,6 +568,56 @@ type_test(String, it) {
 unwrap_ptr_for(String, it) {
   return as(ByteArray, it);
 }
+
+type_test(Image, it) {
+  if (!is(ByteArray, it)) return false;
+  auto bao = as(ByteArray, it);
+  return bao->bao_type == Image;
+}
+unwrap_ptr_for(Image, it) {
+  return as(ByteArray, it);
+}
+
+u32 image_width(ByteArrayObject *it) {
+  assert(it->bao_type == Image);
+  return *(u32*)it->data;
+}
+u32 image_height(ByteArrayObject *it) {
+  assert(it->bao_type == Image);
+  return *(((u32*)it->data)+1);
+}
+
+u8* image_data(ByteArrayObject *it) {
+  assert(it->bao_type == Image);
+  return (u8*)(((u32*)it->data)+2);
+}
+
+ByteArrayObject *alloc_image(VM *vm, u32 w, u32 h) {
+  auto byte_count = (w * h * 4) + 8;
+  // die("byte count is: ", byte_count);
+  auto result = alloc_bao(vm, Image, byte_count);
+  auto u32s = (u32*)result->data;
+  u32s[0] = w; u32s[1] = h;
+  return result;
+}
+
+Ptr load_image(VM *vm, const char* path) {
+  auto surface = IMG_Load(path);
+  if (!surface) die("could not load image: ", IMG_GetError());
+  auto w = surface->w; auto h = surface->h;
+  auto img = alloc_image(vm, w, h);
+  auto mem = (u32*)image_data(img);
+  for (auto y = 0; y < h; y++) {
+    auto stride =  y * surface->pitch;
+    for (auto x = 0; x < w; x++) {
+      u32 pixel = *(u32 *)((u8*)surface->pixels + stride + x * 4);
+      mem[y * w + x] = pixel;
+    }
+  }
+  SDL_FreeSurface(surface);
+  return objToPtr(img);
+}
+
 
 PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   auto byte_count = sizeof(PtrArrayObject) + (len * sizeof(Ptr));
@@ -953,7 +1007,7 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
   auto otype = obj->header.object_type;
   switch (otype) {
   case ByteArray_ObjectType: {
-    const ByteArrayObject *vobj = (const ByteArrayObject*)(obj);
+    ByteArrayObject *vobj = (ByteArrayObject*)(obj);
     switch(vobj->bao_type) {
     case String:
       os << "\"";
@@ -967,6 +1021,10 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
         os << vobj->data[i];
       }
       return os;
+    case Image: {
+      auto w = image_width(vobj); auto h = image_height(vobj);
+      return os << "#<Image w=" << w << " h=" << h << " " << (void*)vobj << ">";
+    }
     }
   }
   case PtrArray_ObjectType: {
@@ -2952,6 +3010,30 @@ Ptr gfx_fill_rect(VM *vm, point a, point b, s64 color) {
   return Nil;
 }
 
+Ptr gfx_blit_image(VM *vm, Ptr it) {
+  if (!is(Image, it)) die("not an image: ", it);
+  auto img = as(ByteArray, it);
+  u32 sw = vm->surface->w,   sh = vm->surface->h;
+  u32 iw = image_width(img), ih = image_height(img);
+  auto w = min(sw, iw),      h  = min(sh, ih);
+  auto surface = vm->surface;
+  auto mem = (u32 *)image_data(img);
+  // This will probably be hella slow
+  for (auto y = 0; y < h; y++) {
+    auto stride =  y * surface->pitch;
+    for (auto x = 0; x < w; x++) {
+      u8* over = (u8*)(mem + y * iw + x);
+      u8 *under = ((u8 *)surface->pixels + stride + x * 4);
+      float alpha = over[3] / 255.0f;
+      float ialpha = 1.0 - alpha; 
+      under[0] = over[0] * alpha + under[0] * ialpha;
+      under[1] = over[1] * alpha + under[1] * ialpha;
+      under[2] = over[2] * alpha + under[2] * ialpha;
+    }
+  }
+  return Nil;
+}
+
 #include "./primop-generated.cpp"
 
 /* -------------------------------------------------- */
@@ -3161,8 +3243,18 @@ void start_up_and_run_event_loop(const char *path) {
   if (!vm->surface) die("could not create surface");
 
   {
+    //Initialize PNG loading
+    int imgFlags = IMG_INIT_PNG;
+    if(!(IMG_Init(imgFlags) & imgFlags)) {
+      die("SDL_image could not initialize! SDL_image Error: ", IMG_GetError());
+    } 
+  }
+
+  {
     auto fmt = vm->surface->format;
     SDL_FillRect(vm->surface, NULL, SDL_MapRGB(fmt, 255, 255, 255));
+    auto cow = load_image(vm, "/Users/jsn/Downloads/cow.png");
+    gfx_blit_image(vm, cow);
     auto W = to(Fixnum, w);
     auto H = to(Fixnum, h);
     vm_call_global(vm, intern(vm, "onshow"), 2, (Ptr[]){W, H});

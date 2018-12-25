@@ -12,7 +12,8 @@
                           (fill-rect ul lr color)
                           (draw-boxes (+ top size) size (cdr colors))))))
 
-(set-symbol-value 'cow (load-image "/Users/jsn/Downloads/cow.png"))
+;; (set-symbol-value 'cow (load-image "/Users/jsn/Downloads/cow.png"))
+(set-symbol-value 'cow (load-image "/Users/jsn/Downloads/test_pattern.png"))
 
 (set-symbol-value 'colors
                   '(0xff0000
@@ -38,14 +39,29 @@
                         (if (not (nil? color))
                             (set-symbol-value 'selected-color color))))))
 
+(set-symbol-value 'scale (lambda (s v) (/ (* s v) 100)))
+
+(set-symbol-value 'offs-p (lambda (p s)
+                           (let ((amt (* 1 (+ 0 (scale s 112 )))
+                                  ;;(* 1 112)
+                                  ))
+                             ;; (print (make-point amt amt))
+                             (point- p (make-point amt amt)))))
+
 (set-symbol-value 'mouse-handler
                   (lambda (p)
                     (if (< (point-x p) color-well-size)
                         (choose-color p)
-                        (let ()
+                        (let ((s (+ 50 (/ (point-y p) 24))))
                           (fill-rect 0@0 640@480 0xffffff)
-                          (blit-at cow (point- p 250@250) 50 (point-x p))
-                          (paint p)))))
+                          ;; (fill-rect p (point+ p 224@224) 0x00ff00)
+                          (blit-at cow
+                                   (offs-p p s)
+                                   s
+                                   (point-x p)
+                                   )
+                          (paint p)
+                          ))))
 
 ;;;;;;; register event handlers
 

@@ -73,6 +73,7 @@ TODO: basic message definition, send facility
 DONE: image objects
 DONE: rotation + scale BitBlt like thing
 TODO: maybe store image data off-heap?
+TODO: fix make-point for negative values
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -3072,12 +3073,11 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
   auto mem     = (u32 *)image_data(img);
 
   float scale = scale100 / 100.0f;
-  float source_step = 1.0f / scale;
+  dbg("scale = ", scale);
+  float iscale = 1.0f/scale;
+  float source_step = iscale;
 
   float angle = _deg_to_rad((float)(deg_rot % 360));
-
-  s32 sx = p.x;
-  s32 sy = p.y;
 
   u32 scr_w = vm->surface->w,   scr_h = vm->surface->h;
   u32 img_w = image_width(img), img_h = image_height(img);
@@ -3089,7 +3089,8 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
   float du_row = -rvy, dv_row = rvx;
 
   float cx = img_w * 0.5f, cy = img_h * 0.5f;
-  float dcx = scr_w * 0.5f, dcy = scr_h * 0.5f;
+  float dcx = cx;//scr_w * 0.5f;
+  float dcy = cy;//scr_h * 0.5f;
 
   // set the initial position by rotating the destination surface
   // I don't get why this works yet :P
@@ -3100,9 +3101,14 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
 
   float row_u = src_x, row_v = src_y;
 
-  float iscale = 1.0 / scale;
-  u32 offsx = p.x + img_w * scale * 0.5;
-  u32 offsy = p.y + img_h * scale * 0.5;
+  s32 offsx = p.x + ((img_w * .5f) - (img_w * scale * .5f));// + img_w * scale * 0.5;
+  s32 offsy = p.y + ((img_h * .5f) - (img_h * scale * .5f));// + img_h * scale * 0.5;
+  // offsx = img_w * 0.5f;
+  // offsy = img_h * 0.5f;
+  // offsx = p.x - (img_w * .5f);
+  // offsy = p.y - (img_h * .5f);
+  offsx = p.x + cx/* - cx * scale*/; offsy = p.y + cy/* - cy * scale*/;
+  dbg("ox = ", offsx, " oy = ", offsy);
 
   for (u32 y = 0; y < img_h; y++) {
     u = row_u; v = row_v; 
@@ -3111,8 +3117,7 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
     for (u32 x = 0; x < img_w; x++) {
 
       if (u >= 0.0f && v >= 0.0f && u <= (float)img_w && v <= (float)img_h
-          && offsx + x < scr_w && offsy + y < scr_h
-          ) {
+          && offsx + x < scr_w && offsy + y < scr_h) {
 
         u32 sx = floorf(u), sy = floorf(v);
 
@@ -3125,6 +3130,11 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
         under[1] = over[1] * alpha + under[1] * ialpha;
         under[2] = over[2] * alpha + under[2] * ialpha;
 
+      }
+      else if ( offsx + x < scr_w && offsy + y < scr_h ) {
+        u8* under = ((u8*)out + dest_row + (offsx + x) * 4);
+        under[0] = 0xff;
+        under[1] = under[2] = 0;
       }
 
       u += du_col * source_step; v += dv_col * source_step;

@@ -42,20 +42,21 @@
                   (lambda (p)
                     (if (< (point-x p) color-well-size)
                         (choose-color p)
-                        (paint p))))
+                        (let ()
+                          (blit-image cow (point- p 200@200))
+                          (paint p)))))
 
 ;;;;;;; register event handlers
 
 (set-symbol-value 'onshow (lambda (w h)
                             (set-symbol-value 'color-well-size (/ h 8))
-                            (draw-boxes 0 color-well-size colors)
-                            (blit-image cow)))
+                            (draw-boxes 0 color-well-size colors)))
 
 (set-symbol-value 'onmousemove ignore1)
 ;; (set-symbol-value 'onmousedrag set-pixel)
 (set-symbol-value 'onmousedown mouse-handler)
 (set-symbol-value 'onmousedrag mouse-handler)
 (set-symbol-value 'onkey (lambda (code)
-                           (blit-image cow)
+                           (blit-image cow 0@0)
                            (print '(you pressed a key))
                            (print code)))

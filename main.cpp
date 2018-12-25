@@ -3051,20 +3051,37 @@ Ptr gfx_fill_rect(VM *vm, point a, point b, s64 color) {
   return Nil;
 }
 
-Ptr gfx_blit_image(VM *vm, ByteArrayObject* img) {
+Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p) {
   if (!is(Image, objToPtr(img))) die("gfx_blit_image: not an image");
-  u32 sw = vm->surface->w,   sh = vm->surface->h;
-  u32 iw = image_width(img), ih = image_height(img);
-  auto w = min(sw, iw),      h  = min(sh, ih);
+
+  s32 sx = p.x;
+  s32 sy = p.y;
+
+  u32 scr_w = vm->surface->w,   scr_h = vm->surface->h;
+  u32 img_w = image_width(img), img_h = image_height(img);
+
+  if (sx > (s32)scr_w) return Nil;
+  if (sy > (s32)scr_h) return Nil;
+  if (sx + img_w <= 0) return Nil;
+  if (sy + img_h <= 0) return Nil;
+
+  u32 x0 = max(sx, 0), x1 = min(sx + img_w, scr_w);
+  u32 y0 = max(sy, 0), y1 = min(sy + img_h, scr_h);
+
+  auto w = x1 - x0, h = y1 - y0;
+  auto source_x = sx < 0 ? -sx : 0;
+  auto source_y = sy < 0 ? -sy : 0;
+
   auto surface = vm->surface;
-  auto mem = (u32 *)image_data(img);
-  // This will probably be hella slow
+  auto mem     = (u32 *)image_data(img);
+
   for (auto y = 0; y < h; y++) {
-    auto stride =  y * surface->pitch;
+    auto source_row = (y + source_y) * img_w;
+    auto dest_row   = (y + y0) * surface->pitch;
     for (auto x = 0; x < w; x++) {
-      u8* over = (u8*)(mem + y * iw + x);
-      u8 *under = ((u8 *)surface->pixels + stride + x * 4);
-      float alpha = over[3] / 255.0f;
+      u8 *over  = (u8*)(mem + source_row + (x + source_x));
+      u8 *under = ((u8 *)surface->pixels + dest_row + (x + x0) * 4);
+      float alpha  = over[3] / 255.0f;
       float ialpha = 1.0 - alpha; 
       under[0] = over[0] * alpha + under[0] * ialpha;
       under[1] = over[1] * alpha + under[1] * ialpha;
@@ -3072,6 +3089,10 @@ Ptr gfx_blit_image(VM *vm, ByteArrayObject* img) {
     }
   }
   return Nil;
+}
+
+Ptr gfx_blit_image(VM *vm, ByteArrayObject* img) {
+  return gfx_blit_image_at(vm, img, (point){0, 0});
 }
 
 #include "./primop-generated.cpp"

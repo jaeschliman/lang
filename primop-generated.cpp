@@ -25,7 +25,7 @@ enum PrimitiveOperation : u64 {
   PRIM_MKPOINT = ((22ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_PTX = ((23ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_PTY = ((24ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_DRAWIMAGE = ((25ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_DRAWIMAGE = ((25ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_LOADIMAGE = ((26ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
@@ -222,9 +222,10 @@ Ptr PRIM_PTY_impl(VM *vm) {
 
 // Primitive 25
 Ptr PRIM_DRAWIMAGE_impl(VM *vm) {
+   VM_ARG(Point,p);
    VM_ARG(Image,img);
 
- return gfx_blit_image(vm, img);
+ return gfx_blit_image_at(vm, img, p);
 }
 
 // Primitive 26

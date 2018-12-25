@@ -73,7 +73,7 @@ TODO: basic message definition, send facility
 DONE: image objects
 DONE: rotation + scale BitBlt like thing
 TODO: maybe store image data off-heap?
-TODO: fix make-point for negative values
+DONE: fix make-point for negative values (was a reader problem)
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -1930,6 +1930,7 @@ s64 read_int(VM *vm, const char **remaining, const char *end) {
     input++;
     if (input >= end || !is_digitchar(*input)) { goto error; }
     res = -1 * (*input - '0');
+    input++;
   }
   goto ok;
  error: {
@@ -1951,13 +1952,15 @@ s64 read_int(VM *vm, const char **remaining, const char *end) {
     return res;
  }
  ok: {
+    auto sign = res < 0 ? -1 : 1;
     while (input < end && is_digitchar(*input)) {
-      res *= 10; res += *input - '0';
+      res *= 10;
+      res += (*input - '0') * sign;
       input++;
     }
-      *remaining = input;
-      return res;
-    }
+    *remaining = input;
+    return res;
+  }
 }
 
 Ptr read_string(VM *vm, const char **remaining, const char *end, Ptr done) {
@@ -1980,7 +1983,21 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
   while (input < end) {
     eat_ws(&input, end);
     if (input >= end) break;
-    if (is_symchar(*input)) {
+    if (is_digitchar(*input) || (*input == '-' && is_digitchar(*(input + 1)))) {
+      // @safe
+      s64 num = read_int(vm, &input, end);
+      Ptr res;
+      if (input < end && *input == '@') { // read point
+        input++;
+        s64 num2 = read_int(vm, &input, end);
+        auto pt = (point){ (s32)num, (s32)num2};
+        res = to(Point, pt);
+      } else {
+        res = to(Fixnum, num);
+      }
+      *remaining = input;
+      return res;
+    } else if (is_symchar(*input)) {
       // @safe
       const char* start = input;
       int len = 1;
@@ -2014,20 +2031,6 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
         res = read_character(vm, &input, end, done);
       } else {
         res = read_bool(vm, &input, end, done);
-      }
-      *remaining = input;
-      return res;
-    } else if (is_digitchar(*input) || *input == '-') {
-      // @safe
-      s64 num = read_int(vm, &input, end);
-      Ptr res;
-      if (input < end && *input == '@') { // read point
-        input++;
-        s64 num2 = read_int(vm, &input, end);
-        auto pt = (point){ (s32)num, (s32)num2};
-        res = to(Point, pt);
-      } else {
-        res = to(Fixnum, num);
       }
       *remaining = input;
       return res;

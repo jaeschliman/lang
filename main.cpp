@@ -1,7 +1,8 @@
 /*
 
 (setq flycheck-clang-language-standard "c++14")
-(setq flycheck-clang-include-path '("~/Library/Frameworks"))
+(setq flycheck-clang-include-path '("/Users/jsn/Library/Frameworks"))
+(setq flycheck-clang-args '("-F" "/Users/jsn/Library/Frameworks"))
 
 DONE: stack traces
 DONE: move allocations into vm-managed heap

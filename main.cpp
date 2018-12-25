@@ -3062,6 +3062,7 @@ Ptr gfx_fill_rect(VM *vm, point a, point b, s64 color) {
 
 #define _deg_to_rad(x) (x) * (M_PI / 180.0)
 
+#define DEBUG_FILL 0
 // largely from http://www.drdobbs.com/architecture-and-design/fast-bitmap-rotation-and-scaling/184416337
 // and some mention from alan kay in a video about how it works
 // scale and rotation are s64s becuase we don't have floats in the VM yet :P
@@ -3105,11 +3106,14 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
   s32 offsx = p.x + cx;
   s32 offsy = p.y + cy;
 
-  for (u32 y = 0; y < img_h; y++) {
+  u32 scan_width  = img_w * scale; // TODO: handle clipped corners
+  u32 scan_height = img_h * scale;
+
+  for (u32 y = 0; y < scan_height; y++) {
     u = row_u; v = row_v; 
     auto dest_row = (offsy + y) * surface->pitch;
 
-    for (u32 x = 0; x < img_w; x++) {
+    for (u32 x = 0; x < scan_width; x++) {
 
       if (u >= 0.0f && v >= 0.0f && u <= (float)img_w && v <= (float)img_h
           && offsx + x < scr_w && offsy + y < scr_h) {
@@ -3126,11 +3130,13 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
         under[2] = over[2] * alpha + under[2] * ialpha;
 
       }
+      #if DEBUG_FILL
       else if ( offsx + x < scr_w && offsy + y < scr_h ) {
         u8* under = ((u8*)out + dest_row + (offsx + x) * 4);
         under[0] = 0xff;
         under[1] = under[2] = 0;
       }
+      #endif
 
       u += du_col * source_step; v += dv_col * source_step;
     }

@@ -138,7 +138,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim point-x    PTX     ((p Point))             Fixnum "(s64)p.x")
   (prim point-y    PTY     ((p Point))             Fixnum "(s64)p.y")
 
-  (prim blit-image DRAWIMAGE ((img Image) (p Point)) any "gfx_blit_image_at(vm, img, p)")
+  (prim blit-at DRAWIMAGE ((img Image) (p Point) (scale Fixnum) (rot Fixnum)) any "gfx_blit_image_at(vm, img, p, scale, rot)")
   (prim load-image LOADIMAGE ((path String)) any "load_image(vm, path)")
 
   (setf *prims* (reverse *prims*)))

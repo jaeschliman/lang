@@ -3056,20 +3056,20 @@ Ptr gfx_fill_rect(VM *vm, point a, point b, s64 color) {
 
 #define _deg_to_rad(x) (x) * (M_PI / 180.0)
 
-u32 _angle = 0;
-
-Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p) {
+// largely from http://www.drdobbs.com/architecture-and-design/fast-bitmap-rotation-and-scaling/184416337
+// and some mention from alan kay in a video about how it works
+// scale and rotation are s64s becuase we don't have floats in the VM yet :P
+Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 deg_rot) {
   if (!is(Image, objToPtr(img))) die("gfx_blit_image: not an image");
 
   auto surface = vm->surface;
   auto out     = surface->pixels;
   auto mem     = (u32 *)image_data(img);
 
-  float scale = 0.5;
+  float scale = scale100 / 100.0f;
   float source_step = 1.0f / scale;
 
-  float angle = _deg_to_rad((float)(_angle % 360));
-  _angle+=10;
+  float angle = _deg_to_rad((float)(deg_rot % 360));
 
   s32 sx = p.x;
   s32 sy = p.y;
@@ -3086,16 +3086,12 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p) {
   float cx = img_w * 0.5f, cy = img_h * 0.5f;
   float dcx = scr_w * 0.5f, dcy = scr_h * 0.5f;
 
+  // set the initial position by rotating the destination surface
+  // I don't get why this works yet :P
   float src_x = cx - (dcx * du_row + dcy * dv_row);
   float src_y = cy - (dcy * dv_col + dcx * du_col);
 
   float u = src_x, v = src_y;
-
-  // dbg("cx =", cx, " cy = ", cy, " u = ", u, " v = ", v);
-  // dbg("du_col = ", du_col, " dv_col = ", dv_col );
-  // dbg("du_row = ", du_row, " dv_row = ", dv_row );
-
-  // u32 px_drawn = 0, px_skipped = 0;
 
   float row_u = src_x, row_v = src_y;
 
@@ -3106,11 +3102,12 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p) {
   for (u32 y = 0; y < img_h; y++) {
     u = row_u; v = row_v; 
     auto dest_row = (offsy + y) * surface->pitch;
+
     for (u32 x = 0; x < img_w; x++) {
+
       if (u >= 0.0f && v >= 0.0f && u <= (float)img_w && v <= (float)img_h
           && offsx + x < scr_w && offsy + y < scr_h
           ) {
-        // px_drawn++;
 
         u32 sx = floorf(u), sy = floorf(v);
 
@@ -3123,19 +3120,18 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p) {
         under[1] = over[1] * alpha + under[1] * ialpha;
         under[2] = over[2] * alpha + under[2] * ialpha;
 
-      } else {
-        // px_skipped++;
       }
+
       u += du_col * source_step; v += dv_col * source_step;
     }
     row_u += du_row * source_step; row_v += dv_row * source_step;
   }
-  // dbg("drawn: ", px_drawn, " skipped: ", px_skipped, " u = ", u, " v = ", v);
+
   return Nil;
 }
 
 Ptr gfx_blit_image(VM *vm, ByteArrayObject* img) {
-  return gfx_blit_image_at(vm, img, (point){0, 0});
+  return gfx_blit_image_at(vm, img, (point){0, 0}, 100, 0);
 }
 
 #include "./primop-generated.cpp"

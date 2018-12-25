@@ -2345,6 +2345,7 @@ private:
   VM* vm;
   u64* bc_mem;
   u64 bc_index;
+  u64 bc_capacity;
   u64 lit_index;
 
   ByteCodeObject *bc;
@@ -2361,6 +2362,10 @@ private:
     return pushU64(op);
   }
   BCBuilder* pushU64(u64 it) {
+    if (bc_index >= bc_capacity) {
+      bc_capacity *= 2;
+      bc_mem = (u64 *)realloc(bc_mem, bc_capacity);
+    }
     bc_mem[bc_index++] = it;
     return this;
   }
@@ -2418,7 +2423,8 @@ public:
 
     bc_index            = 0;
     lit_index           = 0;
-    bc_mem              = (u64 *)calloc(1024, 1); // TODO: realloc when needed
+    bc_capacity         = 1024;
+    bc_mem              = (u64 *)calloc(bc_capacity, 1);
     labelsMap           = new map<string, u64>;
     branchLocations     = new vector<branch_entry>;
     labelContextCounter = 0;

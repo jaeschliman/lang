@@ -52,7 +52,12 @@
                         (choose-color p)
                         (let ((s (+ 50 (/ (point-y p) 24))))
                           (fill-rect 0@0 640@480 0xffffff)
-                          (blit-at cow (center-image-at p s 250) s (point-x p))
+                          (blit-at cow (center-image-at p s 250)
+                                   s (point-x p))
+                          (blit-at cow (center-image-at (point+ p 50@50) 25 250)
+                                   25 (+ 50 (point-x p)))
+                          (blit-at cow (center-image-at (point- p 75@20) 15 250)
+                                   15 (- (point-x p) 30))
                           (paint p)
                           ))))
 

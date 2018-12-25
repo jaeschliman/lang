@@ -269,6 +269,7 @@ struct VM {
   u64 instruction_count;
   Globals *globals;
   bool gc_disabled;
+  bool in_gc;
   u64 gc_count;
   u64 gc_threshold_in_bytes;
   u64 gc_compacted_size_in_bytes;
@@ -328,7 +329,7 @@ void * vm_alloc(VM *vm, u64 bytes) {
   u64 last_byte_count = vm->gc_compacted_size_in_bytes;
   u64 limit = min(threshold + last_byte_count, vm->heap_size_in_bytes);
 
-  if (used_byte_count > limit && !vm->gc_disabled) {
+  if (used_byte_count > limit && !vm->gc_disabled && !vm->in_gc) {
       vm->heap_end = preserved_heap_end;
       gc(vm);
       if (vm_heap_used(vm) + bytes + 16 > vm->heap_size_in_bytes) {
@@ -601,8 +602,8 @@ ByteArrayObject *alloc_image(VM *vm, u32 w, u32 h) {
   return result;
 }
 
-Ptr load_image(VM *vm, const char* path) {
-  auto surface = IMG_Load(path);
+Ptr load_image_from_path(VM *vm, string path) {
+  auto surface = IMG_Load(path.c_str());
   if (!surface) die("could not load image: ", IMG_GetError());
   auto w = surface->w; auto h = surface->h;
   auto img = alloc_image(vm, w, h);
@@ -618,6 +619,11 @@ Ptr load_image(VM *vm, const char* path) {
   return objToPtr(img);
 }
 
+Ptr load_image(VM *vm, ByteArrayObject *path) {
+  if (!is(String, objToPtr(path))) die("load_image takes a string");
+  auto str = string(path->data, path->length);
+  return load_image_from_path(vm, str);
+}
 
 PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   auto byte_count = sizeof(PtrArrayObject) + (len * sizeof(Ptr));
@@ -677,6 +683,18 @@ Ptr make_string(VM *vm, const char* str) {
   const char *from = str;
   char *to = &(obj->data[0]);
   while(*from != 0) {
+    *to = *from;
+    to++; from++;
+  }
+  return objToPtr(obj);
+}
+
+Ptr make_string_with_end(VM *vm, const char* str, const char* end) {
+  // die(" make string with end: ", end - str);
+  ByteArrayObject *obj = alloc_bao(vm, String, end - str);
+  const char *from = str;
+  char *to = &(obj->data[0]);
+  while(from < end) {
     *to = *from;
     to++; from++;
   }
@@ -1501,6 +1519,7 @@ inline void gc_unprotect_ptr_vector(VM *vm, Ptr *ref){
 }
 
 void gc(VM *vm) {
+  vm->in_gc = true;
   vm->gc_count++;
 
   if (GC_DEBUG) {
@@ -1548,6 +1567,7 @@ void gc(VM *vm) {
   // cerr << " protected Object count : " << vm->gc_protected->size() << endl;
   // cerr << " protected ptr    count : " << vm->gc_protected_ptrs->size() << endl;
 
+  vm->in_gc = false;
 }
 
 
@@ -1930,6 +1950,21 @@ s64 read_int(VM *vm, const char **remaining, const char *end) {
     }
 }
 
+Ptr read_string(VM *vm, const char **remaining, const char *end, Ptr done) {
+  auto input = *remaining;
+  auto start = input;
+  while (*input != '"') {
+    if (input >= end) {
+      vm->error = "read_string: unexpected end of input";
+      *remaining = input;
+      return done;
+    }
+    input++; //TODO: handle backslash quote etc
+  }
+  *remaining = input;
+  return make_string_with_end(vm, start, input);
+}
+
 Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
   const char *input = *remaining;
   while (input < end) {
@@ -1984,6 +2019,12 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
       } else {
         res = to(Fixnum, num);
       }
+      *remaining = input;
+      return res;
+    } else if (*input == '"') {
+      input++;
+      auto res = read_string(vm, &input, end, done);
+      input++;
       *remaining = input;
       return res;
     }
@@ -3010,9 +3051,8 @@ Ptr gfx_fill_rect(VM *vm, point a, point b, s64 color) {
   return Nil;
 }
 
-Ptr gfx_blit_image(VM *vm, Ptr it) {
-  if (!is(Image, it)) die("not an image: ", it);
-  auto img = as(ByteArray, it);
+Ptr gfx_blit_image(VM *vm, ByteArrayObject* img) {
+  if (!is(Image, objToPtr(img))) die("gfx_blit_image: not an image");
   u32 sw = vm->surface->w,   sh = vm->surface->h;
   u32 iw = image_width(img), ih = image_height(img);
   auto w = min(sw, iw),      h  = min(sh, ih);
@@ -3066,6 +3106,8 @@ VM *vm_create() {
   vm->gc_protected->reserve(100);
   vm->gc_protected_ptrs->reserve(100);
   vm->gc_protected_ptr_vectors->reserve(100);
+
+  vm->in_gc = false;
 
   vm->frame = 0;
   vm->error = 0;
@@ -3253,8 +3295,6 @@ void start_up_and_run_event_loop(const char *path) {
   {
     auto fmt = vm->surface->format;
     SDL_FillRect(vm->surface, NULL, SDL_MapRGB(fmt, 255, 255, 255));
-    auto cow = load_image(vm, "/Users/jsn/Downloads/cow.png");
-    gfx_blit_image(vm, cow);
     auto W = to(Fixnum, w);
     auto H = to(Fixnum, h);
     vm_call_global(vm, intern(vm, "onshow"), 2, (Ptr[]){W, H});

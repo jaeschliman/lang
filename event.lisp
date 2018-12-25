@@ -12,6 +12,8 @@
                           (fill-rect ul lr color)
                           (draw-boxes (+ top size) size (cdr colors))))))
 
+(set-symbol-value 'cow (load-image "/Users/jsn/Downloads/cow.png"))
+
 (set-symbol-value 'colors
                   '(0xff0000
                     0xffff00
@@ -27,8 +29,7 @@
 (set-symbol-value 'selected-color (car colors))
 
 (set-symbol-value 'paint
-                  (lambda (p)
-                    (fill-rect p (point+ p 15@15) selected-color)))
+                  (lambda (p) (fill-rect p (point+ p 15@15) selected-color)))
 
 (set-symbol-value 'choose-color
                   (lambda (p)
@@ -43,17 +44,18 @@
                         (choose-color p)
                         (paint p))))
 
-
 ;;;;;;; register event handlers
 
 (set-symbol-value 'onshow (lambda (w h)
                             (set-symbol-value 'color-well-size (/ h 8))
-                            (draw-boxes 0 color-well-size colors)))
+                            (draw-boxes 0 color-well-size colors)
+                            (blit-image cow)))
 
 (set-symbol-value 'onmousemove ignore1)
 ;; (set-symbol-value 'onmousedrag set-pixel)
 (set-symbol-value 'onmousedown mouse-handler)
 (set-symbol-value 'onmousedrag mouse-handler)
 (set-symbol-value 'onkey (lambda (code)
+                           (blit-image cow)
                            (print '(you pressed a key))
                            (print code)))

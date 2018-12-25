@@ -2,6 +2,7 @@
 set -e
 set -x
 
+# requires SDL2 and SDL2_image frameworks
 INCLUDE=/Users/jsn/Library/Frameworks
 
 mkdir -p build

@@ -25,6 +25,8 @@ enum PrimitiveOperation : u64 {
   PRIM_MKPOINT = ((22ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_PTX = ((23ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_PTY = ((24ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_DRAWIMAGE = ((25ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_LOADIMAGE = ((26ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -218,6 +220,20 @@ Ptr PRIM_PTY_impl(VM *vm) {
   return to(Fixnum,((s64)p.y));
 }
 
+// Primitive 25
+Ptr PRIM_DRAWIMAGE_impl(VM *vm) {
+   VM_ARG(Image,img);
+
+ return gfx_blit_image(vm, img);
+}
+
+// Primitive 26
+Ptr PRIM_LOADIMAGE_impl(VM *vm) {
+   VM_ARG(String,path);
+
+ return load_image(vm, path);
+}
+
 
 PrimitiveFunction PrimLookupTable[] = {
   &PRIM_PLUS_impl,
@@ -245,6 +261,8 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_MKPOINT_impl,
   &PRIM_PTX_impl,
   &PRIM_PTY_impl,
+  &PRIM_DRAWIMAGE_impl,
+  &PRIM_LOADIMAGE_impl,
 
   (PrimitiveFunction)(void *)0
 };
@@ -276,5 +294,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "make-point", to(PrimOp, PRIM_MKPOINT));
   set_global(vm, "point-x", to(PrimOp, PRIM_PTX));
   set_global(vm, "point-y", to(PrimOp, PRIM_PTY));
+  set_global(vm, "blit-image", to(PrimOp, PRIM_DRAWIMAGE));
+  set_global(vm, "load-image", to(PrimOp, PRIM_LOADIMAGE));
 
 }

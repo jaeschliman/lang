@@ -138,6 +138,9 @@ void initialize_primitive_functions(VM *vm) {
   (prim point-x    PTX     ((p Point))             Fixnum "(s64)p.x")
   (prim point-y    PTY     ((p Point))             Fixnum "(s64)p.y")
 
+  (prim blit-image DRAWIMAGE ((img Image))   any "gfx_blit_image(vm, img)")
+  (prim load-image LOADIMAGE ((path String)) any "load_image(vm, path)")
+
   (setf *prims* (reverse *prims*)))
 
 ;; TODO: emit directly to file (run in batch mode)

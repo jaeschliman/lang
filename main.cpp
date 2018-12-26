@@ -3427,12 +3427,15 @@ void start_up_and_run_event_loop(const char *path) {
 
   auto x     = SDL_WINDOWPOS_CENTERED;
   auto y     = SDL_WINDOWPOS_CENTERED;
-  auto w     = 640;
-  auto h     = 480;
+  auto w     = 1280;
+  auto h     = 800; // To acct for title bar
   auto title = "my window";
 
+  // allow highdpi not actually working on my macbook...
+  auto winopts = SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI;
+
   SDL_Init(SDL_INIT_VIDEO);
-  window = SDL_CreateWindow(title, x, y, w, h, SDL_WINDOW_SHOWN);  
+  window = SDL_CreateWindow(title, x, y, w, h, winopts);
   if(!window) die("could not create window");
   vm->surface = SDL_GetWindowSurface(window);
   if (!vm->surface) die("could not create surface");

@@ -63,18 +63,21 @@
                                      (scale s 80)
                                      (+i r 33))))))
 
+(set-symbol-value 'screen-size #f)
+
 (set-symbol-value 'mouse-handler
                   (lambda (p)
                     (if (<i (point-x p) color-well-size)
                         (choose-color p)
                         (let ((s (+i 50 (/i (point-y p) 24))))
-                          (fill-rect 0@0 640@480 0xffffff)
+                          (fill-rect 0@0 screen-size 0xffffff)
                           (draw-cows p s (point-x p))
                           (paint p)))))
 
 ;;;;;;; register event handlers
 
 (set-symbol-value 'onshow (lambda (w h)
+                            (set-symbol-value 'screen-size (make-point w h))
                             (set-symbol-value 'color-well-size (/i h 8))
                             (draw-boxes 0 color-well-size colors)))
 

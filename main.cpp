@@ -84,6 +84,8 @@ TODO: something resembling OMeta / Meta II
 TODO: basic text rendering
 TODO: type-of
 TODO: class-of
+TODO: better float printing (may be missing trailing .0)
+TODO: float exponent support?
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -517,11 +519,14 @@ unwrap_ptr_for(Point, it) {
 prim_type(Float)
 create_ptr_for(Float, f32 f) {
   u64 bits = 0;
-  ((u32 *)&bits)[0] = *(u32 *)&f;
+  bits = *(u32*)&f;
+  bits = bits << 32;
   return (Ptr){ bits | Float_Tag };
 }
 unwrap_ptr_for(Float, it) {
-  return *((f32*)(((u32 *)&it.value)));
+  u32 bits = it.value >> 32;
+  f32 res = *(f32 *)&bits;
+  return res;
 }
 
 type_test(Object, it) { return is(NonNilObject, it); }
@@ -2042,20 +2047,22 @@ bool reader_scan_for_float(const char *input, const char *end) {
 
 f32 read_float(const char **remaining, const char *end) {
   auto *input = *remaining;
-  f32 res = 0, sign = 1;
+  s64 res = 0, sign = 1.0;
   if (*input == '-') { sign = -1; input++; }
   while (input < end && is_digitchar(*input)) {
-    res *= 10.0; res += *input - '0';
+    res *= 10; res += *input - '0';
     input++;
   }
-  f32 divisor = 1.0f;
-  input++; // skip .
+  s64 divisor = 1;
+  input++; // skip dot
   while (input < end && is_digitchar(*input)) {
-    res *= 10.0; res += *input - '0';
+    res *= 10; res += *input - '0';
     input++; divisor *= 10;
   }
   *remaining = input;
-  return (res * sign) / divisor;
+  double as_signed = res * sign;
+  double divided   = as_signed / (double)divisor;
+  return (f32)divided;
 }
 
 Ptr read_string(VM *vm, const char **remaining, const char *end, Ptr done) {

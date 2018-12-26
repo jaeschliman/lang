@@ -803,6 +803,16 @@ Ptr *xarray_memory(Ptr array) {
   return buff->data;
 }
 
+s64 xarray_index_of(Ptr array, Ptr item) {
+  auto used = xarray_used(array);
+  auto mem = xarray_memory(array);
+  for (auto i = 0; i < used; i++) {
+    if (mem[i] == item) return i;
+  }
+  return -1;
+}
+
+
 Ptr xarray_at(Ptr array, u64 idx) {
   assert(idx < xarray_used(array));
   return xarray_memory(array)[idx];
@@ -2446,11 +2456,17 @@ public:
     return start;
   }
   auto pushLit(Ptr literal) {
-    // TODO: deduplicate them
-    xarray_push(vm, objToPtr(this->literals), literal);
-    pushOp(PUSHLIT);
-    pushOp(lit_index);
-    lit_index++;
+    auto literals = objToPtr(this->literals);
+    auto idx = xarray_index_of(literals, literal);
+    if (idx == -1) {
+      xarray_push(vm, literals, literal);
+      pushOp(PUSHLIT);
+      pushOp(lit_index);
+      lit_index++;
+    } else {
+      pushOp(PUSHLIT);
+      pushOp(idx);
+    }
     return this;
   }
   auto loadFrameRel(u64 idx) {
@@ -3332,7 +3348,10 @@ void vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
 
   ByteCodeObject *bc;
 
-  if (argc == 1) { // TODO: bc patches for more arities
+  // TODO: bc patches for more arities
+  //       NB: will require special method for reserving room for literals,
+  //           as they are now de-duplicated
+  if (argc == 1) {
     if (!is(ByteCode, vm->globals->call1)) {
       bc = build_call(vm, symbol, argc, argv);
       vm->globals->call1 = objToPtr(bc);

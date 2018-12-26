@@ -148,7 +148,7 @@ typedef double f64;
 #define Bool_Tag   0b0100
 #define PrimOp_Tag 0b0101
 #define Point_Tag  0b0110
-// #define UNUSED_TAG 0b0111
+#define Float_Tag  0b0111
 // #define UNUSED_TAG 0b1000
 // #define UNUSED_TAG 0b1001
 // #define UNUSED_TAG 0b1010
@@ -447,7 +447,6 @@ unwrap_ptr_for(any, it) { return it; }
     return (type##Object *)as(Object, it);                              \
   }
 
-
 prim_type(Fixnum)
 create_ptr_for(Fixnum, s64 value) {
   // TODO: overflow check
@@ -515,6 +514,15 @@ unwrap_ptr_for(Point, it) {
   return p;
 }
 
+prim_type(Float)
+create_ptr_for(Float, f32 f) {
+  u64 bits = 0;
+  ((u32 *)&bits)[0] = *(u32 *)&f;
+  return (Ptr){ bits | Float_Tag };
+}
+unwrap_ptr_for(Float, it) {
+  return *((f32*)(((u32 *)&it.value)));
+}
 
 type_test(Object, it) { return is(NonNilObject, it); }
 object_type(ByteCode)
@@ -1149,6 +1157,8 @@ std::ostream &operator<<(std::ostream &os, Ptr p) {
   } else if (is(Point, p)) {
     auto pt = as(Point, p);
     return os << pt.x << "@" << pt.y;
+  } else if (is(Float, p)) {
+    return os << as(Float, p);
   } else {
     return os << "don't know how to print ptr: " << (void *)p.value;
   }
@@ -2022,6 +2032,32 @@ s64 read_int(VM *vm, const char **remaining, const char *end) {
   }
 }
 
+bool reader_scan_for_float(const char *input, const char *end) {
+  while (input + 1 < end && is_digitchar(*input)) {
+    if (*(input + 1) == '.') return true;
+    input++;
+  }
+  return false;
+}
+
+f32 read_float(const char **remaining, const char *end) {
+  auto *input = *remaining;
+  f32 res = 0, sign = 1;
+  if (*input == '-') { sign = -1; input++; }
+  while (input < end && is_digitchar(*input)) {
+    res *= 10.0; res += *input - '0';
+    input++;
+  }
+  f32 divisor = 1.0f;
+  input++; // skip .
+  while (input < end && is_digitchar(*input)) {
+    res *= 10.0; res += *input - '0';
+    input++; divisor *= 10;
+  }
+  *remaining = input;
+  return (res * sign) / divisor;
+}
+
 Ptr read_string(VM *vm, const char **remaining, const char *end, Ptr done) {
   auto input = *remaining;
   auto start = input;
@@ -2043,18 +2079,26 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
     eat_ws(&input, end);
     if (input >= end) break;
     if (is_digitchar(*input) || (*input == '-' && is_digitchar(*(input + 1)))) {
-      s64 num = read_int(vm, &input, end);
-      Ptr res;
-      if (input < end && *input == '@') { // read point
-        input++;
-        s64 num2 = read_int(vm, &input, end);
-        auto pt = (point){ (s32)num, (s32)num2};
-        res = to(Point, pt);
+      auto scan_from = *input == '-' ? input + 1 : input;
+      if (reader_scan_for_float(scan_from, end)) {
+        auto res = to(Float, read_float(&input, end));
+        *remaining = input;
+        return res;
       } else {
-        res = to(Fixnum, num);
+        // read int or point
+        s64 num = read_int(vm, &input, end);
+        Ptr res;
+        if (input < end && *input == '@') { // read point
+          input++;
+          s64 num2 = read_int(vm, &input, end);
+          auto pt = (point){ (s32)num, (s32)num2};
+          res = to(Point, pt);
+        } else {
+          res = to(Fixnum, num);
+        }
+        *remaining = input;
+        return res;
       }
-      *remaining = input;
-      return res;
     } else if (is_symchar(*input)) {
       const char* start = input;
       int len = 1;

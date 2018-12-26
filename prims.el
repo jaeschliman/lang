@@ -134,6 +134,17 @@ void initialize_primitive_functions(VM *vm) {
   (prim <i    FIX_LT     ((a Fixnum) (b Fixnum)) Bool   "a < b")
   (prim >i    FIX_GT     ((a Fixnum) (b Fixnum)) Bool   "a > b")
   (prim %i    FIX_MOD    ((a Fixnum) (b Fixnum)) Fixnum "a % b")
+
+  (prim +f    FLT_PLUS   ((a Float) (b Float))   Float  "a + b")
+  (prim -f    FLT_MINUS  ((a Float) (b Float))   Float  "a - b")
+  (prim *f    FLT_TIMES  ((a Float) (b Float))   Float  "a * b")
+  (prim /f    FLT_DIVIDE ((a Float) (b Float))   Float  "a / b")
+  (prim <f    FLT_LT     ((a Float) (b Float))   Bool   "a < b")
+  (prim >f    FLT_GT     ((a Float) (b Float))   Bool   "a > b")
+
+  (prim i->f  FIX_TO_FLT ((a Fixnum))            Float  "(f32)a")
+  (prim f->i  FLT_TO_FIX ((a Float))             Fixnum "(s64)a")
+
   (prim list  LIST       list                    any    "list")
   (prim cons  CONS       ((a any) (b any))       any    "cons(vm, a, b)")
   (prim car   CAR        ((a any))               any    "car(a)")

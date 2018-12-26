@@ -161,5 +161,7 @@
 (print (list 1))
 (print (list))
 (print (list 1.0 0.5 1.3))
+(print (i->f 1))
+(print (f->i 1.0))
 (print "good night sweet prince")
 (print goodbye-message)

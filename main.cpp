@@ -83,6 +83,7 @@ TODO: message send facility
 TODO: something resembling OMeta / Meta II
 TODO: basic text rendering
 TODO: type-of
+TODO: class-of
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -134,6 +135,8 @@ typedef int32_t s32;
 typedef int64_t s64;
 typedef uint8_t u8;
 typedef int8_t s8;
+typedef float f32;
+typedef double f64;
 
 #define EXTRACT_PTR_MASK 0xFFFFFFFFFFFFFFF0
 #define TAG_MASK 0b1111
@@ -615,7 +618,6 @@ u8* image_data(ByteArrayObject *it) {
 
 ByteArrayObject *alloc_image(VM *vm, u32 w, u32 h) {
   auto byte_count = (w * h * 4) + 8;
-  // die("byte count is: ", byte_count);
   auto result = alloc_bao(vm, Image, byte_count);
   auto u32s = (u32*)result->data;
   u32s[0] = w; u32s[1] = h;
@@ -1768,9 +1770,9 @@ void ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) {  prot_ptrs(key, value);
   auto entry = mem[idx];
   while (!isNil(entry)) { // existing entries
     auto pair = car(entry);
-    if (car(pair) == key) {
+    if (car(pair) == key) { // found
       set_cdr(pair, value);
-      unprot_ptrs(key, value, array); // found
+      unprot_ptrs(key, value, array);
       return;
     }
     entry = cdr(entry);
@@ -1935,7 +1937,7 @@ auto read_delimited_list(VM *vm, const char **remaining, const char *end, Ptr do
 }
 
 Ptr read_character(VM *vm, const char **remaining, const char *end, Ptr done) {
-  // TODO: would be nice read named characters
+  // TODO: would be nice to read named characters
   auto input = *remaining;
   if (input >= end) { goto error; }
   input++;
@@ -2041,7 +2043,6 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
     eat_ws(&input, end);
     if (input >= end) break;
     if (is_digitchar(*input) || (*input == '-' && is_digitchar(*(input + 1)))) {
-      // @safe
       s64 num = read_int(vm, &input, end);
       Ptr res;
       if (input < end && *input == '@') { // read point
@@ -2055,7 +2056,6 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
       *remaining = input;
       return res;
     } else if (is_symchar(*input)) {
-      // @safe
       const char* start = input;
       int len = 1;
       while(input < end && is_symbodychar(*(++input))) {
@@ -2066,7 +2066,6 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
       return result;
     } else if (*input == '\'') {
       input++;
-      // @safe
       prot_ptr(done);
       auto result = quote_form(vm, read(vm, &input, end, done));
       unprot_ptr(done);
@@ -2074,7 +2073,6 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
       return result;
     } else if (*input == '(') {
       input++;
-      // @safe
       prot_ptr(done);
       auto res = read_delimited_list(vm, &input, end, done, ')');
       unprot_ptr(done);
@@ -2083,7 +2081,6 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
     } else if (*input == '#') {
       auto ch = *(++input);
       Ptr res;
-      // @safe
       if (ch == '\\') {
         res = read_character(vm, &input, end, done);
       } else {
@@ -2185,26 +2182,26 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
 
 typedef Ptr (*CCallFunction)(VM*);
 
-enum OpCode {
-  END = 0,
-  RET = 1,
-  PUSHLIT = 2,
-  POP = 3,
-  BR_IF_ZERO = 5,
-  BR_IF_NOT_ZERO = 6,
-  DUP = 7,
-  CALL = 8,
-  LOAD_ARG = 9,
-  LOAD_GLOBAL = 10,
-  LOAD_CLOSURE = 11,
-  BUILD_CLOSURE = 12,
-  PUSH_CLOSURE_ENV = 13,
-  BR_IF_False = 14,
-  JUMP = 15,
-  STACK_RESERVE = 16,
-  LOAD_FRAME_RELATIVE = 17,
+enum OpCode : u8 {
+  END                  = 0,
+  RET                  = 1,
+  PUSHLIT              = 2,
+  POP                  = 3,
+  BR_IF_ZERO           = 5,
+  BR_IF_NOT_ZERO       = 6,
+  DUP                  = 7,
+  CALL                 = 8,
+  LOAD_ARG             = 9,
+  LOAD_GLOBAL          = 10,
+  LOAD_CLOSURE         = 11,
+  BUILD_CLOSURE        = 12,
+  PUSH_CLOSURE_ENV     = 13,
+  BR_IF_False          = 14,
+  JUMP                 = 15,
+  STACK_RESERVE        = 16,
+  LOAD_FRAME_RELATIVE  = 17,
   STORE_FRAME_RELATIVE = 18,
-  POP_CLOSURE_ENV = 20,
+  POP_CLOSURE_ENV      = 20,
 };
 
 void vm_push(VM* vm, Ptr value) {
@@ -3155,35 +3152,35 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
   auto out     = surface->pixels;
   auto mem     = (u32 *)image_data(img);
 
-  float scale = scale100 / 100.0f;
-  float iscale = 1.0f/scale;
-  float source_step = iscale;
+  f32 scale = scale100 / 100.0f;
+  f32 iscale = 1.0f/scale;
+  f32 source_step = iscale;
 
-  float angle = _deg_to_rad((float)(deg_rot % 360));
+  f32 angle = _deg_to_rad((f32)(deg_rot % 360));
 
   u32 scr_w = vm->surface->w,   scr_h = vm->surface->h;
   u32 img_w = image_width(img), img_h = image_height(img);
 
-  float rvx = cosf(angle);
-  float rvy = sinf(angle);
+  f32 rvx = cosf(angle);
+  f32 rvy = sinf(angle);
 
-  float du_col = rvx, dv_col = rvy; 
-  float du_row = -rvy, dv_row = rvx;
+  f32 du_col = rvx, dv_col = rvy; 
+  f32 du_row = -rvy, dv_row = rvx;
 
-  float cx = img_w * 0.5f, cy = img_h * 0.5f;
+  f32 cx = img_w * 0.5f, cy = img_h * 0.5f;
 
   // I don't understand exactly what dcx/dcy are for yet.
-  float dcx = cx;
-  float dcy = cy;
+  f32 dcx = cx;
+  f32 dcy = cy;
 
   // set the initial position by rotating the 'destination' surface
   // I don't get why this works yet :P
-  float src_x = cx - (dcx * du_row + dcy * dv_row);
-  float src_y = cy - (dcy * dv_col + dcx * du_col);
+  f32 src_x = cx - (dcx * du_row + dcy * dv_row);
+  f32 src_y = cy - (dcy * dv_col + dcx * du_col);
 
-  float u = src_x, v = src_y;
+  f32 u = src_x, v = src_y;
 
-  float row_u = src_x, row_v = src_y;
+  f32 row_u = src_x, row_v = src_y;
 
   s32 offsx = p.x + cx;
   s32 offsy = p.y + cy;
@@ -3197,7 +3194,7 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
 
     for (u32 x = 0; x < scan_width; x++) {
 
-      if (u >= 0.0f && v >= 0.0f && u <= (float)img_w && v <= (float)img_h
+      if (u >= 0.0f && v >= 0.0f && u <= (f32)img_w && v <= (f32)img_h
           && offsx + x < scr_w && offsy + y < scr_h) {
 
         u32 sx = floorf(u), sy = floorf(v);
@@ -3205,8 +3202,8 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
         u8* under = ((u8*)out + dest_row + (offsx + x) * 4);
         u8* over  = (u8*)(mem + sy * img_w + sx);
         
-        float alpha  = over[3] / 255.0f;
-        float ialpha = 1.0 - alpha; 
+        f32 alpha  = over[3] / 255.0f;
+        f32 ialpha = 1.0 - alpha; 
         under[0] = over[0] * alpha + under[0] * ialpha;
         under[1] = over[1] * alpha + under[1] * ialpha;
         under[2] = over[2] * alpha + under[2] * ialpha;

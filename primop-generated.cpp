@@ -1,12 +1,12 @@
 
 enum PrimitiveOperation : u64 {
-  PRIM_PLUS = ((0ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_MINUS = ((1ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_TIMES = ((2ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_DIVIDE = ((3ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_LT = ((4ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_GT = ((5ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_MOD = ((6ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FIX_PLUS = ((0ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FIX_MINUS = ((1ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FIX_TIMES = ((2ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FIX_DIVIDE = ((3ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FIX_LT = ((4ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FIX_GT = ((5ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FIX_MOD = ((6ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_CONS = ((7ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_CAR = ((8ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_CDR = ((9ULL << 32) | (1ULL << 16) | PrimOp_Tag),
@@ -32,7 +32,7 @@ enum PrimitiveOperation : u64 {
 };
 
 // Primitive 0
-Ptr PRIM_PLUS_impl(VM *vm) {
+Ptr PRIM_FIX_PLUS_impl(VM *vm) {
    VM_ARG(Fixnum,b);
    VM_ARG(Fixnum,a);
 
@@ -40,7 +40,7 @@ Ptr PRIM_PLUS_impl(VM *vm) {
 }
 
 // Primitive 1
-Ptr PRIM_MINUS_impl(VM *vm) {
+Ptr PRIM_FIX_MINUS_impl(VM *vm) {
    VM_ARG(Fixnum,b);
    VM_ARG(Fixnum,a);
 
@@ -48,7 +48,7 @@ Ptr PRIM_MINUS_impl(VM *vm) {
 }
 
 // Primitive 2
-Ptr PRIM_TIMES_impl(VM *vm) {
+Ptr PRIM_FIX_TIMES_impl(VM *vm) {
    VM_ARG(Fixnum,b);
    VM_ARG(Fixnum,a);
 
@@ -56,7 +56,7 @@ Ptr PRIM_TIMES_impl(VM *vm) {
 }
 
 // Primitive 3
-Ptr PRIM_DIVIDE_impl(VM *vm) {
+Ptr PRIM_FIX_DIVIDE_impl(VM *vm) {
    VM_ARG(Fixnum,b);
    VM_ARG(Fixnum,a);
 
@@ -64,7 +64,7 @@ Ptr PRIM_DIVIDE_impl(VM *vm) {
 }
 
 // Primitive 4
-Ptr PRIM_LT_impl(VM *vm) {
+Ptr PRIM_FIX_LT_impl(VM *vm) {
    VM_ARG(Fixnum,b);
    VM_ARG(Fixnum,a);
 
@@ -72,7 +72,7 @@ Ptr PRIM_LT_impl(VM *vm) {
 }
 
 // Primitive 5
-Ptr PRIM_GT_impl(VM *vm) {
+Ptr PRIM_FIX_GT_impl(VM *vm) {
    VM_ARG(Fixnum,b);
    VM_ARG(Fixnum,a);
 
@@ -80,7 +80,7 @@ Ptr PRIM_GT_impl(VM *vm) {
 }
 
 // Primitive 6
-Ptr PRIM_MOD_impl(VM *vm) {
+Ptr PRIM_FIX_MOD_impl(VM *vm) {
    VM_ARG(Fixnum,b);
    VM_ARG(Fixnum,a);
 
@@ -239,13 +239,13 @@ Ptr PRIM_LOADIMAGE_impl(VM *vm) {
 
 
 PrimitiveFunction PrimLookupTable[] = {
-  &PRIM_PLUS_impl,
-  &PRIM_MINUS_impl,
-  &PRIM_TIMES_impl,
-  &PRIM_DIVIDE_impl,
-  &PRIM_LT_impl,
-  &PRIM_GT_impl,
-  &PRIM_MOD_impl,
+  &PRIM_FIX_PLUS_impl,
+  &PRIM_FIX_MINUS_impl,
+  &PRIM_FIX_TIMES_impl,
+  &PRIM_FIX_DIVIDE_impl,
+  &PRIM_FIX_LT_impl,
+  &PRIM_FIX_GT_impl,
+  &PRIM_FIX_MOD_impl,
   &PRIM_CONS_impl,
   &PRIM_CAR_impl,
   &PRIM_CDR_impl,
@@ -272,13 +272,13 @@ PrimitiveFunction PrimLookupTable[] = {
 
 void initialize_primitive_functions(VM *vm) {
 
-  set_global(vm, "+", to(PrimOp, PRIM_PLUS));
-  set_global(vm, "-", to(PrimOp, PRIM_MINUS));
-  set_global(vm, "*", to(PrimOp, PRIM_TIMES));
-  set_global(vm, "/", to(PrimOp, PRIM_DIVIDE));
-  set_global(vm, "<", to(PrimOp, PRIM_LT));
-  set_global(vm, ">", to(PrimOp, PRIM_GT));
-  set_global(vm, "%", to(PrimOp, PRIM_MOD));
+  set_global(vm, "+i", to(PrimOp, PRIM_FIX_PLUS));
+  set_global(vm, "-i", to(PrimOp, PRIM_FIX_MINUS));
+  set_global(vm, "*i", to(PrimOp, PRIM_FIX_TIMES));
+  set_global(vm, "/i", to(PrimOp, PRIM_FIX_DIVIDE));
+  set_global(vm, "<i", to(PrimOp, PRIM_FIX_LT));
+  set_global(vm, ">i", to(PrimOp, PRIM_FIX_GT));
+  set_global(vm, "%i", to(PrimOp, PRIM_FIX_MOD));
   set_global(vm, "cons", to(PrimOp, PRIM_CONS));
   set_global(vm, "car", to(PrimOp, PRIM_CAR));
   set_global(vm, "cdr", to(PrimOp, PRIM_CDR));

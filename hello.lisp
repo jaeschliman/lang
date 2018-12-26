@@ -48,7 +48,7 @@
 (set-symbol-value 'x 10)
 (print x)
 
-(set-symbol-value 'make-adder (lambda (amount) (lambda (x) (+ x amount))))
+(set-symbol-value 'make-adder (lambda (amount) (lambda (x) (+i x amount))))
 (set-symbol-value 'add1 (make-adder 1))
 (set-symbol-value 'add2 (make-adder 2))
 (print (add1 10))
@@ -110,18 +110,18 @@
     (print x)))
 
 
-(let ((inc3 (lambda (x) (+ 3 x))))
+(let ((inc3 (lambda (x) (+i 3 x))))
   (print (inc3 39)))
 
 
 (let ((amount 20))
-  (set-symbol-value 'add-amount (lambda (x) (+ x amount))))
+  (set-symbol-value 'add-amount (lambda (x) (+i x amount))))
 
 (print (add-amount 22))
 
 (set-symbol-value 'make-adder-2 (lambda (arg)
                                   (let ((amount arg))
-                                    (lambda (x) (+ x amount)))))
+                                    (lambda (x) (+i x amount)))))
 
 (set-symbol-value 'add1-2 (make-adder-2 1))
 (set-symbol-value 'add2-2 (make-adder-2 2))
@@ -131,8 +131,8 @@
 (print (add2-2 21))
 
 (let ((shared 1))
-  (set-symbol-value 'shared-1 (lambda (x) (+ x shared)))
-  (set-symbol-value 'shared-2 (lambda (x) (+ x shared))))
+  (set-symbol-value 'shared-1 (lambda (x) (+i x shared)))
+  (set-symbol-value 'shared-2 (lambda (x) (+i x shared))))
 
 (print (shared-1 1))
 (print (shared-2 1))

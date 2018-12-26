@@ -41,16 +41,28 @@
     (tmpl "   VM_ARG(" type "," name ");
 ")))
 
+(defun emit-varargs (name)
+  "Emit varargs binding form for NAME."
+  (tmpl "Ptr " name " = vm_get_stack_values_as_list(vm, argc);"))
+
+(defun emit-prim-args (prim)
+  "Emits argument binding forms for PRIM."
+  (let ((args (getf prim :args)))
+    (if (and args (symbolp args))
+        (emit-varargs args)
+      (mapcar 'emit-arg (reverse args)))))
+
 (defun emit-body (body return-type)
   "Emit BODY and RETURN-TYPE."
   (if (eq return-type 'any)
       (tmpl " return " body ";")
     (tmpl "  return to("return-type",("body"));")))
 
+
 (defun emit-prim-impl (prim)
   "Emits a primitive PRIM."
-  (tmpl "Ptr " (getf prim :prim-name) "_impl(VM *vm) {
-" (mapcar 'emit-arg (reverse (getf prim :args))) "
+  (tmpl "Ptr " (getf prim :prim-name) "_impl(VM *vm, u32 argc) {
+" (emit-prim-args prim) "
 " (emit-body (getf prim :body) (getf prim :return-type)) "
 }
 
@@ -67,6 +79,11 @@
   "Emit encoding for prim at IDX with ARGC."
   (tmpl "(("idx"ULL << 32) | ("argc "ULL << 16) | PrimOp_Tag)"))
 
+(defun get-arg-count (p)
+  "Argument count for prim P."
+  (let ((args (getf p :args)))
+    (if (symbolp args) 255 (length args))))
+
 (defun emit-prim-enum ()
   "Emit enum naming all prims."
   ;; TODO: embed PRIM mask and call count in counter number
@@ -76,7 +93,7 @@ enum PrimitiveOperation : u64 {
 " (mapcar (lambda (p) (tmpl "  " (getf p :prim-name) " = "
                             (emit-prim-encoding
                              (incf counter)
-                             (length (getf p :args)))
+                             (get-arg-count p))
                              ",\n")) *prims*) "
   PRIM_UNUSED = 0
 };
@@ -117,6 +134,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim <i    FIX_LT     ((a Fixnum) (b Fixnum)) Bool   "a < b")
   (prim >i    FIX_GT     ((a Fixnum) (b Fixnum)) Bool   "a > b")
   (prim %i    FIX_MOD    ((a Fixnum) (b Fixnum)) Fixnum "a % b")
+  (prim list  LIST       list                    any    "list")
   (prim cons  CONS       ((a any) (b any))       any    "cons(vm, a, b)")
   (prim car   CAR        ((a any))               any    "car(a)")
   (prim cdr   CDR        ((a any))               any    "cdr(a)")

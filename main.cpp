@@ -12,7 +12,8 @@ DONE: expression compiler
 DONE: lambda compiler
 DONE: lambdas + closures compiler
 DONE: def or define or something
-TODO: varargs
+DONE: varargs
+TODO: vararg lambda
 TODO: quasiquotation
 DONE: booleans
 DONE: characters
@@ -81,6 +82,7 @@ TODO: generalize blit to work b/t images as well
 TODO: message send facility
 TODO: something resembling OMeta / Meta II
 TODO: basic text rendering
+TODO: type-of
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -295,7 +297,7 @@ struct VM {
   SDL_Surface *surface;
 };
 
-typedef Ptr (*PrimitiveFunction)(VM*);
+typedef Ptr (*PrimitiveFunction)(VM*, u32 argc);
 extern PrimitiveFunction PrimLookupTable[];
 
 inline void *align_pointer(void *mem) {
@@ -1663,10 +1665,29 @@ void set_assoc(VM *vm, Ptr *alistref, Ptr item, Ptr value) {
   }
 }
 
-Ptr make_list(VM *vm, u64 len, Ptr* ptrs) {
-  if (len == 0) return Nil;
-  // TODO: iterative solution
-  return cons(vm, *ptrs, make_list(vm, len - 1, ptrs + 1));
+Ptr make_list(VM *vm, u64 len, Ptr* ptrs) { protect_ptr_vector(ptrs, len);
+  Ptr result = Nil;                         prot_ptr(result);
+  u64 i = len;
+  while (i--) {
+    result = cons(vm, ptrs[i], result);
+  }
+  unprot_ptr(result);
+  unprotect_ptr_vector(ptrs);
+  return result;
+}
+
+Ptr make_list_rev(VM *vm, u64 len, Ptr* ptrs) { protect_ptr_vector(ptrs, len);
+  Ptr result = Nil;                             prot_ptr(result);
+  for (u64 i = 0; i < len; i++) {
+    result = cons(vm, ptrs[i], result);
+  }
+  unprot_ptr(result);
+  unprotect_ptr_vector(ptrs);
+  return result;
+}
+
+Ptr vm_get_stack_values_as_list(VM *vm, u32 count) {
+  return make_list_rev(vm, count, vm->stack);
 }
 
 void debug_print_list(ostream &os, Ptr p) {
@@ -2330,7 +2351,7 @@ void vm_interp(VM* vm) {
         auto idx  = (v >> 32) & 0xFFFF;
         // cout << " calling prim at idx: " << idx << " arg count = " << argc << endl;
         PrimitiveFunction fn = PrimLookupTable[idx];
-        Ptr result = (*fn)(vm);
+        Ptr result = (*fn)(vm, argc);
         vm_push(vm, result);
         break;
       }

@@ -1332,15 +1332,12 @@ bool gc_is_broken_heart(Object *obj) {
 void gc_break_heart(Object *obj, Object *forwarding_address) {
   assert(!gc_is_broken_heart(obj));
   obj->header.object_type = BrokenHeart;
-  auto ptr = (u64 *)obj;
-  ptr++;
-  *ptr = (u64)forwarding_address;
+  ((u64*)obj)[1] = (u64)forwarding_address;
 }
 
 Object *gc_forwarding_address(Object *obj) {
   assert(gc_is_broken_heart(obj));
-  auto ptr = (u64 *)obj;
-  ptr++;
+  auto ptr = ((u64 *)obj) + 1;
   return (Object *)*ptr;
 }
 

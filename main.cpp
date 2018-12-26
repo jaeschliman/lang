@@ -75,6 +75,12 @@ DONE: image objects
 DONE: rotation + scale BitBlt like thing
 TODO: maybe store image data off-heap?
 DONE: fix make-point for negative values (was a reader problem)
+DONE: more compact bc representation
+TODO: compact more of the bc
+TODO: generalize blit to work b/t images as well
+TODO: message send facility
+TODO: something resembling OMeta / Meta II
+TODO: basic text rendering
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -806,7 +812,7 @@ Ptr *xarray_memory(Ptr array) {
 s64 xarray_index_of(Ptr array, Ptr item) {
   auto used = xarray_used(array);
   auto mem = xarray_memory(array);
-  for (auto i = 0; i < used; i++) {
+  for (u64 i = 0; i < used; i++) {
     if (mem[i] == item) return i;
   }
   return -1;
@@ -2188,11 +2194,28 @@ inline u64 vm_adv_instr(VM *vm) {
   return vm->bc->code->data[++vm->pc];
 }
 
+inline u8 instr_code(u64 bc) {
+  return ((u8*)&bc)[0];
+}
+inline u8 instr_data(u64 bc) {
+  return ((u32*)&bc)[1];
+}
+
+inline u64 build_instr(u8 op, u32 data) {
+  u64 res = 0;
+  ((u8*)&res)[0] = op;
+  ((u32*)&res)[1] = data;
+  return res;
+}
+
 void vm_interp(VM* vm) {
   u64 instr;
   while ((instr = vm_curr_instr(vm))) {
+    u8 code; u32 data;
     vm->instruction_count++;
-    switch (instr){
+    code = instr_code(instr);
+    data = instr_data(instr);
+    switch (code){
     case STACK_RESERVE: {
       u64 count = vm_adv_instr(vm);
       while (count--) { vm_push(vm, Nil); }
@@ -2215,7 +2238,7 @@ void vm_interp(VM* vm) {
       vm_pop(vm);
       break;
     case PUSHLIT: {
-      u64 idx = vm_adv_instr(vm);
+      u32 idx = data;
       Ptr it = vm->bc->literals->data[idx];
       vm_push(vm, it);
       break;
@@ -2298,7 +2321,7 @@ void vm_interp(VM* vm) {
       break;
     }
     case CALL: {
-      u64 argc = vm_adv_instr(vm);
+      u32 argc = data;
       auto fn = vm_pop(vm);
       if (is(PrimOp, fn)) {
         u64 v = fn.value;
@@ -2341,6 +2364,7 @@ void vm_interp(VM* vm) {
       break;
     }
     default:
+      dbg("instr = ", instr, " code = ", (int)code, " data = ", data);
       vm->error = "unexpected BC";
       return;
     }
@@ -2355,9 +2379,9 @@ class BCBuilder {
 private:
   VM* vm;
   u64* bc_mem;
-  u64 bc_index;
+  u32 bc_index;
   u64 bc_capacity;
-  u64 lit_index;
+  u32 lit_index;
 
   ByteCodeObject *bc;
   map<string, u64> *labelsMap; // label -> bc_index
@@ -2369,14 +2393,20 @@ private:
   u64 *temp_count;
   Object *literals; // xarray[any]
 
-  BCBuilder* pushOp(u8 op) {
-    return pushU64(op);
-  }
-  BCBuilder* pushU64(u64 it) {
+  void _reserveInstruction() {
     if (bc_index - 1 >= bc_capacity) {
       bc_capacity *= 2;
       bc_mem = (u64 *)realloc(bc_mem, bc_capacity);
     }
+  }
+  BCBuilder* pushPair(u8 op, u32 data) {
+    return pushU64(build_instr(op, data));
+  }
+  BCBuilder* pushOp(u8 op) {
+    return pushU64(build_instr(op, 0));
+  }
+  BCBuilder* pushU64(u64 it) {
+    _reserveInstruction();
     bc_mem[bc_index++] = it;
     return this;
   }
@@ -2451,7 +2481,7 @@ public:
     assert(*temp_count == 0);
   }
   u64 reserveTemps(u64 count) {
-    auto start= *temp_count;
+    auto start = *temp_count;
     *temp_count += count;
     return start;
   }
@@ -2460,12 +2490,10 @@ public:
     auto idx = xarray_index_of(literals, literal);
     if (idx == -1) {
       xarray_push(vm, literals, literal);
-      pushOp(PUSHLIT);
-      pushOp(lit_index);
+      pushPair(PUSHLIT, lit_index);
       lit_index++;
     } else {
-      pushOp(PUSHLIT);
-      pushOp(idx);
+      pushPair(PUSHLIT, idx);
     }
     return this;
   }
@@ -2518,9 +2546,8 @@ public:
     pushJumpLocation(name);
     return this;
   }
-  auto call(u64 argc) {
-    pushOp(CALL);
-    pushU64(argc);
+  auto call(u32 argc) {
+    pushPair(CALL, argc);
     return this;
   }
   auto pop(){

@@ -123,6 +123,7 @@ could become important as there will eventually be many images
 #define GC_DEBUG 0
 
 #define unused(x) (void)(x)
+#define KNOWN(symbol) vm->globals->known._##symbol
 
 using namespace std;
 
@@ -1255,8 +1256,11 @@ StandardObject *make_standard_object(VM *vm, StandardObject *klass, Ptr*ivars) {
 struct Globals {
   StandardObject *Base, *Cons, *Fixnum, *Symbol;
   unordered_map<string, Ptr> *symtab;
-  Ptr env;
+  Ptr env; // the global environment (currently an alist)
   Ptr call1;
+  struct {
+    Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean;
+  } known;
 };
 
 // @unsafe
@@ -1445,6 +1449,9 @@ void gc_update_base_class(VM *vm, StandardObject **it) {
   *it = as(Standard, p);
 }
 
+#define _update_sym(n) gc_update_ptr(vm, &vm->globals->known._##n);
+#define _update_symbols(...) MAP(_update_sym, __VA_ARGS__)
+
 void gc_update_globals(VM *vm) {
   gc_update_ptr(vm, &vm->globals->call1);
   gc_update_ptr(vm, &vm->globals->env);
@@ -1452,7 +1459,11 @@ void gc_update_globals(VM *vm) {
   gc_update_base_class(vm, &vm->globals->Cons);
   gc_update_base_class(vm, &vm->globals->Fixnum);
   gc_update_base_class(vm, &vm->globals->Symbol);
+  _update_symbols(lambda, quote, let, if, fixnum, cons, string, array, character, boolean);
 }
+
+#undef _update_sym
+#undef _update_symbols
 
 void gc_copy_symtab(VM *vm) {
   auto old_symtab = vm->globals->symtab;
@@ -1784,23 +1795,6 @@ void initialize_struct_printers() {
   StructPrintTable[StructTag_Cons] = &debug_print_list;
 }
 
-// @unsafe
-void initialize_classes(VM *vm)
-{
-  auto Base = alloc_standard_object(vm, 0, BaseClassEnd);
-  Base->klass = Base;
-  standard_object_set_ivar(Base, BaseClassName, make_string(vm, "Base"));
-  standard_object_set_ivar(Base, BaseClassIvarCount, make_number(BaseClassEnd));
-  auto g = vm->globals;
-  g->Base = Base;
-  g->Cons = make_base_class(vm, "Cons", 2);
-  DebugPrintTable[DebugPrint_Cons] = &debug_print_list;
-  standard_object_set_ivar(g->Cons, BaseClassDebugPrint,
-                           to(Fixnum, DebugPrint_Cons));
-  g->Fixnum = make_base_class(vm, "Fixnum", 0);
-  g->Symbol = make_base_class(vm, "Symbol", 0);
-}
-
 Ptr intern(VM *vm, const char* cstr, int len) {
   string name = string(cstr, len);
   auto tab = vm->globals->symtab;
@@ -1818,14 +1812,46 @@ Ptr intern(VM *vm, string name) {
   return intern(vm, str, strlen(str));
 }
 
+// @unsafe
+#define _init_sym(n) globals->known._##n = intern(vm, #n);
+#define _init_symbols(...) MAP(_init_sym, __VA_ARGS__)
+
+void initialize_known_symbols(VM *vm) {
+
+  auto globals = vm->globals;
+  _init_symbols(lambda, quote, let, if, fixnum, cons, string, array, character, boolean);
+
+}
+#undef _init_sym
+#undef _init_symbols
+
+// @unsafe
+void initialize_classes(VM *vm)
+{
+  auto Base = alloc_standard_object(vm, 0, BaseClassEnd);
+  Base->klass = Base;
+  standard_object_set_ivar(Base, BaseClassName, make_string(vm, "Base"));
+  standard_object_set_ivar(Base, BaseClassIvarCount, make_number(BaseClassEnd));
+  auto g = vm->globals;
+  g->Base = Base;
+  g->Cons = make_base_class(vm, "Cons", 2);
+  DebugPrintTable[DebugPrint_Cons] = &debug_print_list;
+  standard_object_set_ivar(g->Cons, BaseClassDebugPrint,
+                           to(Fixnum, DebugPrint_Cons));
+  g->Fixnum = make_base_class(vm, "Fixnum", 0);
+  g->Symbol = make_base_class(vm, "Symbol", 0);
+}
+
 Ptr set_global(VM *vm, Ptr sym, Ptr value) {
   assert(is(Symbol, sym));
   set_assoc(vm, &vm->globals->env, sym, value);
   return sym;
 }
 
-Ptr set_global(VM *vm, const char* name, Ptr value) {
-  return set_global(vm, intern(vm, name), value);
+Ptr set_global(VM *vm, const char* name, Ptr value) { prot_ptr(value);
+  auto result = set_global(vm, intern(vm, name), value);
+  unprot_ptr(value);
+  return result;
 }
 
 Ptr get_global(VM *vm,  const char*name) {
@@ -1869,11 +1895,7 @@ auto is_nlchar(char ch) {
 /* -------------------------------------------------- */
 
 auto quote_form(VM *vm, Ptr it) {
-  auto q = intern(vm, "quote");
-  prot_ptr(q);
-  auto res = cons(vm, it, Nil);
-  unprot_ptr(q);
-  return cons(vm, q, res);
+  return cons(vm, KNOWN(quote), cons(vm, it, Nil));
 }
 
 void eat_ws(const char **remaining, const char *end) {
@@ -2924,23 +2946,18 @@ void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
     unprot_ptrs(it, env);
   } else if (consp(it)) { // @safe
     auto fst = car(it);
-    if (is(Symbol, fst)) {                                     prot_ptrs(it, env, fst);
-      auto _if    = intern(vm, "if");                          prot_ptr(_if);
-      auto quote  = intern(vm, "quote");                       prot_ptr(quote);
-      auto lambda = intern(vm, "lambda");                      prot_ptr(lambda);
-      auto let    = intern(vm, "let");
-      unprot_ptrs(_if, quote, lambda, it, env, fst);
-      if (ptr_eq(lambda, fst)) {
+    if (is(Symbol, fst)) {
+      if (ptr_eq(KNOWN(lambda), fst)) {
         emit_lambda(vm, builder, it, env);
         return;
-      } else if (ptr_eq(quote, fst)) {
+      } else if (ptr_eq(KNOWN(quote), fst)) {
         auto item = car(cdr(it));
         builder->pushLit(item);
         return;
-      } else if (ptr_eq(_if, fst)) {
+      } else if (ptr_eq(KNOWN(if), fst)) {
         emit_if(vm, builder, it, env);
         return;
-      } else if (ptr_eq(let, fst)) {
+      } else if (ptr_eq(KNOWN(let), fst)) {
         emit_let(vm, builder, it, env);
         return;
       }
@@ -3066,18 +3083,13 @@ void mark_closed_over_variables(VM *vm, Ptr it, Ptr env) {  prot_ptrs(it, env);
   if (is(Symbol, it)) {
     mark_variable_for_closure(vm, it, env, 0, false);
   } else if (consp(it)) {
-    auto fst    = car(it);                                  prot_ptr(fst);
-    auto _if    = intern(vm, "if");                         prot_ptr(_if);
-    auto quote  = intern(vm, "quote");                      prot_ptr(quote);
-    auto lambda = intern(vm, "lambda");                     prot_ptr(lambda);
-    auto let    = intern(vm, "let");
+    auto fst    = car(it);
     auto is_sym = is(Symbol, fst);
-    unprot_ptrs(fst, _if, quote, lambda);
-    if (is_sym && ptr_eq(lambda, fst)) {
+    if (is_sym && ptr_eq(KNOWN(lambda), fst)) {
       mark_lambda_closed_over_variables(vm, it, env);
-    } else if (is_sym && ptr_eq(quote, fst)) {
+    } else if (is_sym && ptr_eq(KNOWN(quote), fst)) {
       // do nothing
-    } else if (is_sym && ptr_eq(_if, fst)) {
+    } else if (is_sym && ptr_eq(KNOWN(if), fst)) {
       auto test = nth_or_nil(it, 1);                        prot_ptr(test);
       auto _thn = nth_or_nil(it, 2);                        prot_ptr(_thn);
       auto _els = nth_or_nil(it, 3);                        prot_ptr(_els);
@@ -3085,7 +3097,7 @@ void mark_closed_over_variables(VM *vm, Ptr it, Ptr env) {  prot_ptrs(it, env);
       mark_closed_over_variables(vm, _thn, env);
       mark_closed_over_variables(vm, _els, env);
       unprot_ptrs(test, _thn, _els);
-    } else if (is_sym && ptr_eq(let, fst)) {
+    } else if (is_sym && ptr_eq(KNOWN(let), fst)) {
       mark_let_closed_over_variables(vm, it, env);
     } else {
       do_list(vm, it, [&](Ptr expr){
@@ -3265,8 +3277,13 @@ VM *vm_create() {
   vm->globals->symtab = new unordered_map<string, Ptr>;
   vm->globals->env = Nil;
 
+  vm->gc_disabled = true;
+
+  initialize_known_symbols(vm);
   initialize_classes(vm);
   initialize_primitive_functions(vm);
+
+  vm->gc_disabled = false;
 
   // so we have a root frame
   auto bc = (new BCBuilder(vm))->build();

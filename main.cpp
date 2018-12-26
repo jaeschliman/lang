@@ -84,8 +84,8 @@ TODO: something resembling OMeta / Meta II
 TODO: basic text rendering
 TODO: type-of
 TODO: class-of
-TODO: better float printing (may be missing trailing .0)
-TODO: float exponent support?
+DONE: better float printing (may be missing trailing .0)
+DONE: float exponent support?
 
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack
@@ -1163,7 +1163,7 @@ std::ostream &operator<<(std::ostream &os, Ptr p) {
     auto pt = as(Point, p);
     return os << pt.x << "@" << pt.y;
   } else if (is(Float, p)) {
-    return os << as(Float, p);
+    return os << std::showpoint << as(Float, p);
   } else {
     return os << "don't know how to print ptr: " << (void *)p.value;
   }
@@ -2045,7 +2045,7 @@ bool reader_scan_for_float(const char *input, const char *end) {
   return false;
 }
 
-f32 read_float(const char **remaining, const char *end) {
+f32 read_float(VM *vm, const char **remaining, const char *end) {
   auto *input = *remaining;
   s64 res = 0, sign = 1.0;
   if (*input == '-') { sign = -1; input++; }
@@ -2059,10 +2059,30 @@ f32 read_float(const char **remaining, const char *end) {
     res *= 10; res += *input - '0';
     input++; divisor *= 10;
   }
+  double mult = 1.0;
+  if (input < end && *input == 'e') {  // handle exponent
+    input++;
+    if (input >= end) {
+      vm->error = "invalid float syntax.";
+      *remaining = input;
+      return -1;
+    }
+    bool invert = *input == '-';
+    input++; 
+    if (input >= end) {
+      vm->error = "invalid float syntax.";
+      *remaining = input;
+      return -1;
+    }
+    auto exp = read_int(vm, &input, end);
+    mult = pow(10.0, exp);
+    if (invert) mult = 1.0 / mult;
+  }
   *remaining = input;
   double as_signed = res * sign;
   double divided   = as_signed / (double)divisor;
-  return (f32)divided;
+  double result = divided * mult;
+  return (f32)result;
 }
 
 Ptr read_string(VM *vm, const char **remaining, const char *end, Ptr done) {
@@ -2088,7 +2108,7 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
     if (is_digitchar(*input) || (*input == '-' && is_digitchar(*(input + 1)))) {
       auto scan_from = *input == '-' ? input + 1 : input;
       if (reader_scan_for_float(scan_from, end)) {
-        auto res = to(Float, read_float(&input, end));
+        auto res = to(Float, read_float(vm, &input, end));
         *remaining = input;
         return res;
       } else {

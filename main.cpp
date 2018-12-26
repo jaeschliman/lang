@@ -2375,7 +2375,7 @@ void vm_interp(VM* vm) {
       break;
     }
     case LOAD_ARG: {
-      u64 idx = vm_adv_instr(vm);
+      u64 idx = data;
       u64 argc = vm->frame->argc;
       u64 ofs  = vm->frame->pad_count;
       auto it = vm->frame->argv[ofs + (argc - (idx + 1))];
@@ -2579,9 +2579,8 @@ public:
     pushOp(RET);
     return this;
   }
-  auto loadArg(u64 index) {
-    pushOp(LOAD_ARG);
-    pushU64(index);
+  auto loadArg(u32 index) {
+    pushPair(LOAD_ARG, index);
     return this;
   }
   auto loadGlobal(Ptr sym) {

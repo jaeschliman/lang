@@ -1,0 +1,102 @@
+* DONE stack traces
+* DONE move allocations into vm-managed heap
+* DONE lists (incl printing)
+* DONE lisp reader
+* DONE expression compiler
+* DONE lambda compiler
+* DONE lambdas + closures compiler
+* DONE def or define or something
+* DONE varargs
+* TODO vararg lambda
+* TODO quasiquotation
+* DONE booleans
+* DONE characters
+* DONE obj_size function // heap size of object (can be 0 for imms)
+* DONE obj_ptrs function // walk Ptr s of obj (use a lambda)
+* DONE make stack frames objects
+* TODO read string
+* TODO tests! (something like an assert)
+* DONE bounds checking for heap allocation
+* DONE memory usage report function
+* DONE if compiler
+* DONE simple let
+* DONE let + closures
+* TODO move symbol table into heap (make it an object)
+* DONE vm_map_stack_refs(VM *vm, PtrFn)
+* DONE vm_map_reachable_refs(VM *vm) function
+* DONE maybe replace 'ffi' with primitives array (simpler for dump/restore?)
+* DONE code-generate the prims table. elisp?
+* DONE remove the 'ffi' stuff
+* DONE scan_heap(mem *start, mem*end) fn (linear scan of objects on the heap)
+* DONE garbage collection (cheney?)
+* DONE initial audit of requred gc_protect calls
+* DONE gc_protect for ptrs
+* DONE gc-safe list manipulation functions
+* DONE gc-safe allocators / make- functions
+* DONE growable ptr array
+* DONE growable identity map
+* DONE gc-safe reader
+* DONE gc-safe BCBuilder
+* DONE move varinfo & CompilerEnv into gc heap
+* DONE gc-safe compiler
+* DONE automatic garbage collection (need to use gc_protect)
+* DONE identity hash function
+* DONE proper imap
+* DONE make cons a defstruct
+* TODO move stack memory into vm-managed heap
+* TODO continuations / exceptions / signals
+* TODO dump/restore image
+* TODO write macroexpander in the language itself
+* TODO write reader in the language itself
+* DONE basic sdl integration
+* TODO single floats
+* TODO U32 Array etc
+* TODO more prim instrs
+* TODO maybe expose bytecode prims as special forms? %push %call etc...
+* TODO growable heap
+* TODO looping special form (while?)
+* DONE repl
+* TODO basic notebook
+* TODO notebook w/ event reactor
+* DONE 'load file' vs run file
+* TODO rewrite the codegen in the lang itself 
+* TODO 'apply'
+* DONE basic 'event reactor' runloop -- start with keycodes
+* TODO optimize global calls for more arities
+* DONE point functions
+* TODO real 'built-in-classes' i.e. Cons Fixnum etc
+* TODO basic message definition, send facility
+* DONE image objects
+* DONE rotation + scale BitBlt like thing
+* TODO maybe store image data off-heap?
+* DONE fix make-point for negative values (was a reader problem)
+* DONE more compact bc representation
+* TODO compact more of the bc
+* TODO generalize blit to work b/t images as well
+* TODO blit with mask, dest rect
+* TODO message send facility
+* TODO something resembling OMeta / Meta II
+* TODO basic text rendering
+* TODO type-of
+* TODO class-of
+* DONE better float printing (may be missing trailing .0)
+* DONE float exponent support?
+* TODO more correct float reading support
+* TODO unified 'number' type?
+* TODO bignums
+
+* notes
+maybe have a stack of compilers? can push/pop...
+have each compiler pass output to previous one in the stack
+
+how to represent U32 and U64?
+
+how will we pass callbacks through to the VM?  e.g. if I want to map
+values of a ht?  safe to 'just' push a stack frame?  but how do we
+yield control to the vm, and get it back?
+
+RE: storing image data off-heap: could have a 'byte-blob' object type.
+after a gc, scan the old heap for byte-blobs that are not broken hearts,
+and free the mem. it's a tradeoff, two heap scans, but less copying.
+could become important as there will eventually be many images
+

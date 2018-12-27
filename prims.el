@@ -157,18 +157,38 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim set-symbol-value SET_SYM_VAL ((a Symbol) (b any)) any "set_global(vm, objToPtr(a), b)")
   (prim print-stacktrace PRINT_STACK () any "vm_print_stack_trace(vm)")
-  (prim debug-stacktrace DBG_STACK () any "vm_print_debug_stack_trace(vm)")
+  (prim debug-stacktrace DBG_STACK   () any "vm_print_debug_stack_trace(vm)")
 
-  (prim set-pixel SETPXL ((p Point)) any "gfx_set_pixel(vm, p)")
-  (prim fill-rect FILLRCT ((a Point) (b Point) (color Fixnum)) any "gfx_fill_rect(vm, a, b, color)")
-  (prim point+     PTPLUS  ((a Point) (b Point))   Point "a + b")
-  (prim point-     PTMINUS ((a Point) (b Point))   Point "a - b")
-  (prim make-point MKPOINT ((a Fixnum) (b Fixnum)) Point "(point){(s32)a, (s32)b}")
+  (prim set-pixel  SETPXL  ((p Point))             any    "gfx_set_pixel(vm, p)")
+  (prim point+     PTPLUS  ((a Point) (b Point))   Point  "a + b")
+  (prim point-     PTMINUS ((a Point) (b Point))   Point  "a - b")
+  (prim make-point MKPOINT ((a Fixnum) (b Fixnum)) Point  "(point){(s32)a, (s32)b}")
   (prim point-x    PTX     ((p Point))             Fixnum "(s64)p.x")
   (prim point-y    PTY     ((p Point))             Fixnum "(s64)p.y")
 
-  (prim blit-at DRAWIMAGE ((img Image) (p Point) (scale Fixnum) (rot Fixnum)) any "gfx_blit_image_at(vm, img, p, scale, rot)")
-  (prim load-image LOADIMAGE ((path String)) any "load_image(vm, path)")
+  (prim screen-fill-rect SFILLRCT ((a Point) (b Point) (color Fixnum)) any "gfx_screen_fill_rect(vm, a, b, color)")
+  (prim blit-to-screen DRAWIMAGE ((img Image) (p Point) (scale Fixnum) (rot Fixnum)) any "gfx_blit_image_at(vm, img, p, scale, rot)")
+
+  (prim fill-rect FILLRCT ((dst Image) (a Point) (b Point) (color Fixnum)) any
+        "gfx_fill_rect(dst, a, b, color)")
+  (prim clear-rect CLRRCT ((dst Image) (a Point) (b Point)) any
+        "gfx_clear_rect(dst, a, b)")
+  (prim blit BLT
+        ((src Image) (dst Image) (at Point) (ul Point) (lr Point)
+         (scale Float) (degrees_rotation Float))
+        any
+        "gfx_blit(src, dst, at, ul, lr, scale, degrees_rotation)")
+  (prim blit-from-screen BLT_FR_SCRN
+        ((dst Image) (at Point) (ul Point) (lr Point)
+         (scale Float) (degrees_rotation Float))
+        any
+        "gfx_blit_from_screen(vm, dst, at, ul, lr, scale, degrees_rotation)")
+
+  (prim load-image LOADIMAGE ((path String))         any "gfx_load_image(vm, path)")
+  (prim make-image MKIMAGE   ((w Fixnum) (h Fixnum)) any "gfx_make_image(vm, w, h)")
+
+  (prim image-width  IMG_W ((img Image)) Fixnum "image_width(img)")
+  (prim image-height IMG_H ((img Image)) Fixnum "image_height(img)")
 
   (setf *prims* (reverse *prims*)))
 

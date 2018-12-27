@@ -28,14 +28,21 @@ enum PrimitiveOperation : u64 {
   PRIM_PRINT_STACK = ((25ULL << 32) | (255ULL << 16) | PrimOp_Tag),
   PRIM_DBG_STACK = ((26ULL << 32) | (255ULL << 16) | PrimOp_Tag),
   PRIM_SETPXL = ((27ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_FILLRCT = ((28ULL << 32) | (3ULL << 16) | PrimOp_Tag),
-  PRIM_PTPLUS = ((29ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_PTMINUS = ((30ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_MKPOINT = ((31ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_PTX = ((32ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PTY = ((33ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PTPLUS = ((28ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_PTMINUS = ((29ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_MKPOINT = ((30ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_PTX = ((31ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PTY = ((32ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_SFILLRCT = ((33ULL << 32) | (3ULL << 16) | PrimOp_Tag),
   PRIM_DRAWIMAGE = ((34ULL << 32) | (4ULL << 16) | PrimOp_Tag),
-  PRIM_LOADIMAGE = ((35ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_FILLRCT = ((35ULL << 32) | (4ULL << 16) | PrimOp_Tag),
+  PRIM_CLRRCT = ((36ULL << 32) | (3ULL << 16) | PrimOp_Tag),
+  PRIM_BLT = ((37ULL << 32) | (7ULL << 16) | PrimOp_Tag),
+  PRIM_BLT_FR_SCRN = ((38ULL << 32) | (6ULL << 16) | PrimOp_Tag),
+  PRIM_LOADIMAGE = ((39ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_MKIMAGE = ((40ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_IMG_W = ((41ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_IMG_H = ((42ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -251,15 +258,6 @@ Ptr PRIM_SETPXL_impl(VM *vm, u32 argc) {
 }
 
 // Primitive 28
-Ptr PRIM_FILLRCT_impl(VM *vm, u32 argc) {
-   VM_ARG(Fixnum,color);
-   VM_ARG(Point,b);
-   VM_ARG(Point,a);
-
- return gfx_fill_rect(vm, a, b, color);
-}
-
-// Primitive 29
 Ptr PRIM_PTPLUS_impl(VM *vm, u32 argc) {
    VM_ARG(Point,b);
    VM_ARG(Point,a);
@@ -267,7 +265,7 @@ Ptr PRIM_PTPLUS_impl(VM *vm, u32 argc) {
   return to(Point,(a + b));
 }
 
-// Primitive 30
+// Primitive 29
 Ptr PRIM_PTMINUS_impl(VM *vm, u32 argc) {
    VM_ARG(Point,b);
    VM_ARG(Point,a);
@@ -275,7 +273,7 @@ Ptr PRIM_PTMINUS_impl(VM *vm, u32 argc) {
   return to(Point,(a - b));
 }
 
-// Primitive 31
+// Primitive 30
 Ptr PRIM_MKPOINT_impl(VM *vm, u32 argc) {
    VM_ARG(Fixnum,b);
    VM_ARG(Fixnum,a);
@@ -283,18 +281,27 @@ Ptr PRIM_MKPOINT_impl(VM *vm, u32 argc) {
   return to(Point,((point){(s32)a, (s32)b}));
 }
 
-// Primitive 32
+// Primitive 31
 Ptr PRIM_PTX_impl(VM *vm, u32 argc) {
    VM_ARG(Point,p);
 
   return to(Fixnum,((s64)p.x));
 }
 
-// Primitive 33
+// Primitive 32
 Ptr PRIM_PTY_impl(VM *vm, u32 argc) {
    VM_ARG(Point,p);
 
   return to(Fixnum,((s64)p.y));
+}
+
+// Primitive 33
+Ptr PRIM_SFILLRCT_impl(VM *vm, u32 argc) {
+   VM_ARG(Fixnum,color);
+   VM_ARG(Point,b);
+   VM_ARG(Point,a);
+
+ return gfx_screen_fill_rect(vm, a, b, color);
 }
 
 // Primitive 34
@@ -308,10 +315,76 @@ Ptr PRIM_DRAWIMAGE_impl(VM *vm, u32 argc) {
 }
 
 // Primitive 35
+Ptr PRIM_FILLRCT_impl(VM *vm, u32 argc) {
+   VM_ARG(Fixnum,color);
+   VM_ARG(Point,b);
+   VM_ARG(Point,a);
+   VM_ARG(Image,dst);
+
+ return gfx_fill_rect(dst, a, b, color);
+}
+
+// Primitive 36
+Ptr PRIM_CLRRCT_impl(VM *vm, u32 argc) {
+   VM_ARG(Point,b);
+   VM_ARG(Point,a);
+   VM_ARG(Image,dst);
+
+ return gfx_clear_rect(dst, a, b);
+}
+
+// Primitive 37
+Ptr PRIM_BLT_impl(VM *vm, u32 argc) {
+   VM_ARG(Float,degrees_rotation);
+   VM_ARG(Float,scale);
+   VM_ARG(Point,lr);
+   VM_ARG(Point,ul);
+   VM_ARG(Point,at);
+   VM_ARG(Image,dst);
+   VM_ARG(Image,src);
+
+ return gfx_blit(src, dst, at, ul, lr, scale, degrees_rotation);
+}
+
+// Primitive 38
+Ptr PRIM_BLT_FR_SCRN_impl(VM *vm, u32 argc) {
+   VM_ARG(Float,degrees_rotation);
+   VM_ARG(Float,scale);
+   VM_ARG(Point,lr);
+   VM_ARG(Point,ul);
+   VM_ARG(Point,at);
+   VM_ARG(Image,dst);
+
+ return gfx_blit_from_screen(vm, dst, at, ul, lr, scale, degrees_rotation);
+}
+
+// Primitive 39
 Ptr PRIM_LOADIMAGE_impl(VM *vm, u32 argc) {
    VM_ARG(String,path);
 
- return load_image(vm, path);
+ return gfx_load_image(vm, path);
+}
+
+// Primitive 40
+Ptr PRIM_MKIMAGE_impl(VM *vm, u32 argc) {
+   VM_ARG(Fixnum,h);
+   VM_ARG(Fixnum,w);
+
+ return gfx_make_image(vm, w, h);
+}
+
+// Primitive 41
+Ptr PRIM_IMG_W_impl(VM *vm, u32 argc) {
+   VM_ARG(Image,img);
+
+  return to(Fixnum,(image_width(img)));
+}
+
+// Primitive 42
+Ptr PRIM_IMG_H_impl(VM *vm, u32 argc) {
+   VM_ARG(Image,img);
+
+  return to(Fixnum,(image_height(img)));
 }
 
 
@@ -344,14 +417,21 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_PRINT_STACK_impl,
   &PRIM_DBG_STACK_impl,
   &PRIM_SETPXL_impl,
-  &PRIM_FILLRCT_impl,
   &PRIM_PTPLUS_impl,
   &PRIM_PTMINUS_impl,
   &PRIM_MKPOINT_impl,
   &PRIM_PTX_impl,
   &PRIM_PTY_impl,
+  &PRIM_SFILLRCT_impl,
   &PRIM_DRAWIMAGE_impl,
+  &PRIM_FILLRCT_impl,
+  &PRIM_CLRRCT_impl,
+  &PRIM_BLT_impl,
+  &PRIM_BLT_FR_SCRN_impl,
   &PRIM_LOADIMAGE_impl,
+  &PRIM_MKIMAGE_impl,
+  &PRIM_IMG_W_impl,
+  &PRIM_IMG_H_impl,
 
   (PrimitiveFunction)(void *)0
 };
@@ -386,13 +466,20 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "print-stacktrace", to(PrimOp, PRIM_PRINT_STACK));
   set_global(vm, "debug-stacktrace", to(PrimOp, PRIM_DBG_STACK));
   set_global(vm, "set-pixel", to(PrimOp, PRIM_SETPXL));
-  set_global(vm, "fill-rect", to(PrimOp, PRIM_FILLRCT));
   set_global(vm, "point+", to(PrimOp, PRIM_PTPLUS));
   set_global(vm, "point-", to(PrimOp, PRIM_PTMINUS));
   set_global(vm, "make-point", to(PrimOp, PRIM_MKPOINT));
   set_global(vm, "point-x", to(PrimOp, PRIM_PTX));
   set_global(vm, "point-y", to(PrimOp, PRIM_PTY));
-  set_global(vm, "blit-at", to(PrimOp, PRIM_DRAWIMAGE));
+  set_global(vm, "screen-fill-rect", to(PrimOp, PRIM_SFILLRCT));
+  set_global(vm, "blit-to-screen", to(PrimOp, PRIM_DRAWIMAGE));
+  set_global(vm, "fill-rect", to(PrimOp, PRIM_FILLRCT));
+  set_global(vm, "clear-rect", to(PrimOp, PRIM_CLRRCT));
+  set_global(vm, "blit", to(PrimOp, PRIM_BLT));
+  set_global(vm, "blit-from-screen", to(PrimOp, PRIM_BLT_FR_SCRN));
   set_global(vm, "load-image", to(PrimOp, PRIM_LOADIMAGE));
+  set_global(vm, "make-image", to(PrimOp, PRIM_MKIMAGE));
+  set_global(vm, "image-width", to(PrimOp, PRIM_IMG_W));
+  set_global(vm, "image-height", to(PrimOp, PRIM_IMG_H));
 
 }

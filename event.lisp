@@ -2,14 +2,14 @@
 (set 'ignore1 (lambda (_)))
 
 (set 'colors
-     '(0xff0000
-       0xffff00
-       0x00ff00
-       0x00ffff
-       0x0000ff
-       0xff00ff
-       0xffffff
-       0x000000
+     '(0xffff0000
+       0xffffff00
+       0xff00ff00
+       0xff00ffff
+       0xff0000ff
+       0xffff00ff
+       0xffffffff
+       0xff000000
        rainbow))
 
 (set 'draw-rainbow-loop #f)
@@ -17,7 +17,7 @@
      (lambda (ul width height colors)
        (if (not (eq 'rainbow (car colors)))
            (let ()
-             (fill-rect ul (point+ ul (make-point width height)) (car colors))
+             (screen-fill-rect ul (point+ ul (make-point width height)) (car colors))
              (draw-rainbow-loop (point+ ul (make-point 0 height))
                                 width height
                                 (cdr colors))))))
@@ -31,7 +31,7 @@
      (lambda (ul size color)
        (if (eq color 'rainbow)
            (draw-rainbow ul size)
-           (fill-rect ul (point+ ul (make-point size size)) color))))
+           (screen-fill-rect ul (point+ ul (make-point size size)) color))))
 
 ;; this is awkward, but don't have self-referencing definitions yet
 ;; also don't have loops yet!
@@ -68,17 +68,17 @@
 
 (set 'scale (lambda (s v) (/i (*i s v) 100)))
 
-(set 'center-image-at (lambda (p s half-img-width)
-                        (let ((amt (+i half-img-width
-                                       (scale s half-img-width))))
-                          (point- p (make-point amt amt)))))
+(set 'center-image-at (lambda (p s img)
+                        (let ((half-img-width (/i (image-width img) 2)))
+                          (let ((amt (scale s half-img-width)))
+                            (point- p (make-point amt amt))))))
 
 (set 'draw-cows #f)
 (set 'draw-cows
      (lambda (p s r)
-       (blit-at cow (center-image-at p s 150)
-                s (point-x p))
-       (if (>i s 30)
+       (blit-to-screen cow (center-image-at p s cow)
+                       s (point-x p))
+       (if (>i s 50)
            (let ()
              (draw-cows (point+ p -70@-50)
                         (scale s 70)
@@ -93,7 +93,7 @@
 (set 'screen-size #f)
 
 (set 'cow-mania (lambda (p s)
-                  (fill-rect 0@0 screen-size 0xffffff)
+                  (screen-fill-rect 0@0 screen-size 0xffffff)
                   (draw-cows p s (point-x p))))
 
 (set 'mouse-handler

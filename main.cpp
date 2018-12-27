@@ -3202,14 +3202,16 @@ Ptr gfx_blit_image(blit_context *src,
   f32 src_y = cy - (dcy * dv_col + dcx * du_col);
 
   f32 u = src_x, v = src_y;
-
   f32 row_u = src_x, row_v = src_y;
 
-  s32 offsx = at.x;
-  s32 offsy = at.y;
-
-  u32 scan_width  = from->width  * scale; // TODO: handle clipped corners
-  u32 scan_height = from->height * scale;
+  u32 scan_width;
+  u32 scan_height;
+  // TODO: @speed properly calculate scan width and height (rotate rect and get bounds)
+  {
+    f32 sw = from->width  * scale;
+    f32 sh = from->height * scale;
+    scan_width = scan_height = (u32)floorf(sqrtf(sw * sw + sh * sh));
+  }
 
   // source sample range
   f32 min_x = max(from->x, 0LL), max_x = min(from->x + from->width, src->width);
@@ -3218,19 +3220,19 @@ Ptr gfx_blit_image(blit_context *src,
   for (u32 y = 0; y < scan_height; y++) {
 
     u = row_u; v = row_v; 
-    auto dest_row = (offsy + y) * dst->pitch;
+    auto dest_row = (at.y + y) * dst->pitch;
 
     for (u32 x = 0; x < scan_width; x++) {
 
       // it would be great if there were a way to do fewer checks here.
       if (u >= min_x && v >= min_y &&
           u <= max_x && v <= max_y &&
-          offsx + x < dst->width && offsy + y < dst->height) {
+          at.x + x < dst->width && at.y + y < dst->height) {
 
         u32 sx = floorf(u), sy = floorf(v);
 
         u8* over  = src->mem + sy * src->pitch + sx * 4;
-        u8* under = dst->mem + dest_row + (offsx + x) * 4;
+        u8* under = dst->mem + dest_row + (at.x + x) * 4;
         
         f32 alpha  = over[3] / 255.0f;
         f32 ialpha = 1.0 - alpha; 

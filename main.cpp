@@ -180,6 +180,10 @@ struct StackFrameObject : Object {
 
 struct Globals;
 
+struct blit_context {
+  u8 *mem; s64 pitch, width, height;
+};
+
 struct VM {
   Ptr *stack;
   void* heap_mem;
@@ -203,7 +207,7 @@ struct VM {
   unordered_map<Object **, u64> *gc_protected;
   unordered_map<Ptr *, u64> *gc_protected_ptrs;
   unordered_map<Ptr *, u64> *gc_protected_ptr_vectors;
-  SDL_Surface *surface;
+  blit_context *surface;
 };
 
 typedef Ptr (*PrimitiveFunction)(VM*, u32 argc);
@@ -3094,10 +3098,10 @@ Ptr primitive_print(Ptr a) { cout << a << endl; return a; }
 Ptr gfx_set_pixel(VM *vm, point p) { // assumes 4 bytes pp
   auto surface = vm->surface;
   if (surface) {
-    if (p.x < 0 || p.x >= surface->w) return Nil;
-    if (p.y < 0 || p.y >= surface->h) return Nil;
+    if (p.x < 0 || p.x >= surface->width) return Nil;
+    if (p.y < 0 || p.y >= surface->height) return Nil;
     u32 pixel = 0;
-    u8 *target_pixel = (u8 *)surface->pixels + p.y * surface->pitch + p.x * 4;
+    u8 *target_pixel = surface->mem + p.y * surface->pitch + p.x * 4;
     *(u32 *)target_pixel = pixel;
   }
   return Nil;
@@ -3106,10 +3110,20 @@ Ptr gfx_set_pixel(VM *vm, point p) { // assumes 4 bytes pp
 Ptr gfx_fill_rect(VM *vm, point a, point b, s64 color) {
   auto surface = vm->surface;
   if (surface) {
-    SDL_Rect r;
-    r.x = a.x; r.y = a.y;
-    r.w = b.x - a.x; r.h = b.y - a.y;
-    SDL_FillRect(surface, &r, (u32)color);
+    u32 pixel = color;
+    u8* components = (u8*)&pixel;
+    s64 max_x = min((s64)b.x, surface->width);
+    s64 max_y = min((s64)b.y, surface->height);
+    for (s64 y = a.y; y < max_y; y++) {
+      for (s64 x = a.x; x < max_x; x++) {
+        auto idx = y * surface->pitch + x * 4;
+        auto mem = surface->mem + idx;
+        mem[0] = components[0];
+        mem[1] = components[1];
+        mem[2] = components[2];
+        mem[3] = components[3];
+      }
+    }
   }
   return Nil;
 }
@@ -3124,7 +3138,7 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
   if (!is(Image, objToPtr(img))) die("gfx_blit_image: not an image");
 
   auto surface = vm->surface;
-  auto out     = surface->pixels;
+  auto out     = surface->mem;
   auto mem     = (u32 *)image_data(img);
 
   f32 scale = scale100 / 100.0f;
@@ -3133,8 +3147,8 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
 
   f32 angle = _deg_to_rad((f32)(deg_rot % 360));
 
-  u32 scr_w = vm->surface->w,   scr_h = vm->surface->h;
-  u32 img_w = image_width(img), img_h = image_height(img);
+  u32 scr_w = vm->surface->width, scr_h = vm->surface->height;
+  u32 img_w = image_width(img),   img_h = image_height(img);
 
   f32 rvx = cosf(angle);
   f32 rvy = sinf(angle);
@@ -3422,7 +3436,16 @@ void start_up_and_run_event_loop(const char *path) {
   SDL_Init(SDL_INIT_VIDEO);
   window = SDL_CreateWindow(title, x, y, w, h, winopts);
   if(!window) die("could not create window");
-  vm->surface = SDL_GetWindowSurface(window);
+
+  auto window_surface = SDL_GetWindowSurface(window);
+  auto window_context = (blit_context){
+    (u8*)window_surface->pixels,
+    (s64)window_surface->pitch,
+    (s64)window_surface->w,
+    (s64)window_surface->h
+  };
+
+  vm->surface = &window_context;
   if (!vm->surface) die("could not create surface");
 
   {
@@ -3434,8 +3457,8 @@ void start_up_and_run_event_loop(const char *path) {
   }
 
   {
-    auto fmt = vm->surface->format;
-    SDL_FillRect(vm->surface, NULL, SDL_MapRGB(fmt, 255, 255, 255));
+    auto fmt = window_surface->format;
+    SDL_FillRect(window_surface, NULL, SDL_MapRGB(fmt, 255, 255, 255));
     auto W = to(Fixnum, w);
     auto H = to(Fixnum, h);
     vm_call_global(vm, intern(vm, "onshow"), 2, (Ptr[]){W, H});

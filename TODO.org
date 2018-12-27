@@ -73,7 +73,7 @@
 * DONE more compact bc representation
 * TODO compact more of the bc
 * TODO generalize blit to work b/t images as well
-* TODO blit with mask, dest rect
+* TODO blit with mask, src rect, dest rect
 * TODO message send facility
 * TODO something resembling OMeta / Meta II
 * TODO basic text rendering

@@ -4,6 +4,7 @@
 (require 'cl)
 
 (defvar *prims* nil)
+(defvar *prim-current* nil)
 
 (defmacro prim (name prim-name arguments return-type body-expression)
   "Defines a primitive.
@@ -38,7 +39,7 @@
   "Emit ARG as an argument declaration."
   (let ((name (first arg))
         (type (second arg)))
-    (tmpl "   VM_ARG(" type "," name ");
+    (tmpl "   VM_ARG(\"" (getf *prim-current* :name) "\"," type "," name ");
 ")))
 
 (defun emit-varargs (name)
@@ -61,12 +62,14 @@
 
 (defun emit-prim-impl (prim)
   "Emits a primitive PRIM."
+  (let ((*prim-current* prim))
   (tmpl "Ptr " (getf prim :prim-name) "_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
 " (emit-prim-args prim) "
 " (emit-body (getf prim :body) (getf prim :return-type)) "
 }
 
-"))
+")))
 
 (defun emit-all-prim-impls ()
   "Emit all prims to a temp buffer."

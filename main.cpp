@@ -29,6 +29,7 @@
 #define GC_DEBUG 0
 
 #define unused(x) (void)(x)
+#define maybe_unused(x) (void)(x)
 #define KNOWN(symbol) vm->globals->known._##symbol
 #define _deg_to_rad(x) (x) * (M_PI / 180.0f)
 
@@ -463,12 +464,12 @@ type_test(BrokenHeart, it) {
 #undef prim_type
 #undef object_type
 
-#define VM_ARG(type, name)                             \
-  Ptr _##name = vm_pop(vm);                            \
-  if (!is(type, _##name)) {                            \
-    vm->error = " argument " #name " is not a " #type; \
-    return Nil;                                        \
-  }                                                    \
+#define VM_ARG(fname, type, name)                                       \
+  Ptr _##name = vm_pop(vm);                                             \
+  if (!is(type, _##name)) {                                             \
+    vm->error = "in: " fname " argument " #name " is not a " #type;     \
+    return Nil;                                                         \
+  }                                                                     \
   auto name = as(type, _##name);
 
 /* ---------------------------------------- */
@@ -1181,7 +1182,7 @@ auto vm_print_stack_trace(VM *vm) {
   return Nil;
 }
 
-auto vm_print_debug_stack_trace(VM *vm) {
+Ptr vm_print_debug_stack_trace(VM *vm) {
   StackFrameObject *fr = vm->frame;
   debug_walk(vm, objToPtr(fr));
   cout << "----------------------------------------" << endl;
@@ -1651,10 +1652,6 @@ Ptr make_list_rev(VM *vm, u64 len, Ptr* ptrs) { protect_ptr_vector(ptrs, len);
   unprot_ptr(result);
   unprotect_ptr_vector(ptrs);
   return result;
-}
-
-Ptr vm_get_stack_values_as_list(VM *vm, u32 count) {
-  return make_list_rev(vm, count, vm->stack);
 }
 
 void debug_print_list(ostream &os, Ptr p) {
@@ -2226,6 +2223,12 @@ Ptr vm_pop(VM* vm) {
   return *(vm->stack++);
 }
 
+Ptr vm_get_stack_values_as_list(VM *vm, u32 count) {
+  auto result = make_list_rev(vm, count, vm->stack);
+  while(count--) vm_pop(vm);
+  return result;
+}
+
 auto vm_load_closure_value(VM *vm, u64 slot, u64 depth) {
   auto curr = vm->frame->closed_over;
   while (depth) {
@@ -2419,7 +2422,10 @@ void vm_interp(VM* vm) {
       vm->error = "unexpected BC";
       return;
     }
-    if (vm->error) return;
+    if (vm->error) {
+      vm_print_debug_stack_trace(vm);
+      return; 
+    };
     ++vm->pc;
   }
 }
@@ -3313,6 +3319,7 @@ Ptr gfx_blit_from_screen(VM *vm, ByteArrayObject *dest_image,
   return gfx_blit_image(vm->surface, &dst, &from, dst_location, scale, degrees_rotation);
 }
 
+/* -------------------------------------------------- */
 
 #include "./primop-generated.cpp"
 

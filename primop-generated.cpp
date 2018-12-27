@@ -52,363 +52,409 @@ enum PrimitiveOperation : u64 {
 
 // Primitive 0
 Ptr PRIM_FIX_PLUS_impl(VM *vm, u32 argc) {
-   VM_ARG(Fixnum,b);
-   VM_ARG(Fixnum,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("+i",Fixnum,b);
+   VM_ARG("+i",Fixnum,a);
 
   return to(Fixnum,(a + b));
 }
 
 // Primitive 1
 Ptr PRIM_FIX_MINUS_impl(VM *vm, u32 argc) {
-   VM_ARG(Fixnum,b);
-   VM_ARG(Fixnum,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("-i",Fixnum,b);
+   VM_ARG("-i",Fixnum,a);
 
   return to(Fixnum,(a - b));
 }
 
 // Primitive 2
 Ptr PRIM_FIX_TIMES_impl(VM *vm, u32 argc) {
-   VM_ARG(Fixnum,b);
-   VM_ARG(Fixnum,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("*i",Fixnum,b);
+   VM_ARG("*i",Fixnum,a);
 
   return to(Fixnum,(a * b));
 }
 
 // Primitive 3
 Ptr PRIM_FIX_DIVIDE_impl(VM *vm, u32 argc) {
-   VM_ARG(Fixnum,b);
-   VM_ARG(Fixnum,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("/i",Fixnum,b);
+   VM_ARG("/i",Fixnum,a);
 
   return to(Fixnum,(a / b));
 }
 
 // Primitive 4
 Ptr PRIM_FIX_LT_impl(VM *vm, u32 argc) {
-   VM_ARG(Fixnum,b);
-   VM_ARG(Fixnum,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("<i",Fixnum,b);
+   VM_ARG("<i",Fixnum,a);
 
   return to(Bool,(a < b));
 }
 
 // Primitive 5
 Ptr PRIM_FIX_GT_impl(VM *vm, u32 argc) {
-   VM_ARG(Fixnum,b);
-   VM_ARG(Fixnum,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG(">i",Fixnum,b);
+   VM_ARG(">i",Fixnum,a);
 
   return to(Bool,(a > b));
 }
 
 // Primitive 6
 Ptr PRIM_FIX_MOD_impl(VM *vm, u32 argc) {
-   VM_ARG(Fixnum,b);
-   VM_ARG(Fixnum,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("%i",Fixnum,b);
+   VM_ARG("%i",Fixnum,a);
 
   return to(Fixnum,(a % b));
 }
 
 // Primitive 7
 Ptr PRIM_FLT_PLUS_impl(VM *vm, u32 argc) {
-   VM_ARG(Float,b);
-   VM_ARG(Float,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("+f",Float,b);
+   VM_ARG("+f",Float,a);
 
   return to(Float,(a + b));
 }
 
 // Primitive 8
 Ptr PRIM_FLT_MINUS_impl(VM *vm, u32 argc) {
-   VM_ARG(Float,b);
-   VM_ARG(Float,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("-f",Float,b);
+   VM_ARG("-f",Float,a);
 
   return to(Float,(a - b));
 }
 
 // Primitive 9
 Ptr PRIM_FLT_TIMES_impl(VM *vm, u32 argc) {
-   VM_ARG(Float,b);
-   VM_ARG(Float,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("*f",Float,b);
+   VM_ARG("*f",Float,a);
 
   return to(Float,(a * b));
 }
 
 // Primitive 10
 Ptr PRIM_FLT_DIVIDE_impl(VM *vm, u32 argc) {
-   VM_ARG(Float,b);
-   VM_ARG(Float,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("/f",Float,b);
+   VM_ARG("/f",Float,a);
 
   return to(Float,(a / b));
 }
 
 // Primitive 11
 Ptr PRIM_FLT_LT_impl(VM *vm, u32 argc) {
-   VM_ARG(Float,b);
-   VM_ARG(Float,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("<f",Float,b);
+   VM_ARG("<f",Float,a);
 
   return to(Bool,(a < b));
 }
 
 // Primitive 12
 Ptr PRIM_FLT_GT_impl(VM *vm, u32 argc) {
-   VM_ARG(Float,b);
-   VM_ARG(Float,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG(">f",Float,b);
+   VM_ARG(">f",Float,a);
 
   return to(Bool,(a > b));
 }
 
 // Primitive 13
 Ptr PRIM_FIX_TO_FLT_impl(VM *vm, u32 argc) {
-   VM_ARG(Fixnum,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("i->f",Fixnum,a);
 
   return to(Float,((f32)a));
 }
 
 // Primitive 14
 Ptr PRIM_FLT_TO_FIX_impl(VM *vm, u32 argc) {
-   VM_ARG(Float,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("f->i",Float,a);
 
   return to(Fixnum,((s64)a));
 }
 
 // Primitive 15
 Ptr PRIM_LIST_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
 Ptr list = vm_get_stack_values_as_list(vm, argc);
  return list;
 }
 
 // Primitive 16
 Ptr PRIM_CONS_impl(VM *vm, u32 argc) {
-   VM_ARG(any,b);
-   VM_ARG(any,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("cons",any,b);
+   VM_ARG("cons",any,a);
 
  return cons(vm, a, b);
 }
 
 // Primitive 17
 Ptr PRIM_CAR_impl(VM *vm, u32 argc) {
-   VM_ARG(any,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("car",any,a);
 
  return car(a);
 }
 
 // Primitive 18
 Ptr PRIM_CDR_impl(VM *vm, u32 argc) {
-   VM_ARG(any,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("cdr",any,a);
 
  return cdr(a);
 }
 
 // Primitive 19
 Ptr PRIM_EQ_impl(VM *vm, u32 argc) {
-   VM_ARG(any,b);
-   VM_ARG(any,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("eq",any,b);
+   VM_ARG("eq",any,a);
 
   return to(Bool,(ptr_eq(a, b)));
 }
 
 // Primitive 20
 Ptr PRIM_ISNIL_impl(VM *vm, u32 argc) {
-   VM_ARG(any,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("nil?",any,a);
 
   return to(Bool,(isNil(a)));
 }
 
 // Primitive 21
 Ptr PRIM_NOT_impl(VM *vm, u32 argc) {
-   VM_ARG(any,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("not",any,a);
 
   return to(Bool,(a == False));
 }
 
 // Primitive 22
 Ptr PRIM_PRINT_impl(VM *vm, u32 argc) {
-   VM_ARG(any,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("print",any,a);
 
  return primitive_print(a);
 }
 
 // Primitive 23
 Ptr PRIM_NTH_impl(VM *vm, u32 argc) {
-   VM_ARG(Fixnum,idx);
-   VM_ARG(any,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("nth",Fixnum,idx);
+   VM_ARG("nth",any,a);
 
  return nth_or_nil(a, idx);
 }
 
 // Primitive 24
 Ptr PRIM_SET_SYM_VAL_impl(VM *vm, u32 argc) {
-   VM_ARG(any,b);
-   VM_ARG(Symbol,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("set-symbol-value",any,b);
+   VM_ARG("set-symbol-value",Symbol,a);
 
  return set_global(vm, objToPtr(a), b);
 }
 
 // Primitive 25
 Ptr PRIM_PRINT_STACK_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
 
  return vm_print_stack_trace(vm);
 }
 
 // Primitive 26
 Ptr PRIM_DBG_STACK_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
 
  return vm_print_debug_stack_trace(vm);
 }
 
 // Primitive 27
 Ptr PRIM_SETPXL_impl(VM *vm, u32 argc) {
-   VM_ARG(Point,p);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("set-pixel",Point,p);
 
  return gfx_set_pixel(vm, p);
 }
 
 // Primitive 28
 Ptr PRIM_PTPLUS_impl(VM *vm, u32 argc) {
-   VM_ARG(Point,b);
-   VM_ARG(Point,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("point+",Point,b);
+   VM_ARG("point+",Point,a);
 
   return to(Point,(a + b));
 }
 
 // Primitive 29
 Ptr PRIM_PTMINUS_impl(VM *vm, u32 argc) {
-   VM_ARG(Point,b);
-   VM_ARG(Point,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("point-",Point,b);
+   VM_ARG("point-",Point,a);
 
   return to(Point,(a - b));
 }
 
 // Primitive 30
 Ptr PRIM_MKPOINT_impl(VM *vm, u32 argc) {
-   VM_ARG(Fixnum,b);
-   VM_ARG(Fixnum,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("make-point",Fixnum,b);
+   VM_ARG("make-point",Fixnum,a);
 
   return to(Point,((point){(s32)a, (s32)b}));
 }
 
 // Primitive 31
 Ptr PRIM_PTX_impl(VM *vm, u32 argc) {
-   VM_ARG(Point,p);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("point-x",Point,p);
 
   return to(Fixnum,((s64)p.x));
 }
 
 // Primitive 32
 Ptr PRIM_PTY_impl(VM *vm, u32 argc) {
-   VM_ARG(Point,p);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("point-y",Point,p);
 
   return to(Fixnum,((s64)p.y));
 }
 
 // Primitive 33
 Ptr PRIM_PTROT_impl(VM *vm, u32 argc) {
-   VM_ARG(Float,degrees);
-   VM_ARG(Point,p);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("point-rotate",Float,degrees);
+   VM_ARG("point-rotate",Point,p);
 
   return to(Point,(rotate_point(p, degrees)));
 }
 
 // Primitive 34
 Ptr PRIM_SFILLRCT_impl(VM *vm, u32 argc) {
-   VM_ARG(Fixnum,color);
-   VM_ARG(Point,b);
-   VM_ARG(Point,a);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("screen-fill-rect",Fixnum,color);
+   VM_ARG("screen-fill-rect",Point,b);
+   VM_ARG("screen-fill-rect",Point,a);
 
  return gfx_screen_fill_rect(vm, a, b, color);
 }
 
 // Primitive 35
 Ptr PRIM_DRAWIMAGE_impl(VM *vm, u32 argc) {
-   VM_ARG(Fixnum,rot);
-   VM_ARG(Fixnum,scale);
-   VM_ARG(Point,p);
-   VM_ARG(Image,img);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("blit-to-screen",Fixnum,rot);
+   VM_ARG("blit-to-screen",Fixnum,scale);
+   VM_ARG("blit-to-screen",Point,p);
+   VM_ARG("blit-to-screen",Image,img);
 
  return gfx_blit_image_at(vm, img, p, scale, rot);
 }
 
 // Primitive 36
 Ptr PRIM_FILLRCT_impl(VM *vm, u32 argc) {
-   VM_ARG(Fixnum,color);
-   VM_ARG(Point,b);
-   VM_ARG(Point,a);
-   VM_ARG(Image,dst);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("fill-rect",Fixnum,color);
+   VM_ARG("fill-rect",Point,b);
+   VM_ARG("fill-rect",Point,a);
+   VM_ARG("fill-rect",Image,dst);
 
  return gfx_fill_rect(dst, a, b, color);
 }
 
 // Primitive 37
 Ptr PRIM_CLRRCT_impl(VM *vm, u32 argc) {
-   VM_ARG(Point,b);
-   VM_ARG(Point,a);
-   VM_ARG(Image,dst);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("clear-rect",Point,b);
+   VM_ARG("clear-rect",Point,a);
+   VM_ARG("clear-rect",Image,dst);
 
  return gfx_clear_rect(dst, a, b);
 }
 
 // Primitive 38
 Ptr PRIM_BLT_impl(VM *vm, u32 argc) {
-   VM_ARG(Float,degrees_rotation);
-   VM_ARG(Float,scale);
-   VM_ARG(Point,lr);
-   VM_ARG(Point,ul);
-   VM_ARG(Point,at);
-   VM_ARG(Image,dst);
-   VM_ARG(Image,src);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("blit",Float,degrees_rotation);
+   VM_ARG("blit",Float,scale);
+   VM_ARG("blit",Point,lr);
+   VM_ARG("blit",Point,ul);
+   VM_ARG("blit",Point,at);
+   VM_ARG("blit",Image,dst);
+   VM_ARG("blit",Image,src);
 
  return gfx_blit(src, dst, at, ul, lr, scale, degrees_rotation);
 }
 
 // Primitive 39
 Ptr PRIM_BLT_FR_SCRN_impl(VM *vm, u32 argc) {
-   VM_ARG(Float,degrees_rotation);
-   VM_ARG(Float,scale);
-   VM_ARG(Point,lr);
-   VM_ARG(Point,ul);
-   VM_ARG(Point,at);
-   VM_ARG(Image,dst);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("blit-from-screen",Float,degrees_rotation);
+   VM_ARG("blit-from-screen",Float,scale);
+   VM_ARG("blit-from-screen",Point,lr);
+   VM_ARG("blit-from-screen",Point,ul);
+   VM_ARG("blit-from-screen",Point,at);
+   VM_ARG("blit-from-screen",Image,dst);
 
  return gfx_blit_from_screen(vm, dst, at, ul, lr, scale, degrees_rotation);
 }
 
 // Primitive 40
 Ptr PRIM_LOADIMAGE_impl(VM *vm, u32 argc) {
-   VM_ARG(String,path);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("load-image",String,path);
 
  return gfx_load_image(vm, path);
 }
 
 // Primitive 41
 Ptr PRIM_MKIMAGE_impl(VM *vm, u32 argc) {
-   VM_ARG(Fixnum,h);
-   VM_ARG(Fixnum,w);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("make-image",Fixnum,h);
+   VM_ARG("make-image",Fixnum,w);
 
  return gfx_make_image(vm, w, h);
 }
 
 // Primitive 42
 Ptr PRIM_IMG_W_impl(VM *vm, u32 argc) {
-   VM_ARG(Image,img);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("image-width",Image,img);
 
   return to(Fixnum,(image_width(img)));
 }
 
 // Primitive 43
 Ptr PRIM_IMG_H_impl(VM *vm, u32 argc) {
-   VM_ARG(Image,img);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("image-height",Image,img);
 
   return to(Fixnum,(image_height(img)));
 }
 
 // Primitive 44
 Ptr PRIM_CCA_impl(VM *vm, u32 argc) {
-   VM_ARG(Fixnum,idx);
-   VM_ARG(String,str);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("char-code-at",Fixnum,idx);
+   VM_ARG("char-code-at",String,str);
 
   return to(Fixnum,(string_char_code_at(vm, str, idx)));
 }
 
 // Primitive 45
 Ptr PRIM_STRLEN_impl(VM *vm, u32 argc) {
-   VM_ARG(String,str);
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("string-length",String,str);
 
   return to(Fixnum,(string_length(str)));
 }

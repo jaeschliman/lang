@@ -10,11 +10,11 @@
                           (let ((amt (scale s half-img-width)))
                             (point- p (make-point amt amt))))))
 
-(set 'ctx (list))
+(set 'ctx (list (cons 0@0 0)))
+
 (set 'push-t-r (lambda (p r)
                  (set 'ctx (cons (cons p r) ctx))))
 
-(set 'ctx (cons (cons 0@0 0) ctx))
 
 (set 'push-t-r (lambda (p r)
                 (let ((prev-p (car (car ctx)))

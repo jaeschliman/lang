@@ -51,7 +51,8 @@
 
 (set 'onshow (lambda (w h)
                (set 'screen-size (make-point w h))
-               (display-string 0@0 3.3 "hello, world!")))
+               (display-string 0@0 3.3 "hello, world!")
+               (display-string 0@30 1.3 "(lambda (x) x) [ ^ self ].") ))
 (set 'onmousemove ignore1)
 (set 'onmousedown ignore1)
 (set 'onmousedrag ignore1)

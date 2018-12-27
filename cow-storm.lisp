@@ -13,6 +13,18 @@
 (set 'ctx (list))
 (set 'push-t-r (lambda (p r)
                  (set 'ctx (cons (cons p r) ctx))))
+
+(set 'ctx (cons (cons 0@0 0) ctx))
+
+(set 'push-t-r (lambda (p r)
+                (let ((prev-p (car (car ctx)))
+                      (prev-r (cdr (car ctx))))
+                  (set 'ctx
+                       (cons (cons (point+ prev-p (point-rotate p (i->f prev-r)))
+                                   (+i prev-r r))
+                             ctx)))))
+
+
 (set 'pop-t-r (lambda () (set 'ctx (cdr ctx))))
 
 (set 'draw-cows #f)
@@ -24,13 +36,13 @@
                 s (point-x p))
          (if (>i s 30)
              (let ()
-               (push-t-r (point+ p -70@-50) (-i r 33))
+               (push-t-r -170@-150 -33)
                (draw-cows (scale s 70))
                (pop-t-r)
-               (push-t-r (point+ p 100@-70) (+i r 80))
+               (push-t-r 100@-70 80)
                (draw-cows (scale s 60))
                (pop-t-r)
-               (push-t-r (point+ p 50@50) (+i r 33))
+               (push-t-r  250@90 33)
                (draw-cows (scale s 80))
                (pop-t-r))))))
 
@@ -44,7 +56,7 @@
 
 (set 'mouse-handler
      (lambda (p)
-       (let ((s (+i 50 (/i (point-y p) 24))))
+       (let ((s (+i 80 (/i (point-y p) 24))))
          (cow-mania p s))))
 
 ;;;;;;; register event handlers

@@ -30,6 +30,7 @@
 
 #define unused(x) (void)(x)
 #define KNOWN(symbol) vm->globals->known._##symbol
+#define _deg_to_rad(x) (x) * (M_PI / 180.0f)
 
 using namespace std;
 
@@ -395,6 +396,15 @@ create_ptr_for(PrimOp, u64 raw_value) {
 struct point { s32 x, y; };
 point operator +(point a, point b) { return (point){a.x + b.x, a.y + b.y}; }
 point operator -(point a, point b) { return (point){a.x - b.x, a.y - b.y}; }
+
+point rotate_point(point p, f32 degrees) {
+  f32 angle = _deg_to_rad(fmod(degrees, 360.0));
+  f32 c = cosf(angle);
+  f32 s = sinf(angle);
+  f32 x = p.x * c - p.y * s;
+  f32 y = p.x * s + p.y * c;
+  return (point){(s32)x, (s32)y};
+}
 
 // @cleanup -- there's gotta be a way to do this with fewer instructions
 prim_type(Point)
@@ -3165,8 +3175,6 @@ Ptr gfx_clear_rect(ByteArrayObject *dst_image, point a, point b) {
   return Nil;
 }
 
-#define _deg_to_rad(x) (x) * (M_PI / 180.0f)
-
 #define DEBUG_FILL 0
 // largely from http://www.drdobbs.com/architecture-and-design/fast-bitmap-rotation-and-scaling/184416337
 // and some mention from alan kay in a video about how it works
@@ -3519,7 +3527,8 @@ void start_up_and_run_event_loop(const char *path) {
   auto title = "my window";
 
   // allow highdpi not actually working on my macbook...
-  auto winopts = SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI;
+  // SDL_WINDOW_FULLSCREEN has insane results (but they /are/ hi dpi)
+  auto winopts = SDL_WINDOW_SHOWN; // | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_FULLSCREEN_DESKTOP;
 
   SDL_Init(SDL_INIT_VIDEO);
   window = SDL_CreateWindow(title, x, y, w, h, winopts);
@@ -3555,6 +3564,7 @@ void start_up_and_run_event_loop(const char *path) {
 
   bool running = true;
   SDL_Event event;
+
   while (running) {
     if (SDL_WaitEvent(&event)) { //or SDL_PollEvent for continual updates
       switch (event.type) {

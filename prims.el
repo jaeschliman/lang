@@ -177,6 +177,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim make-point MKPOINT ((a Fixnum) (b Fixnum)) Point  "(point){(s32)a, (s32)b}")
   (prim point-x    PTX     ((p Point))             Fixnum "(s64)p.x")
   (prim point-y    PTY     ((p Point))             Fixnum "(s64)p.y")
+  (prim point-rotate PTROT ((p Point) (degrees Float)) Point "rotate_point(p, degrees)")
 
   (prim screen-fill-rect SFILLRCT ((a Point) (b Point) (color Fixnum)) any "gfx_screen_fill_rect(vm, a, b, color)")
   (prim blit-to-screen DRAWIMAGE ((img Image) (p Point) (scale Fixnum) (rot Fixnum)) any "gfx_blit_image_at(vm, img, p, scale, rot)")

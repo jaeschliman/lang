@@ -180,6 +180,8 @@ struct StackFrameObject : Object {
 
 struct Globals;
 
+struct rect { s64 x, y, width, height; };
+
 struct blit_context {
   u8 *mem; s64 pitch, width, height;
 };
@@ -3145,6 +3147,7 @@ Ptr gfx_fill_rect(VM *vm, point a, point b, s64 color) {
 // scale and rotation are s64s becuase we don't have floats in the VM yet :P
 Ptr gfx_blit_image(blit_context *src,
                    blit_context *dst,
+                   rect *from,
                    point p, s64 scale100, s64 deg_rot) {
 
   f32 scale = scale100 / 100.0f;
@@ -3159,14 +3162,15 @@ Ptr gfx_blit_image(blit_context *src,
   f32 du_col = rvx, dv_col = rvy; 
   f32 du_row = -rvy, dv_row = rvx;
 
-  f32 cx = src->width * 0.5f, cy = src->height * 0.5f;
+  f32 cx = from->x + from->width  * 0.5f;
+  f32 cy = from->y + from->height * 0.5f;
 
-  // I don't understand exactly what dcx/dcy are for yet.
-  f32 dcx = cx;
-  f32 dcy = cy;
+  // I'm starting to get what these are for but not 100% yet.
+  f32 dcx = from->width  * 0.5f;
+  f32 dcy = from->height * 0.5f;
 
   // set the initial position by rotating the 'destination' surface
-  // I don't get why this works yet :P
+  // I don't quite get why this works yet :P
   f32 src_x = cx - (dcx * du_row + dcy * dv_row);
   f32 src_y = cy - (dcy * dv_col + dcx * du_col);
 
@@ -3174,11 +3178,15 @@ Ptr gfx_blit_image(blit_context *src,
 
   f32 row_u = src_x, row_v = src_y;
 
-  s32 offsx = p.x + cx;
-  s32 offsy = p.y + cy;
+  s32 offsx = p.x + from->width  * 0.5;
+  s32 offsy = p.y + from->height * 0.5;
 
-  u32 scan_width  = src->width  * scale; // TODO: handle clipped corners
-  u32 scan_height = src->height * scale;
+  u32 scan_width  = from->width  * scale; // TODO: handle clipped corners
+  u32 scan_height = from->height * scale;
+
+  // source sample range
+  f32 min_x = max(from->x, 0LL), max_x = min(from->x + from->width, src->width);
+  f32 min_y = max(from->y, 0LL), max_y = min(from->y + from->height, src->height);
 
   for (u32 y = 0; y < scan_height; y++) {
 
@@ -3188,8 +3196,8 @@ Ptr gfx_blit_image(blit_context *src,
     for (u32 x = 0; x < scan_width; x++) {
 
       // it would be great if there were a way to do fewer checks here.
-      if (u >= 0.0f && v >= 0.0f &&
-          u <= (f32)src->width && v <= (f32)src->height &&
+      if (u >= min_x && v >= min_y &&
+          u <= max_x && v <= max_y &&
           offsx + x < dst->width && offsy + y < dst->height) {
 
         u32 sx = floorf(u), sy = floorf(v);
@@ -3205,8 +3213,8 @@ Ptr gfx_blit_image(blit_context *src,
 
       }
       #if DEBUG_FILL
-      else if ( offsx + x < scr_w && offsy + y < scr_h ) {
-        u8* under = ((u8*)out + dest_row + (offsx + x) * 4);
+      else if ( offsx + x < dst->width && offsy + y < dst->height ) {
+        u8* under = (dst->mem + dest_row + (offsx + x) * 4);
         under[0] = 0xff;
         under[1] = under[2] = 0;
       }
@@ -3225,7 +3233,10 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
   auto src  = image_blit_context(img);
   auto dst = vm->surface;
 
-  return gfx_blit_image(&src, dst, p, scale100, deg_rot);
+  // auto from = (rect){ 100, 100, src.width - 200, src.height - 200 };
+  auto from = (rect){ 200, 200, src.width - 200, src.height - 200 };
+
+  return gfx_blit_image(&src, dst, &from, p, scale100, deg_rot);
 }
 
 #include "./primop-generated.cpp"

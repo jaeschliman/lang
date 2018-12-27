@@ -57,7 +57,7 @@
      (lambda (p)
        (if (eq selected-color 'rainbow)
            (draw-box p 30 selected-color)
-           (draw-box p 15 selected-color))))
+           (draw-box (point- p 8@8) 16 selected-color))))
 
 (set 'choose-color
      (lambda (p)
@@ -76,7 +76,7 @@
 (set 'draw-cows #f)
 (set 'draw-cows
      (lambda (p s r)
-       (blit-at cow (center-image-at p s 250)
+       (blit-at cow (center-image-at p s 150)
                 s (point-x p))
        (if (>i s 30)
            (let ()
@@ -101,7 +101,7 @@
        (if (<i (point-x p) color-well-size)
            (choose-color p)
            (let ((s (+i 50 (/i (point-y p) 24))))
-             ;;(cow-mania p s)
+             (cow-mania p s)
              (paint p)))))
 
 ;;;;;;; register event handlers

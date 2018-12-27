@@ -7,13 +7,12 @@
 (set 'font-char-width 7)
 (set 'font-char-height 9)
 (set 'font-char-size (make-point font-char-width font-char-height))
-(set 'font-scale 4.0)
 
 (set 'output (make-image 500 500))
 ;; (fill-rect output 0@0 500@500 0xff00ff00)
 
 (set 'blit-charcode-at
-     (lambda (raw-code point)
+     (lambda (raw-code point scale)
        (let ((code (-i raw-code font-start)))
          (let ((col (%i code font-chars-per-row))
                (row (/i code font-chars-per-row)))
@@ -22,7 +21,7 @@
              (blit
               font output point
               origin (point+ origin font-char-size)
-              font-scale 13.0))))))
+              scale 13.0))))))
 
 (set 'screen-size #f)
 
@@ -36,21 +35,23 @@
 (set 'map-charcodes-with-index (lambda (str fn)
                                  (strloop str fn 0 (string-length str))))
 
-(set 'display-string (lambda (at str)
+(set 'display-string (lambda (at scale str)
                        (map-charcodes-with-index
                         str
                         (lambda (char idx)
-                          (let ((left (*i (*i idx font-char-width)
-                                          (f->i font-scale))))
+                          (let ((left (f->i
+                                       (*f (*f (i->f idx)
+                                               (i->f font-char-width))
+                                           scale))))
                             (blit-charcode-at
-                             char (point+ at (make-point left 0))))))
+                             char (point+ at (make-point left 0)) scale))))
                        (blit-to-screen output 0@0 100 0)))
 
 ;;;;;;; register event handlers
 
 (set 'onshow (lambda (w h)
                (set 'screen-size (make-point w h))
-               (display-string 0@0 "hello, world!")))
+               (display-string 0@0 3.3 "hello, world!")))
 (set 'onmousemove ignore1)
 (set 'onmousedown ignore1)
 (set 'onmousedrag ignore1)

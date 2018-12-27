@@ -89,6 +89,9 @@
 * TODO clean up callsites of blit- functions
 * TODO runtime argument count checking for prims and lambdas
 * TODO run on an ipad!
+* TODO only update dirty rects?
+SDL_UpdateWindowSurfaceRects
+https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
 
 * notes
 maybe have a stack of compilers? can push/pop...

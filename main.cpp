@@ -567,6 +567,15 @@ Ptr load_image(VM *vm, ByteArrayObject *path) {
   return load_image_from_path(vm, str);
 }
 
+blit_context image_blit_context(ByteArrayObject *img) {
+  if (!is(Image, objToPtr(img))) die("image_blit_context requires an image");
+  auto w = image_width(img), h = image_height(img);
+  auto mem = image_data(img);
+  auto pitch = w * 8;
+  return (blit_context){ mem, pitch, w, h};
+}
+
+
 PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   auto byte_count = sizeof(PtrArrayObject) + (len * sizeof(Ptr));
   PtrArrayObject* obj = (PtrArrayObject *)vm_alloc(vm, byte_count);
@@ -3134,12 +3143,11 @@ Ptr gfx_fill_rect(VM *vm, point a, point b, s64 color) {
 // largely from http://www.drdobbs.com/architecture-and-design/fast-bitmap-rotation-and-scaling/184416337
 // and some mention from alan kay in a video about how it works
 // scale and rotation are s64s becuase we don't have floats in the VM yet :P
-Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 deg_rot) {
-  if (!is(Image, objToPtr(img))) die("gfx_blit_image: not an image");
-
-  auto surface = vm->surface;
-  auto out     = surface->mem;
-  auto mem     = (u32 *)image_data(img);
+Ptr gfx_blit_image(blit_context *src,
+                   blit_context *dst,
+                   point p, s64 scale100, s64 deg_rot) {
+  auto out     = dst->mem;
+  auto mem     = (u32 *)src->mem;
 
   f32 scale = scale100 / 100.0f;
   f32 iscale = 1.0f/scale;
@@ -3147,16 +3155,13 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
 
   f32 angle = _deg_to_rad((f32)(deg_rot % 360));
 
-  u32 scr_w = vm->surface->width, scr_h = vm->surface->height;
-  u32 img_w = image_width(img),   img_h = image_height(img);
-
   f32 rvx = cosf(angle);
   f32 rvy = sinf(angle);
 
   f32 du_col = rvx, dv_col = rvy; 
   f32 du_row = -rvy, dv_row = rvx;
 
-  f32 cx = img_w * 0.5f, cy = img_h * 0.5f;
+  f32 cx = src->width * 0.5f, cy = src->height * 0.5f;
 
   // I don't understand exactly what dcx/dcy are for yet.
   f32 dcx = cx;
@@ -3174,22 +3179,24 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
   s32 offsx = p.x + cx;
   s32 offsy = p.y + cy;
 
-  u32 scan_width  = img_w * scale; // TODO: handle clipped corners
-  u32 scan_height = img_h * scale;
+  u32 scan_width  = src->width  * scale; // TODO: handle clipped corners
+  u32 scan_height = src->height * scale;
 
   for (u32 y = 0; y < scan_height; y++) {
     u = row_u; v = row_v; 
-    auto dest_row = (offsy + y) * surface->pitch;
+    auto dest_row = (offsy + y) * dst->pitch;
 
     for (u32 x = 0; x < scan_width; x++) {
 
-      if (u >= 0.0f && v >= 0.0f && u <= (f32)img_w && v <= (f32)img_h
-          && offsx + x < scr_w && offsy + y < scr_h) {
+      // it would be great if there were a way to do fewer checks here.
+      if (u >= 0.0f && v >= 0.0f &&
+          u <= (f32)src->width && v <= (f32)src->height &&
+          offsx + x < dst->width && offsy + y < dst->height) {
 
         u32 sx = floorf(u), sy = floorf(v);
 
         u8* under = ((u8*)out + dest_row + (offsx + x) * 4);
-        u8* over  = (u8*)(mem + sy * img_w + sx);
+        u8* over  = (u8*)(mem + sy * src->width + sx); // TODO use src/dest mem directly
         
         f32 alpha  = over[3] / 255.0f;
         f32 ialpha = 1.0 - alpha; 
@@ -3214,8 +3221,12 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
   return Nil;
 }
 
-Ptr gfx_blit_image(VM *vm, ByteArrayObject* img) {
-  return gfx_blit_image_at(vm, img, (point){0, 0}, 100, 0);
+Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 deg_rot) {
+  if (!is(Image, objToPtr(img))) die("gfx_blit_image: not an image");
+  auto src  = image_blit_context(img);
+  auto dst = vm->surface;
+
+  return gfx_blit_image(&src, dst, p, scale100, deg_rot);
 }
 
 #include "./primop-generated.cpp"

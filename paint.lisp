@@ -45,7 +45,6 @@
              (draw-box ul size color)
              (draw-boxes (+i top size) size (cdr colors))))))
 
-(set 'cow (load-image "./res/cow.png"))
 
 (set 'color-well-size #f)
 
@@ -66,40 +65,13 @@
 
 (set 'scale (lambda (s v) (/i (*i s v) 100)))
 
-(set 'center-image-at (lambda (p s img)
-                        (let ((half-img-width (/i (image-width img) 2)))
-                          (let ((amt (scale s half-img-width)))
-                            (point- p (make-point amt amt))))))
-
-(set 'draw-cows #f)
-(set 'draw-cows
-     (lambda (p s r)
-       (blit-to-screen cow (center-image-at p s cow)
-                       s (point-x p))
-       (if (>i s 50)
-           (let ()
-             (draw-cows (point+ p -70@-50)
-                        (scale s 70)
-                        (-i r 33))
-             (draw-cows (point+ p -70@50)
-                        (scale s 60)
-                        (+i r 80))
-             (draw-cows (point+ p 50@50)
-                        (scale s 80)
-                        (+i r 33))))))
-
 (set 'screen-size #f)
-
-(set 'cow-mania (lambda (p s)
-                  (screen-fill-rect 0@0 screen-size 0xffffff)
-                  (draw-cows p s (point-x p))))
 
 (set 'mouse-handler
      (lambda (p)
        (if (<i (point-x p) color-well-size)
            (choose-color p)
-           (let ((s (+i 50 (/i (point-y p) 24))))
-             (cow-mania p s)
+           (let ((s (+i 50 (/i (point-y p) 24)))) 
              (paint p)))))
 
 ;;;;;;; register event handlers
@@ -110,9 +82,6 @@
                (draw-boxes 0 color-well-size colors)))
 
 (set 'onmousemove ignore1)
-;; (set 'onmousedrag set-pixel)
 (set 'onmousedown mouse-handler)
 (set 'onmousedrag mouse-handler)
-(set 'onkey (lambda (code)
-              (print '(you pressed a key))
-              (print code)))
+(set 'onkey ignore1)

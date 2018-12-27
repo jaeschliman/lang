@@ -571,7 +571,7 @@ blit_context image_blit_context(ByteArrayObject *img) {
   if (!is(Image, objToPtr(img))) die("image_blit_context requires an image");
   auto w = image_width(img), h = image_height(img);
   auto mem = image_data(img);
-  auto pitch = w * 8;
+  auto pitch = w * 4;
   return (blit_context){ mem, pitch, w, h};
 }
 
@@ -3146,8 +3146,6 @@ Ptr gfx_fill_rect(VM *vm, point a, point b, s64 color) {
 Ptr gfx_blit_image(blit_context *src,
                    blit_context *dst,
                    point p, s64 scale100, s64 deg_rot) {
-  auto out     = dst->mem;
-  auto mem     = (u32 *)src->mem;
 
   f32 scale = scale100 / 100.0f;
   f32 iscale = 1.0f/scale;
@@ -3183,6 +3181,7 @@ Ptr gfx_blit_image(blit_context *src,
   u32 scan_height = src->height * scale;
 
   for (u32 y = 0; y < scan_height; y++) {
+
     u = row_u; v = row_v; 
     auto dest_row = (offsy + y) * dst->pitch;
 
@@ -3195,8 +3194,8 @@ Ptr gfx_blit_image(blit_context *src,
 
         u32 sx = floorf(u), sy = floorf(v);
 
-        u8* under = ((u8*)out + dest_row + (offsx + x) * 4);
-        u8* over  = (u8*)(mem + sy * src->width + sx); // TODO use src/dest mem directly
+        u8* over  = src->mem + sy * src->pitch + sx * 4;
+        u8* under = dst->mem + dest_row + (offsx + x) * 4;
         
         f32 alpha  = over[3] / 255.0f;
         f32 ialpha = 1.0 - alpha; 

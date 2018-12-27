@@ -45,9 +45,7 @@
              (draw-box ul size color)
              (draw-boxes (+i top size) size (cdr colors))))))
 
-(set 'cow (load-image "/Users/jsn/Downloads/cow.png"))
-;; (set 'cow (load-image "/Users/jsn/Downloads/test_pattern.png"))
-
+(set 'cow (load-image "./res/cow.png"))
 
 (set 'color-well-size #f)
 

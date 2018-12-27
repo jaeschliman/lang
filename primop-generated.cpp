@@ -43,6 +43,8 @@ enum PrimitiveOperation : u64 {
   PRIM_MKIMAGE = ((40ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_IMG_W = ((41ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_IMG_H = ((42ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_CCA = ((43ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_STRLEN = ((44ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -387,6 +389,21 @@ Ptr PRIM_IMG_H_impl(VM *vm, u32 argc) {
   return to(Fixnum,(image_height(img)));
 }
 
+// Primitive 43
+Ptr PRIM_CCA_impl(VM *vm, u32 argc) {
+   VM_ARG(Fixnum,idx);
+   VM_ARG(String,str);
+
+  return to(Fixnum,(string_char_code_at(vm, str, idx)));
+}
+
+// Primitive 44
+Ptr PRIM_STRLEN_impl(VM *vm, u32 argc) {
+   VM_ARG(String,str);
+
+  return to(Fixnum,(string_length(str)));
+}
+
 
 PrimitiveFunction PrimLookupTable[] = {
   &PRIM_FIX_PLUS_impl,
@@ -432,6 +449,8 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_MKIMAGE_impl,
   &PRIM_IMG_W_impl,
   &PRIM_IMG_H_impl,
+  &PRIM_CCA_impl,
+  &PRIM_STRLEN_impl,
 
   (PrimitiveFunction)(void *)0
 };
@@ -481,5 +500,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "make-image", to(PrimOp, PRIM_MKIMAGE));
   set_global(vm, "image-width", to(PrimOp, PRIM_IMG_W));
   set_global(vm, "image-height", to(PrimOp, PRIM_IMG_H));
+  set_global(vm, "char-code-at", to(PrimOp, PRIM_CCA));
+  set_global(vm, "string-length", to(PrimOp, PRIM_STRLEN));
 
 }

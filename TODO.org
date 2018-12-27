@@ -55,6 +55,7 @@
 * TODO maybe expose bytecode prims as special forms? %push %call etc...
 * TODO growable heap
 * TODO looping special form (while?)
+* TODO set!
 * DONE repl
 * TODO basic notebook
 * TODO notebook w/ event reactor
@@ -72,11 +73,12 @@
 * DONE fix make-point for negative values (was a reader problem)
 * DONE more compact bc representation
 * TODO compact more of the bc
-* TODO generalize blit to work b/t images as well
+* DONE generalize blit to work b/t images as well
 * TODO blit with mask, src rect, dest rect
 * TODO message send facility
 * TODO something resembling OMeta / Meta II
-* TODO basic text rendering
+* DONE basic text rendering
+  (very, very basic)
 * TODO type-of
 * TODO class-of
 * DONE better float printing (may be missing trailing .0)
@@ -84,6 +86,7 @@
 * TODO more correct float reading support
 * TODO unified 'number' type?
 * TODO bignums
+* TODO clean up callsites of blit- functions
 
 * notes
 maybe have a stack of compilers? can push/pop...

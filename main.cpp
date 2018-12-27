@@ -656,6 +656,18 @@ Ptr make_string_with_end(VM *vm, const char* str, const char* end) {
   return objToPtr(obj);
 }
 
+s64 string_char_code_at(VM *vm, ByteArrayObject *str, s64 index) {
+  if (index >= str->length) {
+    vm->error = "string index out of range";
+    return -1;
+  }
+  return str->data[index];
+}
+
+s64 string_length(ByteArrayObject *str) {
+  return str->length;
+}
+
 Ptr make_symbol(VM *vm, const char* str, u64 len) {
   ByteArrayObject *obj = alloc_bao(vm, Symbol, len);
   const char *from = str;
@@ -3250,10 +3262,7 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
   auto src  = image_blit_context(img);
   auto dst = vm->surface;
 
-  // auto from = (rect){ 100, 100, src.width - 200, src.height - 200 };
-  // auto from = (rect){ 200, 200, src.width - 200, src.height - 200 };
   auto from = (rect){ 0, 0, src.width, src.height };
-
   return gfx_blit_image(&src, dst, &from, p, scale100/100.0f, deg_rot * 1.0f);
 }
 
@@ -3267,11 +3276,10 @@ Ptr gfx_blit(ByteArrayObject *source_image, ByteArrayObject *dest_image,
   if (!is(Image, objToPtr(dest_image)))   die("gfx_blit_image: not an image");
   auto src = image_blit_context(source_image);
   auto dst = image_blit_context(dest_image);
-  auto from = (rect){
-    src_upper_left.x, src_lower_right.y,
-    src_lower_right.x - src_upper_left.x,
-    src_lower_right.y - src_upper_left.y,
-  };
+  auto from = (rect){ src_upper_left.x,
+                      src_upper_left.y,
+                      src_lower_right.x - src_upper_left.x,
+                      src_lower_right.y - src_upper_left.y };
 
   return gfx_blit_image(&src, &dst, &from, dst_location, scale, degrees_rotation);
 }

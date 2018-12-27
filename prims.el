@@ -124,6 +124,18 @@ void initialize_primitive_functions(VM *vm) {
 }
 ")))
 
+(defun write-prims ()
+  "Write the prims to the buffer."
+  ;; TODO: emit directly to file (run in batch mode)
+  ;; TODO: would be nice to have a prim -> name lookup table for printing as well.
+  (with-current-buffer "primop-generated.cpp"
+    (delete-region (point-min) (point-max))
+    (emit-prim-enum)
+    (emit-all-prim-impls)
+    (emit-prim-table)
+    (emit-prim-registration-function)
+    (save-buffer)))
+
 (progn
   (setf *prims* nil)
 
@@ -190,17 +202,11 @@ void initialize_primitive_functions(VM *vm) {
   (prim image-width  IMG_W ((img Image)) Fixnum "image_width(img)")
   (prim image-height IMG_H ((img Image)) Fixnum "image_height(img)")
 
-  (setf *prims* (reverse *prims*)))
+  (prim char-code-at CCA ((str String) (idx Fixnum)) Fixnum "string_char_code_at(vm, str, idx)")
+  (prim string-length STRLEN ((str String)) Fixnum "string_length(str)")
 
-;; TODO: emit directly to file (run in batch mode)
-;; TODO: would be nice to have a prim -> name lookup table for printing as well.
-(with-current-buffer "primop-generated.cpp"
-  (delete-region (point-min) (point-max))
-  (emit-prim-enum)
-  (emit-all-prim-impls)
-  (emit-prim-table)
-  (emit-prim-registration-function)
-  (save-buffer))
+  (setf *prims* (reverse *prims*))
+  (write-prims))
 
 
 (provide 'prims)

@@ -14,7 +14,7 @@
 (set 'selected-color (car colors))
 (set 'screen-size #f)
 
-(set 'cow (load-image "/Users/jsn/Downloads/cow.png"))
+(set 'cow (load-image "./res/cow.png"))
 (set 'magnifier (make-image 128 128))
 (set 'scale-factor (i->f (/i 128 32)))
 

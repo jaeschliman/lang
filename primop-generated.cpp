@@ -42,13 +42,14 @@ enum PrimitiveOperation : u64 {
   PRIM_FILLRCT = ((39ULL << 32) | (4ULL << 16) | PrimOp_Tag),
   PRIM_CLRRCT = ((40ULL << 32) | (3ULL << 16) | PrimOp_Tag),
   PRIM_BLT = ((41ULL << 32) | (7ULL << 16) | PrimOp_Tag),
-  PRIM_BLT_FR_SCRN = ((42ULL << 32) | (6ULL << 16) | PrimOp_Tag),
-  PRIM_LOADIMAGE = ((43ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_MKIMAGE = ((44ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_IMG_W = ((45ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_IMG_H = ((46ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_CCA = ((47ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_STRLEN = ((48ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_BLT_M = ((42ULL << 32) | (12ULL << 16) | PrimOp_Tag),
+  PRIM_BLT_FR_SCRN = ((43ULL << 32) | (6ULL << 16) | PrimOp_Tag),
+  PRIM_LOADIMAGE = ((44ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_MKIMAGE = ((45ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_IMG_W = ((46ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_IMG_H = ((47ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_CCA = ((48ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_STRLEN = ((49ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -427,6 +428,28 @@ Ptr PRIM_BLT_impl(VM *vm, u32 argc) {
 }
 
 // Primitive 42
+Ptr PRIM_BLT_M_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("blit-with-mask",Float,msk_rot);
+   VM_ARG("blit-with-mask",Float,msk_scale);
+   VM_ARG("blit-with-mask",Point,msk_lr);
+   VM_ARG("blit-with-mask",Point,msk_ul);
+   VM_ARG("blit-with-mask",Float,src_rot);
+   VM_ARG("blit-with-mask",Float,src_scale);
+   VM_ARG("blit-with-mask",Point,src_lr);
+   VM_ARG("blit-with-mask",Point,src_ul);
+   VM_ARG("blit-with-mask",Point,at);
+   VM_ARG("blit-with-mask",Image,msk);
+   VM_ARG("blit-with-mask",Image,dst);
+   VM_ARG("blit-with-mask",Image,src);
+
+ return gfx_blit_image_with_mask(src, dst, msk, at,
+  points_to_rect(src_ul, src_lr), src_scale, src_rot,
+  points_to_rect(msk_ul, msk_lr), msk_scale, msk_rot
+);
+}
+
+// Primitive 43
 Ptr PRIM_BLT_FR_SCRN_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("blit-from-screen",Float,degrees_rotation);
@@ -439,7 +462,7 @@ Ptr PRIM_BLT_FR_SCRN_impl(VM *vm, u32 argc) {
  return gfx_blit_from_screen(vm, dst, at, ul, lr, scale, degrees_rotation);
 }
 
-// Primitive 43
+// Primitive 44
 Ptr PRIM_LOADIMAGE_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("load-image",String,path);
@@ -447,7 +470,7 @@ Ptr PRIM_LOADIMAGE_impl(VM *vm, u32 argc) {
  return gfx_load_image(vm, path);
 }
 
-// Primitive 44
+// Primitive 45
 Ptr PRIM_MKIMAGE_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("make-image",Fixnum,h);
@@ -456,7 +479,7 @@ Ptr PRIM_MKIMAGE_impl(VM *vm, u32 argc) {
  return gfx_make_image(vm, w, h);
 }
 
-// Primitive 45
+// Primitive 46
 Ptr PRIM_IMG_W_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("image-width",Image,img);
@@ -464,7 +487,7 @@ Ptr PRIM_IMG_W_impl(VM *vm, u32 argc) {
   return to(Fixnum,(image_width(img)));
 }
 
-// Primitive 46
+// Primitive 47
 Ptr PRIM_IMG_H_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("image-height",Image,img);
@@ -472,7 +495,7 @@ Ptr PRIM_IMG_H_impl(VM *vm, u32 argc) {
   return to(Fixnum,(image_height(img)));
 }
 
-// Primitive 47
+// Primitive 48
 Ptr PRIM_CCA_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("char-code-at",Fixnum,idx);
@@ -481,7 +504,7 @@ Ptr PRIM_CCA_impl(VM *vm, u32 argc) {
   return to(Fixnum,(string_char_code_at(vm, str, idx)));
 }
 
-// Primitive 48
+// Primitive 49
 Ptr PRIM_STRLEN_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("string-length",String,str);
@@ -533,6 +556,7 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_FILLRCT_impl,
   &PRIM_CLRRCT_impl,
   &PRIM_BLT_impl,
+  &PRIM_BLT_M_impl,
   &PRIM_BLT_FR_SCRN_impl,
   &PRIM_LOADIMAGE_impl,
   &PRIM_MKIMAGE_impl,
@@ -588,6 +612,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "fill-rect", to(PrimOp, PRIM_FILLRCT));
   set_global(vm, "clear-rect", to(PrimOp, PRIM_CLRRCT));
   set_global(vm, "blit", to(PrimOp, PRIM_BLT));
+  set_global(vm, "blit-with-mask", to(PrimOp, PRIM_BLT_M));
   set_global(vm, "blit-from-screen", to(PrimOp, PRIM_BLT_FR_SCRN));
   set_global(vm, "load-image", to(PrimOp, PRIM_LOADIMAGE));
   set_global(vm, "make-image", to(PrimOp, PRIM_MKIMAGE));

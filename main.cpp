@@ -182,7 +182,15 @@ struct StackFrameObject : Object {
 
 struct Globals;
 
+struct point { s32 x, y; }; // really it is s30
 struct rect { s64 x, y, width, height; };
+
+inline rect points_to_rect(point upper_left, point lower_right) {
+  return (rect){ upper_left.x, upper_left.y,
+      lower_right.x - upper_left.x,
+      lower_right.y - upper_left.y
+  };
+}
 
 struct blit_surface {
   u8 *mem; s64 pitch, width, height;
@@ -394,7 +402,6 @@ create_ptr_for(PrimOp, u64 raw_value) {
   return (Ptr){raw_value};
 }
 
-struct point { s32 x, y; };
 point operator +(point a, point b) { return (point){a.x + b.x, a.y + b.y}; }
 point operator -(point a, point b) { return (point){a.x - b.x, a.y - b.y}; }
 
@@ -3248,8 +3255,8 @@ inline void blit_sampler_start_row(blit_sampler *s) {
 
 inline bool blit_sampler_sample(blit_sampler *s, u8**out) {
   s32 sx = floorf(s->u), sy = floorf(s->v);
-  if (sx >= s->min_x && sx <= s->max_x &&
-      sy >= s->min_y && sy <= s->max_y) {
+  if (sx >= s->min_x && sx < s->max_x &&
+      sy >= s->min_y && sy < s->max_y) {
     auto src = s->src;
     *out = src->mem + sy * src->pitch + sx * 4;
     return true;
@@ -3328,6 +3335,87 @@ Ptr gfx_blit_image(blit_surface *src, blit_surface *dst,
 
   return Nil;
 }
+
+Ptr _gfx_blit_image_with_mask(blit_surface *src, blit_surface *dst, blit_surface *msk,
+                             point at,
+                             rect *from, f32 scale, f32 deg_rot,
+                             rect *m_from, f32 m_scale, f32 m_deg_rot
+                             ) {
+
+  u32 scan_width; u32 scan_height;
+  // TODO: @speed properly calculate scan width and height (rotate rect and get bounds)
+  {
+    f32 sw = from->width  * scale;
+    f32 sh = from->height * scale;
+    scan_width = scan_height = (u32)floorf(sqrtf(sw * sw + sh * sh));
+  }
+
+  s32 right  = min((s32)scan_width, (s32)dst->width - at.x);
+  s32 bottom = min((s32)scan_height, (s32)dst->height - at.y);
+
+  blit_sampler bs_src;
+  blit_sampler_init(&bs_src, src, scale, deg_rot, from);
+  blit_sampler bs_msk;
+  blit_sampler_init(&bs_msk, msk, m_scale, m_deg_rot, m_from);
+
+  for (s32 y = 0; y < bottom; y++) {
+
+    blit_sampler_start_row(&bs_src);
+    blit_sampler_start_row(&bs_msk);
+    auto dest_row = (at.y + y) * dst->pitch;
+    
+    for (s32 x = 0; x < right; x++) {
+      u8 *over;
+      u8 *mask;
+
+      // it would be great if there were a way to do fewer checks here.
+      if (at.x + x >= 0L && at.y + y >= 0L &&
+          blit_sampler_sample(&bs_msk, &mask) &&
+          blit_sampler_sample(&bs_src, &over)
+          ) {
+
+        u8* under = dst->mem + dest_row + (at.x + x) * 4;
+        u8 alpha  = over[3] * mask[0] / 255;
+
+        // aA + (1-a)B = a(A-B)+B
+        under[0] = ((over[0] - under[0]) * alpha /  255)  + under[0];
+        under[1] = ((over[1] - under[1]) * alpha /  255)  + under[1];
+        under[2] = ((over[2] - under[2]) * alpha /  255)  + under[2];
+        u8 ualpha = under[3];
+        u8 calpha = alpha + ualpha;
+        under[3] = calpha < alpha ? 255 : calpha;
+      }
+      #if DEBUG_FILL
+      else if ( offsx + x < dst->width && offsy + y < dst->height ) {
+        u8* under = (dst->mem + dest_row + (offsx + x) * 4);
+        under[0] = 0xff;
+        under[1] = under[2] = 0;
+      }
+      #endif
+
+      blit_sampler_step_col(&bs_src);
+      blit_sampler_step_col(&bs_msk);
+    }
+
+    blit_sampler_step_row(&bs_src);
+    blit_sampler_step_row(&bs_msk);
+  }
+
+  return Nil;
+}
+
+Ptr gfx_blit_image_with_mask(ByteArrayObject *src_img,
+                             ByteArrayObject *dst_img, 
+                             ByteArrayObject *msk_img, 
+                             point at,
+                             rect from, f32 scale, f32 deg_rot,
+                             rect m_from, f32 m_scale, f32 m_deg_rot
+                             ) {
+  blit_surface src = image_blit_surface(src_img);
+  blit_surface dst = image_blit_surface(dst_img);
+  blit_surface msk = image_blit_surface(msk_img);
+  return _gfx_blit_image_with_mask(&src, &dst, &msk, at, &from, scale, deg_rot, &m_from, m_scale, m_deg_rot);
+};
 
 Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 deg_rot) {
   if (!is(Image, objToPtr(img))) die("gfx_blit_image: not an image");

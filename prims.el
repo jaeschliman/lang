@@ -198,6 +198,16 @@ void initialize_primitive_functions(VM *vm) {
          (scale Float) (degrees_rotation Float))
         any
         "gfx_blit(src, dst, at, ul, lr, scale, degrees_rotation)")
+  (prim blit-with-mask BLT_M
+        ((src Image) (dst Image) (msk Image) (at Point)
+         (src_ul Point) (src_lr Point) (src_scale Float) (src_rot Float)
+         (msk_ul Point) (msk_lr Point) (msk_scale Float) (msk_rot Float))
+        any
+        "gfx_blit_image_with_mask(src, dst, msk, at,
+  points_to_rect(src_ul, src_lr), src_scale, src_rot,
+  points_to_rect(msk_ul, msk_lr), msk_scale, msk_rot
+)")
+
   (prim blit-from-screen BLT_FR_SCRN
         ((dst Image) (at Point) (ul Point) (lr Point)
          (scale Float) (degrees_rotation Float))

@@ -3728,6 +3728,11 @@ void start_up_and_run_event_loop(const char *path) {
   bool running = true;
   SDL_Event event;
 
+  auto onkey       = intern(vm, "onkey");       prot_ptr(onkey);
+  auto onmousedrag = intern(vm, "onmousedrag"); prot_ptr(onmousedrag);
+  auto onmousemove = intern(vm, "onmousemove"); prot_ptr(onmousemove);
+  auto onmousedown = intern(vm, "onmousedown"); prot_ptr(onmousedown);
+
   while (running) {
     if (SDL_WaitEvent(&event)) { //or SDL_PollEvent for continual updates
       switch (event.type) {
@@ -3735,7 +3740,7 @@ void start_up_and_run_event_loop(const char *path) {
       case SDL_KEYDOWN : {
         auto key = event.key.keysym.scancode;
         Ptr num = to(Fixnum, key);
-        vm_call_global(vm, intern(vm, "onkey"), 1, (Ptr[]){num});
+        vm_call_global(vm, onkey, 1, (Ptr[]){num});
         break;
       }
       case SDL_MOUSEMOTION: {
@@ -3744,10 +3749,11 @@ void start_up_and_run_event_loop(const char *path) {
         auto p = (point){x, y};
         auto pt = to(Point, p);
         if (event.motion.state & SDL_BUTTON_LMASK) {
-          vm_call_global(vm, intern(vm, "onmousedrag"), 1, (Ptr[]){pt});
+          vm_call_global(vm, onmousedrag, 1, (Ptr[]){pt});
         } else {
-          vm_call_global(vm, intern(vm, "onmousemove"), 1, (Ptr[]){pt});
+          vm_call_global(vm, onmousemove, 1, (Ptr[]){pt});
         }
+        SDL_FlushEvent(SDL_MOUSEMOTION);
         break;
       }
       case SDL_MOUSEBUTTONDOWN: {
@@ -3755,7 +3761,7 @@ void start_up_and_run_event_loop(const char *path) {
         auto y = event.button.y;
         auto p = (point){x, y};
         auto pt = to(Point, p);
-        vm_call_global(vm, intern(vm, "onmousedown"), 1, (Ptr[]){pt});
+        vm_call_global(vm, onmousedown, 1, (Ptr[]){pt});
         break;
       }
       }
@@ -3767,6 +3773,8 @@ void start_up_and_run_event_loop(const char *path) {
     SDL_UpdateWindowSurface(window);
     // SDL_Delay(10);
   }
+
+  unprot_ptrs(onkey, onmousedrag, onmousemove, onmousedown);
 
   SDL_DestroyWindow(window);
   cerr << " executed " << vm->instruction_count << " instructions." << endl;

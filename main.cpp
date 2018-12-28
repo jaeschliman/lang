@@ -3228,34 +3228,37 @@ Ptr gfx_blit_image(blit_context *src,
   }
 
   // source sample range
-  f32 min_x = max(from->x, 0LL), max_x = min(from->x + from->width, src->width);
-  f32 min_y = max(from->y, 0LL), max_y = min(from->y + from->height, src->height);
+  s32 min_x = max(from->x, 0LL), max_x = min(from->x + from->width, src->width);
+  s32 min_y = max(from->y, 0LL), max_y = min(from->y + from->height, src->height);
 
-  for (u32 y = 0; y < scan_height; y++) {
+  s32 right  = min((s32)scan_width, (s32)dst->width - at.x);
+  s32 bottom = min((s32)scan_height, (s32)dst->height - at.y);
+  for (s32 y = 0; y < bottom; y++) {
 
     u = row_u; v = row_v; 
     auto dest_row = (at.y + y) * dst->pitch;
+    
+    for (s32 x = 0; x < right; x++) {
 
-    for (u32 x = 0; x < scan_width; x++) {
+      s32 sx = floorf(u), sy = floorf(v);
 
       // it would be great if there were a way to do fewer checks here.
-      if (u >= min_x && v >= min_y &&
-          u <= max_x && v <= max_y &&
-          at.x + x < dst->width && at.y + y < dst->height) {
-
-        u32 sx = floorf(u), sy = floorf(v);
+      if (at.x + x >= 0L && at.y + y >= 0L &&
+          sx >= min_x && sx <= max_x &&
+          sy >= min_y && sy <= max_y
+          ) {
 
         u8* over  = src->mem + sy * src->pitch + sx * 4;
         u8* under = dst->mem + dest_row + (at.x + x) * 4;
         
-        f32 alpha  = over[3] / 255.0f;
-        f32 ialpha = 1.0 - alpha; 
-        f32 ualpha = under[3] / 255.0f;
-        f32 calpha = alpha + ualpha;
-        under[0] = over[0] * alpha + under[0] * ialpha;
-        under[1] = over[1] * alpha + under[1] * ialpha;
-        under[2] = over[2] * alpha + under[2] * ialpha;
-        under[3] = calpha > 1.0 ? 255 : (calpha * 255); // not sure about this yet
+        u8 alpha   = over[3];
+        u8 ialpha  = 255 - alpha; 
+        under[0] = (over[0] * alpha + under[0] * ialpha) / 255;
+        under[1] = (over[1] * alpha + under[1] * ialpha) / 255;
+        under[2] = (over[2] * alpha + under[2] * ialpha) / 255;
+        u8 ualpha = under[3];
+        u8 calpha = alpha + ualpha;
+        under[3] = calpha < alpha ? 255 : calpha;
       }
       #if DEBUG_FILL
       else if ( offsx + x < dst->width && offsy + y < dst->height ) {

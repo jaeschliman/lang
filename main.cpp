@@ -184,7 +184,7 @@ struct Globals;
 
 struct rect { s64 x, y, width, height; };
 
-struct blit_context {
+struct blit_surface {
   u8 *mem; s64 pitch, width, height;
 };
 
@@ -211,7 +211,7 @@ struct VM {
   unordered_map<Object **, u64> *gc_protected;
   unordered_map<Ptr *, u64> *gc_protected_ptrs;
   unordered_map<Ptr *, u64> *gc_protected_ptr_vectors;
-  blit_context *surface;
+  blit_surface *surface;
 };
 
 typedef Ptr (*PrimitiveFunction)(VM*, u32 argc);
@@ -583,12 +583,12 @@ Ptr gfx_make_image(VM *vm, s64 w, s64 h) {
   return objToPtr(alloc_image(vm, w, h));
 }
 
-blit_context image_blit_context(ByteArrayObject *img) {
-  if (!is(Image, objToPtr(img))) die("image_blit_context requires an image");
+blit_surface image_blit_surface(ByteArrayObject *img) {
+  if (!is(Image, objToPtr(img))) die("image_blit_surface requires an image");
   auto w = image_width(img), h = image_height(img);
   auto mem = image_data(img);
   auto pitch = w * 4;
-  return (blit_context){ mem, pitch, w, h};
+  return (blit_surface){ mem, pitch, w, h};
 }
 
 PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
@@ -3159,7 +3159,7 @@ Ptr gfx_set_pixel(VM *vm, point p) { // assumes 4 bytes pp
   return Nil;
 }
 
-void _gfx_fill_rect(blit_context *dst, point a, point b, s64 color) {
+void _gfx_fill_rect(blit_surface *dst, point a, point b, s64 color) {
   u32 pixel = color > 0 ? color : 0L;
   u8* components = (u8*)&pixel;
   s64 max_x = min((s64)b.x, dst->width);
@@ -3181,24 +3181,23 @@ Ptr gfx_screen_fill_rect(VM *vm, point a, point b, s64 color) {
   return Nil;
 }
 Ptr gfx_fill_rect(ByteArrayObject *dst_image, point a, point b, s64 color) {
-  auto dst = image_blit_context(dst_image);
+  auto dst = image_blit_surface(dst_image);
   _gfx_fill_rect(&dst, a, b, color);
   return Nil;
 }
 
 Ptr gfx_clear_rect(ByteArrayObject *dst_image, point a, point b) {
-  auto dst = image_blit_context(dst_image);
+  auto dst = image_blit_surface(dst_image);
   _gfx_fill_rect(&dst, a, b, -1);
   return Nil;
 }
-typedef u8 u8_3 __attribute__((ext_vector_type(3)));
 
 #define DEBUG_FILL 0
 // largely from http://www.drdobbs.com/architecture-and-design/fast-bitmap-rotation-and-scaling/184416337
 // and some mention from alan kay in a video about how it works
 // scale and rotation are s64s becuase we don't have floats in the VM yet :P
-Ptr gfx_blit_image(blit_context *src,
-                   blit_context *dst,
+Ptr gfx_blit_image(blit_surface *src,
+                   blit_surface *dst,
                    rect *from,
                    point at,
                    f32 scale,
@@ -3264,12 +3263,11 @@ Ptr gfx_blit_image(blit_context *src,
         u8* under = dst->mem + dest_row + (at.x + x) * 4;
 
         u8 alpha   = over[3];
-        u8 ialpha  = 255 - alpha; 
 
-        under[0] = (over[0] * alpha + under[0] * ialpha) / 255;
-        under[1] = (over[1] * alpha + under[1] * ialpha) / 255;
-        under[2] = (over[2] * alpha + under[2] * ialpha) / 255;
-
+        // aA + (1-a)B = a(A-B)+B
+        under[0] = ((over[0] - under[0]) * alpha /  255)  + under[0];
+        under[1] = ((over[1] - under[1]) * alpha /  255)  + under[1];
+        under[2] = ((over[2] - under[2]) * alpha /  255)  + under[2];
         u8 ualpha = under[3];
         u8 calpha = alpha + ualpha;
         under[3] = calpha < alpha ? 255 : calpha;
@@ -3292,7 +3290,7 @@ Ptr gfx_blit_image(blit_context *src,
 
 Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 deg_rot) {
   if (!is(Image, objToPtr(img))) die("gfx_blit_image: not an image");
-  auto src  = image_blit_context(img);
+  auto src  = image_blit_surface(img);
   auto dst = vm->surface;
 
   auto from = (rect){ 0, 0, src.width, src.height };
@@ -3307,8 +3305,8 @@ Ptr gfx_blit(ByteArrayObject *source_image, ByteArrayObject *dest_image,
              f32 degrees_rotation) {
   if (!is(Image, objToPtr(source_image))) die("gfx_blit_image: not an image");
   if (!is(Image, objToPtr(dest_image)))   die("gfx_blit_image: not an image");
-  auto src = image_blit_context(source_image);
-  auto dst = image_blit_context(dest_image);
+  auto src = image_blit_surface(source_image);
+  auto dst = image_blit_surface(dest_image);
   auto from = (rect){ src_upper_left.x,
                       src_upper_left.y,
                       src_lower_right.x - src_upper_left.x,
@@ -3326,7 +3324,7 @@ Ptr gfx_blit_from_screen(VM *vm, ByteArrayObject *dest_image,
                          f32 scale,
                          f32 degrees_rotation) {
   if (!is(Image, objToPtr(dest_image)))   die("gfx_blit_image: not an image");
-  auto dst = image_blit_context(dest_image);
+  auto dst = image_blit_surface(dest_image);
   auto from = (rect){
     src_upper_left.x, src_lower_right.y,
     src_lower_right.x - src_upper_left.x,
@@ -3559,7 +3557,7 @@ void start_up_and_run_event_loop(const char *path) {
   if(!window) die("could not create window");
 
   auto window_surface = SDL_GetWindowSurface(window);
-  auto window_context = (blit_context){
+  auto window_context = (blit_surface){
     (u8*)window_surface->pixels,
     (s64)window_surface->pitch,
     (s64)window_surface->w,

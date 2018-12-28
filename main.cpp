@@ -1017,16 +1017,6 @@ typedef void(*DebugPrintFunction)(std::ostream &os, Ptr p);
 
 DebugPrintFunction StructPrintTable[StructTag_End] = {0};
 
-// @deprecated
-#define DEBUG_PRINT_MAX 255
-DebugPrintFunction DebugPrintTable[DEBUG_PRINT_MAX] = {0};
-enum BuiltInDebugPrintIndex : u64 {
-  DebugPrint_None,
-  DebugPrint_Cons,
-  DebugPrint_End
-};
-
-
 std::ostream &operator<<(std::ostream &os, Object *obj) {
   auto otype = obj->header.object_type;
   switch (otype) {
@@ -1224,7 +1214,7 @@ StandardObject *make_standard_object(VM *vm, StandardObject *klass, Ptr*ivars) {
 
 struct Globals {
   struct {
-    StandardObject *_Base, *_Cons, *_Fixnum, *_Symbol;
+    StandardObject *_Base, *_Cons, *_Fixnum, *_Float, *_Point, *_Bool, *_Symbol, *_String, *_Array, *_PrimOp, *_Closure, *_ByteCode, *_Character;
   } classes;
   unordered_map<string, Ptr> *symtab;
   Ptr env; // the global environment (currently an alist)
@@ -1253,7 +1243,7 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
 
 #define handle_class(name) recurse(objToPtr(vm->globals->classes._##name));
 #define handle_classes(...) MAP(handle_class, __VA_ARGS__)
-  handle_classes(Base, Cons, Fixnum, Symbol)
+  handle_classes(Base, Fixnum, Float, Point, Bool, Symbol, String, Array, PrimOp, Closure, ByteCode, Character);
 #undef handle_class
 #undef handle_classes
 
@@ -1430,7 +1420,7 @@ void gc_update_globals(VM *vm) {
   gc_update_ptr(vm, &vm->globals->call1);
   gc_update_ptr(vm, &vm->globals->env);
 
-  handle_classes(Base, Cons, Fixnum, Symbol);
+  handle_classes(Base, Fixnum, Float, Point, Bool, Symbol, String, Array, PrimOp, Closure, ByteCode, Character);
 
   update_symbols(lambda, quote, let, if, fixnum, cons, string,
                  array, character, boolean);
@@ -1792,14 +1782,31 @@ void initialize_known_symbols(VM *vm) {
 /* ---------------------------------------- */
 
 Ptr class_of(VM *vm, Ptr it) {
-#define builtin_case(type) case type##_Tag: \
-  return objToPtr(vm->globals->classes._##type)
+#define builtin(name) objToPtr(vm->globals->classes._##name)
+#define builtin_case(type, name) case type##_Tag: return builtin(name)
 
   switch (it.value & TAG_MASK) {
-    builtin_case(Fixnum);
+    builtin_case(Fixnum, Fixnum);
+    builtin_case(Char, Character);
+    builtin_case(Bool, Bool);
+    builtin_case(PrimOp, PrimOp);
+    builtin_case(Point, Point);
+    builtin_case(Float, Float);
+  case Object_Tag: {
+    // FIXME: need a more structured representation for these.
+    if (is(cons, it))     return builtin(Cons);
+    if (is(Array, it))    return builtin(Array);
+    if (is(Symbol, it))   return builtin(Symbol);
+    if (is(Closure, it))  return builtin(Closure);
+    if (is(ByteCode, it)) return builtin(ByteCode);
+    if (is(Standard, it)) {
+      return objToPtr(as(Standard, it)->klass);
+    }
+  }
   default: return Nil;
   }
-#undef buildtin_case
+#undef builtin_case
+#undef builtin
 }
 
 // @unsafe
@@ -1820,7 +1827,7 @@ void initialize_classes(VM *vm)
 
 #define handle_class(name) vm->globals->classes._##name = make_base_class(vm, #name);
 #define handle_classes(...) MAP(handle_class, __VA_ARGS__)
-  handle_classes(Cons, Fixnum, Symbol);
+  handle_classes(Cons, Fixnum, Float, Point, Bool, Symbol, String, Array, PrimOp, Closure, ByteCode, Character);
 #undef handle_class
 #undef handle_classes
 }

@@ -3192,27 +3192,32 @@ Ptr gfx_clear_rect(ByteArrayObject *dst_image, point a, point b) {
   return Nil;
 }
 
-#define DEBUG_FILL 0
+struct blit_sampler {
+  blit_surface *src;
+  f32 scale, iscale, angle,
+    du_col, dv_col,
+    du_row, dv_row,
+    u, v, row_u, row_v,
+    src_x, src_y;
+  s32 min_x, min_y, max_x, max_y;
+};
+
 // largely from http://www.drdobbs.com/architecture-and-design/fast-bitmap-rotation-and-scaling/184416337
 // and some mention from alan kay in a video about how it works
-// scale and rotation are s64s becuase we don't have floats in the VM yet :P
-Ptr gfx_blit_image(blit_surface *src,
-                   blit_surface *dst,
-                   rect *from,
-                   point at,
-                   f32 scale,
-                   f32 deg_rot) {
-
-  f32 iscale = 1.0f/scale;
-  f32 source_step = iscale;
+inline void blit_sampler_init(blit_sampler *s, blit_surface *src,
+                              f32 scale, f32 deg_rot, rect *from) {
+  s->src = src;
+  s->scale = scale;
+  s->iscale = 1.0f / scale;
 
   f32 angle = _deg_to_rad((f32)(fmodf(deg_rot , 360.0f)));
+  s->angle = angle;
 
   f32 rvx = cosf(angle);
   f32 rvy = sinf(angle);
 
-  f32 du_col = rvx, dv_col = rvy; 
-  f32 du_row = -rvy, dv_row = rvx;
+  s->du_col = rvx;  s->dv_col = rvy; 
+  s->du_row = -rvy; s->dv_row = rvx;
 
   f32 cx = from->x + from->width  * 0.5f;
   f32 cy = from->y + from->height * 0.5f;
@@ -3223,14 +3228,54 @@ Ptr gfx_blit_image(blit_surface *src,
 
   // set the initial position by rotating the 'destination' surface
   // I don't quite get why this works yet :P
-  f32 src_x = cx - (dcx * du_row + dcy * dv_row);
-  f32 src_y = cy - (dcy * dv_col + dcx * du_col);
+  s->src_x = cx - (dcx * s->du_row + dcy * s->dv_row);
+  s->src_y = cy - (dcy * s->dv_col + dcx * s->du_col);
 
-  f32 u = src_x, v = src_y;
-  f32 row_u = src_x, row_v = src_y;
+  s->u = s->src_x;
+  s->v = s->src_y;
 
-  u32 scan_width;
-  u32 scan_height;
+  s->row_u = s->src_x;
+  s->row_v = s->src_y;
+
+  // source sample range
+  s->min_x = max(from->x, 0LL); s->max_x = min(from->x + from->width,  src->width);
+  s->min_y = max(from->y, 0LL); s->max_y = min(from->y + from->height, src->height);
+}
+
+inline void blit_sampler_start_row(blit_sampler *s) {
+  s->u = s->row_u; s->v = s->row_v;
+}
+
+inline bool blit_sampler_sample(blit_sampler *s, u8**out) {
+  s32 sx = floorf(s->u), sy = floorf(s->v);
+  if (sx >= s->min_x && sx <= s->max_x &&
+      sy >= s->min_y && sy <= s->max_y) {
+    auto src = s->src;
+    *out = src->mem + sy * src->pitch + sx * 4;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+inline void blit_sampler_step_col(blit_sampler *s) {
+  s->u += s->du_col * s->iscale;
+  s->v += s->dv_col * s->iscale;
+}
+inline void blit_sampler_step_row(blit_sampler *s) {
+  s->row_u += s->du_row * s->iscale;
+  s->row_v += s->dv_row * s->iscale;
+}
+
+
+#define DEBUG_FILL 0
+Ptr gfx_blit_image(blit_surface *src, blit_surface *dst,
+                   rect *from,
+                   point at,
+                   f32 scale,
+                   f32 deg_rot) {
+
+  u32 scan_width; u32 scan_height;
   // TODO: @speed properly calculate scan width and height (rotate rect and get bounds)
   {
     f32 sw = from->width  * scale;
@@ -3238,30 +3283,25 @@ Ptr gfx_blit_image(blit_surface *src,
     scan_width = scan_height = (u32)floorf(sqrtf(sw * sw + sh * sh));
   }
 
-  // source sample range
-  s32 min_x = max(from->x, 0LL), max_x = min(from->x + from->width, src->width);
-  s32 min_y = max(from->y, 0LL), max_y = min(from->y + from->height, src->height);
-
   s32 right  = min((s32)scan_width, (s32)dst->width - at.x);
   s32 bottom = min((s32)scan_height, (s32)dst->height - at.y);
+
+  blit_sampler bs_src;
+  blit_sampler_init(&bs_src, src, scale, deg_rot, from);
+
   for (s32 y = 0; y < bottom; y++) {
 
-    u = row_u; v = row_v; 
+    blit_sampler_start_row(&bs_src);
     auto dest_row = (at.y + y) * dst->pitch;
     
     for (s32 x = 0; x < right; x++) {
-
-      s32 sx = floorf(u), sy = floorf(v);
+      u8 *over;
 
       // it would be great if there were a way to do fewer checks here.
       if (at.x + x >= 0L && at.y + y >= 0L &&
-          sx >= min_x && sx <= max_x &&
-          sy >= min_y && sy <= max_y
-          ) {
+          blit_sampler_sample(&bs_src, &over)) {
 
-        u8* over  = src->mem + sy * src->pitch + sx * 4;
         u8* under = dst->mem + dest_row + (at.x + x) * 4;
-
         u8 alpha   = over[3];
 
         // aA + (1-a)B = a(A-B)+B
@@ -3280,9 +3320,10 @@ Ptr gfx_blit_image(blit_surface *src,
       }
       #endif
 
-      u += du_col * source_step; v += dv_col * source_step;
+      blit_sampler_step_col(&bs_src);
     }
-    row_u += du_row * source_step; row_v += dv_row * source_step;
+
+    blit_sampler_step_row(&bs_src);
   }
 
   return Nil;

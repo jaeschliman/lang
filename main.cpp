@@ -3228,8 +3228,8 @@ inline void blit_sampler_init(blit_sampler *s, blit_surface *src,
 
   // set the initial position by rotating the 'destination' surface
   // I don't quite get why this works yet :P
-  s->src_x = cx - (dcx * s->du_row + dcy * s->dv_row);
-  s->src_y = cy - (dcy * s->dv_col + dcx * s->du_col);
+  s->src_x = cx - (dcy * s->du_row + dcx * s->dv_row);
+  s->src_y = cy - (dcx * s->dv_col + dcy * s->du_col);
 
   s->u = s->src_x;
   s->v = s->src_y;

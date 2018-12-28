@@ -170,6 +170,10 @@ void initialize_primitive_functions(VM *vm) {
   (prim print PRINT      ((a any))               any    "primitive_print(a)")
   (prim nth   NTH        ((a any) (idx Fixnum))  any    "nth_or_nil(a, idx)")
 
+  (prim make-array MKARY ((len Fixnum))                        any "make_zf_array(vm, len)")
+  (prim aget       AGET  ((a PtrArray) (idx Fixnum))           any "aget(a, idx)")
+  (prim aset       ASET  ((a PtrArray) (idx Fixnum) (val any)) any "aset(a, idx, val)")
+
   (prim set-symbol-value SET_SYM_VAL ((a Symbol) (b any)) any "set_global(vm, objToPtr(a), b)")
   (prim print-stacktrace PRINT_STACK () any "vm_print_stack_trace(vm)")
   (prim debug-stacktrace DBG_STACK   () any "vm_print_debug_stack_trace(vm)")

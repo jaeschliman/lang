@@ -714,10 +714,21 @@ Ptr array_get(Ptr array, u64 index) {
   return a->data[index];
 }
 
+Ptr aget(PtrArrayObject *a, u64 index) {
+  assert(index < a->length);
+  return a->data[index];
+}
+
 void array_set(Ptr array, u64 index, Ptr value) {
   auto a = as(PtrArray, array);
   assert(index < a->length);
   a->data[index] = value;
+}
+
+Ptr aset(PtrArrayObject *a, u64 index, Ptr value) {
+  assert(index < a->length);
+  a->data[index] = value;
+  return Nil;
 }
 
 u64 array_capacity(Ptr array) {
@@ -3180,6 +3191,7 @@ Ptr gfx_clear_rect(ByteArrayObject *dst_image, point a, point b) {
   _gfx_fill_rect(&dst, a, b, -1);
   return Nil;
 }
+typedef u8 u8_3 __attribute__((ext_vector_type(3)));
 
 #define DEBUG_FILL 0
 // largely from http://www.drdobbs.com/architecture-and-design/fast-bitmap-rotation-and-scaling/184416337
@@ -3250,12 +3262,14 @@ Ptr gfx_blit_image(blit_context *src,
 
         u8* over  = src->mem + sy * src->pitch + sx * 4;
         u8* under = dst->mem + dest_row + (at.x + x) * 4;
-        
+
         u8 alpha   = over[3];
         u8 ialpha  = 255 - alpha; 
+
         under[0] = (over[0] * alpha + under[0] * ialpha) / 255;
         under[1] = (over[1] * alpha + under[1] * ialpha) / 255;
         under[2] = (over[2] * alpha + under[2] * ialpha) / 255;
+
         u8 ualpha = under[3];
         u8 calpha = alpha + ualpha;
         under[3] = calpha < alpha ? 255 : calpha;
@@ -3605,6 +3619,10 @@ void start_up_and_run_event_loop(const char *path) {
         vm_call_global(vm, intern(vm, "onmousedown"), 1, (Ptr[]){pt});
         break;
       }
+      }
+      if (vm->error) {
+        dbg(vm->error);
+        break;
       }
     }
     SDL_UpdateWindowSurface(window);

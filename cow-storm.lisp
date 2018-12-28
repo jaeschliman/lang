@@ -10,34 +10,38 @@
                           (let ((amt (scale s half-img-width)))
                             (point- p (make-point amt amt))))))
 
-(set 'ctx (list (cons 0@0 0)))
+;; TODO: replace with an extendable array
+;; (set 'ctx (list (cons 0@0 0)))
+(set 'ctx-idx 0)
+(set 'ctx (make-array 255))
+(aset ctx 0 0@0)
+(aset ctx 1 0)
 
 (set 'push-t-r (lambda (p r)
-                 (set 'ctx (cons (cons p r) ctx))))
+                 (let ((prev-p (aget ctx ctx-idx))
+                       (prev-r (aget ctx (+i ctx-idx 1))))
+                   (let ((new-p (point+ prev-p (point-rotate p (i->f prev-r))))
+                         (new-r (*i -1  (+i prev-r r))))
+                     (set 'ctx-idx (+i ctx-idx 2))
+                     (aset ctx ctx-idx new-p)
+                     (aset ctx (+i 1 ctx-idx) new-r)))))
 
-
-(set 'push-t-r (lambda (p r)
-                (let ((prev-p (car (car ctx)))
-                      (prev-r (cdr (car ctx))))
-                  (set 'ctx
-                       (cons (cons (point+ prev-p (point-rotate p (i->f prev-r)))
-                                   (+i prev-r r))
-                             ctx)))))
-
-
-(set 'pop-t-r (lambda () (set 'ctx (cdr ctx))))
+(set 'pop-t-r (lambda () (set 'ctx-idx (-i ctx-idx 2))))
 
 (set 'draw-cows #f)
 (set 'draw-cows
      (lambda (s)
-       (let ((p (car (car ctx)))
-             (r (cdr (car ctx))))
+       (let ((p (aget ctx ctx-idx))
+             (r (aget ctx (+i ctx-idx 1))))
          (blit-to-screen cow (center-image-at p s cow)
                 s (point-x p))
          (if (>i s 30)
              (let ()
                (push-t-r -170@-150 -33)
                (draw-cows (scale s 70))
+               (pop-t-r)
+               (push-t-r -100@-300 173)
+               (draw-cows (scale s 50))
                (pop-t-r)
                (push-t-r 100@-70 80)
                (draw-cows (scale s 60))

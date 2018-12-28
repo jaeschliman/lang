@@ -90,9 +90,10 @@
 (defun emit-prim-enum ()
   "Emit enum naming all prims."
   ;; TODO: embed PRIM mask and call count in counter number
-  (let ((counter -1))
+  (let ((counter 0))
     (insert (tmpl "
 enum PrimitiveOperation : u64 {
+  PRIM_APPLY = PrimOp_Tag,
 " (mapcar (lambda (p) (tmpl "  " (getf p :prim-name) " = "
                             (emit-prim-encoding
                              (incf counter)
@@ -108,6 +109,7 @@ enum PrimitiveOperation : u64 {
   (insert
    (tmpl "
 PrimitiveFunction PrimLookupTable[] = {
+  (PrimitiveFunction)(void *)0, // apply
 "(mapcar (lambda (p) (tmpl "  &" (getf p :prim-name) "_impl,\n")) *prims*)"
   (PrimitiveFunction)(void *)0
 };
@@ -121,6 +123,7 @@ PrimitiveFunction PrimLookupTable[] = {
   "Emits the function which registers the primitives under symbol names in the VM."
   (insert (tmpl "
 void initialize_primitive_functions(VM *vm) {
+  set_global(vm, \"apply\", to(PrimOp,  PRIM_APPLY));
 
 " (mapcar 'emit-prim-registration *prims*)
 "
@@ -141,6 +144,8 @@ void initialize_primitive_functions(VM *vm) {
 
 (progn
   (setf *prims* nil)
+
+  (prim class-of CLASSOF ((a any)) any "class_of(vm, a)")
 
   (prim +i    FIX_PLUS   ((a Fixnum) (b Fixnum)) Fixnum "a + b")
   (prim -i    FIX_MINUS  ((a Fixnum) (b Fixnum)) Fixnum "a - b")

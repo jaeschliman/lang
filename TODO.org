@@ -49,9 +49,9 @@
 * TODO write macroexpander in the language itself
 * TODO write reader in the language itself
 * DONE basic sdl integration
-* TODO single floats
+* DONE single floats
 * TODO U32 Array etc
-* TODO more prim instrs
+* DONE more prim instrs
 * TODO maybe expose bytecode prims as special forms? %push %call etc...
 * TODO growable heap
 * TODO looping special form (while?)
@@ -61,7 +61,7 @@
 * TODO notebook w/ event reactor
 * DONE 'load file' vs run file
 * TODO rewrite the codegen in the lang itself 
-* TODO 'apply'
+* DONE 'apply'
 * DONE basic 'event reactor' runloop -- start with keycodes
 * TODO optimize global calls for more arities
 * DONE point functions
@@ -74,7 +74,7 @@
 * DONE more compact bc representation
 * TODO compact more of the bc
 * DONE generalize blit to work b/t images as well
-* TODO blit with mask, src rect, dest rect
+* DONE blit with mask, src rect, scale, rotation (for both mask and src)
 * TODO message send facility
 * TODO something resembling OMeta / Meta II
 * DONE basic text rendering

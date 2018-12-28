@@ -1091,6 +1091,7 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
 }
 
 std::ostream &operator<<(std::ostream &os, Ptr p) {
+  // TODO: convert this to a tagged switch?
   if (isNil(p)) {
     return os << "nil";
   } else if (is(Object, p)) {
@@ -1106,7 +1107,9 @@ std::ostream &operator<<(std::ostream &os, Ptr p) {
     return os << pt.x << "@" << pt.y;
   } else if (is(Float, p)) {
     return os << std::showpoint << as(Float, p);
-  } else {
+  } else if (is(PrimOp, p)) {
+    return os << "#<PrimOp " << (p.value >> 32) << ">";
+  }  else {
     return os << "don't know how to print ptr: " << (void *)p.value;
   }
 }
@@ -2260,7 +2263,7 @@ Ptr vm_pop(VM* vm) {
   return *(vm->stack++);
 }
 
-Ptr vm_get_stack_values_as_list(VM *vm, u32 count) {
+Ptr vm_get_stack_values_as_list(VM *vm, u32 count) { //@varargs
   auto result = make_list_rev(vm, count, vm->stack);
   while(count--) vm_pop(vm);
   return result;
@@ -2413,12 +2416,30 @@ void vm_interp(VM* vm) {
     }
     case CALL: {
       u32 argc = data;
+      call_from_apply:
       auto fn = vm_pop(vm);
       if (is(PrimOp, fn)) {
         u64 v = fn.value;
         // TODO: validate argc against prim op
         // auto argc = (v >> 16) & 0xFF;
         auto idx  = (v >> 32) & 0xFFFF;
+
+        // APPLY
+        if (idx == 0) {
+          // TODO: multi-arity apply
+          auto args = vm_pop(vm);
+          auto to_apply = vm_pop(vm);
+          if (!is(cons, args)) {
+            vm->error = "bad call to apply. args is not a list.";
+            break;
+          }
+          u32 count = 0;
+          do_list(vm, args, [&](Ptr arg){ vm_push(vm, arg); count++; });
+          vm_push(vm, to_apply);
+          argc = count;
+          goto call_from_apply;
+        }
+
         // cout << " calling prim at idx: " << idx << " arg count = " << argc << endl;
         PrimitiveFunction fn = PrimLookupTable[idx];
         Ptr result = (*fn)(vm, argc);

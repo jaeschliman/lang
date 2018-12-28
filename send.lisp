@@ -1,0 +1,10 @@
+(set-symbol-value 'set set-symbol-value)
+(print @send)
+
+(set 'Fixnum (class-of 1))
+(set 'Float (class-of 1.0))
+(class-set-method Fixnum '+ +i)
+(@send '+ 40 2)
+(print (list (@send '+ (@send '+ 39 2) 1)))
+(class-set-method Float 'floor: (lambda (self divisor) (/i (f->i self) divisor)))
+(print (@send 'floor: 33.3 3))

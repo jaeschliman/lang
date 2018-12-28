@@ -222,6 +222,8 @@ struct VM {
   blit_surface *surface;
 };
 
+/* ---------------------------------------- */
+
 typedef Ptr (*PrimitiveFunction)(VM*, u32 argc);
 extern PrimitiveFunction PrimLookupTable[];
 
@@ -930,6 +932,7 @@ Ptr closure_env(Ptr closure) {
   return array_get(closure, 1);
 }
 
+
 /* ---------------------------------------- */
 
 // size of object in bytes
@@ -1226,6 +1229,39 @@ struct Globals {
     Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean;
   } known;
 };
+
+/* ---------------------------------------- */
+
+Ptr class_of(VM *vm, Ptr it) {
+#define builtin(name) objToPtr(vm->globals->classes._##name)
+#define builtin_case(type, name) case type##_Tag: return builtin(name)
+
+  switch (it.value & TAG_MASK) {
+    builtin_case(Fixnum, Fixnum);
+    builtin_case(Char, Character);
+    builtin_case(Bool, Bool);
+    builtin_case(PrimOp, PrimOp);
+    builtin_case(Point, Point);
+    builtin_case(Float, Float);
+  case Object_Tag: {
+    // @incomplete this doesn't handle structs etc in the general case
+    // FIXME: need a more structured representation for these.
+    if (is(cons, it))     return builtin(Cons);
+    if (is(Array, it))    return builtin(Array);
+    if (is(Symbol, it))   return builtin(Symbol);
+    if (is(Closure, it))  return builtin(Closure);
+    if (is(ByteCode, it)) return builtin(ByteCode);
+    if (is(Standard, it)) {
+      return objToPtr(as(Standard, it)->klass);
+    }
+  }
+  default: return Nil;
+  }
+#undef builtin_case
+#undef builtin
+}
+
+/* ---------------------------------------- */
 
 // @unsafe
 auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
@@ -1783,35 +1819,6 @@ void initialize_known_symbols(VM *vm) {
 #undef _init_symbols
 
 /* ---------------------------------------- */
-
-Ptr class_of(VM *vm, Ptr it) {
-#define builtin(name) objToPtr(vm->globals->classes._##name)
-#define builtin_case(type, name) case type##_Tag: return builtin(name)
-
-  switch (it.value & TAG_MASK) {
-    builtin_case(Fixnum, Fixnum);
-    builtin_case(Char, Character);
-    builtin_case(Bool, Bool);
-    builtin_case(PrimOp, PrimOp);
-    builtin_case(Point, Point);
-    builtin_case(Float, Float);
-  case Object_Tag: {
-    // FIXME: need a more structured representation for these.
-    if (is(cons, it))     return builtin(Cons);
-    if (is(Array, it))    return builtin(Array);
-    if (is(Symbol, it))   return builtin(Symbol);
-    if (is(Closure, it))  return builtin(Closure);
-    if (is(ByteCode, it)) return builtin(ByteCode);
-    if (is(Standard, it)) {
-      return objToPtr(as(Standard, it)->klass);
-    }
-  }
-  default: return Nil;
-  }
-#undef builtin_case
-#undef builtin
-}
-
 // @unsafe
 auto make_base_class(VM *vm, const char* name) {
   Ptr slots[] = {make_string(vm,name), make_number(0), ht(vm)};
@@ -2255,12 +2262,16 @@ enum OpCode : u8 {
   POP_CLOSURE_ENV      = 20,
 };
 
-void vm_push(VM* vm, Ptr value) {
+inline void vm_push(VM* vm, Ptr value) {
   *(--vm->stack) = value;
 }
 
-Ptr vm_pop(VM* vm) {
+inline Ptr vm_pop(VM* vm) {
   return *(vm->stack++);
+}
+
+inline Ptr vm_stack_ref(VM *vm, u32 distance) {
+  return vm->stack[distance];
 }
 
 Ptr vm_get_stack_values_as_list(VM *vm, u32 count) { //@varargs
@@ -2300,6 +2311,25 @@ inline u64 build_instr(u8 op, u32 data) {
   ((u8*)&res)[0] = op;
   ((u32*)&res)[1] = data;
   return res;
+}
+
+// @speed this will be hideously slow. need bytecode level support
+inline void vm_interp_prepare_for_send(VM *vm, u32 argc) {
+  // TODO: arity check and errors
+  auto message = vm_stack_ref(vm, argc - 1);
+  auto self    = vm_stack_ref(vm, argc - 2);
+  auto klass   = class_of(vm, self);
+  auto dict    = standard_object_get_ivar(as(Standard, klass), BaseClassMethodDict);
+  auto fn      = ht_at(dict, message);
+  if (isNil(fn)) die("could not send message: ", message);
+  vm_push(vm, fn);
+}
+
+// @incomplete need to confirm that klass is actually a class.
+Ptr class_set_method(VM *vm, StandardObject *klass, ByteArrayObject* sym, Ptr callable) {
+  auto dict = standard_object_get_ivar(klass, BaseClassMethodDict);
+  ht_at_put(vm, dict, objToPtr(sym), callable);
+  return Nil;
 }
 
 void vm_interp(VM* vm) {
@@ -2416,7 +2446,7 @@ void vm_interp(VM* vm) {
     }
     case CALL: {
       u32 argc = data;
-      call_from_apply:
+      reenter_call:
       auto fn = vm_pop(vm);
       if (is(PrimOp, fn)) {
         u64 v = fn.value;
@@ -2424,8 +2454,8 @@ void vm_interp(VM* vm) {
         // auto argc = (v >> 16) & 0xFF;
         auto idx  = (v >> 32) & 0xFFFF;
 
-        // APPLY
-        if (idx == 0) {
+        // @speed it is horrible to have two if checks here for every call.
+        if (idx == 0) { // APPLY
           // TODO: multi-arity apply
           auto args = vm_pop(vm);
           auto to_apply = vm_pop(vm);
@@ -2437,7 +2467,11 @@ void vm_interp(VM* vm) {
           do_list(vm, args, [&](Ptr arg){ vm_push(vm, arg); count++; });
           vm_push(vm, to_apply);
           argc = count;
-          goto call_from_apply;
+          goto reenter_call;
+        } else if (idx == 1) { // SEND
+          vm_interp_prepare_for_send(vm, argc);
+          argc--;
+          goto reenter_call;
         }
 
         // cout << " calling prim at idx: " << idx << " arg count = " << argc << endl;

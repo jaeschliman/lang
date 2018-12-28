@@ -145,7 +145,12 @@ void initialize_primitive_functions(VM *vm) {
 (progn
   (setf *prims* nil)
 
+  (prim @send SEND unused any "unused") ;; N.B. this is handled specially in the VM
+  ;; syntax is (@send method recvr ..args)
+
   (prim class-of CLASSOF ((a any)) any "class_of(vm, a)")
+  (prim class-set-method SETMETHOD
+        ((a Standard) (sym Symbol) (fn any)) any "class_set_method(vm, a, sym, fn)")
 
   (prim +i    FIX_PLUS   ((a Fixnum) (b Fixnum)) Fixnum "a + b")
   (prim -i    FIX_MINUS  ((a Fixnum) (b Fixnum)) Fixnum "a - b")

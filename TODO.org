@@ -92,6 +92,7 @@
 * TODO only update dirty rects?
 SDL_UpdateWindowSurfaceRects
 https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
+* TODO warp blit
 
 * notes
 maybe have a stack of compilers? can push/pop...

@@ -1007,10 +1007,10 @@ void map_refs(VM *vm, Ptr it, PtrFn fn) {
 /* ---------------------------------------- */
 
 enum {
-  BaseClassName = 0,
-  BaseClassIvarCount = 1,
-  BaseClassDebugPrint = 2,
-  BaseClassEnd = 3
+  BaseClassName       = 0,
+  BaseClassIvarCount  = 1, //TODO: we don't actually need this for Base Classes
+  BaseClassMethodDict = 2,
+  BaseClassEnd        = 3
 };
 
 typedef void(*DebugPrintFunction)(std::ostream &os, Ptr p);
@@ -1078,15 +1078,6 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
   case Standard_ObjectType: {
     auto sobj = (StandardObject *)obj;
     auto name = standard_object_get_ivar(sobj->klass, BaseClassName);
-    auto pr_obj = standard_object_get_ivar(sobj->klass, BaseClassDebugPrint);
-    if (is(Fixnum, pr_obj)) {
-      auto idx = as(Fixnum, pr_obj);
-      if (idx > 0 && idx < DEBUG_PRINT_MAX && DebugPrintTable[idx]) {
-        auto fn = DebugPrintTable[idx];
-        fn(os, objToPtr(obj));
-        return os;
-      }
-    }
     cout << "#<A " << as(Object, name) << " " << (void*)obj << ">";
     return os;
   }
@@ -1232,7 +1223,9 @@ StandardObject *make_standard_object(VM *vm, StandardObject *klass, Ptr*ivars) {
 /* ---------------------------------------- */
 
 struct Globals {
-  StandardObject *Base, *Cons, *Fixnum, *Symbol;
+  struct {
+    StandardObject *_Base, *_Cons, *_Fixnum, *_Symbol;
+  } classes;
   unordered_map<string, Ptr> *symtab;
   Ptr env; // the global environment (currently an alist)
   Ptr call1;
@@ -1257,10 +1250,13 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
     recurse(pair.second);
   }
   recurse(vm->globals->call1);
-  recurse(objToPtr(vm->globals->Base));
-  recurse(objToPtr(vm->globals->Cons));
-  recurse(objToPtr(vm->globals->Fixnum));
-  recurse(objToPtr(vm->globals->Symbol));
+
+#define handle_class(name) recurse(objToPtr(vm->globals->classes._##name));
+#define handle_classes(...) MAP(handle_class, __VA_ARGS__)
+  handle_classes(Base, Cons, Fixnum, Symbol)
+#undef handle_class
+#undef handle_classes
+
 }
 
 void vm_count_reachable_refs(VM *vm) {
@@ -1424,21 +1420,26 @@ void gc_update_base_class(VM *vm, StandardObject **it) {
   *it = as(Standard, p);
 }
 
-#define _update_sym(n) gc_update_ptr(vm, &vm->globals->known._##n);
-#define _update_symbols(...) MAP(_update_sym, __VA_ARGS__)
+
+#define handle_class(name) gc_update_base_class(vm, &vm->globals->classes._##name);
+#define handle_classes(...) MAP(handle_class, __VA_ARGS__)
+#define update_sym(n) gc_update_ptr(vm, &vm->globals->known._##n);
+#define update_symbols(...) MAP(update_sym, __VA_ARGS__)
 
 void gc_update_globals(VM *vm) {
   gc_update_ptr(vm, &vm->globals->call1);
   gc_update_ptr(vm, &vm->globals->env);
-  gc_update_base_class(vm, &vm->globals->Base);
-  gc_update_base_class(vm, &vm->globals->Cons);
-  gc_update_base_class(vm, &vm->globals->Fixnum);
-  gc_update_base_class(vm, &vm->globals->Symbol);
-  _update_symbols(lambda, quote, let, if, fixnum, cons, string, array, character, boolean);
+
+  handle_classes(Base, Cons, Fixnum, Symbol);
+
+  update_symbols(lambda, quote, let, if, fixnum, cons, string,
+                 array, character, boolean);
 }
 
-#undef _update_sym
-#undef _update_symbols
+#undef update_sym
+#undef update_symbols
+#undef handle_class
+#undef handle_classes
 
 void gc_copy_symtab(VM *vm) {
   auto old_symtab = vm->globals->symtab;
@@ -1585,14 +1586,6 @@ void gc(VM *vm) {
   vm->in_gc = false;
 }
 
-
-/* ---------------------------------------- */
-
-auto make_base_class(VM *vm, const char* name, u64 ivar_count) {
-  auto defaultPrint = Nil;
-  Ptr slots[] = {make_string(vm,name), make_number(ivar_count), defaultPrint};
-  return make_standard_object(vm, vm->globals->Base, slots);
-}
 
 /* ---------------------------------------- */
 
@@ -1796,6 +1789,25 @@ void initialize_known_symbols(VM *vm) {
 #undef _init_sym
 #undef _init_symbols
 
+/* ---------------------------------------- */
+
+Ptr class_of(VM *vm, Ptr it) {
+#define builtin_case(type) case type##_Tag: \
+  return objToPtr(vm->globals->classes._##type)
+
+  switch (it.value & TAG_MASK) {
+    builtin_case(Fixnum);
+  default: return Nil;
+  }
+#undef buildtin_case
+}
+
+// @unsafe
+auto make_base_class(VM *vm, const char* name) {
+  Ptr slots[] = {make_string(vm,name), make_number(0), ht(vm)};
+  return make_standard_object(vm, vm->globals->classes._Base, slots);
+}
+
 // @unsafe
 void initialize_classes(VM *vm)
 {
@@ -1803,14 +1815,14 @@ void initialize_classes(VM *vm)
   Base->klass = Base;
   standard_object_set_ivar(Base, BaseClassName, make_string(vm, "Base"));
   standard_object_set_ivar(Base, BaseClassIvarCount, make_number(BaseClassEnd));
-  auto g = vm->globals;
-  g->Base = Base;
-  g->Cons = make_base_class(vm, "Cons", 2);
-  DebugPrintTable[DebugPrint_Cons] = &debug_print_list;
-  standard_object_set_ivar(g->Cons, BaseClassDebugPrint,
-                           to(Fixnum, DebugPrint_Cons));
-  g->Fixnum = make_base_class(vm, "Fixnum", 0);
-  g->Symbol = make_base_class(vm, "Symbol", 0);
+  standard_object_set_ivar(Base, BaseClassMethodDict, ht(vm));
+  vm->globals->classes._Base = Base;
+
+#define handle_class(name) vm->globals->classes._##name = make_base_class(vm, #name);
+#define handle_classes(...) MAP(handle_class, __VA_ARGS__)
+  handle_classes(Cons, Fixnum, Symbol);
+#undef handle_class
+#undef handle_classes
 }
 
 Ptr set_global(VM *vm, Ptr sym, Ptr value) {

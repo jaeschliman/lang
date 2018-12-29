@@ -27,6 +27,13 @@
 #include "./macro_support.h"
 
 #define GC_DEBUG 0
+#define PRIM_USE_GIANT_SWITCH 1
+// with it on:  216533389 / 15 / 60 = ~240,600 instr / frame
+//              187983512 / 13.048 / 60 = ~240,117
+// with it off: 220863576 / 16.57 / 60 = ~222,150 instr / frame
+//              181965286 / 12.79 / 60 = ~237,119
+// 2.5Ghz chip. 2500000000 / 1 / 60 = ~41,700,000 ops / frame!
+// so roughly 170 ops / bc via wall clock.
 
 #define unused(x) (void)(x)
 #define maybe_unused(x) (void)(x)
@@ -104,7 +111,7 @@ enum ObjectType : u8 {
 //    for now just stuff builtins as all compact... can revisit
 struct Header {
   ObjectType object_type;       // 8
-  u8         custom_class;      // 8 
+  u8         custom_class;      // 8
   u16        flags;             // 16 -- currently unused
   u32        hashcode;          // 32
 };
@@ -885,7 +892,7 @@ u32 hash_code(Ptr it) {
     }
   }
   return obj->header.hashcode;
-} 
+}
 
 
 /* ---------------------------------------- */
@@ -1592,7 +1599,7 @@ inline void gc_protect_reference(VM *vm, Object **ref){
   if (found == map->end()) {
     vm->gc_protected->insert(make_pair(ref, 1));
   } else {
-    found->second++; 
+    found->second++;
   }
 }
 inline void gc_unprotect_reference(VM *vm, Object **ref){
@@ -1614,7 +1621,7 @@ inline void gc_protect_ptr(VM *vm, Ptr *ref){
   if (found == map->end()) {
     vm->gc_protected_ptrs->insert(make_pair(ref, 1));
   } else {
-    found->second++; 
+    found->second++;
   }
 }
 
@@ -1843,7 +1850,7 @@ Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
     mem[idx] = list;
     unprot_ptrs(key, value, array);
     return Nil;
-  } 
+  }
   // collision
   auto entry = mem[idx];
   while (!isNil(entry)) { // existing entries
@@ -2169,7 +2176,7 @@ f32 read_float(VM *vm, const char **remaining, const char *end) {
       return -1;
     }
     bool invert = *input == '-';
-    input++; 
+    input++;
     if (input >= end) {
       vm->error = "invalid float syntax.";
       *remaining = input;
@@ -2475,6 +2482,8 @@ Ptr class_set_method(VM *vm, StandardObject *klass, ByteArrayObject* sym, Ptr ca
   return Nil;
 }
 
+inline Ptr giant_switch(VM *vm, u32 argc, u32 idx);
+
 #define vm_curr_instr(vm) currfn[vm->pc]
 #define vm_adv_instr(vm) currfn[++vm->pc]
 void vm_interp(VM* vm) {
@@ -2618,9 +2627,13 @@ void vm_interp(VM* vm) {
         }
 
         // cout << " calling prim at idx: " << idx << " arg count = " << argc << endl;
+#if PRIM_USE_GIANT_SWITCH
+        giant_switch(vm, argc, idx);
+#else
         PrimitiveFunction fn = PrimLookupTable[idx];
         Ptr result = (*fn)(vm, argc);
         vm_push(vm, result);
+#endif
         break;
       }
       if (!is(Closure, fn)) {
@@ -2668,7 +2681,7 @@ void vm_interp(VM* vm) {
     }
     if (vm->error) {
       vm_print_debug_stack_trace(vm);
-      return; 
+      return;
     };
     ++vm->pc;
   }
@@ -2995,7 +3008,7 @@ bool cenv_has_closure(Ptr cenv) {
   return as(Bool, cenv_get_has_closure(cenv));
 }
 
-auto compiler_env_get_subenv(VM *vm, Ptr env, Ptr it) { 
+auto compiler_env_get_subenv(VM *vm, Ptr env, Ptr it) {
   if (!cenv_has_subenv_for(env, it)) {  prot_ptrs(env, it);
     auto created = cenv(vm, env);       prot_ptr(created);
     cenv_set_subenv_for(vm, env, it, created);
@@ -3008,7 +3021,7 @@ auto compiler_env_get_subenv(VM *vm, Ptr env, Ptr it) {
 auto global_env_binding(VM *vm) {
   auto info = make_varinfo(vm, VariableScope_Global,
                            to(Fixnum,0), to(Fixnum, 0));
-  return (VariableBinding){0, info}; 
+  return (VariableBinding){0, info};
 }
 
 VariableBinding compiler_env_binding(VM *vm, Ptr env, Ptr sym) {
@@ -3300,7 +3313,7 @@ mark_lambda_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {  prot_ptrs(it, p_
 
     if (is(Symbol, args)) mark_arg(args);
     else                  do_list(vm, args, mark_arg);
-      
+
     unprot_ptrs(args, var_map);
   }
 
@@ -3423,7 +3436,7 @@ void _gfx_fill_rect(blit_surface *dst, point a, point b, s64 color) {
     }
   }
 }
-  
+
 Ptr gfx_screen_fill_rect(VM *vm, point a, point b, s64 color) {
   if (vm->surface) { _gfx_fill_rect(vm->surface, a, b, color); }
   return Nil;
@@ -3464,7 +3477,7 @@ inline void blit_sampler_init(blit_sampler *s, blit_surface *src,
   f32 rvx = cosf(angle);
   f32 rvy = sinf(angle);
 
-  s->du_col = rvx;  s->dv_col = rvy; 
+  s->du_col = rvx;  s->dv_col = rvy;
   s->du_row = -rvy; s->dv_row = rvx;
 
   f32 cx = from->x + from->width  * 0.5f;
@@ -3541,7 +3554,7 @@ Ptr gfx_blit_image(blit_surface *src, blit_surface *dst,
 
     blit_sampler_start_row(&bs_src);
     auto dest_row = (at.y + y) * dst->pitch;
-    
+
     for (s32 x = 0; x < right; x++) {
       u8 *over;
 
@@ -3604,7 +3617,7 @@ Ptr _gfx_blit_image_with_mask(blit_surface *src, blit_surface *dst, blit_surface
     blit_sampler_start_row(&bs_src);
     blit_sampler_start_row(&bs_msk);
     auto dest_row = (at.y + y) * dst->pitch;
-    
+
     for (s32 x = 0; x < right; x++) {
       u8 *over;
       u8 *mask;
@@ -3646,8 +3659,8 @@ Ptr _gfx_blit_image_with_mask(blit_surface *src, blit_surface *dst, blit_surface
 }
 
 Ptr gfx_blit_image_with_mask(ByteArrayObject *src_img,
-                             ByteArrayObject *dst_img, 
-                             ByteArrayObject *msk_img, 
+                             ByteArrayObject *dst_img,
+                             ByteArrayObject *msk_img,
                              point at,
                              rect from, f32 scale, f32 deg_rot,
                              rect m_from, f32 m_scale, f32 m_deg_rot
@@ -3830,7 +3843,7 @@ void start_up_and_run_string(const char* str, bool soak) {
   } while(soak);
 
   unprot_ptr(kept_head);
-  
+
   // TODO: clean up
 }
 
@@ -3966,7 +3979,7 @@ void start_up_and_run_event_loop(const char *path) {
     int imgFlags = IMG_INIT_PNG;
     if(!(IMG_Init(imgFlags) & imgFlags)) {
       die("SDL_image could not initialize! SDL_image Error: ", IMG_GetError());
-    } 
+    }
   }
 
   {
@@ -4061,7 +4074,7 @@ int main(int argc, const char** argv) {
   }
 
   // pretty hacky way of avoiding checking flags, I'll admit...
-  if (strcmp(invoked, "run-file") == 0) { 
+  if (strcmp(invoked, "run-file") == 0) {
     auto file = require_argv_file(argc, argv);
     run_file(file, false);
   } else if (strcmp(invoked, "soak") == 0){

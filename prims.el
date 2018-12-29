@@ -14,11 +14,12 @@
   ARGUMENTS describe the argument names and types.
   RETURN-TYPE specifies the primitive return type of the BODY-EXPRESSION."
   `(push
-    '(:name ,(symbol-name name)
-            :prim-name ,(concat "PRIM_" (symbol-name prim-name))
-            :args ,arguments
-            :return-type ,return-type
-            :body ,body-expression)
+    (list :name ,(symbol-name name)
+          :prim-name ,(concat "PRIM_" (symbol-name prim-name))
+          :args ',arguments
+          :index (1+ (length *prims*))
+          :return-type ',return-type
+          :body ,body-expression)
     *prims*))
 
 (defun flatten (list)
@@ -70,6 +71,36 @@
 }
 
 ")))
+
+(defun emit-inline-body (body return-type)
+  "Emit BODY and RETURN-TYPE."
+  (if (eq return-type 'any)
+      (tmpl " vm_push(vm, " body ");")
+    (tmpl "  vm_push(vm, to("return-type",("body")));")))
+
+(defun emit-prim-impl-inline (prim)
+  "Emits PRIM inline for switch statement."
+  (let ((*prim-current* prim)
+        (return-type (getf prim :return-type))
+        (body (getf prim :body)))
+    (tmpl "
+  case " (getf prim :index) ": {
+" (emit-prim-args prim) "
+   " (emit-inline-body body return-type) "
+    break;
+  }
+")))
+
+(defun emit-prim-giant-switch (prims)
+  "Emits a giant switch statement function for PRIMS."
+(tmpl "
+inline Ptr giant_switch(VM *vm, u32 argc, u32 idx) {
+  switch(idx) {
+   " (mapcar 'emit-prim-impl-inline prims) "
+  }
+  return Nil;
+}
+"))
 
 (defun emit-all-prim-impls ()
   "Emit all prims to a temp buffer."
@@ -140,6 +171,7 @@ void initialize_primitive_functions(VM *vm) {
     (emit-all-prim-impls)
     (emit-prim-table)
     (emit-prim-registration-function)
+    (insert (emit-prim-giant-switch *prims*))
     (save-buffer)))
 
 (progn

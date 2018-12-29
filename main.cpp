@@ -168,6 +168,7 @@ struct PtrArrayObject : Object {
 struct ByteCodeObject : Object {
   U64ArrayObject *code;
   PtrArrayObject *literals;
+  bool is_varargs;
 };
 
 struct StackFrameObject : Object {
@@ -2348,7 +2349,7 @@ inline Ptr vm_stack_ref(VM *vm, u32 distance) {
 
 Ptr vm_get_stack_values_as_list(VM *vm, u32 count) { //@varargs
   auto result = make_list_rev(vm, count, vm->stack);
-  while(count--) vm_pop(vm);
+  while(count--) vm_pop(vm); //@speed
   return result;
 }
 
@@ -2557,10 +2558,17 @@ void vm_interp(VM* vm) {
         break;
       }
       auto bc = closure_code(fn);
-      auto env = closure_env(fn);
-      // cout << "pushing code: " << bc << endl;
-      // cout << "pushing env:  " << env << endl;
-      vm_push_stack_frame(vm, argc, bc, env);
+      if (bc->is_varargs) {
+        prot_ptrs(fn);
+        vm_push(vm, vm_get_stack_values_as_list(vm, argc));
+        unprot_ptrs(fn);
+        auto bc  = closure_code(fn); // bc may have moved
+        auto env = closure_env(fn);
+        vm_push_stack_frame(vm, 1, bc, env);
+      } else {
+        auto env = closure_env(fn);
+        vm_push_stack_frame(vm, argc, bc, env);
+      }
       vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
       break;
     }
@@ -2603,6 +2611,7 @@ private:
   u32 bc_index;
   u64 bc_capacity;
   u32 lit_index;
+  bool is_varargs;
 
   ByteCodeObject *bc;
   map<string, u64> *labelsMap; // label -> bc_index
@@ -2692,6 +2701,7 @@ public:
     labelContextCounter = 0;
     labelContext        = labelContextCounter;
     labelContextStack   = new vector<u64>;
+    is_varargs          = false;
 
     this->literals = as(Object, make_xarray(vm));
     gc_protect(this->literals);
@@ -2705,6 +2715,10 @@ public:
     auto start = *temp_count;
     *temp_count += count;
     return start;
+  }
+  auto isVarargs() {
+    is_varargs = true;
+    return this;
   }
   auto pushLit(Ptr literal) {
     auto literals = objToPtr(this->literals);
@@ -2815,6 +2829,7 @@ public:
     pushOp(END);
     fixupJumpLocations();
     finalizeByteCode();
+    bc->is_varargs = is_varargs;
     return bc;
   }
 };
@@ -2976,10 +2991,10 @@ void emit_lambda_body(VM *vm, BCBuilder *builder, Ptr body, Ptr env) {
 }
 
 auto emit_flat_lambda(VM *vm, Ptr it, Ptr env) {
-  it = cdr(it);
   prot_ptrs(it, env);
   auto builder = new BCBuilder(vm);
-  auto body = cdr(it);
+  if (is(Symbol, car(cdr(it)))) builder->isVarargs();
+  auto body = cdr(cdr(it));
   emit_lambda_body(vm, builder, body, env);
   builder->ret();
   auto bc = objToPtr(builder->build());
@@ -2994,8 +3009,11 @@ void emit_lambda(VM *vm, BCBuilder *parent, Ptr it, Ptr p_env) {  prot_ptrs(it, 
     auto closed = cenv_get_closed_over(env);                      prot_ptrs(closed);
     auto closed_count = xarray_used(closed);
 
-    // @safe
+
     auto builder = new BCBuilder(vm);
+
+    if (is(Symbol, car(cdr(it)))) builder->isVarargs();
+
     for (u64 i = 0; i < closed_count; i++) {
       auto ptr     = xarray_at(closed, i);
       auto binding = compiler_env_binding(vm, env, ptr);
@@ -3004,7 +3022,6 @@ void emit_lambda(VM *vm, BCBuilder *parent, Ptr it, Ptr p_env) {  prot_ptrs(it, 
     }
     unprot_ptrs(closed);
 
-    // @safe
     builder->pushClosureEnv(closed_count);
     auto body = cdr(cdr(it));
     emit_lambda_body(vm, builder, body, env);
@@ -3012,7 +3029,6 @@ void emit_lambda(VM *vm, BCBuilder *parent, Ptr it, Ptr p_env) {  prot_ptrs(it, 
     parent->pushLit(objToPtr(builder->build()));
     parent->buildClosure();
   } else {
-    // @safe
     auto closure = emit_flat_lambda(vm, it, env);
     parent->pushLit(closure);
   }
@@ -3022,7 +3038,6 @@ void emit_lambda(VM *vm, BCBuilder *parent, Ptr it, Ptr p_env) {  prot_ptrs(it, 
 void emit_let (VM *vm, BCBuilder *builder, Ptr it, Ptr p_env) {  prot_ptrs(it, p_env);
   auto env = compiler_env_get_subenv(vm, p_env, it);             prot_ptr(env);
 
-  // @safe
   {
     auto vars        = nth_or_nil(it, 1);
     auto count       = list_length(vm, vars);
@@ -3046,7 +3061,6 @@ void emit_let (VM *vm, BCBuilder *builder, Ptr it, Ptr p_env) {  prot_ptrs(it, p
 
   auto has_closure = cenv_has_closure(env);
 
-  // @safe
   if (has_closure) {
     auto closed_over = cenv_get_closed_over(env);                prot_ptr(closed_over);
     auto closed_count = xarray_used(closed_over);
@@ -3062,7 +3076,6 @@ void emit_let (VM *vm, BCBuilder *builder, Ptr it, Ptr p_env) {  prot_ptrs(it, p
     unprot_ptrs(closed_over);
   }
 
-  // @safe
   {
     auto body = cdr(cdr(it));                            prot_ptr(body);
     builder->pushLit(Nil);
@@ -3200,15 +3213,20 @@ mark_lambda_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {  prot_ptrs(it, p_
 
   // @safe
   {
-    auto args    = car(it);                                 prot_ptr(args);
+    auto args    = car(it);                                     prot_ptr(args);
     auto var_map = cenv_get_info(env);                          prot_ptr(var_map);
-    do_list(vm, args, [&](Ptr arg){                             prot_ptrs(arg);
-        assert(is(Symbol, arg));
-        auto index = to(Fixnum, idx++);
-        auto info  = make_varinfo(vm, VariableScope_Argument, index, zero);
-        imap_set(vm, var_map, arg, info);
-        unprot_ptrs(arg);
-      });
+
+    auto mark_arg = [&](Ptr arg){                               prot_ptrs(arg);
+      assert(is(Symbol, arg));
+      auto index = to(Fixnum, idx++);
+      auto info  = make_varinfo(vm, VariableScope_Argument, index, zero);
+      imap_set(vm, var_map, arg, info);
+      unprot_ptrs(arg);
+    };
+
+    if (is(Symbol, args)) mark_arg(args);
+    else                  do_list(vm, args, mark_arg);
+      
     unprot_ptrs(args, var_map);
   }
 

@@ -3304,14 +3304,19 @@ void mark_closed_over_variables(VM *vm, Ptr it, Ptr env) {  prot_ptrs(it, env);
   unprot_ptrs(it, env);
 }
 
-auto compile_toplevel_expression(VM *vm, Ptr it) { prot_ptr(it);
-  auto env = cenv(vm, Nil);                        prot_ptr(env);
+auto _compile_toplevel_expression(VM *vm, Ptr it, bool ret) { prot_ptr(it);
+  auto env = cenv(vm, Nil);                                   prot_ptr(env);
   auto builder = new BCBuilder(vm);
   mark_closed_over_variables(vm, it, env);
   emit_expr(vm, builder, it, env);
+  if (ret) builder->ret();
   auto result = builder->build();
   unprot_ptrs(it, env);
   return result;
+}
+
+auto compile_toplevel_expression(VM *vm, Ptr it) {
+  return _compile_toplevel_expression(vm, it, false);
 }
 
 /* -------------------------------------------------- */
@@ -3620,6 +3625,13 @@ Ptr gfx_blit_from_screen(VM *vm, ByteArrayObject *dest_image,
 
 /* -------------------------------------------------- */
 
+Ptr compile_to_closure(VM *vm, Ptr expr) {
+  auto bc = objToPtr(_compile_toplevel_expression(vm, expr, true)); prot_ptr(bc);
+  auto closure = make_closure(vm, bc, Nil);
+  unprot_ptrs(bc);
+  return closure;
+}
+
 #include "./primop-generated.cpp"
 
 /* -------------------------------------------------- */
@@ -3677,7 +3689,7 @@ VM *vm_create() {
   return vm;
 }
 
-Ptr eval(VM *vm, Ptr expr) {
+Ptr eval(VM *vm, Ptr expr) { // N.B. should /not/ be exposed
   auto bc = compile_toplevel_expression(vm, expr);
 
   vm_push_stack_frame(vm, 0, bc);

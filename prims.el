@@ -148,6 +148,8 @@ void initialize_primitive_functions(VM *vm) {
   (prim @send SEND unused any "unused") ;; N.B. this is handled specially in the VM
   ;; syntax is (@send method recvr ..args)
 
+  (prim compile-to-closure CMPC ((expr any)) any "compile_to_closure(vm, expr)")
+
   (prim class-of CLASSOF ((a any)) any "class_of(vm, a)")
   (prim class-set-method SETMETHOD
         ((a Standard) (sym Symbol) (fn any)) any "class_set_method(vm, a, sym, fn)")

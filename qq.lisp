@@ -90,3 +90,5 @@
 (print (append '(a b) '(c d) '(e f)))
 (print (append '(a b) '(c d) '(e f) '(g h)))
 (print (append '(a b) '(c d) '(e f) '(g h) '(i j)))
+
+(print ((compile-to-closure '(+i 2 2))))

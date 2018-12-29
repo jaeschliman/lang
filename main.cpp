@@ -1111,27 +1111,22 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
   return os << "don't know how to print object: " << otype << (void*)obj << endl;
 }
 
-std::ostream &operator<<(std::ostream &os, Ptr p) {
-  // TODO: convert this to a tagged switch?
-  if (isNil(p)) {
-    return os << "nil";
-  } else if (is(Object, p)) {
-    return os << (as(Object, p));
-  } else if (is(Fixnum, p)) {
-    return os << (as(Fixnum, p));
-  } else if (is(Bool, p)) {
-    return os << (as(Bool, p) ? "#t" : "#f");
-  } else if (is(Char, p)) {
-    return os << "#\\" << character_names_by_code[as(Char, p)];
-  } else if (is(Point, p)) {
-    auto pt = as(Point, p);
+std::ostream &operator<<(std::ostream &os, Ptr it) {
+  PtrTag tag = (PtrTag)(it.value & TAG_MASK);
+  switch (tag) {
+  case Fixnum_Tag: return os << as(Fixnum, it);
+  case Object_Tag: {
+    if (isNil(it)) return os << "nil";
+    return os << as(Object, it);
+  }
+  case Char_Tag  : return os << "#\\" << character_names_by_code[as(Char, it)];
+  case Bool_Tag  : return os << (as(Bool, it) ? "#t" : "#f");
+  case PrimOp_Tag: return os << "#<PrimOp " << (it.value >> 32) << ">";
+  case Point_Tag : {
+    auto pt = as(Point, it);
     return os << pt.x << "@" << pt.y;
-  } else if (is(Float, p)) {
-    return os << std::showpoint << as(Float, p);
-  } else if (is(PrimOp, p)) {
-    return os << "#<PrimOp " << (p.value >> 32) << ">";
-  }  else {
-    return os << "don't know how to print ptr: " << (void *)p.value;
+  }
+  case Float_Tag : return os << std::showpoint << as(Float, it);
   }
 }
 

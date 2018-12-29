@@ -1249,7 +1249,7 @@ struct Globals {
   Ptr env; // the global environment (currently an alist)
   Ptr call1;
   struct {
-    Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean;
+    Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean, _quasiquote, _unquote, _unquote_splicing;
   } known;
 };
 
@@ -1513,7 +1513,7 @@ void gc_update_globals(VM *vm) {
 #include "./builtin-classes.include1"
 
   update_symbols(lambda, quote, let, if, fixnum, cons, string,
-                 array, character, boolean);
+                 array, character, boolean, quasiquote, unquote, unquote_splicing);
 }
 
 #undef update_sym
@@ -1863,7 +1863,8 @@ Ptr intern(VM *vm, string name) {
 void initialize_known_symbols(VM *vm) {
 
   auto globals = vm->globals;
-  _init_symbols(lambda, quote, let, if, fixnum, cons, string, array, character, boolean);
+  _init_symbols(lambda, quote, let, if, fixnum, cons, string, array, character, boolean, quasiquote, unquote);
+  globals->known._unquote_splicing = intern(vm, "unquote-splicing");
 
 }
 #undef _init_sym
@@ -2197,9 +2198,7 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
       return result;
     } else if (*input == '\'') {
       input++;
-      prot_ptr(done);
       auto result = quote_form(vm, read(vm, &input, end, done));
-      unprot_ptr(done);
       *remaining = input;
       return result;
     } else if (*input == '(') {
@@ -2225,6 +2224,29 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
       input++;
       *remaining = input;
       return res;
+    } else if (*input == '`') {
+      input++;
+      auto it     = read(vm, &input, end, done);
+      auto result = cons(vm, KNOWN(quasiquote), cons(vm, it, Nil));
+      *remaining = input;
+      return result;
+    } else if (*input == ',') {
+      input++;
+      auto prefix = KNOWN(unquote);
+      if (*input == '@') {
+        input++;
+        if (input >= end) {
+          vm->error = "unexpected end of input";
+          *remaining = input;
+          return done;
+        }
+        prefix = KNOWN(unquote_splicing);
+      }
+      auto it = read(vm, &input, end, done);
+      if (it == done) { *remaining = input; return it; }
+      auto result = cons(vm, prefix, cons(vm, it, Nil));
+      *remaining = input;
+      return result;
     }
     input++;
   }

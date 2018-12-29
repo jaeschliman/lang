@@ -110,7 +110,7 @@ char character_table[] = {
  /*  93  ]                            */ CH | BR,
  /*  94  ^                            */ CH | SS,
  /*  95  _                            */ CH | SS,
- /*  96  `                            */ CH | SS,
+ /*  96  `                            */ CH | SB,
  /*  97  a                            */ CH | SS | AL,
  /*  98  b                            */ CH | SS | AL,
  /*  99  c                            */ CH | SS | AL,

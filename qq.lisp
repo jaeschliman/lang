@@ -137,3 +137,9 @@
                                 5 6
                                 (unquote x))))))))
   (print (fn 7)))
+
+(print '(lambda (x) `(1 2 ,@'(3 4) 5 6 ,x)))
+(print (qq-process '(lambda (x) `(1 2 ,@'(3 4) 5 6 ,x))))
+
+(let ((fn (eval (qq-process '(lambda (x) `(1 2 ,@'(3 4) 5 6 ,x))))))
+  (print (fn 7)))

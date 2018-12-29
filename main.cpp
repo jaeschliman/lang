@@ -1220,7 +1220,14 @@ StandardObject *make_standard_object(VM *vm, StandardObject *klass, Ptr*ivars) {
 
 struct Globals {
   struct {
-    StandardObject *_Base, *_Cons, *_Fixnum, *_Float, *_Point, *_Bool, *_Symbol, *_String, *_Array, *_PrimOp, *_Closure, *_ByteCode, *_Character;
+
+#define make_class(name) *_##name
+#define handle_classes(...) MAP_WITH_COMMAS(make_class, __VA_ARGS__)
+    StandardObject
+#include "./builtin-classes.include"
+#undef handle_classes
+#undef make_class
+
   } classes;
   unordered_map<string, Ptr> *symtab;
   Ptr env; // the global environment (currently an alist)
@@ -1282,7 +1289,7 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
 
 #define handle_class(name) recurse(objToPtr(vm->globals->classes._##name));
 #define handle_classes(...) MAP(handle_class, __VA_ARGS__)
-  handle_classes(Base, Fixnum, Float, Point, Bool, Symbol, String, Array, PrimOp, Closure, ByteCode, Character);
+#include "./builtin-classes.include"
 #undef handle_class
 #undef handle_classes
 
@@ -1459,7 +1466,7 @@ void gc_update_globals(VM *vm) {
   gc_update_ptr(vm, &vm->globals->call1);
   gc_update_ptr(vm, &vm->globals->env);
 
-  handle_classes(Base, Fixnum, Float, Point, Bool, Symbol, String, Array, PrimOp, Closure, ByteCode, Character);
+#include "./builtin-classes.include"
 
   update_symbols(lambda, quote, let, if, fixnum, cons, string,
                  array, character, boolean);
@@ -1835,11 +1842,14 @@ void initialize_classes(VM *vm)
   standard_object_set_ivar(Base, BaseClassMethodDict, ht(vm));
   vm->globals->classes._Base = Base;
 
-#define handle_class(name) vm->globals->classes._##name = make_base_class(vm, #name);
-#define handle_classes(...) MAP(handle_class, __VA_ARGS__)
-  handle_classes(Cons, Fixnum, Float, Point, Bool, Symbol, String, Array, PrimOp, Closure, ByteCode, Character);
-#undef handle_class
+#define builtin(name) vm->globals->classes._##name
+#define make_class(name) if (!builtin(name)) builtin(name) = make_base_class(vm, #name);
+#define handle_classes(...) MAP(make_class, __VA_ARGS__)
+#include "./builtin-classes.include"
+#undef make_class
 #undef handle_classes
+#undef builtin
+
 }
 
 Ptr set_global(VM *vm, Ptr sym, Ptr value) {

@@ -1292,7 +1292,7 @@ struct Globals {
   Ptr env; // the global environment (currently an alist)
   Ptr call1;
   struct {
-    Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean, _quasiquote, _unquote, _unquote_splicing;
+    Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean, _quasiquote, _unquote, _unquote_splicing, _compiler;
   } known;
 };
 
@@ -1539,7 +1539,8 @@ void gc_update_globals(VM *vm) {
   }
 
   update_symbols(lambda, quote, let, if, fixnum, cons, string,
-                 array, character, boolean, quasiquote, unquote, unquote_splicing);
+                 array, character, boolean, quasiquote, unquote, unquote_splicing,
+                 compiler);
 }
 
 #undef update_sym
@@ -1888,7 +1889,7 @@ Ptr intern(VM *vm, string name) {
 void initialize_known_symbols(VM *vm) {
 
   auto globals = vm->globals;
-  _init_symbols(lambda, quote, let, if, fixnum, cons, string, array, character, boolean, quasiquote, unquote);
+  _init_symbols(lambda, quote, let, if, fixnum, cons, string, array, character, boolean, quasiquote, unquote, compiler);
   globals->known._unquote_splicing = intern(vm, "unquote-splicing");
 
 }
@@ -3744,10 +3745,25 @@ VM *vm_create() {
   return vm;
 }
 
-Ptr eval(VM *vm, Ptr expr) { // N.B. should /not/ be exposed
-  auto bc = compile_toplevel_expression(vm, expr);
+Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]);
+bool boundp(VM*, Ptr);
 
-  vm_push_stack_frame(vm, 0, bc);
+Ptr compile_toplevel_expression_with_hooks(VM *vm, Ptr expr) {
+  if (boundp(vm, KNOWN(compiler))) {
+    Ptr new_expr = vm_call_global(vm, KNOWN(compiler), 1, (Ptr[]){expr});
+    return make_closure(vm, objToPtr(compile_toplevel_expression(vm, new_expr)), Nil);
+  } else {
+    return make_closure(vm, objToPtr(compile_toplevel_expression(vm, expr)), Nil);
+  }
+}
+
+Ptr eval(VM *vm, Ptr expr) { // N.B. should /not/ be exposed
+  auto closure = compile_toplevel_expression_with_hooks(vm, expr);
+
+  auto bc = closure_code(closure);
+  auto env = closure_env(closure);
+
+  vm_push_stack_frame(vm, 0, bc, env);
 
   vm_interp(vm);
   Ptr result = vm_pop(vm);
@@ -3845,6 +3861,11 @@ ByteCodeObject *build_call(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
   return result;
 }
 
+bool boundp(VM *vm, Ptr sym) {
+  auto pair = assoc(sym, vm->globals->env);
+  return consp(pair);
+}
+
 // use with care. assumes bc is laid out properly for patching.
 void patch_bytecode_for_call(VM *vm, ByteCodeObject *bc, Ptr symbol, u64 argc, Ptr argv[]) {
     auto lits = objToPtr(bc->literals);
@@ -3859,7 +3880,7 @@ void patch_bytecode_for_call(VM *vm, ByteCodeObject *bc, Ptr symbol, u64 argc, P
 
 /* should only be used as an 'entry' into the VM */
 /* IOW, we don't want two of these on the stack, they will interfere */
-void vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
+Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
   prot_ptr(symbol); protect_ptr_vector(argv, argc);
 
   ByteCodeObject *bc;
@@ -3881,9 +3902,11 @@ void vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
 
   vm_push_stack_frame(vm, 0, bc);
   vm_interp(vm);
+  auto result = vm_pop(vm);
   vm_pop_stack_frame(vm);
 
   unprot_ptr(symbol); unprotect_ptr_vector(argv);
+  return result;
 }
 
 

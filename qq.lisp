@@ -96,8 +96,8 @@
 (print ((compile-to-closure '(+i 2 2))))
 
 (set 'eval (lambda (x) ((compile-to-closure x))))
-
 (set 'qq-process #f)
+
 (set 'qq-process-let-binding
      (lambda (bind) (list (car bind) (qq-process (car (cdr bind))))))
 
@@ -143,3 +143,10 @@
 
 (let ((fn (eval (qq-process '(lambda (x) `(1 2 ,@'(3 4) 5 6 ,x))))))
   (print (fn 7)))
+
+(set 'compiler qq-process)
+
+(set 'myfun (lambda (a b c)
+              `(On a rainy ,a I saw ,b (and we ,@c))))
+
+(print (myfun 'day 'Julia '(had a coffee)))

@@ -29,7 +29,7 @@
      (if #f 'ft 'ff)))
 
 (print '(#\h #\e #\l #\l #\o))
-(print '(#\whoops))
+(print '(#\Space))
 (print #\) )
 
 (print '(if #t #f #t))

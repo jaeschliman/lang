@@ -65,8 +65,8 @@
 * DONE basic 'event reactor' runloop -- start with keycodes
 * TODO optimize global calls for more arities
 * DONE point functions
-* TODO real 'built-in-classes' i.e. Cons Fixnum etc
-* TODO basic message definition, send facility
+* DONE real 'built-in-classes' i.e. Cons Fixnum etc
+* DONE basic message definition, send facility
 * DONE image objects
 * DONE rotation + scale BitBlt like thing
 * TODO maybe store image data off-heap?
@@ -80,7 +80,7 @@
 * DONE basic text rendering
   (very, very basic)
 * TODO type-of
-* TODO class-of
+* DONE class-of
 * DONE better float printing (may be missing trailing .0)
 * DONE float exponent support?
 * TODO more correct float reading support

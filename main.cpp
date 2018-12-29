@@ -1026,6 +1026,18 @@ typedef void(*DebugPrintFunction)(std::ostream &os, Ptr p);
 
 DebugPrintFunction StructPrintTable[StructTag_End] = {0};
 
+unordered_map<string, char> character_codes_by_name;
+unordered_map<char, string> character_names_by_code;
+
+void initialize_character_names() {
+#define X(code, name) character_codes_by_name[name] = code;
+#include "./character-names.include"
+#undef X
+#define X(code, name) character_names_by_code[code] = name;
+#include "./character-names.include"
+#undef X
+}
+
 std::ostream &operator<<(std::ostream &os, Object *obj) {
   auto otype = obj->header.object_type;
   switch (otype) {
@@ -1110,7 +1122,7 @@ std::ostream &operator<<(std::ostream &os, Ptr p) {
   } else if (is(Bool, p)) {
     return os << (as(Bool, p) ? "#t" : "#f");
   } else if (is(Char, p)) {
-    return os << "#\\" << as(Char, p);
+    return os << "#\\" << character_names_by_code[as(Char, p)];
   } else if (is(Point, p)) {
     auto pt = as(Point, p);
     return os << pt.x << "@" << pt.y;
@@ -1934,7 +1946,10 @@ auto is_wschar(char ch) {
   u8 idx = ch;
   return !(character_table[idx]);
 }
-
+auto is_alphachar(char ch) {
+  u8 idx = ch;
+  return character_table[idx] & character_alpha;
+}
 auto is_nlchar(char ch) {
   return ch == 10 || ch == 13;
 }
@@ -1985,7 +2000,6 @@ auto read_delimited_list(VM *vm, const char **remaining, const char *end, Ptr do
 }
 
 Ptr read_character(VM *vm, const char **remaining, const char *end, Ptr done) {
-  // TODO: would be nice to read named characters
   auto input = *remaining;
   if (input >= end) { goto error; }
   input++;
@@ -1997,8 +2011,24 @@ Ptr read_character(VM *vm, const char **remaining, const char *end, Ptr done) {
     return done;
   }
  ok: {
-    auto res = to(Char, *input);
+    auto start = input;
+    if (*input <= 32 || *input > 126) { // TODO: handle backslash
+      vm->error = "unrecognized character";
+      *remaining = input;
+      return done;
+    }
     input++;
+    if (input >= end) goto error;
+    while (input < end && is_alphachar(*input)) {
+      input++;
+    }
+    Ptr res = done;
+    auto lookup = string(start, input-start);
+    if (character_codes_by_name.find(lookup) == character_codes_by_name.end()) {
+      vm->error = "unrecognized character";
+    } else {
+      res = to(Char, character_codes_by_name[lookup]);
+    }
     *remaining = input;
     return res;
   }
@@ -3906,6 +3936,7 @@ const char *require_argv_file(int argc, const char** argv) {
 int main(int argc, const char** argv) {
 
   initialize_struct_printers();
+  initialize_character_names();
 
   const char *invoked = argv[0];
   const char *curr = argv[0];

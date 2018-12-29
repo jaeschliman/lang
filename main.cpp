@@ -3587,11 +3587,7 @@ Ptr gfx_blit(ByteArrayObject *source_image, ByteArrayObject *dest_image,
   if (!is(Image, objToPtr(dest_image)))   die("gfx_blit_image: not an image");
   auto src = image_blit_surface(source_image);
   auto dst = image_blit_surface(dest_image);
-  auto from = (rect){ src_upper_left.x,
-                      src_upper_left.y,
-                      src_lower_right.x - src_upper_left.x,
-                      src_lower_right.y - src_upper_left.y };
-
+  auto from = points_to_rect(src_upper_left, src_lower_right);
   return gfx_blit_image(&src, &dst, &from, dst_location, scale, degrees_rotation);
 }
 
@@ -3605,12 +3601,7 @@ Ptr gfx_blit_from_screen(VM *vm, ByteArrayObject *dest_image,
                          f32 degrees_rotation) {
   if (!is(Image, objToPtr(dest_image)))   die("gfx_blit_image: not an image");
   auto dst = image_blit_surface(dest_image);
-  auto from = (rect){
-    src_upper_left.x, src_lower_right.y,
-    src_lower_right.x - src_upper_left.x,
-    src_lower_right.y - src_upper_left.y,
-  };
-
+  auto from = points_to_rect(src_upper_left, src_lower_right);
   return gfx_blit_image(vm->surface, &dst, &from, dst_location, scale, degrees_rotation);
 }
 

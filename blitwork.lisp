@@ -19,7 +19,7 @@
 (set 'scale-factor (i->f (/i 128 32)))
 
 (set 'magnify (lambda (at-point)
-                (let ((p (point- at-point 16@32)))
+                (let ((p (point- at-point 16@16)))
                   (blit-from-screen
                    magnifier
                    0@0 p (point+ p 32@32)

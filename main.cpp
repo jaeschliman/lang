@@ -304,7 +304,7 @@ void * vm_alloc(VM *vm, u64 bytes) {
 
   u64 used_byte_count = vm_heap_used(vm);
 
-  u64 threshold = 1 * 1024 * 1024 * 0.5;
+  u64 threshold = vm->gc_threshold_in_bytes;
 
   u64 last_byte_count = vm->gc_compacted_size_in_bytes;
   u64 limit = min(threshold + last_byte_count, vm->heap_size_in_bytes);
@@ -3725,7 +3725,7 @@ VM *vm_create() {
   vm->heap_size_in_bytes = heap_size_in_bytes;
   vm->allocation_count = 0;
   vm->gc_count = 0;
-  vm->gc_threshold_in_bytes = 1 * 1024 * 1024;
+  vm->gc_threshold_in_bytes = 0.5 * 1024 * 1024;
 
   vm->gc_protected = new unordered_map<Object **, u64>;
   vm->gc_protected_ptrs = new unordered_map<Ptr *, u64>;

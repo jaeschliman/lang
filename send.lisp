@@ -3,8 +3,13 @@
 
 (set 'Fixnum (class-of 1))
 (set 'Float (class-of 1.0))
+(set 'Cons (class-of (list 1)))
+(print Cons)
 (class-set-method Fixnum '+ +i)
 (@send '+ 40 2)
 (print (list (@send '+ (@send '+ 39 2) 1)))
 (class-set-method Float 'floor: (lambda (self divisor) (/i (f->i self) divisor)))
 (print (@send 'floor: 33.3 3))
+(class-set-method Cons 'car car)
+(class-set-method Cons 'cdr cdr)
+(print (@send 'car (@send 'cdr (list 1 'hello 2))))

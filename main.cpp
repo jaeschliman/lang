@@ -96,9 +96,15 @@ enum ObjectType : u8 {
   BrokenHeart
 };
 
+
+// -- lookup table for 127 builtins, (saves at least a u64 per.)
+//    everything else uses second u64 = class. need a standard layout,
+//    for non-compact? { header, class, u64 length, u8* mem } where mem is reinterpreted
+//    maybe...
+//    for now just stuff builtins as all compact... can revisit
 struct Header {
   ObjectType object_type;       // 8
-  u8         custom_class;      // 8
+  u8         custom_class;      // 8 
   u16        flags;             // 16 -- currently unused
   u32        hashcode;          // 32
 };
@@ -106,6 +112,31 @@ struct Header {
 struct Object {
   Header header;
 };
+
+enum BuiltinClassIndex : u8 {
+#define declare_class(name) BuiltinClassIndex_##name
+#define X(...)  MAP_WITH_COMMAS(declare_class, __VA_ARGS__)
+#include "./builtin-classes.include0"
+  ,
+#include "./builtin-classes.include1"
+  ,
+  BuiltinClassIndexEnd
+#undef X
+#undef declare_class
+};
+
+void object_set_custom_class(Object *obj, BuiltinClassIndex idx) {
+  assert(idx >= 0);
+  u8 uidx = idx;
+  obj->header.custom_class = (1 << 7) | uidx;
+}
+bool object_has_custom_class(Object *obj) {
+  return obj->header.custom_class >> 7;
+}
+
+#define set_obj_tag(obj,name) object_set_custom_class(obj, BuiltinClassIndex_##name)
+
+
 
 // TODO: rename this function
 inline Ptr objToPtr(Object *ref) {
@@ -495,6 +526,7 @@ U64ArrayObject *alloc_u64ao(VM *vm, uint len) {
   auto byte_count = sizeof(U64ArrayObject) + (len * sizeof(u64));
   U64ArrayObject* obj = (U64ArrayObject *)vm_alloc(vm, byte_count);
   obj->header.object_type = U64Array_ObjectType;
+  set_obj_tag(obj, U64Array);
   obj->length = len;
   return obj;
 }
@@ -503,6 +535,7 @@ ByteCodeObject *alloc_bytecode(VM *vm) {
   auto byte_count = sizeof(ByteCodeObject);
   ByteCodeObject *obj = (ByteCodeObject *)vm_alloc(vm, byte_count);
   obj->header.object_type = ByteCode_ObjectType;
+  set_obj_tag(obj, ByteCode);
   return obj;
 }
 
@@ -564,6 +597,7 @@ u8* image_data(ByteArrayObject *it) {
 ByteArrayObject *alloc_image(VM *vm, u32 w, u32 h) {
   auto byte_count = (w * h * 4) + 8;
   auto result = alloc_bao(vm, Image, byte_count);
+  set_obj_tag(result, Image);
   auto u32s = (u32*)result->data;
   u32s[0] = w; u32s[1] = h;
   return result;
@@ -658,6 +692,7 @@ Ptr make_bytecode(VM *vm, u64 code_len) {
 
 Ptr make_string(VM *vm, const char* str) {
   ByteArrayObject *obj = alloc_bao(vm, String, strlen(str));
+  set_obj_tag(obj, String);
   const char *from = str;
   char *to = &(obj->data[0]);
   while(*from != 0) {
@@ -670,6 +705,7 @@ Ptr make_string(VM *vm, const char* str) {
 Ptr make_string_with_end(VM *vm, const char* str, const char* end) {
   // die(" make string with end: ", end - str);
   ByteArrayObject *obj = alloc_bao(vm, String, end - str);
+  set_obj_tag(obj, String);
   const char *from = str;
   char *to = &(obj->data[0]);
   while(from < end) {
@@ -693,6 +729,7 @@ s64 string_length(ByteArrayObject *str) {
 
 Ptr make_symbol(VM *vm, const char* str, u64 len) {
   ByteArrayObject *obj = alloc_bao(vm, Symbol, len);
+  set_obj_tag(obj, Symbol);
   const char *from = str;
   char *to = &(obj->data[0]);
   while(len--) {
@@ -710,6 +747,7 @@ Ptr make_number(s64 value) { return to(Fixnum, value); }
 
 Ptr make_zf_array(VM *vm, u64 len) {
   auto array = alloc_pao(vm, Array, len); // alloc is zf
+  set_obj_tag(array, Array);
   return objToPtr(array);
 }
 
@@ -864,7 +902,8 @@ u32 hash_code(Ptr it) {
 #define _define_structure_maker(name, tag, ...)                         \
   Ptr alloc_##name(VM *vm) {                                            \
     auto len = PP_NARG(__VA_ARGS__);                                    \
-    auto res = make_zf_struct(vm, len, to(Fixnum, tag));                \
+    auto res = make_zf_struct(vm, len, to(Fixnum, StructTag_##tag));    \
+    set_obj_tag(as(Object, res), tag);                                  \
     return res;                                                         \
   }                                                                     \
   Ptr make_##name(VM *vm, _def_struct_args(__VA_ARGS__)) {              \
@@ -875,10 +914,10 @@ u32 hash_code(Ptr it) {
     return result;                                                      \
   }
 
-#define _define_structure_type_test(name, tag)          \
-  type_test(name, it) {                                 \
-    return is(Struct, it) &&                            \
-      ptr_eq(to(Fixnum, tag), array_get(it, 0));        \
+#define _define_structure_type_test(name, tag)                  \
+  type_test(name, it) {                                         \
+    return is(Struct, it) &&                                    \
+      ptr_eq(to(Fixnum, StructTag_##tag), array_get(it, 0));    \
   }
 
 #define _define_structure_accessors(slot, name, idx)    \
@@ -911,8 +950,8 @@ StructTag struct_get_tag(Ptr it) {
 
 /* ---------------------------------------- */
 
-defstruct(cons, StructTag_Cons, car, cdr);
-defstruct(ht, StructTag_HashTable, array);
+defstruct(cons, Cons, car, cdr);
+defstruct(ht, HashTable, array);
 
 /* ---------------------------------------- */
 
@@ -921,6 +960,7 @@ Ptr make_closure(VM *vm, Ptr code, Ptr env) {
   assert(isNil(env) || is(PtrArray, env));
   prot_ptrs(code, env);
   auto it = alloc_pao(vm, Closure, 2);
+  set_obj_tag(it, Closure);
   auto c = objToPtr(it);
   unprot_ptrs(code, env);
   array_set(c, 0, code);
@@ -1233,6 +1273,7 @@ StandardObject *make_standard_object(VM *vm, StandardObject *klass, Ptr*ivars) {
 
 /* ---------------------------------------- */
 
+
 struct Globals {
   struct {
 
@@ -1240,13 +1281,11 @@ struct Globals {
 #define X(...) MAP_WITH_COMMAS(make_class, __VA_ARGS__)
     StandardObject
 #include "./primitive-classes.include"
-    ; StandardObject
-#include "./builtin-classes.include0"
-    ; StandardObject
-#include "./builtin-classes.include1"
     ;
 #undef X
 #undef make_class
+
+    StandardObject *builtins[127];
 
   } classes;
   unordered_map<string, Ptr> *symtab;
@@ -1272,38 +1311,14 @@ Ptr class_of(VM *vm, Ptr it) {
     builtin_case(Point, Point);
     builtin_case(Float, Float);
   case Object_Tag: {
-    if (is(Object, it)) {
-      auto tag = as(Object, it)->header.object_type;
-      switch(tag) {
-      case ByteCode_ObjectType: return builtin(ByteCode);
-      case ByteArray_ObjectType: {
-        switch (as(ByteArray, it)->bao_type) {
-        case Symbol: return builtin(Symbol);
-        case String: return builtin(String);
-        case Image: return builtin(Image);
-        }
-      }
-      case U64Array_ObjectType: return builtin(U64Array);
-      case PtrArray_ObjectType: {
-        switch(as(PtrArray, it)->pao_type) {
-        case Array: return builtin(Array);
-        case Closure: return builtin(Closure);
-        case Struct: {
-          #define struct_case(name) case StructTag_##name: return builtin(name)
-          switch(struct_get_tag(it)) {
-            struct_case(Cons);
-            struct_case(VarInfo);
-            struct_case(CompilerEnv);
-            struct_case(HashTable);
-          case StructTag_End: die("invalid struct tag.");
-          }
-          #undef struct_case
-        }
-        }
-      }
-      case Standard_ObjectType: return objToPtr(as(Standard, it)->klass);
-      case StackFrame_ObjectType: return builtin(StackFrame);
-      case BrokenHeart: die("tried to take class of a broken heart.");
+    if (is(Object, it)) { // could be Nil
+      auto obj = as(Object, it);
+      if (obj->header.custom_class) {
+        u8 idx     = obj->header.custom_class & 0b01111111;
+        auto klass = vm->globals->classes.builtins[idx];
+        return objToPtr(klass);
+      } else {
+        return objToPtr(as(Standard, it)->klass);
       }
     } else {
       return builtin(Null);
@@ -1336,10 +1351,12 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
 #define handle_class(name) recurse(objToPtr(vm->globals->classes._##name));
 #define X(...) MAP(handle_class, __VA_ARGS__)
 #include "./primitive-classes.include"
-#include "./builtin-classes.include0"
-#include "./builtin-classes.include1"
 #undef X
 #undef handle_class
+
+  for (auto i = 0; i < BuiltinClassIndexEnd; i++) {
+    recurse(objToPtr(vm->globals->classes.builtins[i]));
+  }
 
 }
 
@@ -1515,9 +1532,11 @@ void gc_update_globals(VM *vm) {
 
 #define X(...) MAP(handle_class, __VA_ARGS__)
 #include "./primitive-classes.include"
-#include "./builtin-classes.include0"
-#include "./builtin-classes.include1"
 #undef X
+
+  for (auto i = 0; i < BuiltinClassIndexEnd; i++) {
+    gc_update_base_class(vm, vm->globals->classes.builtins + i);
+  }
 
   update_symbols(lambda, quote, let, if, fixnum, cons, string,
                  array, character, boolean, quasiquote, unquote, unquote_splicing);
@@ -1880,7 +1899,8 @@ void initialize_known_symbols(VM *vm) {
 // @unsafe
 auto make_base_class(VM *vm, const char* name) {
   Ptr slots[] = {make_string(vm,name), make_number(0), ht(vm)};
-  return make_standard_object(vm, vm->globals->classes._Base, slots);
+  auto base = vm->globals->classes.builtins[BuiltinClassIndex_Base];
+  return make_standard_object(vm, base, slots);
 }
 
 // @unsafe
@@ -1891,15 +1911,20 @@ void initialize_classes(VM *vm)
   standard_object_set_ivar(Base, BaseClassName, make_string(vm, "Base"));
   standard_object_set_ivar(Base, BaseClassIvarCount, make_number(BaseClassEnd));
   standard_object_set_ivar(Base, BaseClassMethodDict, ht(vm));
-  vm->globals->classes._Base = Base;
+  vm->globals->classes.builtins[BuiltinClassIndex_Base] = Base;
 
-#define builtin(name) vm->globals->classes._##name
 #define make_class(name) if (!builtin(name)) builtin(name) = make_base_class(vm, #name);
+#define builtin(name) vm->globals->classes.builtins[BuiltinClassIndex_##name]
 #define X(...) MAP(make_class, __VA_ARGS__)
-#include "./primitive-classes.include"
 #include "./builtin-classes.include0"
 #include "./builtin-classes.include1"
 #undef X
+#undef builtin
+#define builtin(name) vm->globals->classes._##name
+#define X(...) MAP(make_class, __VA_ARGS__)
+#include "./primitive-classes.include"
+#undef X
+#undef builtin
 #undef make_class
 #undef builtin
 
@@ -2317,6 +2342,7 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
 
   StackFrameObject *new_frame = (StackFrameObject *)top;
   new_frame->header.object_type = StackFrame_ObjectType;
+  set_obj_tag(new_frame, StackFrame);
   new_frame->pad_count = padding;
 
   // cout << "pushing stack frame from: " << vm->stack << endl;
@@ -2895,7 +2921,7 @@ void imap_set(VM *vm, Ptr map, Ptr key, Ptr value) {
 #define CompilerEnvType_Lambda  (Ptr){1 << TAG_BITS}
 #define CompilerEnvType_Let     (Ptr){2 << TAG_BITS}
 
-defstruct(varinfo, StructTag_VarInfo,
+defstruct(varinfo, VarInfo,
           scope,          // VariableScope
           argument_index, // Fixnum
           closure_index); // Fixnum
@@ -2905,7 +2931,7 @@ struct VariableBinding {
   Ptr variable_info;
 };
 
-defstruct(cenv, StructTag_CompilerEnv,
+defstruct(cenv, CompilerEnv,
           prev,        // cenv
           info,        // imap[symbol -> varinfo]
           closed_over, // xarray[symbol]

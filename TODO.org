@@ -93,6 +93,7 @@
 SDL_UpdateWindowSurfaceRects
 https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
 * TODO warp blit
+* TODO simple slideshow program
 
 * notes
 maybe have a stack of compilers? can push/pop...

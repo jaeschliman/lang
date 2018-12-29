@@ -172,6 +172,7 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim list  LIST       list                    any    "list")
   (prim cons  CONS       ((a any) (b any))       any    "cons(vm, a, b)")
+  (prim pair? PAIR_Q     ((a any))               Bool   "is(cons, a)")
   (prim car   CAR        ((a any))               any    "car(a)")
   (prim cdr   CDR        ((a any))               any    "cdr(a)")
   (prim eq    EQ         ((a any) (b any))       Bool   "ptr_eq(a, b)")

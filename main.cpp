@@ -2402,8 +2402,17 @@ inline void vm_push(VM* vm, Ptr value) {
   *(--vm->stack) = value;
 }
 
+inline void vm_stack_reserve_n(VM* vm, u64 n){
+  vm->stack -= n;
+  memset(vm->stack, 0, n);
+}
+
 inline Ptr vm_pop(VM* vm) {
   return *(vm->stack++);
+}
+
+inline void vm_stack_pop_n(VM *vm, u64 n) {
+  vm->stack += n;
 }
 
 inline Ptr vm_stack_ref(VM *vm, u32 distance) {
@@ -2413,11 +2422,11 @@ inline Ptr vm_stack_ref(VM *vm, u32 distance) {
 // N.B. must not double-prot the ptrs on the stack to avoid double-copy
 Ptr vm_get_stack_values_as_list(VM *vm, u32 count) { //@varargs
   Ptr result = Nil; prot_ptr(result);
-  Ptr *ptrs = vm->stack;
+  Ptr *ptrs = vm->stack; // unprotected to avoid double-copy
   for (u64 i = 0; i < count; i++) {
-    result = cons(vm, ptrs[i], result); // unprotected to avoid double-copy
+    result = cons(vm, ptrs[i], result);
   }
-  while(count--) vm_pop(vm); //@speed
+  vm_stack_pop_n(vm, count);
   unprot_ptr(result);
   return result;
 }
@@ -2431,14 +2440,6 @@ auto vm_load_closure_value(VM *vm, u64 slot, u64 depth) {
   }
   assert(!isNil(curr));
   return array_get(curr, slot+1);
-}
-
-inline u64 vm_curr_instr(VM *vm) {
-  return vm->bc->code->data[vm->pc];
-}
-
-inline u64 vm_adv_instr(VM *vm) {
-  return vm->bc->code->data[++vm->pc];
 }
 
 inline u8 instr_code(u64 bc) {
@@ -2474,17 +2475,18 @@ Ptr class_set_method(VM *vm, StandardObject *klass, ByteArrayObject* sym, Ptr ca
   return Nil;
 }
 
+#define vm_curr_instr(vm) currfn[vm->pc]
+#define vm_adv_instr(vm) currfn[++vm->pc]
 void vm_interp(VM* vm) {
-  u64 instr;
+  u64 instr; u8 code; u32 data; auto currfn = vm->bc->code->data;
   while ((instr = vm_curr_instr(vm))) {
-    u8 code; u32 data;
     vm->instruction_count++;
     code = instr_code(instr);
     data = instr_data(instr);
     switch (code){
     case STACK_RESERVE: {
       u64 count = vm_adv_instr(vm);
-      while (count--) { vm_push(vm, Nil); }
+      vm_stack_reserve_n(vm, count);
       break;
     }
     case LOAD_FRAME_RELATIVE: {
@@ -2511,8 +2513,7 @@ void vm_interp(VM* vm) {
     }
     case LOAD_GLOBAL: {
       // assumes it comes after a pushlit of a cell in the env alist.
-      auto it = vm_pop(vm);
-      vm_push(vm, cdr(it));
+      *vm->stack = cdr(*vm->stack);
       break;
     }
     case LOAD_CLOSURE: {
@@ -2533,7 +2534,7 @@ void vm_interp(VM* vm) {
       u64 count = vm_adv_instr(vm);
       auto array = objToPtr(alloc_pao(vm, Array, count + 1));
       array_set(array, 0, vm->frame->closed_over);
-      while (count--) {
+      while (count--) { //@speed
         auto it = vm_pop(vm);
         // cout << " setting closure val " << it << endl;
         array_set(array, count + 1, it);
@@ -2638,12 +2639,14 @@ void vm_interp(VM* vm) {
         auto env = closure_env(fn);
         vm_push_stack_frame(vm, argc, bc, env);
       }
+      currfn = vm->bc->code->data;
       vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
       break;
     }
     case RET: {
       auto it = vm_pop(vm);
       vm_pop_stack_frame(vm);
+      currfn = vm->bc->code->data;
       vm_push(vm, it);
       // cout << "returning: " << it << endl;
       break;
@@ -2670,6 +2673,8 @@ void vm_interp(VM* vm) {
     ++vm->pc;
   }
 }
+#undef vm_curr_instr
+#undef vm_adv_instr
 
 typedef tuple<u64*, string> branch_entry;
 

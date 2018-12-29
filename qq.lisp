@@ -63,4 +63,30 @@
 (print (qq-xform '(a b c (d (unquote e) f) (unquote-splicing g))))
 (print (qq-xform '(a b c (d (unquote e) f) ((unquote-splicing g) h))))
 
-;; now need to implement varargs lambda so we can implement append...
+(set 'append2 #f)
+(set 'append2 (lambda (a b)
+                (if (nil? a) b
+                    (cons (car a) (append2 (cdr a) b)))))
+
+(print (append2 '(a b c) '(1 2 3)))
+
+(set 'append3 #f)
+(set 'append3 (lambda (a b cs)
+                (if (nil? a)
+                    (if (nil? cs) b
+                        (append3 b (car cs) (cdr cs)))
+                    (cons (car a) (append3 (cdr a) b cs)))))
+
+(print (append3 '(a b c) '(1 2 3) '((d e f) (4 5 6) (done))))
+(print (append3 '(a b c) '(1 2 3) (list)))
+(print (append3 '(a b c) (list) (list)))
+
+(set 'myfun (lambda args (cons 'myfun! args)))
+(print (list 'saw: (myfun 1 2 3)))
+
+(set 'append (lambda args (append3 (car args) (car (cdr args)) (cdr (cdr args)))))
+(print (append '(a b)))
+(print (append '(a b) '(c d)))
+(print (append '(a b) '(c d) '(e f)))
+(print (append '(a b) '(c d) '(e f) '(g h)))
+(print (append '(a b) '(c d) '(e f) '(g h) '(i j)))

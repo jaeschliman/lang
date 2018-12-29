@@ -7,8 +7,8 @@
 * DONE lambdas + closures compiler
 * DONE def or define or something
 * DONE varargs
-* TODO vararg lambda
-* TODO quasiquotation
+* DONE vararg lambda
+* DONE quasiquotation
 * DONE booleans
 * DONE characters
 * DONE obj_size function // heap size of object (can be 0 for imms)
@@ -46,7 +46,7 @@
 * TODO move stack memory into vm-managed heap
 * TODO continuations / exceptions / signals
 * TODO dump/restore image
-* TODO write macroexpander in the language itself
+* DONE write macroexpander in the language itself
 * TODO write reader in the language itself
 * DONE basic sdl integration
 * DONE single floats
@@ -75,7 +75,7 @@
 * TODO compact more of the bc
 * DONE generalize blit to work b/t images as well
 * DONE blit with mask, src rect, scale, rotation (for both mask and src)
-* TODO message send facility
+* DONE message send facility
 * TODO something resembling OMeta / Meta II
 * DONE basic text rendering
   (very, very basic)
@@ -95,6 +95,7 @@ https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
 * TODO warp blit
 * TODO simple slideshow program
 * TODO ? basic per-file modules ?
+* TODO add counters to gensym
 
 * notes
 maybe have a stack of compilers? can push/pop...

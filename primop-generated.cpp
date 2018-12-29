@@ -33,29 +33,33 @@ enum PrimitiveOperation : u64 {
   PRIM_MKARY = ((30ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_AGET = ((31ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_ASET = ((32ULL << 32) | (3ULL << 16) | PrimOp_Tag),
-  PRIM_SET_SYM_VAL = ((33ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_PRINT_STACK = ((34ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_DBG_STACK = ((35ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_SETPXL = ((36ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PTPLUS = ((37ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_PTMINUS = ((38ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_MKPOINT = ((39ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_PTX = ((40ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PTY = ((41ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PTROT = ((42ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_SFILLRCT = ((43ULL << 32) | (3ULL << 16) | PrimOp_Tag),
-  PRIM_DRAWIMAGE = ((44ULL << 32) | (4ULL << 16) | PrimOp_Tag),
-  PRIM_FILLRCT = ((45ULL << 32) | (4ULL << 16) | PrimOp_Tag),
-  PRIM_CLRRCT = ((46ULL << 32) | (3ULL << 16) | PrimOp_Tag),
-  PRIM_BLT = ((47ULL << 32) | (7ULL << 16) | PrimOp_Tag),
-  PRIM_BLT_M = ((48ULL << 32) | (12ULL << 16) | PrimOp_Tag),
-  PRIM_BLT_FR_SCRN = ((49ULL << 32) | (6ULL << 16) | PrimOp_Tag),
-  PRIM_LOADIMAGE = ((50ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_MKIMAGE = ((51ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_IMG_W = ((52ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_IMG_H = ((53ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_CCA = ((54ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_STRLEN = ((55ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_MK_HT = ((33ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_HT_AT = ((34ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_HT_AT_PUT = ((35ULL << 32) | (3ULL << 16) | PrimOp_Tag),
+  PRIM_SET_SYM_VAL = ((36ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_GSYM = ((37ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_PRINT_STACK = ((38ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_DBG_STACK = ((39ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_SETPXL = ((40ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PTPLUS = ((41ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_PTMINUS = ((42ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_MKPOINT = ((43ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_PTX = ((44ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PTY = ((45ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PTROT = ((46ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_SFILLRCT = ((47ULL << 32) | (3ULL << 16) | PrimOp_Tag),
+  PRIM_DRAWIMAGE = ((48ULL << 32) | (4ULL << 16) | PrimOp_Tag),
+  PRIM_FILLRCT = ((49ULL << 32) | (4ULL << 16) | PrimOp_Tag),
+  PRIM_CLRRCT = ((50ULL << 32) | (3ULL << 16) | PrimOp_Tag),
+  PRIM_BLT = ((51ULL << 32) | (7ULL << 16) | PrimOp_Tag),
+  PRIM_BLT_M = ((52ULL << 32) | (12ULL << 16) | PrimOp_Tag),
+  PRIM_BLT_FR_SCRN = ((53ULL << 32) | (6ULL << 16) | PrimOp_Tag),
+  PRIM_LOADIMAGE = ((54ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_MKIMAGE = ((55ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_IMG_W = ((56ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_IMG_H = ((57ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_CCA = ((58ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_STRLEN = ((59ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -336,6 +340,32 @@ Ptr PRIM_ASET_impl(VM *vm, u32 argc) {
 }
 
 // Primitive 32
+Ptr PRIM_MK_HT_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+
+ return ht(vm);
+}
+
+// Primitive 33
+Ptr PRIM_HT_AT_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("ht-at",any,key);
+   VM_ARG("ht-at",any,ht);
+
+ return ht_at(ht, key);
+}
+
+// Primitive 34
+Ptr PRIM_HT_AT_PUT_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("ht-at-put",any,val);
+   VM_ARG("ht-at-put",any,key);
+   VM_ARG("ht-at-put",any,ht);
+
+ return ht_at_put(vm, ht, key, val);
+}
+
+// Primitive 35
 Ptr PRIM_SET_SYM_VAL_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("set-symbol-value",any,b);
@@ -344,21 +374,28 @@ Ptr PRIM_SET_SYM_VAL_impl(VM *vm, u32 argc) {
  return set_global(vm, objToPtr(a), b);
 }
 
-// Primitive 33
+// Primitive 36
+Ptr PRIM_GSYM_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+
+ return make_symbol(vm, "_gensym_");
+}
+
+// Primitive 37
 Ptr PRIM_PRINT_STACK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
  return vm_print_stack_trace(vm);
 }
 
-// Primitive 34
+// Primitive 38
 Ptr PRIM_DBG_STACK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
  return vm_print_debug_stack_trace(vm);
 }
 
-// Primitive 35
+// Primitive 39
 Ptr PRIM_SETPXL_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("set-pixel",Point,p);
@@ -366,7 +403,7 @@ Ptr PRIM_SETPXL_impl(VM *vm, u32 argc) {
  return gfx_set_pixel(vm, p);
 }
 
-// Primitive 36
+// Primitive 40
 Ptr PRIM_PTPLUS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("point+",Point,b);
@@ -375,7 +412,7 @@ Ptr PRIM_PTPLUS_impl(VM *vm, u32 argc) {
   return to(Point,(a + b));
 }
 
-// Primitive 37
+// Primitive 41
 Ptr PRIM_PTMINUS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("point-",Point,b);
@@ -384,7 +421,7 @@ Ptr PRIM_PTMINUS_impl(VM *vm, u32 argc) {
   return to(Point,(a - b));
 }
 
-// Primitive 38
+// Primitive 42
 Ptr PRIM_MKPOINT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("make-point",Fixnum,b);
@@ -393,7 +430,7 @@ Ptr PRIM_MKPOINT_impl(VM *vm, u32 argc) {
   return to(Point,((point){(s32)a, (s32)b}));
 }
 
-// Primitive 39
+// Primitive 43
 Ptr PRIM_PTX_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("point-x",Point,p);
@@ -401,7 +438,7 @@ Ptr PRIM_PTX_impl(VM *vm, u32 argc) {
   return to(Fixnum,((s64)p.x));
 }
 
-// Primitive 40
+// Primitive 44
 Ptr PRIM_PTY_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("point-y",Point,p);
@@ -409,7 +446,7 @@ Ptr PRIM_PTY_impl(VM *vm, u32 argc) {
   return to(Fixnum,((s64)p.y));
 }
 
-// Primitive 41
+// Primitive 45
 Ptr PRIM_PTROT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("point-rotate",Float,degrees);
@@ -418,7 +455,7 @@ Ptr PRIM_PTROT_impl(VM *vm, u32 argc) {
   return to(Point,(rotate_point(p, degrees)));
 }
 
-// Primitive 42
+// Primitive 46
 Ptr PRIM_SFILLRCT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("screen-fill-rect",Fixnum,color);
@@ -428,7 +465,7 @@ Ptr PRIM_SFILLRCT_impl(VM *vm, u32 argc) {
  return gfx_screen_fill_rect(vm, a, b, color);
 }
 
-// Primitive 43
+// Primitive 47
 Ptr PRIM_DRAWIMAGE_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("blit-to-screen",Fixnum,rot);
@@ -439,7 +476,7 @@ Ptr PRIM_DRAWIMAGE_impl(VM *vm, u32 argc) {
  return gfx_blit_image_at(vm, img, p, scale, rot);
 }
 
-// Primitive 44
+// Primitive 48
 Ptr PRIM_FILLRCT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("fill-rect",Fixnum,color);
@@ -450,7 +487,7 @@ Ptr PRIM_FILLRCT_impl(VM *vm, u32 argc) {
  return gfx_fill_rect(dst, a, b, color);
 }
 
-// Primitive 45
+// Primitive 49
 Ptr PRIM_CLRRCT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("clear-rect",Point,b);
@@ -460,7 +497,7 @@ Ptr PRIM_CLRRCT_impl(VM *vm, u32 argc) {
  return gfx_clear_rect(dst, a, b);
 }
 
-// Primitive 46
+// Primitive 50
 Ptr PRIM_BLT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("blit",Float,degrees_rotation);
@@ -474,7 +511,7 @@ Ptr PRIM_BLT_impl(VM *vm, u32 argc) {
  return gfx_blit(src, dst, at, ul, lr, scale, degrees_rotation);
 }
 
-// Primitive 47
+// Primitive 51
 Ptr PRIM_BLT_M_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("blit-with-mask",Float,msk_rot);
@@ -496,7 +533,7 @@ Ptr PRIM_BLT_M_impl(VM *vm, u32 argc) {
 );
 }
 
-// Primitive 48
+// Primitive 52
 Ptr PRIM_BLT_FR_SCRN_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("blit-from-screen",Float,degrees_rotation);
@@ -509,7 +546,7 @@ Ptr PRIM_BLT_FR_SCRN_impl(VM *vm, u32 argc) {
  return gfx_blit_from_screen(vm, dst, at, ul, lr, scale, degrees_rotation);
 }
 
-// Primitive 49
+// Primitive 53
 Ptr PRIM_LOADIMAGE_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("load-image",String,path);
@@ -517,7 +554,7 @@ Ptr PRIM_LOADIMAGE_impl(VM *vm, u32 argc) {
  return gfx_load_image(vm, path);
 }
 
-// Primitive 50
+// Primitive 54
 Ptr PRIM_MKIMAGE_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("make-image",Fixnum,h);
@@ -526,7 +563,7 @@ Ptr PRIM_MKIMAGE_impl(VM *vm, u32 argc) {
  return gfx_make_image(vm, w, h);
 }
 
-// Primitive 51
+// Primitive 55
 Ptr PRIM_IMG_W_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("image-width",Image,img);
@@ -534,7 +571,7 @@ Ptr PRIM_IMG_W_impl(VM *vm, u32 argc) {
   return to(Fixnum,(image_width(img)));
 }
 
-// Primitive 52
+// Primitive 56
 Ptr PRIM_IMG_H_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("image-height",Image,img);
@@ -542,7 +579,7 @@ Ptr PRIM_IMG_H_impl(VM *vm, u32 argc) {
   return to(Fixnum,(image_height(img)));
 }
 
-// Primitive 53
+// Primitive 57
 Ptr PRIM_CCA_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("char-code-at",Fixnum,idx);
@@ -551,7 +588,7 @@ Ptr PRIM_CCA_impl(VM *vm, u32 argc) {
   return to(Fixnum,(string_char_code_at(vm, str, idx)));
 }
 
-// Primitive 54
+// Primitive 58
 Ptr PRIM_STRLEN_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("string-length",String,str);
@@ -594,7 +631,11 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_MKARY_impl,
   &PRIM_AGET_impl,
   &PRIM_ASET_impl,
+  &PRIM_MK_HT_impl,
+  &PRIM_HT_AT_impl,
+  &PRIM_HT_AT_PUT_impl,
   &PRIM_SET_SYM_VAL_impl,
+  &PRIM_GSYM_impl,
   &PRIM_PRINT_STACK_impl,
   &PRIM_DBG_STACK_impl,
   &PRIM_SETPXL_impl,
@@ -656,7 +697,11 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "make-array", to(PrimOp, PRIM_MKARY));
   set_global(vm, "aget", to(PrimOp, PRIM_AGET));
   set_global(vm, "aset", to(PrimOp, PRIM_ASET));
+  set_global(vm, "make-ht", to(PrimOp, PRIM_MK_HT));
+  set_global(vm, "ht-at", to(PrimOp, PRIM_HT_AT));
+  set_global(vm, "ht-at-put", to(PrimOp, PRIM_HT_AT_PUT));
   set_global(vm, "set-symbol-value", to(PrimOp, PRIM_SET_SYM_VAL));
+  set_global(vm, "gensym", to(PrimOp, PRIM_GSYM));
   set_global(vm, "print-stacktrace", to(PrimOp, PRIM_PRINT_STACK));
   set_global(vm, "debug-stacktrace", to(PrimOp, PRIM_DBG_STACK));
   set_global(vm, "set-pixel", to(PrimOp, PRIM_SETPXL));

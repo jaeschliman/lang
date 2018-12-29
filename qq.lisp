@@ -103,9 +103,9 @@
 
 (set 'qq-process-let
      (lambda (x)
-       (list 'let
-             (mapcar qq-process-let-binding (car (cdr x)))
-             (mapcar qq-process (cdr (cdr x))))))
+       (append (list 'let
+                (mapcar qq-process-let-binding (car (cdr x))))
+               (mapcar qq-process (cdr (cdr x))))))
 
 (set 'qq-process-lambda
      (lambda (x) (append (list 'lambda (car (cdr x))) (mapcar qq-process (cdr (cdr x))))))
@@ -150,3 +150,87 @@
               `(On a rainy ,a I saw ,b (and we ,@c))))
 
 (print (myfun 'day 'Julia '(had a coffee)))
+
+(set 'macro-functions (make-ht))
+(set 'set-macro-function (lambda (sym fn) (ht-at-put macro-functions sym fn)))
+
+(set 'macroexpand #f)
+
+(set 'mx-process-let-binding
+     (lambda (bind)
+       (list (car bind) (macroexpand (car (cdr bind))))))
+
+(set 'mx-process-let
+     (lambda (expr)
+       `(let ,(mapcar mx-process-let-binding (car (cdr expr)))
+          ,@(mapcar macroexpand (cdr (cdr expr))))))
+
+(set 'mx-process-lambda
+     (lambda (expr)
+       `(lambda ,(car (cdr expr))
+          ,@(mapcar macroexpand (cdr (cdr expr))) )))
+
+(set 'macroexpand
+     (lambda (expr)
+       (if (pair? expr)
+           (let ((sym (car expr)))
+             (if (eq sym 'let) (mx-process-let expr)
+                 (if (eq sym 'lambda) (mx-process-lambda expr)
+                     (let ((expander (ht-at macro-functions sym)))
+                       (if (not (nil? expander))
+                           (let ((expansion (expander expr)))
+                             (macroexpand expansion))
+                           (mapcar macroexpand expr))))))
+           expr)))
+
+(print `(are gensyms equal? ,(eq (gensym) (gensym))))
+(print (macroexpand 'hello))
+
+(set-macro-function
+ 'and
+ (lambda (expr)
+   (let ((test (car (cdr expr)))
+         (rest (cdr (cdr expr))))
+     (if (nil? test)
+         #t
+         (if (not (nil? rest))
+             (let ((name (gensym)))
+               `(let ((,name ,test))
+                  (if ,name (and ,@rest) #f)))
+             test)))))
+
+(print (ht-at macro-functions 'and))
+
+(print '(and expansions:))
+(print (macroexpand '(and)))
+(print (macroexpand '(and a)))
+(print (macroexpand '(and a b)))
+(print (macroexpand '(and a b c)))
+(print (eval (macroexpand '(and 1 2 3))))
+
+(set-macro-function
+ 'or
+ (lambda (expr)
+   (let ((test (car (cdr expr)))
+         (rest (cdr (cdr expr))))
+     (if (nil? test)
+         #f
+         (if (not (nil? rest))
+             (let ((name (gensym)))
+               `(let ((,name ,test))
+                  (if ,name ,name (or ,@rest))))
+             test)))))
+
+(print '(or expansions:))
+(print (macroexpand '(or)))
+(print (macroexpand '(or a)))
+(print (macroexpand '(or a b)))
+(print (macroexpand '(or a b c)))
+(print (eval (macroexpand '(or 1 2 3))))
+
+(set 'compiler (lambda (expr) (macroexpand (qq-process expr))))
+
+(print "hello macro world")
+(print (or 'a 'b 'c))
+(print `(a b c))
+(print (and 'a 'b 'c))

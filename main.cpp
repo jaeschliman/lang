@@ -1823,8 +1823,8 @@ Ptr ht_at(Ptr ht, Ptr key) {
 }
 
 // TODO: grow table when it gets too full
-void ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) {  prot_ptrs(key, value);
-  auto array = ht_get_array(ht);                      prot_ptr(array);
+Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
+  auto array = ht_get_array(ht);                    prot_ptr(array);
   auto used  = xarray_used(array);
   auto mem   = xarray_memory(array);
   auto hash  = hash_code(key);
@@ -1835,7 +1835,7 @@ void ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) {  prot_ptrs(key, value);
     auto mem  = xarray_memory(array); // mem may have moved
     mem[idx] = list;
     unprot_ptrs(key, value, array);
-    return;
+    return Nil;
   } 
   // collision
   auto entry = mem[idx];
@@ -1844,7 +1844,7 @@ void ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) {  prot_ptrs(key, value);
     if (car(pair) == key) { // found
       set_cdr(pair, value);
       unprot_ptrs(key, value, array);
-      return;
+      return Nil;
     }
     entry = cdr(entry);
   }
@@ -1855,7 +1855,7 @@ void ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) {  prot_ptrs(key, value);
     mem[idx] = list;
   }
   unprot_ptrs(key, value, array);
-  return ;
+  return Nil;
 }
 
 
@@ -2906,7 +2906,7 @@ Ptr imap_get(Ptr map, Ptr key) {
   return ht_at(map, key);
 }
 
-void imap_set(VM *vm, Ptr map, Ptr key, Ptr value) {
+Ptr imap_set(VM *vm, Ptr map, Ptr key, Ptr value) {
   return ht_at_put(vm, map, key, value);
 }
 

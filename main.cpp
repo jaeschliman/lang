@@ -1579,9 +1579,9 @@ void gc_update_protected_references(VM *vm) {
   }
   for (auto pair : *vm->gc_protected_ptr_vectors) {
     auto start = pair.first;
-    auto count = pair.second;
-    while (count--) {
-      gc_update_ptr(vm, start + count);
+    s64  count = pair.second;
+    for (s64 i = 0; i < count; i++) {
+      gc_update_ptr(vm, start + i);
     }
   }
 }
@@ -3315,7 +3315,6 @@ void mark_let_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {  prot_ptrs(it, 
   auto env = compiler_env_get_subenv(vm, p_env, it);              prot_ptr(env);
   cenv_set_type(env, CompilerEnvType_Let);
 
-  // @safe
   auto vars = nth_or_nil(it, 1);
   u64 idx   = 0;
   auto zero = to(Fixnum, 0);
@@ -3334,7 +3333,6 @@ void mark_let_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {  prot_ptrs(it, 
       unprot_ptrs(sym, expr, info)
     });
 
-  // @safe
   {
     auto body = cdr(cdr(it));
     do_list(vm, body, [&](Ptr expr) {
@@ -3705,6 +3703,8 @@ Ptr compile_to_closure(VM *vm, Ptr expr) {
 
 /* -------------------------------------------------- */
 
+void load_file(VM *vm, const char* path);
+
 VM *vm_create() {
   VM *vm;
   vm = (VM *)calloc(sizeof(VM), 1);
@@ -3755,6 +3755,8 @@ VM *vm_create() {
   auto bc = (new BCBuilder(vm))->build();
   vm_push_stack_frame(vm, 0, bc);
 
+  // load the stdlib
+  load_file(vm, "./boot.lisp");
   return vm;
 }
 

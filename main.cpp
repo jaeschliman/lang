@@ -909,8 +909,8 @@ u32 hash_code(Ptr it) {
   Ptr make_##name(VM *vm, _def_struct_args(__VA_ARGS__)) {              \
     prot_ptrs(__VA_ARGS__);                                             \
     auto result = alloc_##name(vm);                                     \
-    unprot_ptrs(__VA_ARGS__);                                           \
     MAP_WITH_ARG_AND_INDEX(_def_struct_set_arg, name, __VA_ARGS__ );    \
+    unprot_ptrs(__VA_ARGS__);                                           \
     return result;                                                      \
   }
 
@@ -994,6 +994,8 @@ u64 obj_size(StandardObject *it)  { return sizeof(StandardObject) + it->ivar_cou
 // TODO: include padding
 u64 obj_size(StackFrameObject*it) { return sizeof(StackFrameObject) + it->argc * 8;    }
 
+Object *gc_forwarding_address(Object *obj);
+
 auto size_of(Ptr it) {
   if (isNil(it) || !is(Object, it)) return (u64)0;
   if (is(U64Array, it))   return obj_size(as(U64Array, it));
@@ -1002,8 +1004,13 @@ auto size_of(Ptr it) {
   if (is(PtrArray, it))   return obj_size(as(PtrArray, it));
   if (is(Standard, it))   return obj_size(as(Standard, it));
   if (is(StackFrame, it)) return obj_size(as(StackFrame, it));
-  cout << " unknown object type in object_size " << endl;
-  assert(false);
+
+  if (is(BrokenHeart, it)) {
+    auto ref = gc_forwarding_address(as(Object, it));
+    dbg("broken heart in size_of, ", it);
+    dbg("forwarding to: ", objToPtr(ref));
+  }
+  die("unexpected object type in size_of");
 }
 
 /* ---------------------------------------- */
@@ -2403,9 +2410,15 @@ inline Ptr vm_stack_ref(VM *vm, u32 distance) {
   return vm->stack[distance];
 }
 
+// N.B. must not double-prot the ptrs on the stack to avoid double-copy
 Ptr vm_get_stack_values_as_list(VM *vm, u32 count) { //@varargs
-  auto result = make_list_rev(vm, count, vm->stack);
+  Ptr result = Nil; prot_ptr(result);
+  Ptr *ptrs = vm->stack;
+  for (u64 i = 0; i < count; i++) {
+    result = cons(vm, ptrs[i], result); // unprotected to avoid double-copy
+  }
   while(count--) vm_pop(vm); //@speed
+  unprot_ptr(result);
   return result;
 }
 

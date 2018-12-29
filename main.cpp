@@ -49,13 +49,14 @@ typedef double f64;
 #define TAG_MASK 0b1111
 #define TAG_BITS 4
 
-#define Fixnum_Tag 0b0000
-#define Object_Tag 0b0001
-#define Char_Tag   0b0011
-#define Bool_Tag   0b0100
-#define PrimOp_Tag 0b0101
-#define Point_Tag  0b0110
-#define Float_Tag  0b0111
+enum PtrTag {
+  Fixnum_Tag = 0b0000,
+  Object_Tag = 0b0001,
+  Char_Tag   = 0b0011,
+  Bool_Tag   = 0b0100,
+  PrimOp_Tag = 0b0101,
+  Point_Tag  = 0b0110,
+  Float_Tag  = 0b0111
 // #define UNUSED_TAG 0b1000
 // #define UNUSED_TAG 0b1001
 // #define UNUSED_TAG 0b1010
@@ -64,7 +65,7 @@ typedef double f64;
 // #define UNUSED_TAG 0b1101
 // #define UNUSED_TAG 0b1110
 // #define UNUSED_TAG 0b1111
-// what about a float?
+};
 
 struct Ptr { u64 value; };
 
@@ -901,6 +902,11 @@ enum StructTag : s64 {
   StructTag_End
 };
 
+StructTag struct_get_tag(Ptr it) {
+  assert(is(Struct, it));
+  return (StructTag)as(Fixnum, array_get(it, 0));
+}
+
 /* ---------------------------------------- */
 
 defstruct(cons, StructTag_Cons, car, cdr);
@@ -1224,7 +1230,9 @@ struct Globals {
 #define make_class(name) *_##name
 #define handle_classes(...) MAP_WITH_COMMAS(make_class, __VA_ARGS__)
     StandardObject
-#include "./builtin-classes.include"
+#include "./builtin-classes.include0"
+    StandardObject
+#include "./builtin-classes.include1"
 #undef handle_classes
 #undef make_class
 
@@ -1238,12 +1246,13 @@ struct Globals {
 };
 
 /* ---------------------------------------- */
+// @cleanup this function shows that the object model is too complex IMO
 
 Ptr class_of(VM *vm, Ptr it) {
 #define builtin(name) objToPtr(vm->globals->classes._##name)
 #define builtin_case(type, name) case type##_Tag: return builtin(name)
-
-  switch (it.value & TAG_MASK) {
+  PtrTag ptr_tag = (PtrTag)(it.value & TAG_MASK);
+  switch (ptr_tag) {
     builtin_case(Fixnum, Fixnum);
     builtin_case(Char, Character);
     builtin_case(Bool, Bool);
@@ -1251,18 +1260,43 @@ Ptr class_of(VM *vm, Ptr it) {
     builtin_case(Point, Point);
     builtin_case(Float, Float);
   case Object_Tag: {
-    // @incomplete this doesn't handle structs etc in the general case
-    // FIXME: need a more structured representation for these.
-    if (is(cons, it))     return builtin(Cons);
-    if (is(Array, it))    return builtin(Array);
-    if (is(Symbol, it))   return builtin(Symbol);
-    if (is(Closure, it))  return builtin(Closure);
-    if (is(ByteCode, it)) return builtin(ByteCode);
-    if (is(Standard, it)) {
-      return objToPtr(as(Standard, it)->klass);
+    if (is(Object, it)) {
+      auto tag = as(Object, it)->header.object_type;
+      switch(tag) {
+      case ByteCode_ObjectType: return builtin(ByteCode);
+      case ByteArray_ObjectType: {
+        switch (as(ByteArray, it)->bao_type) {
+        case Symbol: return builtin(Symbol);
+        case String: return builtin(String);
+        case Image: return builtin(Image);
+        }
+      }
+      case U64Array_ObjectType: return builtin(U64Array);
+      case PtrArray_ObjectType: {
+        switch(as(PtrArray, it)->pao_type) {
+        case Array: return builtin(Array);
+        case Closure: return builtin(Closure);
+        case Struct: {
+          #define struct_case(name) case StructTag_##name: return builtin(name)
+          switch(struct_get_tag(it)) {
+            struct_case(Cons);
+            struct_case(VarInfo);
+            struct_case(CompilerEnv);
+            struct_case(HashTable);
+          case StructTag_End: die("invalid struct tag.");
+          }
+          #undef struct_case
+        }
+        }
+      }
+      case Standard_ObjectType: return objToPtr(as(Standard, it)->klass);
+      case StackFrame_ObjectType: return builtin(StackFrame);
+      case BrokenHeart: die("tried to take class of a broken heart.");
+      }
+    } else {
+      return builtin(Null);
     }
   }
-  default: return Nil;
   }
 #undef builtin_case
 #undef builtin
@@ -1289,7 +1323,8 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
 
 #define handle_class(name) recurse(objToPtr(vm->globals->classes._##name));
 #define handle_classes(...) MAP(handle_class, __VA_ARGS__)
-#include "./builtin-classes.include"
+#include "./builtin-classes.include0"
+#include "./builtin-classes.include1"
 #undef handle_class
 #undef handle_classes
 
@@ -1466,7 +1501,8 @@ void gc_update_globals(VM *vm) {
   gc_update_ptr(vm, &vm->globals->call1);
   gc_update_ptr(vm, &vm->globals->env);
 
-#include "./builtin-classes.include"
+#include "./builtin-classes.include0"
+#include "./builtin-classes.include1"
 
   update_symbols(lambda, quote, let, if, fixnum, cons, string,
                  array, character, boolean);
@@ -1845,7 +1881,8 @@ void initialize_classes(VM *vm)
 #define builtin(name) vm->globals->classes._##name
 #define make_class(name) if (!builtin(name)) builtin(name) = make_base_class(vm, #name);
 #define handle_classes(...) MAP(make_class, __VA_ARGS__)
-#include "./builtin-classes.include"
+#include "./builtin-classes.include0"
+#include "./builtin-classes.include1"
 #undef make_class
 #undef handle_classes
 #undef builtin

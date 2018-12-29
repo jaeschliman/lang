@@ -1,0 +1,1 @@
+handle_classes(Base, Fixnum, Float, Point, Bool, PrimOp, Character, ByteCode, U64Array, Symbol);

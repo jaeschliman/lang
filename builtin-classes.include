@@ -1,3 +1,0 @@
-handle_classes(
-Base, Fixnum, Float, Point, Bool, Cons, Symbol, String, Array, PrimOp, Closure, ByteCode, Character
-);

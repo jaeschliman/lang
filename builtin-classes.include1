@@ -1,1 +1,1 @@
-handle_classes(String, Image, Array, Closure, Cons, VarInfo, CompilerEnv, HashTable, StackFrame, Null);
+X(CompilerEnv, HashTable, StackFrame)

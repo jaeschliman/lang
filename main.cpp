@@ -37,9 +37,11 @@ using namespace std;
 
 typedef unsigned int uint;
 typedef uint64_t u64;
+typedef int64_t s64;
 typedef uint32_t u32;
 typedef int32_t s32;
-typedef int64_t s64;
+typedef uint16_t u16;
+typedef int16_t s16;
 typedef uint8_t u8;
 typedef int8_t s8;
 typedef float f32;
@@ -84,7 +86,7 @@ bool ptr_eq(Ptr a, Ptr b) {
   return a.value == b.value;
 }
 
-enum ObjectType : u32 {
+enum ObjectType : u8 {
   ByteCode_ObjectType,
   ByteArray_ObjectType,
   U64Array_ObjectType,
@@ -95,9 +97,10 @@ enum ObjectType : u32 {
 };
 
 struct Header {
-  ObjectType object_type;
-  u32 hashcode;
-  u64 flags;
+  ObjectType object_type;       // 8
+  u8         custom_class;      // 8
+  u16        flags;             // 16 -- currently unused
+  u32        hashcode;          // 32
 };
 
 struct Object {
@@ -106,9 +109,7 @@ struct Object {
 
 // TODO: rename this function
 inline Ptr objToPtr(Object *ref) {
-  Ptr p;
-  p.value = ((u64) ref) |  0b1;
-  return p;
+  return (Ptr){ ((u64) ref) | 0b1 };
 }
 
 
@@ -1236,12 +1237,15 @@ struct Globals {
   struct {
 
 #define make_class(name) *_##name
-#define handle_classes(...) MAP_WITH_COMMAS(make_class, __VA_ARGS__)
+#define X(...) MAP_WITH_COMMAS(make_class, __VA_ARGS__)
     StandardObject
+#include "./primitive-classes.include"
+    ; StandardObject
 #include "./builtin-classes.include0"
-    StandardObject
+    ; StandardObject
 #include "./builtin-classes.include1"
-#undef handle_classes
+    ;
+#undef X
 #undef make_class
 
   } classes;
@@ -1330,11 +1334,12 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
   recurse(vm->globals->call1);
 
 #define handle_class(name) recurse(objToPtr(vm->globals->classes._##name));
-#define handle_classes(...) MAP(handle_class, __VA_ARGS__)
+#define X(...) MAP(handle_class, __VA_ARGS__)
+#include "./primitive-classes.include"
 #include "./builtin-classes.include0"
 #include "./builtin-classes.include1"
+#undef X
 #undef handle_class
-#undef handle_classes
 
 }
 
@@ -1501,7 +1506,6 @@ void gc_update_base_class(VM *vm, StandardObject **it) {
 
 
 #define handle_class(name) gc_update_base_class(vm, &vm->globals->classes._##name);
-#define handle_classes(...) MAP(handle_class, __VA_ARGS__)
 #define update_sym(n) gc_update_ptr(vm, &vm->globals->known._##n);
 #define update_symbols(...) MAP(update_sym, __VA_ARGS__)
 
@@ -1509,8 +1513,11 @@ void gc_update_globals(VM *vm) {
   gc_update_ptr(vm, &vm->globals->call1);
   gc_update_ptr(vm, &vm->globals->env);
 
+#define X(...) MAP(handle_class, __VA_ARGS__)
+#include "./primitive-classes.include"
 #include "./builtin-classes.include0"
 #include "./builtin-classes.include1"
+#undef X
 
   update_symbols(lambda, quote, let, if, fixnum, cons, string,
                  array, character, boolean, quasiquote, unquote, unquote_splicing);
@@ -1519,7 +1526,6 @@ void gc_update_globals(VM *vm) {
 #undef update_sym
 #undef update_symbols
 #undef handle_class
-#undef handle_classes
 
 void gc_copy_symtab(VM *vm) {
   auto old_symtab = vm->globals->symtab;
@@ -1889,11 +1895,12 @@ void initialize_classes(VM *vm)
 
 #define builtin(name) vm->globals->classes._##name
 #define make_class(name) if (!builtin(name)) builtin(name) = make_base_class(vm, #name);
-#define handle_classes(...) MAP(make_class, __VA_ARGS__)
+#define X(...) MAP(make_class, __VA_ARGS__)
+#include "./primitive-classes.include"
 #include "./builtin-classes.include0"
 #include "./builtin-classes.include1"
+#undef X
 #undef make_class
-#undef handle_classes
 #undef builtin
 
 }

@@ -53,10 +53,12 @@
 (print (qq-xform-for-unq '(a b c)))
 (print (qq-xform-for-unq '(a (unquote b) c)))
 
-(set 'qq-xform (lambda (lst)
-                 (if (has-unquote-splicing lst)
-                     (qq-xform-for-unq-spl lst)
-                     (qq-xform-for-unq lst))))
+(set 'qq-xform (lambda (x)
+                 (if (pair? x)
+                     (if (has-unquote-splicing x)
+                         (qq-xform-for-unq-spl x)
+                         (qq-xform-for-unq x))
+                     (list 'quote x))))
 
 (print (qq-xform '(a b c (d e f))))
 (print (qq-xform '(a b c (d (unquote e) f))))
@@ -92,3 +94,46 @@
 (print (append '(a b) '(c d) '(e f) '(g h) '(i j)))
 
 (print ((compile-to-closure '(+i 2 2))))
+
+(set 'eval (lambda (x) ((compile-to-closure x))))
+
+(set 'qq-process #f)
+(set 'qq-process-let-binding
+     (lambda (bind) (list (car bind) (qq-process (car (cdr bind))))))
+
+(set 'qq-process-let
+     (lambda (x)
+       (list 'let
+             (mapcar qq-process-let-binding (car (cdr x)))
+             (mapcar qq-process (cdr (cdr x))))))
+
+(set 'qq-process-lambda
+     (lambda (x) (append (list 'lambda (car (cdr x))) (mapcar qq-process (cdr (cdr x))))))
+
+(set 'qq-process
+     (lambda (expr)
+       (if (pair? expr)
+           (let ((sym (car expr)))
+             (if (eq sym 'let) (qq-process-let expr)
+                 (if (eq sym 'lambda) (qq-process-lambda expr)
+                     (if (eq sym 'quasiquote) (qq-xform (car (cdr expr)))
+                         (mapcar qq-process expr)))))
+           expr)))
+
+(print (qq-process '(quasiquote x)))
+(print (qq-process '(lambda (x) x)))
+(print (qq-process '(lambda (x) (quasiquote (1 2 (unquote-splicing '(3 4)) 5 6)))))
+(print (eval (qq-process '(lambda (x)
+                           (quasiquote
+                            (1 2
+                             (unquote-splicing '(3 4))
+                             5 6
+                             (unquote x)))))))
+
+(let ((fn (eval (qq-process '(lambda (x)
+                              (quasiquote
+                               (1 2
+                                (unquote-splicing '(3 4))
+                                5 6
+                                (unquote x))))))))
+  (print (fn 7)))

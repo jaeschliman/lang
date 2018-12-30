@@ -24,10 +24,6 @@
 (define (stream-next s) (cons (+i 1 (car s)) (cdr s)))
 (define (stream-end? s) (>i (+i 1 (car s)) (string-length (cdr s))))
 
-(define (get-rule x) (ht-at rules x))
-(define (set-rule x fn) (ht-at-put rules x fn))
-
-;; stub for now
 (define (char-between b a c)
     (or (eq a b) (eq b c)
         (and (char-< a b)
@@ -60,6 +56,22 @@
                (char-between x #\A #\Z))
            x
            fail)))))
+
+(define apply-rule #f)
+(define (rule-exactly it)
+    (lambda (st)
+      (apply-rule
+       st 'any
+       (lambda (st)
+         (let ((x (state-result st)))
+           (if (eq x it) st fail))))))
+
+(define (get-rule x)
+    (if (symbol? x)
+        (ht-at rules x)
+        (rule-exactly x)))
+
+(define (set-rule x fn) (ht-at-put rules x fn))
 
 (define (apply-rule state sym next)
     (let* ((rule (get-rule sym))
@@ -188,6 +200,19 @@
                          (let ((x (state-result st)))
                            (state+result st (nth x 1)))))))
 
+;; expr = ( expr* ) | token
+
+(set-rule 'wrapped-expression
+          (lambda (st)
+            (apply-seq st '(ws #\( ws maybe-exprs ws #\) ws)
+                       (lambda (st)
+                         (let ((x (state-result st)))
+                           (state+result st (nth x 3)))))))
+
+(set-rule 'maybe-exprs
+          (lambda (st) (apply-rule* st 'expr id)))
+
+(set-rule 'expr (lambda (st) (apply-or st '(wrapped-expression token) id)))
 
 (define (match-string string rule-name)
     (let* ((stream (make-stream string))
@@ -225,5 +250,11 @@
 (trace (match-string "x" 'ws))
 (trace (match-string "xyz" 'token))
 (trace (match-string* " xyz 1 2 3 hello world" 'token))
+(trace (match-string "xyz" 'expr))
+(trace (match-string "123" 'expr))
+(trace (match-string "xyz 123" 'expr))
+(trace (match-string "123 xyz" 'expr))
+(trace (match-string "()" 'expr))
+(trace (match-string "(lambda (x) x)" 'expr))
 
 'bye

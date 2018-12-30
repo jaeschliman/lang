@@ -103,10 +103,8 @@
              (next (state-cons-onto st next-state)))))))
 
 (define (apply-or state syms next)
-    (trace syms)
     (let ((helper #f))
       (set! helper (lambda (syms)
-                     (trace syms)
                      (if (nil? syms) fail
                          (let ((next-state (apply-rule state (car syms) id)))
                            (if (failure? next-state)
@@ -114,12 +112,34 @@
                                (next next-state))))))
       (helper syms)))
 
+(define (apply-seq state syms next)
+    (let ((helper #f)
+          (result '()))
+      (set! helper (lambda (syms state)
+                     (if (nil? syms) (next (state+result state (reverse-list result)))
+                         (let ((next-state (apply-rule state (car syms) id)))
+                           (if (failure? next-state) fail
+                               (let ()
+                                 (set! result (cons (state-result next-state) result))
+                                 (helper (cdr syms) next-state)))))))
+      (helper syms state)))
+
 (set-rule 'any (lambda (st)
                  (let ((s (state-stream st)))
                    (if (stream-end? s)
                        fail
                        (state+stream (state+result st (stream-read s))
                                      (stream-next s))))))
+(set-rule 'space
+          (lambda (st)
+            (apply-rule
+             st 'any
+             (lambda (st)
+               (let ((x (state-result st)))
+                 (if (eq x #\Space) st fail))))))
+
+(set-rule 'ws (lambda (st) (apply-rule* st 'space id)))
+
 (set-rule 'alpha (lambda (st)
                    (apply-rule
                     st 'any
@@ -138,7 +158,12 @@
                             (state+result st (-i (char-code x) (char-code #\0)))
                             fail))))))
 
-(set-rule 'ident (lambda (st) (apply-rule+ st 'alpha id)))
+(set-rule 'ident (lambda (st)
+                   (apply-rule+
+                    st 'alpha
+                    (lambda (st)
+                      (let ((chars (state-result st)))
+                        (state+result st (implode chars)))))))
 
 (set-rule 'integer
           (lambda (st)
@@ -153,8 +178,15 @@
                      (+i n (*i 10 acc)))
                    0 nums)))))))
 
-(set-rule 'integer-or-ident (lambda (st)
-                              (apply-or st '(integer ident) id)))
+
+(set-rule 'integer-or-ident (lambda (st) (apply-or st '(integer ident) id)))
+
+(set-rule 'token
+          (lambda (st)
+            (apply-seq st '(ws integer-or-ident ws)
+                       (lambda (st)
+                         (let ((x (state-result st)))
+                           (state+result st (nth x 1)))))))
 
 
 (define (match-string string rule-name)
@@ -184,10 +216,14 @@
 (trace (match-string* "0123456789x" 'digit))
 (trace (match-string "0123456789" 'integer))
 (trace (match-string "0123456789x" 'integer))
-(trace (ht-at rules 'integer-or-ident))
 (trace (match-string "123xyz" 'integer-or-ident))
 (trace (match-string "xyz123" 'integer-or-ident))
 (trace (match-string* "123xyz" 'integer-or-ident))
 (trace (match-string* "xyz123" 'integer-or-ident))
+(trace (match-string "" 'ws))
+(trace (match-string " " 'ws))
+(trace (match-string "x" 'ws))
+(trace (match-string "xyz" 'token))
+(trace (match-string* " xyz 1 2 3 hello world" 'token))
 
 'bye

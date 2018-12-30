@@ -2826,8 +2826,6 @@ private:
     for (u64 i = 0; i < bc_index; i++) {
       bc->code->data[i] = bc_mem[i];
     }
-    free(bc_mem);
-    bc_mem = 0;
   }
 public:
   BCBuilder(VM* vm) {
@@ -2844,6 +2842,7 @@ public:
     labelContextStack   = new vector<u64>;
     is_varargs          = false;
 
+    // cleaned up in finalizeByteCode
     this->literals = as(Object, make_xarray(vm));
     gc_protect(this->literals);
 
@@ -2851,6 +2850,12 @@ public:
     temp_count = &bc_mem[bc_index];
     pushU64(0);
     assert(*temp_count == 0);
+  }
+  ~BCBuilder() {
+    delete labelsMap;
+    delete branchLocations;
+    delete labelContextStack;
+    free(bc_mem);
   }
   u64 reserveTemps(u64 count) {
     auto start = *temp_count;

@@ -1320,7 +1320,7 @@ struct Globals {
   Ptr env; // the global environment (currently an alist)
   Ptr call1;
   struct {
-    Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean, _quasiquote, _unquote, _unquote_splicing, _compiler;
+    Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean, _quasiquote, _unquote, _unquote_splicing, _compiler, _set_bang;
   } known;
 };
 
@@ -1568,7 +1568,7 @@ void gc_update_globals(VM *vm) {
 
   update_symbols(lambda, quote, let, if, fixnum, cons, string,
                  array, character, boolean, quasiquote, unquote, unquote_splicing,
-                 compiler);
+                 compiler, set_bang);
 }
 
 #undef update_sym
@@ -1919,6 +1919,7 @@ void initialize_known_symbols(VM *vm) {
   auto globals = vm->globals;
   _init_symbols(lambda, quote, let, if, fixnum, cons, string, array, character, boolean, quasiquote, unquote, compiler);
   globals->known._unquote_splicing = intern(vm, "unquote-splicing");
+  globals->known._set_bang = intern(vm, "set!");
 
 }
 #undef _init_sym
@@ -2440,24 +2441,25 @@ typedef Ptr (*CCallFunction)(VM*);
 
 enum OpCode : u8 {
   END                  = 0,
-  RET                  = 1,
-  PUSHLIT              = 2,
-  POP                  = 3,
-  BR_IF_ZERO           = 5,
-  BR_IF_NOT_ZERO       = 6,
-  DUP                  = 7,
-  CALL                 = 8,
-  LOAD_ARG             = 9,
-  LOAD_GLOBAL          = 10,
-  LOAD_CLOSURE         = 11,
-  BUILD_CLOSURE        = 12,
-  PUSH_CLOSURE_ENV     = 13,
-  BR_IF_False          = 14,
-  JUMP                 = 15,
-  STACK_RESERVE        = 16,
-  LOAD_FRAME_RELATIVE  = 17,
-  STORE_FRAME_RELATIVE = 18,
-  POP_CLOSURE_ENV      = 20,
+  RET                  ,
+  PUSHLIT              ,
+  POP                  ,
+  BR_IF_ZERO           ,
+  BR_IF_NOT_ZERO       ,
+  DUP                  ,
+  CALL                 ,
+  LOAD_ARG             ,
+  LOAD_GLOBAL          ,
+  LOAD_CLOSURE         ,
+  STORE_CLOSURE        ,
+  BUILD_CLOSURE        ,
+  PUSH_CLOSURE_ENV     ,
+  BR_IF_False          ,
+  JUMP                 ,
+  STACK_RESERVE        ,
+  LOAD_FRAME_RELATIVE  ,
+  STORE_FRAME_RELATIVE ,
+  POP_CLOSURE_ENV      ,
 };
 
 inline void vm_push(VM* vm, Ptr value) {
@@ -2502,6 +2504,17 @@ auto vm_load_closure_value(VM *vm, u64 slot, u64 depth) {
   }
   assert(!isNil(curr));
   return array_get(curr, slot+1);
+}
+
+void vm_store_closure_value(VM *vm, u64 slot, u64 depth, Ptr value) {
+  auto curr = vm->frame->closed_over;
+  while (depth) {
+    assert(!isNil(curr));
+    curr = array_get(curr, 0);
+    depth--;
+  }
+  assert(!isNil(curr));
+  array_set(curr, slot+1, value);
 }
 
 inline u8 instr_code(u64 bc) {
@@ -2587,6 +2600,14 @@ void vm_interp(VM* vm) {
       u64 depth = vm_adv_instr(vm);
       auto it = vm_load_closure_value(vm, slot, depth);
       vm_push(vm, it);
+      break;
+    }
+    case STORE_CLOSURE: {
+      u64 slot  = vm_adv_instr(vm);
+      u64 depth = vm_adv_instr(vm);
+      auto value = vm_pop(vm);
+      vm_store_closure_value(vm, slot, depth, value);
+      vm_push(vm, value);
       break;
     }
     case BUILD_CLOSURE: {
@@ -2962,6 +2983,12 @@ public:
     pushU64(depth);
     return this;
   }
+  auto storeClosure(u64 slot, u64 depth) {
+    pushOp(STORE_CLOSURE);
+    pushU64(slot);
+    pushU64(depth);
+    return this;
+  }
   auto buildClosure() {
     pushOp(BUILD_CLOSURE);
   }
@@ -3261,6 +3288,38 @@ void emit_if(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
   unprot_ptrs(env, test, _thn, _els);
 }
 
+void emit_set_bang(VM *vm, BCBuilder *builder, Ptr it, Ptr env) { prot_ptrs(it, env);
+  auto sym = nth_or_nil(it, 1); prot_ptr(sym);
+  auto expr = nth_or_nil(it, 2); prot_ptr(expr);
+
+  emit_expr(vm, builder, expr, env);
+
+  auto binding        = compiler_env_binding(vm, env, sym);
+  auto info           = binding.variable_info;
+  auto scope          = varinfo_get_scope(info);
+  auto argument_index = varinfo_get_argument_index(info);
+  auto closure_index  = varinfo_get_closure_index(info);
+
+  if (scope == VariableScope_Global) {
+    die("set! to global NYS ");
+    // builder->loadGlobal(it);
+  } else if (scope == VariableScope_Argument) {
+    die("set! to argument NYS");
+    // builder->loadArg(as(Fixnum, argument_index));
+  } else if (scope == VariableScope_Closure) {
+    auto index = as(Fixnum, closure_index);
+    auto depth = binding.binding_depth;
+    builder->storeClosure(index, depth);
+  } else if (scope == VariableScope_Let) {
+    // LAZY reusing argument_index
+    builder->storeFrameRel(as(Fixnum, argument_index));
+  } else {
+    cout << "unexpected variable scope: " << scope << endl;
+    assert(false);
+  }
+  unprot_ptrs(it, env, sym, expr);
+}
+
 void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
   if (is(Symbol, it)) { /*                                  */ prot_ptrs(it, env);
     auto binding        = compiler_env_binding(vm, env, it);
@@ -3299,6 +3358,9 @@ void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
         return;
       } else if (ptr_eq(KNOWN(let), fst)) {
         emit_let(vm, builder, it, env);
+        return;
+      } else if (ptr_eq(KNOWN(set_bang), fst)) {
+        emit_set_bang(vm, builder, it, env);
         return;
       }
     }
@@ -3442,6 +3504,12 @@ void mark_closed_over_variables(VM *vm, Ptr it, Ptr env) {  prot_ptrs(it, env);
       unprot_ptrs(test, _thn, _els);
     } else if (is_sym && ptr_eq(KNOWN(let), fst)) {
       mark_let_closed_over_variables(vm, it, env);
+    } else if (is_sym && ptr_eq(KNOWN(set_bang), fst)) {
+      auto var = nth_or_nil(it, 1);                         prot_ptr(var);
+      auto expr = nth_or_nil(it, 2);                        prot_ptr(expr);
+      mark_closed_over_variables(vm, var, env);
+      mark_closed_over_variables(vm, expr, env);
+      unprot_ptrs(var, expr);
     } else {
       do_list(vm, it, [&](Ptr expr){
           mark_closed_over_variables(vm, expr, env);

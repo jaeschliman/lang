@@ -131,6 +131,34 @@
 (print (show (list)))
 (print (show 5.0))
 
+(define (set-test0)
+    (let ((x 5))
+      (set! x 6)
+      (set! x (+i 1 x))
+      (print x)))
+(set-test0)
+
+(defmacro when (test & body)
+  `(if ,test (let () ,@body)))
+
+(define (iota n fn)
+    (let ((loop #f))
+      (set! loop
+            (lambda (i)
+              (when (<i i n)
+                (fn i)
+                (loop (+i 1 i)))))
+      (loop 0)))
+
+(iota 10 print)
+
+(let ((special #f))
+  (define (store x) (set! special x))
+  (define (load) special))
+
+(store 'secret)
+(print (load))
+
 ;; maybe should support & in define as well?
 ;; (define (show-more a & more) (print more))
 ;; (show-more 0 1 2 3)

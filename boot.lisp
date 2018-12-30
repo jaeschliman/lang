@@ -181,5 +181,12 @@
         (cons 'if clause)
         `(if ,@clause (cond ,@rest)))))
 
+(define (reverse-list lst)
+    (let ((helper #f))
+      (set! helper (lambda (rem acc)
+                     (if (nil? rem) acc
+                         (helper (cdr rem) (cons (car rem) acc)))))
+      (helper lst '())))
+
 ;;; eval
 (set 'eval (lambda (x) ((compile-to-closure x))))

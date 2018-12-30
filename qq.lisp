@@ -159,6 +159,8 @@
 (store 'secret)
 (print (load))
 
+(print (reverse '(c b a)))
+
 ;; maybe should support & in define as well?
 ;; (define (show-more a & more) (print more))
 ;; (show-more 0 1 2 3)

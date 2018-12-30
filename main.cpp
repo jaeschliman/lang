@@ -2265,9 +2265,7 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
       return result;
     } else if (*input == '(') {
       input++;
-      prot_ptr(done);
       auto res = read_delimited_list(vm, &input, end, done, ')');
-      unprot_ptr(done);
       *remaining = input;
       return res;
     } else if (*input == '#') {
@@ -2367,9 +2365,10 @@ Ptr read_from_istream(VM *vm, Ptr s) { prot_ptr(s);
   auto _str  = as(String, istream_get_string(s));
   auto len   = _str->length;
   auto used  = as(Fixnum, istream_get_index(s));
-  auto str   = (string(_str->data + used, _str->length)).c_str();
-  auto start = str;
-  auto end   = str + (len - used);
+  auto str   = string(_str->data + used, _str->length);
+  auto cstr  = str.c_str();
+  auto start = cstr;
+  auto end   = cstr + (len - used);
   auto done  = cons(vm, Nil, Nil);     prot_ptr(done);
   auto input = start;
   auto result = read(vm, &input, end, done);
@@ -3866,11 +3865,13 @@ Ptr eval(VM *vm, Ptr expr) { // N.B. should /not/ be exposed
 }
 
 Ptr run_string(VM *vm, const char *str) {
-  auto exprs = read_all(vm, str);
-  Ptr result = Nil;
-  do_list(vm, exprs, [&](Ptr expr){
-      result = eval(vm, expr);
-    });
+  Ptr result = Nil;                                 prot_ptr(result);
+  auto istream = make_istream_from_string(vm, str); prot_ptr(istream);
+  while (!istream_at_end(istream)) {
+    auto read = read_from_istream(vm, istream);
+    result = eval(vm, read);
+  }
+  unprot_ptrs(result, istream);
   return result;
 }
 

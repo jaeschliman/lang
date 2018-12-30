@@ -102,6 +102,9 @@ https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
 * TODO make the lisp programs objects that respond to messages
 * TODO ability to load files at the repl
 * TODO basic debugger (not that we save debug info, but...)
+* TODO some WEIRD bug around hashing -- was seeing the same object change hash codes
+  may need to confirm that hash persists across GCs
+  by all means it should
 
 
 * notes

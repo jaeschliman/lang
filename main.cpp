@@ -895,12 +895,12 @@ u32 hash6432shift(u64 key)
 u32 hash_code(Ptr it) {
   if (!is(Object, it)) return hash6432shift(it.value);
   auto obj = as(Object, it);
-  if (!obj->header.hashcode) {
+  if (obj->header.hashcode == 0) {
     if (is(String, it)) {
       auto str = as(String, it);
       obj->header.hashcode = djb2((u8*)str->data, str->length);
     } else {
-      obj->header.hashcode = hash6432shift(it.value);
+      obj->header.hashcode = hash6432shift(it.value) | 1;
     }
   }
   return obj->header.hashcode;
@@ -2715,6 +2715,7 @@ void vm_interp(VM* vm) {
         break;
       }
       if (!is(Closure, fn)) {
+        dbg("dying on: ", fn);
         vm->error = "value is not a closure";
         break;
       }

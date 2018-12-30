@@ -98,7 +98,9 @@ https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
 * TODO add counters to gensym
 * TODO sexpr dot-reader
 * TODO audit uses of *_mem functions for GC safety
-* TODO apparently we are leaking like crazy somewhere...
+* DONE apparently we are leaking like crazy somewhere...
+* TODO make the lisp programs objects that respond to messages
+
 
 * notes
 maybe have a stack of compilers? can push/pop...

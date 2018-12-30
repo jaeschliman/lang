@@ -4,6 +4,8 @@
 
 (trace "trace works")
 
+(define (id x) x)
+
 (define rules (make-ht))
 (define fail '(fail fail))
 (define (failure? state) (eq state fail))
@@ -57,7 +59,42 @@
 (define (apply-rule state sym next)
     (let* ((rule (get-rule sym))
            (res  (rule state)))
-      (if (failure?) res) res (next res)))
+      (if (failure? res) res (next res))))
+
+(define (apply-rule? state sym next)
+    (let ((result (apply-rule state sym id)))
+      (if (failure? result) (next state) (next result))))
+
+(define apply-rule*-aux #f) ;; annoying...
+(define (apply-rule*-aux state sym next)
+    (let ((apply-next #f)
+          (last-state state))
+      (set! apply-next
+            (lambda (new-state)
+              (if (eq new-state last-state) ;; no progress
+                  (next last-state) ;; TODO: reverse acc
+                  (let ((acc-state
+                         (state+result
+                          new-state
+                          (cons (state-result new-state)
+                                (state-result last-state)))))
+                    (set! last-state acc-state)
+                    (apply-rule? last-state sym apply-next)))))
+      (apply-rule? last-state sym apply-next)))
+
+(define (apply-rule* state sym next)
+    (let ((acc-state (state+result state (list))))
+      (apply-rule*-aux acc-state sym
+                       (lambda (next-state)
+                         (if (eq next-state acc-state)
+                             (next state)
+                             (next next-state))))))
+
+'(define (apply-rule+ state sym next)
+    (apply-rule
+     state sym next
+     (lambda (st)
+       (apply-rule? st sym))))
 
 (set-rule 'any (lambda (st)
                  (let ((s (state-stream st)))
@@ -71,14 +108,26 @@
                                  (let ((x (state-result st)))
                                    (if (or (char-between x #\a #\z)
                                            (char-between x #\A #\Z))
-                                       x
+                                       (state+result st x)
                                        fail))))))
-(define (id x) x)
 
 (define (match-string string rule-name)
     (let* ((stream (make-stream string))
-           (state  (list stream (list))))
+           (state  (list stream 'initial-state)))
       (state-result (apply-rule state rule-name id))))
+
+(define (match-string* string rule-name)
+    (let* ((stream (make-stream string))
+           (state  (list stream 'initial-state)))
+      (state-result (apply-rule* state rule-name id))))
 
 (trace (match-string "" 'any))
 (trace (match-string "x" 'any))
+(trace (match-string "x" 'alpha))
+(trace (match-string "xyz" 'alpha))
+(trace (match-string* "" 'any))
+(trace (match-string* "x" 'any))
+(trace (match-string* "x" 'alpha))
+(trace (match-string* "xyz" 'alpha))
+
+'bye

@@ -118,6 +118,21 @@
 (define (print-2 a b) (print b) (print a))
 (print-2 'x 10)
 
+(let* ((x 'hello)
+       (y (list x 'world)))
+  (print y))
+
+(define (show x)
+    (cond ((symbol? x) "a symbol")
+          ((nil? x) "nil!")
+          (#t "something else")))
+
+(print (show 'x))
+(print (show (list)))
+(print (show 5.0))
+
 ;; maybe should support & in define as well?
 ;; (define (show-more a & more) (print more))
 ;; (show-more 0 1 2 3)
+;; BUG! can't end file with a comment
+'bye

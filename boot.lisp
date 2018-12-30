@@ -166,5 +166,20 @@
            (set-symbol-value ',name (lambda ,params ,@body))))
       `(set-symbol-value ',binding ,(car body))))
 
+(defmacro let* (bindings & body)
+  (if (nil? (cdr bindings))
+      `(let (,(car bindings))
+         ,@body)
+      `(let (,(car bindings))
+         (let* ,(cdr bindings)
+           ,@body))))
+
+(defmacro cond (& clauses)
+  (let ((clause (car clauses))
+        (rest (cdr clauses)))
+    (if (nil? rest)
+        (cons 'if clause)
+        `(if ,@clause (cond ,@rest)))))
+
 ;;; eval
 (set 'eval (lambda (x) ((compile-to-closure x))))

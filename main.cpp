@@ -3139,6 +3139,7 @@ auto emit_flat_lambda(VM *vm, Ptr it, Ptr env) {
   emit_lambda_body(vm, builder, body, env);
   builder->ret();
   auto bc = objToPtr(builder->build());
+  delete builder;
   unprot_ptrs(it, env);
   return make_closure(vm, bc, Nil);
 }
@@ -3168,6 +3169,7 @@ void emit_lambda(VM *vm, BCBuilder *parent, Ptr it, Ptr p_env) {  prot_ptrs(it, 
     emit_lambda_body(vm, builder, body, env);
     builder->ret();
     parent->pushLit(objToPtr(builder->build()));
+    delete builder;
     parent->buildClosure();
   } else {
     auto closure = emit_flat_lambda(vm, it, env);
@@ -3450,6 +3452,7 @@ auto _compile_toplevel_expression(VM *vm, Ptr it, bool ret) { prot_ptr(it);
   emit_expr(vm, builder, it, env);
   if (ret) builder->ret();
   auto result = builder->build();
+  delete builder;
   unprot_ptrs(it, env);
   return result;
 }
@@ -3947,6 +3950,7 @@ ByteCodeObject *build_call(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
   builder->loadGlobal(symbol);
   builder->call(argc);
   auto result = builder->build();
+  delete builder;
   unprot_ptr(symbol); unprotect_ptr_vector(argv);
   return result;
 }

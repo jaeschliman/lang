@@ -223,8 +223,10 @@ void initialize_primitive_functions(VM *vm) {
   (prim ht-at     HT_AT     ((ht any) (key any))           any "ht_at(ht, key)")
   (prim ht-at-put HT_AT_PUT ((ht any) (key any) (val any)) any "ht_at_put(vm, ht, key, val)")
 
-  (prim set-symbol-value SET_SYM_VAL ((a Symbol) (b any)) any "set_global(vm, objToPtr(a), b)")
-  (prim gensym           GSYM        ()                   any "make_symbol(vm, \"_gensym_\")")
+  (prim set-symbol-value SET_SYM_VAL ((a Symbol) (b any)) any  "set_global(vm, objToPtr(a), b)")
+  (prim gensym           GSYM        ()                   any  "make_symbol(vm, \"_gensym_\")")
+  (prim symbol?          SYM_Q       ((a any))            Bool "is(Symbol, a)")
+
   (prim print-stacktrace PRINT_STACK () any "vm_print_stack_trace(vm)")
   (prim debug-stacktrace DBG_STACK   () any "vm_print_debug_stack_trace(vm)")
 

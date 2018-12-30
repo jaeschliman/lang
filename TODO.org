@@ -96,6 +96,7 @@ https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
 * TODO simple slideshow program
 * TODO ? basic per-file modules ?
 * TODO add counters to gensym
+* TODO sexpr dot-reader
 
 * notes
 maybe have a stack of compilers? can push/pop...

@@ -24,7 +24,7 @@
                                 (list 'list (car (cdr form)))
                                 (if (eq (car form) 'unquote-splicing)
                                     (car (cdr form))
-                                    (qq-xform form)))
+                                    (list 'list (qq-xform form))))
                             (list 'list (list 'quote form)))))
 
 (set 'qq-xform-for-unq-spl (lambda (lst) (cons 'append (mapcar qq-unq-spl-form lst))))
@@ -56,26 +56,12 @@
 
 (set 'qq-process #f)
 
-(set 'qq-process-let-binding
-     (lambda (bind) (list (car bind) (qq-process (car (cdr bind))))))
-
-(set 'qq-process-let
-     (lambda (x)
-       (append (list 'let
-                (mapcar qq-process-let-binding (car (cdr x))))
-               (mapcar qq-process (cdr (cdr x))))))
-
-(set 'qq-process-lambda
-     (lambda (x) (append (list 'lambda (car (cdr x))) (mapcar qq-process (cdr (cdr x))))))
-
 (set 'qq-process
      (lambda (expr)
        (if (pair? expr)
            (let ((sym (car expr)))
-             (if (eq sym 'let) (qq-process-let expr)
-                 (if (eq sym 'lambda) (qq-process-lambda expr)
-                     (if (eq sym 'quasiquote) (qq-xform (car (cdr expr)))
-                         (mapcar qq-process expr)))))
+             (if (eq sym 'quasiquote) (qq-xform (car (cdr expr)))
+                 (mapcar qq-process expr)))
            expr)))
 
 (set 'compiler qq-process)
@@ -102,6 +88,7 @@
 
 (set 'macroexpand
      (lambda (expr)
+       ;; (print `(expanding: ,expr))
        (if (pair? expr)
            (let ((sym (car expr)))
              (if (eq sym 'let) (mx-process-let expr)
@@ -141,5 +128,43 @@
                `(let ((,name ,test))
                   (if ,name ,name (or ,@rest))))
              test)))))
+
+(set-macro-function
+ 'lambda-bind
+ (lambda (expr)
+   (let ((vars (car (cdr expr)))
+         (form (car (cdr (cdr expr))))
+         (body (cdr (cdr (cdr expr)))))
+     (let ((name (gensym)))
+       (if (nil? vars)
+           `(let ((,name ,form)) ,@body)
+           (if (symbol? vars)
+               `(let ((,vars ,form)) ,@body)
+               (if (eq (car vars) '&)
+                   `(let ((,(car (cdr vars)) ,form)) ,@body)
+                   `(let ((,(car vars) (car ,form)))
+                      (let ((,name (cdr ,form)))
+                        (lambda-bind ,(cdr vars) ,name ,@body))))))))))
+
+(set-macro-function
+ 'defmacro
+ (lambda (form)
+   (lambda-bind
+    (_ name params & body) form
+    (let ((sym (gensym)) (ignore (gensym)))
+      `(set-macro-function
+        ',name
+        (lambda (,sym)
+          (lambda-bind ,(cons ignore params) ,sym ,@body)))))))
+
+(defmacro define (binding & body)
+  (if (pair? binding)
+      (let ((name (car binding))
+            (params (cdr binding)))
+        `(let ()
+           (set-symbol-value ',name #f)
+           (set-symbol-value ',name (lambda ,params ,@body))))
+      `(set-symbol-value ',binding ,(car body))))
+
 ;;; eval
 (set 'eval (lambda (x) ((compile-to-closure x))))

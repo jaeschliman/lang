@@ -38,28 +38,29 @@ enum PrimitiveOperation : u64 {
   PRIM_HT_AT_PUT = ((35ULL << 32) | (3ULL << 16) | PrimOp_Tag),
   PRIM_SET_SYM_VAL = ((36ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_GSYM = ((37ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_PRINT_STACK = ((38ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_DBG_STACK = ((39ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_SETPXL = ((40ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PTPLUS = ((41ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_PTMINUS = ((42ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_MKPOINT = ((43ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_PTX = ((44ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PTY = ((45ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PTROT = ((46ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_SFILLRCT = ((47ULL << 32) | (3ULL << 16) | PrimOp_Tag),
-  PRIM_DRAWIMAGE = ((48ULL << 32) | (4ULL << 16) | PrimOp_Tag),
-  PRIM_FILLRCT = ((49ULL << 32) | (4ULL << 16) | PrimOp_Tag),
-  PRIM_CLRRCT = ((50ULL << 32) | (3ULL << 16) | PrimOp_Tag),
-  PRIM_BLT = ((51ULL << 32) | (7ULL << 16) | PrimOp_Tag),
-  PRIM_BLT_M = ((52ULL << 32) | (12ULL << 16) | PrimOp_Tag),
-  PRIM_BLT_FR_SCRN = ((53ULL << 32) | (6ULL << 16) | PrimOp_Tag),
-  PRIM_LOADIMAGE = ((54ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_MKIMAGE = ((55ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_IMG_W = ((56ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_IMG_H = ((57ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_CCA = ((58ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_STRLEN = ((59ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_SYM_Q = ((38ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PRINT_STACK = ((39ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_DBG_STACK = ((40ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_SETPXL = ((41ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PTPLUS = ((42ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_PTMINUS = ((43ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_MKPOINT = ((44ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_PTX = ((45ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PTY = ((46ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PTROT = ((47ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_SFILLRCT = ((48ULL << 32) | (3ULL << 16) | PrimOp_Tag),
+  PRIM_DRAWIMAGE = ((49ULL << 32) | (4ULL << 16) | PrimOp_Tag),
+  PRIM_FILLRCT = ((50ULL << 32) | (4ULL << 16) | PrimOp_Tag),
+  PRIM_CLRRCT = ((51ULL << 32) | (3ULL << 16) | PrimOp_Tag),
+  PRIM_BLT = ((52ULL << 32) | (7ULL << 16) | PrimOp_Tag),
+  PRIM_BLT_M = ((53ULL << 32) | (12ULL << 16) | PrimOp_Tag),
+  PRIM_BLT_FR_SCRN = ((54ULL << 32) | (6ULL << 16) | PrimOp_Tag),
+  PRIM_LOADIMAGE = ((55ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_MKIMAGE = ((56ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_IMG_W = ((57ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_IMG_H = ((58ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_CCA = ((59ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_STRLEN = ((60ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -382,20 +383,28 @@ Ptr PRIM_GSYM_impl(VM *vm, u32 argc) {
 }
 
 // Primitive 37
+Ptr PRIM_SYM_Q_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("symbol?",any,a);
+
+  return to(Bool,(is(Symbol, a)));
+}
+
+// Primitive 38
 Ptr PRIM_PRINT_STACK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
  return vm_print_stack_trace(vm);
 }
 
-// Primitive 38
+// Primitive 39
 Ptr PRIM_DBG_STACK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
  return vm_print_debug_stack_trace(vm);
 }
 
-// Primitive 39
+// Primitive 40
 Ptr PRIM_SETPXL_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("set-pixel",Point,p);
@@ -403,7 +412,7 @@ Ptr PRIM_SETPXL_impl(VM *vm, u32 argc) {
  return gfx_set_pixel(vm, p);
 }
 
-// Primitive 40
+// Primitive 41
 Ptr PRIM_PTPLUS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("point+",Point,b);
@@ -412,7 +421,7 @@ Ptr PRIM_PTPLUS_impl(VM *vm, u32 argc) {
   return to(Point,(a + b));
 }
 
-// Primitive 41
+// Primitive 42
 Ptr PRIM_PTMINUS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("point-",Point,b);
@@ -421,7 +430,7 @@ Ptr PRIM_PTMINUS_impl(VM *vm, u32 argc) {
   return to(Point,(a - b));
 }
 
-// Primitive 42
+// Primitive 43
 Ptr PRIM_MKPOINT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("make-point",Fixnum,b);
@@ -430,7 +439,7 @@ Ptr PRIM_MKPOINT_impl(VM *vm, u32 argc) {
   return to(Point,((point){(s32)a, (s32)b}));
 }
 
-// Primitive 43
+// Primitive 44
 Ptr PRIM_PTX_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("point-x",Point,p);
@@ -438,7 +447,7 @@ Ptr PRIM_PTX_impl(VM *vm, u32 argc) {
   return to(Fixnum,((s64)p.x));
 }
 
-// Primitive 44
+// Primitive 45
 Ptr PRIM_PTY_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("point-y",Point,p);
@@ -446,7 +455,7 @@ Ptr PRIM_PTY_impl(VM *vm, u32 argc) {
   return to(Fixnum,((s64)p.y));
 }
 
-// Primitive 45
+// Primitive 46
 Ptr PRIM_PTROT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("point-rotate",Float,degrees);
@@ -455,7 +464,7 @@ Ptr PRIM_PTROT_impl(VM *vm, u32 argc) {
   return to(Point,(rotate_point(p, degrees)));
 }
 
-// Primitive 46
+// Primitive 47
 Ptr PRIM_SFILLRCT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("screen-fill-rect",Fixnum,color);
@@ -465,7 +474,7 @@ Ptr PRIM_SFILLRCT_impl(VM *vm, u32 argc) {
  return gfx_screen_fill_rect(vm, a, b, color);
 }
 
-// Primitive 47
+// Primitive 48
 Ptr PRIM_DRAWIMAGE_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("blit-to-screen",Fixnum,rot);
@@ -476,7 +485,7 @@ Ptr PRIM_DRAWIMAGE_impl(VM *vm, u32 argc) {
  return gfx_blit_image_at(vm, img, p, scale, rot);
 }
 
-// Primitive 48
+// Primitive 49
 Ptr PRIM_FILLRCT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("fill-rect",Fixnum,color);
@@ -487,7 +496,7 @@ Ptr PRIM_FILLRCT_impl(VM *vm, u32 argc) {
  return gfx_fill_rect(dst, a, b, color);
 }
 
-// Primitive 49
+// Primitive 50
 Ptr PRIM_CLRRCT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("clear-rect",Point,b);
@@ -497,7 +506,7 @@ Ptr PRIM_CLRRCT_impl(VM *vm, u32 argc) {
  return gfx_clear_rect(dst, a, b);
 }
 
-// Primitive 50
+// Primitive 51
 Ptr PRIM_BLT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("blit",Float,degrees_rotation);
@@ -511,7 +520,7 @@ Ptr PRIM_BLT_impl(VM *vm, u32 argc) {
  return gfx_blit(src, dst, at, ul, lr, scale, degrees_rotation);
 }
 
-// Primitive 51
+// Primitive 52
 Ptr PRIM_BLT_M_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("blit-with-mask",Float,msk_rot);
@@ -533,7 +542,7 @@ Ptr PRIM_BLT_M_impl(VM *vm, u32 argc) {
 );
 }
 
-// Primitive 52
+// Primitive 53
 Ptr PRIM_BLT_FR_SCRN_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("blit-from-screen",Float,degrees_rotation);
@@ -546,7 +555,7 @@ Ptr PRIM_BLT_FR_SCRN_impl(VM *vm, u32 argc) {
  return gfx_blit_from_screen(vm, dst, at, ul, lr, scale, degrees_rotation);
 }
 
-// Primitive 53
+// Primitive 54
 Ptr PRIM_LOADIMAGE_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("load-image",String,path);
@@ -554,7 +563,7 @@ Ptr PRIM_LOADIMAGE_impl(VM *vm, u32 argc) {
  return gfx_load_image(vm, path);
 }
 
-// Primitive 54
+// Primitive 55
 Ptr PRIM_MKIMAGE_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("make-image",Fixnum,h);
@@ -563,7 +572,7 @@ Ptr PRIM_MKIMAGE_impl(VM *vm, u32 argc) {
  return gfx_make_image(vm, w, h);
 }
 
-// Primitive 55
+// Primitive 56
 Ptr PRIM_IMG_W_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("image-width",Image,img);
@@ -571,7 +580,7 @@ Ptr PRIM_IMG_W_impl(VM *vm, u32 argc) {
   return to(Fixnum,(image_width(img)));
 }
 
-// Primitive 56
+// Primitive 57
 Ptr PRIM_IMG_H_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("image-height",Image,img);
@@ -579,7 +588,7 @@ Ptr PRIM_IMG_H_impl(VM *vm, u32 argc) {
   return to(Fixnum,(image_height(img)));
 }
 
-// Primitive 57
+// Primitive 58
 Ptr PRIM_CCA_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("char-code-at",Fixnum,idx);
@@ -588,7 +597,7 @@ Ptr PRIM_CCA_impl(VM *vm, u32 argc) {
   return to(Fixnum,(string_char_code_at(vm, str, idx)));
 }
 
-// Primitive 58
+// Primitive 59
 Ptr PRIM_STRLEN_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("string-length",String,str);
@@ -636,6 +645,7 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_HT_AT_PUT_impl,
   &PRIM_SET_SYM_VAL_impl,
   &PRIM_GSYM_impl,
+  &PRIM_SYM_Q_impl,
   &PRIM_PRINT_STACK_impl,
   &PRIM_DBG_STACK_impl,
   &PRIM_SETPXL_impl,
@@ -702,6 +712,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "ht-at-put", to(PrimOp, PRIM_HT_AT_PUT));
   set_global(vm, "set-symbol-value", to(PrimOp, PRIM_SET_SYM_VAL));
   set_global(vm, "gensym", to(PrimOp, PRIM_GSYM));
+  set_global(vm, "symbol?", to(PrimOp, PRIM_SYM_Q));
   set_global(vm, "print-stacktrace", to(PrimOp, PRIM_PRINT_STACK));
   set_global(vm, "debug-stacktrace", to(PrimOp, PRIM_DBG_STACK));
   set_global(vm, "set-pixel", to(PrimOp, PRIM_SETPXL));
@@ -1011,25 +1022,32 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
   }
 
   case 38: {
+   VM_ARG("symbol?",any,a);
 
-    vm_push(vm, vm_print_stack_trace(vm)); 
+     vm_push(vm, to(Bool,(is(Symbol, a)))); 
     break;
   }
 
   case 39: {
 
-    vm_push(vm, vm_print_debug_stack_trace(vm)); 
+    vm_push(vm, vm_print_stack_trace(vm)); 
     break;
   }
 
   case 40: {
+
+    vm_push(vm, vm_print_debug_stack_trace(vm)); 
+    break;
+  }
+
+  case 41: {
    VM_ARG("set-pixel",Point,p);
 
     vm_push(vm, gfx_set_pixel(vm, p)); 
     break;
   }
 
-  case 41: {
+  case 42: {
    VM_ARG("point+",Point,b);
    VM_ARG("point+",Point,a);
 
@@ -1037,7 +1055,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 42: {
+  case 43: {
    VM_ARG("point-",Point,b);
    VM_ARG("point-",Point,a);
 
@@ -1045,7 +1063,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 43: {
+  case 44: {
    VM_ARG("make-point",Fixnum,b);
    VM_ARG("make-point",Fixnum,a);
 
@@ -1053,21 +1071,21 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 44: {
+  case 45: {
    VM_ARG("point-x",Point,p);
 
      vm_push(vm, to(Fixnum,((s64)p.x))); 
     break;
   }
 
-  case 45: {
+  case 46: {
    VM_ARG("point-y",Point,p);
 
      vm_push(vm, to(Fixnum,((s64)p.y))); 
     break;
   }
 
-  case 46: {
+  case 47: {
    VM_ARG("point-rotate",Float,degrees);
    VM_ARG("point-rotate",Point,p);
 
@@ -1075,7 +1093,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 47: {
+  case 48: {
    VM_ARG("screen-fill-rect",Fixnum,color);
    VM_ARG("screen-fill-rect",Point,b);
    VM_ARG("screen-fill-rect",Point,a);
@@ -1084,7 +1102,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 48: {
+  case 49: {
    VM_ARG("blit-to-screen",Fixnum,rot);
    VM_ARG("blit-to-screen",Fixnum,scale);
    VM_ARG("blit-to-screen",Point,p);
@@ -1094,7 +1112,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 49: {
+  case 50: {
    VM_ARG("fill-rect",Fixnum,color);
    VM_ARG("fill-rect",Point,b);
    VM_ARG("fill-rect",Point,a);
@@ -1104,7 +1122,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 50: {
+  case 51: {
    VM_ARG("clear-rect",Point,b);
    VM_ARG("clear-rect",Point,a);
    VM_ARG("clear-rect",Image,dst);
@@ -1113,7 +1131,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 51: {
+  case 52: {
    VM_ARG("blit",Float,degrees_rotation);
    VM_ARG("blit",Float,scale);
    VM_ARG("blit",Point,lr);
@@ -1126,7 +1144,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 52: {
+  case 53: {
    VM_ARG("blit-with-mask",Float,msk_rot);
    VM_ARG("blit-with-mask",Float,msk_scale);
    VM_ARG("blit-with-mask",Point,msk_lr);
@@ -1147,7 +1165,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 53: {
+  case 54: {
    VM_ARG("blit-from-screen",Float,degrees_rotation);
    VM_ARG("blit-from-screen",Float,scale);
    VM_ARG("blit-from-screen",Point,lr);
@@ -1159,14 +1177,14 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 54: {
+  case 55: {
    VM_ARG("load-image",String,path);
 
     vm_push(vm, gfx_load_image(vm, path)); 
     break;
   }
 
-  case 55: {
+  case 56: {
    VM_ARG("make-image",Fixnum,h);
    VM_ARG("make-image",Fixnum,w);
 
@@ -1174,21 +1192,21 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 56: {
+  case 57: {
    VM_ARG("image-width",Image,img);
 
      vm_push(vm, to(Fixnum,(image_width(img)))); 
     break;
   }
 
-  case 57: {
+  case 58: {
    VM_ARG("image-height",Image,img);
 
      vm_push(vm, to(Fixnum,(image_height(img)))); 
     break;
   }
 
-  case 58: {
+  case 59: {
    VM_ARG("char-code-at",Fixnum,idx);
    VM_ARG("char-code-at",String,str);
 
@@ -1196,7 +1214,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 59: {
+  case 60: {
    VM_ARG("string-length",String,str);
 
      vm_push(vm, to(Fixnum,(string_length(str)))); 

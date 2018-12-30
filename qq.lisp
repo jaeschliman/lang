@@ -99,3 +99,25 @@
 (print (or 'a 'b 'c))
 (print `(a b c))
 (print (and 'a 'b 'c))
+
+;; (print '`(let ((,name ,form)) ,@body))
+
+(print (macroexpand '(lambda-bind (a b c) '(a b c) (list c b a))))
+(print (lambda-bind (a b c) '(a b c) (list c b a)))
+(print (lambda-bind x '(1 2 3) (list x x)))
+;; TODO: dot-reader
+;; (print (lambda-bind (x . y) '(1 2 3) (list x y)))
+(print (lambda-bind (x & y) '(1 2 3) (list x y)))
+
+(print (macroexpand '(defmacro my-macro (a b c)
+                      `(,c (list ,b ,a)))))
+
+(print (macroexpand '(define x 10)))
+(define x 10)
+(print x)
+(define (print-2 a b) (print b) (print a))
+(print-2 'x 10)
+
+;; maybe should support & in define as well?
+;; (define (show-more a & more) (print more))
+;; (show-more 0 1 2 3)

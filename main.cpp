@@ -619,7 +619,7 @@ Ptr load_image_from_path(VM *vm, string path) {
   auto w = surface->w; auto h = surface->h;
   auto img = alloc_image(vm, w, h);
   auto mem = (u32*)image_data(img);
-  for (auto y = 0; y < h; y++) {
+  for (auto y = 0; y < h; y++) { // @speed could be copied by row instead of pixel
     auto stride =  y * surface->pitch;
     for (auto x = 0; x < w; x++) {
       u32 pixel = *(u32 *)((u8*)surface->pixels + stride + x * 4);
@@ -633,7 +633,8 @@ Ptr load_image_from_path(VM *vm, string path) {
 Ptr gfx_load_image(VM *vm, ByteArrayObject *path) {
   if (!is(String, objToPtr(path))) die("load_image takes a string");
   auto str = string(path->data, path->length);
-  return load_image_from_path(vm, str);
+  auto result = load_image_from_path(vm, str);
+  return result;
 }
 Ptr gfx_make_image(VM *vm, s64 w, s64 h) {
   return objToPtr(alloc_image(vm, w, h));
@@ -2538,10 +2539,12 @@ Ptr class_set_method(VM *vm, StandardObject *klass, ByteArrayObject* sym, Ptr ca
 
 inline Ptr giant_switch(VM *vm, u32 argc, u32 idx);
 
-#define vm_curr_instr(vm) currfn[vm->pc]
-#define vm_adv_instr(vm) currfn[++vm->pc]
+// @speed would be nice to have less indirection here,
+//        but need to integrate with stack push/pop and gc both
+#define vm_curr_instr(vm) vm->bc->code->data[vm->pc]
+#define vm_adv_instr(vm) vm->bc->code->data[++vm->pc]
 void vm_interp(VM* vm) {
-  u64 instr; u8 code; u32 data; auto currfn = vm->bc->code->data;
+  u64 instr; u8 code; u32 data;
   while ((instr = vm_curr_instr(vm))) {
     vm->instruction_count++;
     code = instr_code(instr);
@@ -2680,7 +2683,7 @@ void vm_interp(VM* vm) {
           goto reenter_call;
         }
 
-        // cout << " calling prim at idx: " << idx << " arg count = " << argc << endl;
+        // cerr << " calling prim at idx: " << idx << " arg count = " << argc << endl;
 #if PRIM_USE_GIANT_SWITCH
         giant_switch(vm, argc, idx);
 #else
@@ -2706,14 +2709,12 @@ void vm_interp(VM* vm) {
         auto env = closure_env(fn);
         vm_push_stack_frame(vm, argc, bc, env);
       }
-      currfn = vm->bc->code->data;
       vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
       break;
     }
     case RET: {
       auto it = vm_pop(vm);
       vm_pop_stack_frame(vm);
-      currfn = vm->bc->code->data;
       vm_push(vm, it);
       // cout << "returning: " << it << endl;
       break;

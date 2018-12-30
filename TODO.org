@@ -100,6 +100,8 @@ https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
 * TODO audit uses of *_mem functions for GC safety
 * DONE apparently we are leaking like crazy somewhere...
 * TODO make the lisp programs objects that respond to messages
+* TODO ability to load files at the repl
+* TODO basic debugger (not that we save debug info, but...)
 
 
 * notes

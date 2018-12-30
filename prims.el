@@ -272,8 +272,12 @@ void initialize_primitive_functions(VM *vm) {
   (prim image-width  IMG_W ((img Image)) Fixnum "image_width(img)")
   (prim image-height IMG_H ((img Image)) Fixnum "image_height(img)")
 
-  (prim char-code-at CCA ((str String) (idx Fixnum)) Fixnum "string_char_code_at(vm, str, idx)")
-  (prim char-at CH_AT ((str String) (idx Fixnum)) Char "string_char_at(vm, str, idx)")
+  (prim char-code-at CCA   ((str String) (idx Fixnum)) Fixnum "string_char_code_at(vm, str, idx)")
+  (prim char-code    CC    ((ch Char))                 Fixnum "(s64)ch")
+  (prim char-at      CH_AT ((str String) (idx Fixnum)) Char   "string_char_at(vm, str, idx)")
+  (prim char-<       CH_LT ((a Char) (b Char))         Bool   "a < b")
+  (prim char->       CH_GT ((a Char) (b Char))         Bool   "a > b")
+
   (prim string-length STRLEN ((str String)) Fixnum "string_length(str)")
 
   (setf *prims* (reverse *prims*))

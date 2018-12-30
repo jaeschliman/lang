@@ -188,5 +188,16 @@
                          (helper (cdr rem) (cons (car rem) acc)))))
       (helper lst '())))
 
+(define (reduce-list fn seed list)
+    (let ((helper #f)
+          (acc seed))
+      (set! helper (lambda (lst)
+                     (if (nil? lst) acc
+                         (let ()
+                           (set! acc (fn acc (car lst)))
+                           (helper (cdr lst))))))
+      (helper list)
+      acc))
+
 ;;; eval
 (set 'eval (lambda (x) ((compile-to-closure x))))

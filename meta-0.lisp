@@ -28,7 +28,10 @@
 (define (set-rule x fn) (ht-at-put rules x fn))
 
 ;; stub for now
-(define (char-between b a c) #t)
+(define (char-between b a c)
+    (or (eq a b) (eq b c)
+        (and (char-< a b)
+             (char-< b c))))
 
 ;;
 ;;
@@ -106,15 +109,37 @@
                        (state+stream (state+result st (stream-read s))
                                      (stream-next s))))))
 (set-rule 'alpha (lambda (st)
-                   (apply-rule st 'any
-                               (lambda (st)
-                                 (let ((x (state-result st)))
-                                   (if (or (char-between x #\a #\z)
-                                           (char-between x #\A #\Z))
-                                       (state+result st x)
-                                       fail))))))
+                   (apply-rule
+                    st 'any
+                    (lambda (st)
+                      (let ((x (state-result st)))
+                        (if (or (char-between x #\a #\z)
+                                (char-between x #\A #\Z))
+                            (state+result st x)
+                            fail))))))
+(set-rule 'digit (lambda (st)
+                   (apply-rule
+                    st 'any
+                    (lambda (st)
+                      (let ((x (state-result st)))
+                        (if (char-between x #\0 #\9)
+                            (state+result st (-i (char-code x) (char-code #\0)))
+                            fail))))))
 
 (set-rule 'ident (lambda (st) (apply-rule+ st 'alpha id)))
+
+(set-rule 'integer
+          (lambda (st)
+            (apply-rule+
+             st 'digit
+             (lambda (st)
+               (let ((nums (state-result st)))
+                 (state+result
+                  st
+                  (reduce-list
+                   (lambda (acc n)
+                     (+i n (*i 10 acc)))
+                   0 nums)))))))
 
 (define (match-string string rule-name)
     (let* ((stream (make-stream string))
@@ -138,5 +163,10 @@
 (trace (match-string* "xyz" 'alpha))
 (trace (match-string* "xyz" 'ident))
 (trace (match-string* "" 'ident))
+(trace (match-string "x+y" 'ident))
+(trace (match-string* "0123456789" 'digit))
+(trace (match-string* "0123456789x" 'digit))
+(trace (match-string "0123456789" 'integer))
+(trace (match-string "0123456789x" 'integer))
 
 'bye

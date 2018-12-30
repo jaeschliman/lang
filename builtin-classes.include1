@@ -1,1 +1,1 @@
-X(CompilerEnv, HashTable, StackFrame)
+X(CompilerEnv, HashTable, StackFrame, InputStream)

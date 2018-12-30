@@ -733,6 +733,14 @@ s64 string_char_code_at(VM *vm, ByteArrayObject *str, s64 index) {
   return str->data[index];
 }
 
+char string_char_at(VM *vm, ByteArrayObject *str, s64 index) {
+  if (index >= str->length) {
+    vm->error = "string index out of range";
+    return -1;
+  }
+  return (char)(str->data[index]);
+}
+
 s64 string_length(ByteArrayObject *str) {
   return str->length;
 }
@@ -950,6 +958,7 @@ enum StructTag : s64 {
   StructTag_VarInfo,
   StructTag_CompilerEnv,
   StructTag_HashTable,
+  StructTag_InputStream,
   StructTag_End
 };
 
@@ -962,6 +971,7 @@ StructTag struct_get_tag(Ptr it) {
 
 defstruct(cons, Cons, car, cdr);
 defstruct(ht, HashTable, array);
+defstruct(istream, InputStream, string, index);
 
 /* ---------------------------------------- */
 
@@ -2023,9 +2033,9 @@ void eat_ws(const char **remaining, const char *end) {
 Ptr read(VM *vm, const char **remaining, const char *end, Ptr done);
 
 auto read_delimited_list(VM *vm, const char **remaining, const char *end, Ptr done, char delim) {
-  prot_ptrs(done);
+                                 prot_ptrs(done);
   auto input = *remaining;
-  auto items = make_xarray(vm); prot_ptrs(items);
+  auto items = make_xarray(vm);  prot_ptrs(items);
 
   while(input < end && *input != delim) {
     auto item = read(vm, &input, end, done);
@@ -2038,11 +2048,13 @@ auto read_delimited_list(VM *vm, const char **remaining, const char *end, Ptr do
     eat_ws(&input, end);
   }
   auto used = xarray_used(items);
-  auto mem  = xarray_memory(items);
+  // N.B. need to unprotect items as we are taking reference to its
+  //      and protecting within make_list 
+  auto mem  = xarray_memory(items); unprot_ptrs(items);
   auto res  = make_list(vm, used, mem);
   if (*input == delim) input++;
   *remaining = input;
-  unprot_ptrs(items, done);
+  unprot_ptrs(done);
   return res;
 }
 
@@ -2325,6 +2337,46 @@ Ptr read_all(VM *vm, const char* input) {
   auto res  = make_list(vm, used, mem);
   unprot_ptrs(done, items, item);
   return res;
+}
+
+Ptr make_istream_from_string(VM *vm, const char *input) {
+  auto str = make_string(vm, input); prot_ptr(str);
+  auto idx = to(Fixnum, 0);
+  auto result = make_istream(vm, str, idx);
+  unprot_ptrs(str);
+  return result;
+}
+
+bool istream_at_end(Ptr s) {
+  auto used  = as(Fixnum, istream_get_index(s));
+  auto avail = string_length(as(String, istream_get_string(s)));
+  return used >= avail - 1;
+}
+
+Ptr istream_next(VM *vm, Ptr s) {
+  if (istream_at_end(s)) return Nil;
+  auto used = as(Fixnum, istream_get_index(s));
+  auto str  = as(String, istream_get_string(s));
+  istream_set_index(s, to(Fixnum, 1+used));
+  return to(Char, string_char_code_at(vm, str, used));
+}
+
+// sigh... this is pretty ugly, but it'll have to do for now...
+// @speed all this copying is horrrrrrible
+Ptr read_from_istream(VM *vm, Ptr s) { prot_ptr(s);
+  auto _str  = as(String, istream_get_string(s));
+  auto len   = _str->length;
+  auto used  = as(Fixnum, istream_get_index(s));
+  auto str   = (string(_str->data + used, _str->length)).c_str();
+  auto start = str;
+  auto end   = str + (len - used);
+  auto done  = cons(vm, Nil, Nil);     prot_ptr(done);
+  auto input = start;
+  auto result = read(vm, &input, end, done);
+  used += input - start;
+  istream_set_index(s, to(Fixnum, used));
+  unprot_ptrs(s, done);
+  return result;
 }
 
 /* -------------------------------------------------- */
@@ -3825,13 +3877,16 @@ Ptr run_string(VM *vm, const char *str) {
 void start_up_and_run_string(const char* str, bool soak) {
   VM *vm = vm_create();
 
-  auto exprs = read_all(vm, str);
-  auto kept_head = cons(vm, Nil, exprs); prot_ptr(kept_head);
   do {
 
-    do_list(vm, cdr(kept_head), [&](Ptr expr){
-        eval(vm, expr);
-      });
+    auto istream = make_istream_from_string(vm, str); prot_ptr(istream);
+
+    while (!istream_at_end(istream)) {
+      auto read = read_from_istream(vm, istream);
+      eval(vm, read);
+    }
+
+    unprot_ptrs(istream);
 
     if (soak) {
       vm_count_objects_on_heap(vm);
@@ -3844,8 +3899,6 @@ void start_up_and_run_string(const char* str, bool soak) {
     }
 
   } while(soak);
-
-  unprot_ptr(kept_head);
 
   // TODO: clean up
 }

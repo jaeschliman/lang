@@ -102,6 +102,18 @@
              (next (state+result st (list (state-result st))))
              (next (state-cons-onto st next-state)))))))
 
+(define (apply-or state syms next)
+    (trace syms)
+    (let ((helper #f))
+      (set! helper (lambda (syms)
+                     (trace syms)
+                     (if (nil? syms) fail
+                         (let ((next-state (apply-rule state (car syms) id)))
+                           (if (failure? next-state)
+                               (helper (cdr syms))
+                               (next next-state))))))
+      (helper syms)))
+
 (set-rule 'any (lambda (st)
                  (let ((s (state-stream st)))
                    (if (stream-end? s)
@@ -141,6 +153,10 @@
                      (+i n (*i 10 acc)))
                    0 nums)))))))
 
+(set-rule 'integer-or-ident (lambda (st)
+                              (apply-or st '(integer ident) id)))
+
+
 (define (match-string string rule-name)
     (let* ((stream (make-stream string))
            (state  (list stream 'initial-state)))
@@ -168,5 +184,10 @@
 (trace (match-string* "0123456789x" 'digit))
 (trace (match-string "0123456789" 'integer))
 (trace (match-string "0123456789x" 'integer))
+(trace (ht-at rules 'integer-or-ident))
+(trace (match-string "123xyz" 'integer-or-ident))
+(trace (match-string "xyz123" 'integer-or-ident))
+(trace (match-string* "123xyz" 'integer-or-ident))
+(trace (match-string* "xyz123" 'integer-or-ident))
 
 'bye

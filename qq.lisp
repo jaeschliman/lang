@@ -159,7 +159,15 @@
 (store 'secret)
 (print (load))
 
-(print (reverse '(c b a)))
+(print (reverse-list '(c b a)))
+
+(print (make-string 3 #\x))
+
+(define my-str (make-string 3 #\Space))
+(char-at-put my-str 1 #\o)
+(print my-str)
+
+(print (implode '(#\h #\e #\l #\l #\o)))
 
 ;; maybe should support & in define as well?
 ;; (define (show-more a & more) (print more))

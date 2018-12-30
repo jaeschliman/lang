@@ -226,6 +226,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim set-symbol-value SET_SYM_VAL ((a Symbol) (b any)) any  "set_global(vm, objToPtr(a), b)")
   (prim gensym           GSYM        ()                   any  "make_symbol(vm, \"_gensym_\")")
   (prim symbol?          SYM_Q       ((a any))            Bool "is(Symbol, a)")
+  (prim intern           INTERN      ((a String))         any  "intern(vm, a)")
 
   (prim print-stacktrace PRINT_STACK () any "vm_print_stack_trace(vm)")
   (prim debug-stacktrace DBG_STACK   () any "vm_print_debug_stack_trace(vm)")
@@ -275,9 +276,12 @@ void initialize_primitive_functions(VM *vm) {
   (prim char-code-at CCA   ((str String) (idx Fixnum)) Fixnum "string_char_code_at(vm, str, idx)")
   (prim char-code    CC    ((ch Char))                 Fixnum "(s64)ch")
   (prim char-at      CH_AT ((str String) (idx Fixnum)) Char   "string_char_at(vm, str, idx)")
+  (prim char-at-put  CH_ATP ((str String) (idx Fixnum) (ch Char)) any
+        "string_set_char_at(vm, str, idx, ch)")
   (prim char-<       CH_LT ((a Char) (b Char))         Bool   "a < b")
   (prim char->       CH_GT ((a Char) (b Char))         Bool   "a > b")
 
+  (prim make-string MKSTR ((len Fixnum) (ch Char)) any "make_filled_string(vm, len, ch)")
   (prim string-length STRLEN ((str String)) Fixnum "string_length(str)")
 
   (setf *prims* (reverse *prims*))

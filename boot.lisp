@@ -199,5 +199,16 @@
       (helper list)
       acc))
 
+(define (list-length lst)
+    (reduce-list (lambda (acc _) (+i acc 1)) 0 lst))
+
+(define (implode lst-of-chars)
+    (let ((str (make-string (list-length lst-of-chars) #\Space)))
+      (reduce-list (lambda (idx chr)
+                     (char-at-put str idx chr)
+                     (+i 1 idx))
+                   0 lst-of-chars)
+      (intern str)))
+
 ;;; eval
 (set 'eval (lambda (x) ((compile-to-closure x))))

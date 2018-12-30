@@ -742,6 +742,21 @@ char string_char_at(VM *vm, ByteArrayObject *str, s64 index) {
   return (char)(str->data[index]);
 }
 
+Ptr string_set_char_at(VM *vm, ByteArrayObject *str, s64 index, char ch) {
+  if (index >= str->length) {
+    vm->error = "string index out of range";
+  } else {
+    str->data[index] = ch;
+  }
+  return Nil;
+}
+
+Ptr make_filled_string(VM *vm, s64 size, char ch) {
+  auto s = alloc_bao(vm, String, size);
+  memset(s->data, ch, size);
+  return objToPtr(s);
+}
+
 s64 string_length(ByteArrayObject *str) {
   return str->length;
 }
@@ -1893,6 +1908,7 @@ void initialize_struct_printers() {
   StructPrintTable[StructTag_Cons] = &debug_print_list;
 }
 
+
 Ptr intern(VM *vm, const char* cstr, int len) {
   string name = string(cstr, len);
   auto tab = vm->globals->symtab;
@@ -1903,6 +1919,10 @@ Ptr intern(VM *vm, const char* cstr, int len) {
   }
   auto res = vm->globals->symtab->find(name)->second;
   return res;
+}
+
+Ptr intern(VM *vm, ByteArrayObject *str) {
+  return intern(vm, str->data, str->length);
 }
 
 Ptr intern(VM *vm, string name) {

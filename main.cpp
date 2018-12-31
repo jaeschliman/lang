@@ -37,6 +37,7 @@
 // 2.5Ghz chip. 2500000000 / 1 / 60 = ~41,700,000 ops / frame!
 // so roughly 170 ops / bc via wall clock.
 // with it on, and NDEBUG: 179763496 / 12.201 / 60 = 245,550 ops/frame
+// on a different workload (meta-1), saw over 400,000 instr / frame
 
 #define unused(x) (void)(x)
 #define maybe_unused(x) (void)(x)

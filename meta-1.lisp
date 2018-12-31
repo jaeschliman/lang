@@ -175,6 +175,12 @@
     (let ((new-rule (cons 'seq (every-other rules 'ws))))
       (apply-rule new-rule state next)))
 
+(define-apply (token state rules next)
+    (let ((new-rule (cons 'seq (every-other rules 'ws))))
+      (apply-rule new-rule state (lambda (st)
+                                   (let ((x (state-result st)))
+                                     (next (state+result st (car x))))))))
+
 (define-apply (ign state rules next)
     (let ((rule (car rules)))
       (apply-rule rule state (lambda (next-state)
@@ -301,11 +307,9 @@
             (apply-rule
              '(or
                (do
-                (tokens #\(  (bind x (* meta-1)) #\) )
+                (tokens #\( (bind x (* meta-1)) #\) )
                 (return x))
-               (do
-                (tokens (bind x (or integer ident)))
-                (return x)))
+               (or (token integer) (token ident)))
              st
              id)))
 

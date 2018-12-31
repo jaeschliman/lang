@@ -36,6 +36,7 @@
         ((nothing? b) (list a))
         (#t (cons a b))))
 
+
 (define (state-stream state) (car state))
 (define (state-result state) (nth state 1))
 
@@ -44,6 +45,13 @@
 (define (state+stream state stream) (cons stream (cdr state)))
 (define (state-cons a b) (state+result a (result-cons (state-result a) (state-result b))))
 (define (state-cons-onto a b) (state+result b (result-cons (state-result a) (state-result b))))
+
+(define (reverse-result result)
+    (if (nothing? result) nothing (reverse-list result)))
+
+(define (state-reverse-result state)
+    (if (nothing? (state-result state)) state
+        (state+result state (reverse-list (state-result state)))))
 
 (define (make-stream str) (cons 0 str))
 (define (stream-read s) (char-at (cdr s) (car s)))
@@ -89,7 +97,7 @@
 (define-apply (%exactly state item next)
     (apply-rule 'any state (lambda (st)
                              (let ((x (state-result st)))
-                               (if (eq x item) st fail)))))
+                               (if (eq x item) (next st) fail)))))
 
 (define-apply (%base state symbol next)
     (let* ((rule (get-rule symbol))
@@ -107,9 +115,7 @@
       (set! apply-next
             (lambda (new-state)
               (if (eq new-state last-state) ;; no progress
-                  (next (state+result
-                         last-state
-                         (reverse-list (state-result last-state))))
+                  (next (state-reverse-result last-state))
                   (let ((acc-state (state-cons new-state last-state)))
                     (set! last-state acc-state)
                     (apply-rule rule last-state apply-next)))))
@@ -117,12 +123,8 @@
 
 (define-apply (* state args next)
     (let* ((rule (car args))
-           (acc-state (state+result state '())))
-      (apply-rule*-aux `(? ,rule) acc-state
-                       (lambda (next-state)
-                         (if (eq next-state acc-state)
-                             (next state)
-                             (next next-state))))))
+           (acc-state (state+result state '()))) ;; should always return a list
+      (apply-rule*-aux `(? ,rule) acc-state next)))
 
 (define-apply (+ state args next)
     (let* ((rule (car args)))
@@ -131,7 +133,7 @@
        (lambda (st)
          (let ((next-state (apply-rule `(* ,rule) st id)))
            (if (eq next-state st)
-               (next (state+result st (list (state-result st))))
+               (next (state+result st (result-cons (state-result st) nothing)))
                (next (state-cons-onto st next-state))))))))
 
 (define-apply (or state rules next)
@@ -148,7 +150,7 @@
     (let ((helper #f)
           (result nothing))
       (set! helper (lambda (rules state)
-                     (if (nil? rules) (next (state+result state (reverse-list result)))
+                     (if (nil? rules) (next (state+result state (reverse-result result)))
                          (let* ((reset (state+result state nothing))
                                 (next-state (apply-rule (car rules) reset id)))
                            (if (failure? next-state) fail
@@ -159,10 +161,9 @@
       (helper rules state)))
 
 (define-apply (ign state rules next)
-    (let ((rule (car rules))
-          (result (state-result state)))
+    (let ((rule (car rules)))
       (apply-rule rule state (lambda (next-state)
-                               (next (state+result next-state result))))))
+                               (next (state+result next-state nothing))))))
 
 (set-rule 'any (lambda (st)
                  (let ((s (state-stream st)))
@@ -228,8 +229,7 @@
             (apply-rule '(seq ws integer-or-ident ws) st
                         (lambda (st)
                           (let ((x (state-result st)))
-                            (state+result st (car x))))
-                        )))
+                            (state+result st (car x)))))))
 
 ;; expr = ( expr* ) | token
 
@@ -238,7 +238,7 @@
             (apply-rule '(seq ws #\( ws maybe-exprs ws #\) ws) st
                         (lambda (st)
                           (let ((x (state-result st)))
-                            (state+result st (nth x 3)))))))
+                            (state+result st (nth x 1)))))))
 
 (set-rule 'maybe-exprs
           (lambda (st) (apply-rule '(* expr) st id)))
@@ -248,7 +248,7 @@
 (set-rule 'meta-1
           (lambda (st)
             (apply-rule
-             '(or (seq ws #\( ws (* meta-1) ws #\) ws)
+             '(or (seq ws (ign #\( ) ws (* meta-1) ws (ign #\) ) ws)
                token)
              st
              id)))
@@ -264,39 +264,43 @@
       (state-result (apply-rule `(* ,rule-name) state id))))
 ;;
 (trace (match-string "" 'any))
-(trace (match-string "x" 'any))
-(trace (match-string "x" 'alpha))
-(trace (match-string "xyz" 'alpha))
+(trace (match-string "x" '(ign #\x)))
+;; (trace (match-string "x" 'any))
+;; (trace (match-string "x" 'alpha))
+;; (trace (match-string "xyz" 'alpha))
 (trace (match-string "xyz" '(? alpha)))
 (trace (match-string "xyz" '(* alpha)))
-(trace (match-string "xyz" #\x))
+;; (trace (match-string "xyz" #\x))
 (trace (match-string "xyz" '(seq #\x #\y #\z)))
 (trace (match-string "xyzxyz" '(* (seq #\x #\y #\z))))
-(trace (match-string "xyz" '(+ alpha)))
-(trace (match-string "" 'ident))
-(trace (match-string "xyz" 'ident))
-(trace (match-string "x+y" 'ident))
-(trace (match-string "0123456789" '(* digit)))
-(trace (match-string "0123456789x" '(* digit)))
-(trace (match-string "0123456789" 'integer))
-(trace (match-string "0123456789x" 'integer))
-(trace (match-string "123xyz" 'integer-or-ident))
-(trace (match-string "xyz123" 'integer-or-ident))
-(trace (match-string "123xyz" '(* integer-or-ident)))
-(trace (match-string "xyz123" '(* integer-or-ident)))
-(trace (match-string "123xyz" '(or integer ident)))
-(trace (match-string "xyz123" '(or integer ident)))
+;; (trace (match-string "xyz" '(+ alpha)))
+;; (trace (match-string "" 'ident))
+;; (trace (match-string "xyz" 'ident))
+;; (trace (match-string "x+y" 'ident))
+;; (trace (match-string "0123456789" '(* digit)))
+;; (trace (match-string "0123456789x" '(* digit)))
+;; (trace (match-string "0123456789" 'integer))
+;; (trace (match-string "0123456789x" 'integer))
+;; (trace (match-string "123xyz" 'integer-or-ident))
+;; (trace (match-string "xyz123" 'integer-or-ident))
+;; (trace (match-string "123xyz" '(* integer-or-ident)))
+;; (trace (match-string "xyz123" '(* integer-or-ident)))
+;; (trace (match-string "123xyz" '(or integer ident)))
+;; (trace (match-string "xyz123" '(or integer ident)))
 (trace (match-string "123xyz" '(* (or integer ident))))
 (trace (match-string "xyz123" '(* (or integer ident))))
-(trace (match-string "" 'ws))
+;; (trace (match-string "" 'ws))
 (trace (match-string " " 'ws))
-(trace (match-string "x" 'ws))
+;; (trace (match-string "x" 'ws))
 (trace (match-string "xyz" 'token))
+(trace (match-string " xyz " 'token))
+(trace (match-string " xyz " '(+ token)))
+(trace (match-string " xyz " '(* token)))
 (trace (match-string* " xyz 1 2 3 hello world" 'token))
 (trace (match-string "xyz" 'expr))
 (trace (match-string "123" 'expr))
-(trace (match-string "xyz 123" 'expr))
-(trace (match-string "123 xyz" 'expr))
+;; (trace (match-string "xyz 123" 'expr))
+;; (trace (match-string "123 xyz" 'expr))
 (trace (match-string "()" 'expr))
 (trace (match-string "(lambda (x) x)" 'expr))
 (trace (match-string "
@@ -305,12 +309,12 @@
       (if (nilp lst) lst
           (cons (f (car lst)) (mapcar f (cdr lst))))))
 " 'expr))
-(trace (match-string "
+;; (trace (match-string "
   
- " 'ws))
-(print "--------------------------------------------------------------------------------")
+;;  " 'ws))
+;; (print "--------------------------------------------------------------------------------")
 (trace (match-string "()" 'meta-1))
-;; (trace (match-string "(lambda (x) x)" 'meta-1))
+(trace (match-string "(lambda (x) x)" 'meta-1))
 
 
 'bye

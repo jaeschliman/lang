@@ -151,11 +151,11 @@
  (lambda (form)
    (lambda-bind
     (_ name params & body) form
-    (let ((sym (gensym)) (ignore (gensym)))
+    (let ((sym (gensym)))
       `(set-macro-function
         ',name
         (lambda (,sym)
-          (lambda-bind ,(cons ignore params) ,sym ,@body)))))))
+          (lambda-bind ,params (cdr ,sym) ,@body)))))))
 
 (defmacro define (binding & body)
   (if (pair? binding)
@@ -209,6 +209,13 @@
                      (+i 1 idx))
                    0 lst-of-chars)
       (intern str)))
+
+;; BUG!! could not properly nest backquotes...
+(defmacro case (subj & tests)
+  (let* ((name (gensym))
+         (xform (lambda (it) `((eq ,name (quote ,(car it))) ,@(cdr it)))))
+    `(let ((,name ,subj))
+       (cond ,@(mapcar xform tests)))))
 
 ;;; eval
 (set 'eval (lambda (x) ((compile-to-closure x))))

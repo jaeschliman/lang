@@ -4,6 +4,8 @@
 
 (trace "trace works")
 
+;; TODO: symbol hygiene for rule compiler internals
+
 (define (id x) x)
 (define (safe-cdr it) (if (pair? it) (cdr it) it))
 
@@ -46,9 +48,9 @@
   ;; (print '------------>)
   ;; (print (compile-rule rule 'initial-state 'final-return))
   (let ((compiled (compile-rule rule 'state 'id)))
+    (print '========>)
     `(let* ((stream (make-stream ,string))
             (state  (make-initial-state stream)))
-       (print '========>)
        (print (state-result ,compiled)))))
 
 (define rules (make-ht))
@@ -188,19 +190,38 @@
              (next  ,next))
          ,body)))
 
-(define-apply (seq state rules next)
-    (let ((helper #f)
-          (result nothing))
-      (set! helper (lambda (rules state)
-                     (if (nil? rules) (next (state+result state (reverse-result result)))
-                         (let* ((reset (state+result state nothing))
-                                (next-state (apply-rule (car rules) reset id)))
-                           (if (failure? next-state) fail
-                               (let ()
-                                 (set! result (result-cons (state-result next-state)
-                                                           result))
-                                 (helper (cdr rules) next-state)))))))
-      (helper rules state)))
+;; changed to _not_ aggregate results as I'm not sure we actually need
+;; that from seq.
+(define-compile (seq state rules next)
+    (let ((body
+           (reduce-list (lambda (run-next rule)
+                          `(lambda (st) ,(compile-rule rule 'st run-next)))
+                        next
+                        (reverse-list rules))))
+      `(,body ,state)))
+
+;; this is sort of a cheesy form of let, but it works for now
+(define-compile (let state forms next)
+    `(let ,(car forms)
+       ,(compile-rule (cons 'seq (cdr forms))
+                      state next)))
+
+(define-compile (set! state forms next)
+    (let ((var (car forms))
+          (rule (car (cdr forms))))
+      (compile-rule rule state `(lambda (_st_)
+                                  (set! ,var (state-result _st_))
+                                  (,next _st_)))))
+
+(define-compile (where state forms next)
+    (let ((test (car forms)))
+      `(if ,test (,next ,state)
+           fail)))
+
+(define-compile (return state forms next)
+    (let ((var (car forms)))
+      `(,next (state+result ,state ,var))))
+
 
 (define (every-other lst item)
     (reverse-list
@@ -376,5 +397,32 @@
 (dbg (or #\a #\b) "b")
 (dbg (+ (or #\a #\b)) "b")
 (dbg (+ (or #\a #\b)) "ababbaabab")
+(dbg (seq any) "abc")
+(dbg (seq any any any) "abc")
+(dbg (let ((x 10)) (+ #\a)) "aaa")
+(dbg (let ((x 10)) (+ #\a) (+ #\b)) "aaabbb")
+(dbg (let ((x 10)) (set! x (+ #\a)) (+ #\b)) "aaabbb")
+(dbg (let ((x 10))
+       (set! x (+ #\a))
+       (+ #\b)
+       (return x)) "aaabbb")
+(dbg (let ((x 10))
+       (+ #\a)
+       (set! x (+ #\b))
+       (+ #\c)
+       (return x)) "aabbbcc")
+
+(dbg (let ((x '()))
+       (set! x any)
+       (where (char-between x #\0 #\9))
+       (return (-i (char-code x) (char-code #\0))))
+     "0")
+
+(dbg (+ (let ((x '()))
+          (set! x any)
+          (where (char-between x #\0 #\9))
+          (return (-i (char-code x) (char-code #\0)))))
+     "012345abc")
+
 
 'bye

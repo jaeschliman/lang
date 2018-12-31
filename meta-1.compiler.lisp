@@ -98,14 +98,6 @@
         (and (char-< a b)
              (char-< b c))))
 
-;;
-;;
-;;  alpha = any : x ? (or (char-between x #\a #\z) (char-between x #\A #\Z)) -> x
-;;  symbol = alpha+ : chars -> (intern (to-string chars))
-;;  -- would be nice to save input range, like:
-;;  symbol = alpha+ : <start, end> -> (intern (stream-subseq start end))
-;;
-
 '(rule alpha
   (bind x any)
   (where (or
@@ -138,9 +130,10 @@
       (if (failure? res) res (next res))))
 
 (define-compile (%exactly state item next)
-    `(apply-rule 'any ,state (lambda (st)
-                               (let ((x (state-result st)))
-                                 (if (eq x ,item) (,next st) fail)))))
+    (let ((x (gensym)))
+      `(apply-rule 'any ,state (lambda (st)
+                                 (let ((,x (state-result st)))
+                                   (if (eq ,x ,item) (,next st) fail))))))
 
 (define-compile (? state args next)
     (let* ((comp (compile-rule (car args) '_state_ 'id)))
@@ -222,162 +215,61 @@
     (let ((var (car forms)))
       `(,next (state+result ,state ,var))))
 
-
-(define (every-other lst item)
-    (reverse-list
-     (reduce-list (lambda (acc next) (cons item (cons next acc))) (list item) lst)))
-
-(define-apply (tokens state rules next)
-    (let ((new-rule (cons 'seq (every-other rules 'ws))))
-      (apply-rule new-rule state next)))
-
-(define-apply (token state rules next)
-    (let ((new-rule (cons 'seq (every-other rules 'ws))))
-      (apply-rule new-rule state (lambda (st)
-                                   (let ((x (state-result st)))
-                                     (next (state+result st (car x))))))))
-
-(define-apply (ign state rules next)
-    (let ((rule (car rules)))
-      (apply-rule rule state (lambda (next-state)
-                               (next (state+result next-state nothing))))))
-
-;; this do/bind/return stuff is a bit much...
-;; should really be compiling this stuff anyway, not interpreting.
-(define-apply (do state rules next)
-    (let ((helper #f)
-          (vars (state-vars state)))
-      (set! helper (lambda (rules state)
-                     (if (nil? rules) (next (state+vars state vars))
-                         (apply-rule (car rules) state
-                                     (lambda (next-state)
-                                       (helper (cdr rules) next-state))))))
-      (helper rules (state+vars state (make-ht)))))
-
-(define-apply (bind state form next)
-    (let ((sym (nth form 0))
-          (rule (nth form 1)))
-      (apply-rule rule state
-                  (lambda (st)
-                    (state-vars-at-put st sym (state-result st))
-                    (next st)))))
-
-(define-apply (return state form next)
-    (let* ((sym (nth form 0))
-           (val (state-vars-at state sym)))
-      (print `(returning: ,sym ,val))
-      (next (state+result state val))))
-
-
 (set-rule 'any (lambda (st)
                  (let ((s (state-stream st)))
                    (if (stream-end? s)
                        fail
                        (state+stream (state+result st (stream-read s))
                                      (stream-next s))))))
-(set-rule 'space
-          (lambda (st)
-            (apply-rule
-             'any st
-             (lambda (st)
-               (let ((x (state-result st)))
-                 (if (or (eq x #\Space)
-                         (char-< x #\Space))
-                     st fail))))))
 
-(set-rule 'ws (lambda (st) (apply-rule '(ign (* (ign space))) st id)))
+(defmacro define-rule (name form)
+  `(set-rule ',name (lambda (_state_) ,(compile-rule form '_state_ 'id))))
 
-(set-rule 'alpha (lambda (st)
-                   (apply-rule
-                    'any st
-                    (lambda (st)
-                      (let ((x (state-result st)))
-                        (if (or (char-between x #\a #\z)
-                                (char-between x #\A #\Z))
-                            (state+result st x)
-                            fail))))))
-(set-rule 'digit (lambda (st)
-                   (apply-rule
-                    'any st
-                    (lambda (st)
-                      (let ((x (state-result st)))
-                        (if (char-between x #\0 #\9)
-                            (state+result st (-i (char-code x) (char-code #\0)))
-                            fail))))))
+(define-rule space
+    (let ((x '()))
+      (set! x any)
+      (where (or (eq x #\Space)
+                 (char-< x #\Space)))
+      (return x)))
 
-(set-rule 'ident (lambda (st)
-                   (apply-rule
-                    '(+ alpha) st
-                    (lambda (st)
-                      (let ((chars (state-result st)))
-                        (state+result st (implode chars)))))))
+(define-rule ws (* space))
 
-(set-rule 'integer
-          (lambda (st)
-            (apply-rule
-             '(+ digit) st
-             (lambda (st)
-               (let ((nums (state-result st)))
-                 (state+result
-                  st
-                  (reduce-list
-                   (lambda (acc n)
-                     (+i n (*i 10 acc)))
-                   0 nums)))))))
+(define-rule alpha
+    (let ((x '()))
+      (set! x any)
+      (where (or (char-between x #\a #\z)
+                 (char-between x #\A #\Z)))
+      (return x)))
 
+(define-rule digit
+    (let ((x '()))
+      (set! x any)
+      (where (char-between x #\0 #\9))
+      (return (-i (char-code x) (char-code #\0)))))
 
-(set-rule 'integer-or-ident (lambda (st) (apply-rule '(or integer ident) st id)))
+(define-rule ident
+    (let ((x '()))
+      (set! x (+ alpha))
+      (return (implode x))))
 
-(set-rule 'token
-          (lambda (st)
-            (apply-rule '(seq ws integer-or-ident ws) st
-                        (lambda (st)
-                          (let ((x (state-result st)))
-                            (state+result st (car x)))))))
+(define-rule integer
+    (let ((x '()))
+      (set! x (+ digit))
+      (return (reduce-list
+               (lambda (acc n)
+                 (+i n (*i 10 acc)))
+               0 x))))
 
-;; expr = ( expr* ) | token
+(define-rule token
+    (let ((x '()))
+      ws (set! x (or integer ident)) ws
+      (return x)))
 
-(set-rule 'wrapped-expression
-          (lambda (st)
-            (apply-rule '(seq ws #\( ws maybe-exprs ws #\) ws) st
-                        (lambda (st)
-                          (let ((x (state-result st)))
-                            (state+result st (nth x 1)))))))
-
-(set-rule 'maybe-exprs
-          (lambda (st) (apply-rule '(* expr) st id)))
-
-(set-rule 'expr (lambda (st) (apply-rule '(or wrapped-expression token) st id)))
-
-;; defined as:
-;; expr = '(' expr* : x ')' -> x
-;;      |  ( integer | ident ) : x -> x
-
-;; would be nice to define as:
-;; expr = '(' expr* : x ')' -> x
-;;      | integer
-;;      | ident 
-
-(set-rule 'meta-1
-          (lambda (st)
-            (apply-rule
-             '(or
-               (do
-                (tokens #\( (bind x (* meta-1)) #\) )
-                (return x))
-               (or (token integer) (token ident)))
-             st
-             id)))
-
-(define (match-string string rule-name)
-    (let* ((stream (make-stream string))
-           (state  (make-initial-state stream)))
-      (state-result (apply-rule rule-name state id))))
-
-(define (match-string* string rule-name)
-    (let* ((stream (make-stream string))
-           (state  (make-initial-state stream)))
-      (state-result (apply-rule `(* ,rule-name) state id))))
+(define-rule expr
+    (or (let ((x '()))
+          ws #\( (set! x (* expr)) #\) ws
+          (return x))
+        token))
 
 
 (dbg any "")
@@ -423,6 +315,24 @@
           (where (char-between x #\0 #\9))
           (return (-i (char-code x) (char-code #\0)))))
      "012345abc")
-
+(dbg (+ space) " 
+    
+")
+(dbg ws " 
+    
+")
+(dbg ident "hello")
+(dbg integer "12345")
+(dbg token " 234 ")
+(dbg (* token) "hello from compiled meta 1 thing")
+(dbg expr "hello")
+(dbg expr "(lambda (x) x)")
+(dbg expr "
+(define mapcar
+    (lambda (f lst)
+      (if (nilp lst) lst
+          (cons (f (car lst)) (mapcar f (cdr lst))))))
+"
+)
 
 'bye

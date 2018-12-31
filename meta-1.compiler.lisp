@@ -127,27 +127,18 @@
 (define (get-rule x) (ht-at rules x))
 (define (set-rule x fn) (ht-at-put rules x fn))
 
+(define-compile (%base state symbol next)
+    `(apply-rule ',symbol ,state ,next))
+
 (define-apply (%base state symbol next)
     (let* ((rule (get-rule symbol))
            (res  (rule state)))
       (if (failure? res) res (next res))))
 
-(define-compile (%base state symbol next)
-    `(apply-rule ',symbol ,state ,next))
-
-(define-apply (%exactly state item next)
-    (apply-rule 'any state (lambda (st)
-                             (let ((x (state-result st)))
-                               (if (eq x item) (next st) fail)))))
 (define-compile (%exactly state item next)
     `(apply-rule 'any ,state (lambda (st)
                                (let ((x (state-result st)))
                                  (if (eq x ,item) (,next st) fail)))))
-
-(define-apply (? state args next)
-    (let* ((rule (car args))
-           (result (apply-rule rule state id)))
-      (if (failure? result) (next state) (next result))))
 
 (define-compile (? state args next)
     (let* ((comp (compile-rule (car args) '_state_ 'id)))
@@ -156,27 +147,10 @@
               (next   ,next))
          (if (failure? result) (next _state_) (next result)))))
 
-(define (apply-rule*-aux rule state next)
-    (let ((apply-next #f)
-          (last-state state))
-      (set! apply-next
-            (lambda (new-state)
-              (if (eq new-state last-state) ;; no progress
-                  (next (state-reverse-result last-state))
-                  (let ((acc-state (state-cons new-state last-state)))
-                    (set! last-state acc-state)
-                    (apply-rule rule last-state apply-next)))))
-      (apply-rule rule last-state apply-next)))
-
-(define-apply (* state args next)
-    (let* ((rule (car args))
-           (acc-state (state+result state '()))) ;; should always return a list
-      (apply-rule*-aux `(? ,rule) acc-state next)))
-
 (define-compile (* state args next)
     (let ((rule (compile-rule (cons '? args) 'last-state 'apply-next)))
       `(let* ((apply-next #f)
-              (last-state ,state)
+              (last-state (state+result ,state (list))) ;; should always return a list
               (_next_ ,next)
               (_run_1_ (lambda () ,rule)))
          (set! apply-next (lambda (new-state)
@@ -187,15 +161,18 @@
                                   (_run_1_)))))
          (_run_1_))))
 
-(define-apply (+ state args next)
-    (let* ((rule (car args)))
-      (apply-rule
-       rule state
-       (lambda (st)
-         (let ((next-state (apply-rule `(* ,rule) st id)))
-           (if (eq next-state st)
-               (next (state+result st (result-cons (state-result st) nothing)))
-               (next (state-cons-onto st next-state))))))))
+(define-compile (+ state args next)
+    (let* ((rule (car args))
+           (gather
+            `(lambda (st)
+               (let ((next-state ,(compile-rule (list '* rule) 'st 'id)))
+                 (if (eq next-state st)
+                     (next (state+result st (result-cons (state-result st) nothing)))
+                     (next (state-cons-onto st next-state))))))
+           (run (compile-rule rule 'state gather)))
+      `(let* ((next ,next)
+              (state ,state))
+         ,run)))
 
 (define-apply (or state rules next)
     (let ((helper #f))
@@ -384,3 +361,11 @@
 (dbg (? any) "x")
 (dbg (* any) "x")
 (dbg (* any) "xyz123")
+(dbg (+ any) "x")
+(dbg (+ any) "xyz123")
+(dbg (+ any) "")
+(dbg (+ #\x) "xxx")
+(dbg (+ #\x) "xyz")
+(dbg (+ #\x) "zyx")
+
+'bye

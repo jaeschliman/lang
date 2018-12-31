@@ -173,6 +173,20 @@
            (acc-state (state+result state '()))) ;; should always return a list
       (apply-rule*-aux `(? ,rule) acc-state next)))
 
+(define-compile (* state args next)
+    (let ((rule (compile-rule (cons '? args) 'last-state 'apply-next)))
+      `(let* ((apply-next #f)
+              (last-state ,state)
+              (_next_ ,next)
+              (_run_1_ (lambda () ,rule)))
+         (set! apply-next (lambda (new-state)
+                            (if (eq new-state last-state)
+                                (_next_ (state-reverse-result last-state))
+                                (let ((acc-state (state-cons new-state last-state)))
+                                  (set! last-state acc-state)
+                                  (_run_1_)))))
+         (_run_1_))))
+
 (define-apply (+ state args next)
     (let* ((rule (car args)))
       (apply-rule
@@ -368,3 +382,5 @@
 (dbg #\c  "c")
 (dbg (? any) "")
 (dbg (? any) "x")
+(dbg (* any) "x")
+(dbg (* any) "xyz123")

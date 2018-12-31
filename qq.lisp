@@ -169,6 +169,25 @@
 
 (print (implode '(#\h #\e #\l #\l #\o)))
 
+(define (test-let-binding items)
+    (let* ((x 'x-value)
+           (f (lambda () x)))
+      x))
+
+(print (test-let-binding '(1 2 3)))
+
+;; (define (test-case-expr x)
+;;     (print (macroexpand '(case x
+;;                           (hello 'hi)
+;;                           (hi 'hello)
+;;                           (* '+)
+;;                           (foo 'bar)))))
+
+;; (test-case-expr 'hi)
+;; (test-case-expr '*)
+;; (test-case-expr '+)
+;; (test-case-expr 'foo)
+
 ;; maybe should support & in define as well?
 ;; (define (show-more a & more) (print more))
 ;; (show-more 0 1 2 3)

@@ -148,7 +148,9 @@
              st 'any
              (lambda (st)
                (let ((x (state-result st)))
-                 (if (eq x #\Space) st fail))))))
+                 (if (or (eq x #\Space)
+                         (char-< x #\Space))
+                     st fail))))))
 
 (set-rule 'ws (lambda (st) (apply-rule* st 'space id)))
 
@@ -256,5 +258,14 @@
 (trace (match-string "123 xyz" 'expr))
 (trace (match-string "()" 'expr))
 (trace (match-string "(lambda (x) x)" 'expr))
+(trace (match-string "
+(define mapcar
+    (lambda (f lst)
+      (if (nilp lst) lst
+          (cons (f (car lst)) (mapcar f (cdr lst))))))
+" 'expr))
+(trace (match-string "
+   
+ " 'ws))
 
 'bye

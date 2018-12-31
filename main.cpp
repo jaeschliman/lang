@@ -2735,7 +2735,6 @@ void vm_interp(VM* vm) {
         break;
       }
       if (!is(Closure, fn)) {
-        dbg("dying on: ", fn);
         vm->error = "value is not a closure";
         break;
       }
@@ -3126,19 +3125,23 @@ auto compiler_env_get_subenv(VM *vm, Ptr env, Ptr it) {
   return cenv_get_subenv_for(env, it);
 }
 
-auto global_env_binding(VM *vm) {
+auto global_env_binding(VM *vm, u64 depth) {
   auto info = make_varinfo(vm, VariableScope_Global,
                            to(Fixnum,0), to(Fixnum, 0));
-  return (VariableBinding){0, info};
+  return (VariableBinding){depth, info};
 }
 
-VariableBinding compiler_env_binding(VM *vm, Ptr env, Ptr sym) {
-  if (isNil(env)) return global_env_binding(vm);
+VariableBinding _compiler_env_binding(VM *vm, Ptr env, Ptr sym, u64 depth) {
+  if (isNil(env)) return global_env_binding(vm, depth + 1);
 
-  if (!imap_has(cenv_get_info(env), sym)) {
-    prot_ptrs(sym, env);
-    VariableBinding outer = compiler_env_binding(vm, cenv_get_prev(env), sym);
-    unprot_ptrs(sym, env)
+  if (imap_has(cenv_get_info(env), sym)) {
+    return (VariableBinding){depth, imap_get(cenv_get_info(env), sym) };
+  }
+
+  prot_ptrs(sym, env);
+  VariableBinding outer = _compiler_env_binding(vm, cenv_get_prev(env), sym, depth + 1);
+  unprot_ptrs(sym, env);
+  {
     auto from_lambda = cenv_is_lambda(cenv_get_prev(env));
     auto in_let = cenv_is_let(env);
     auto scope = varinfo_get_scope(outer.variable_info);
@@ -3146,11 +3149,11 @@ VariableBinding compiler_env_binding(VM *vm, Ptr env, Ptr sym) {
     if (scope == VariableScope_Argument && from_lambda && !in_let) {
       die("variable should have been marked for closure: ", sym);
     }
-    auto depth = outer.binding_depth + 1;
-    auto info  = outer.variable_info;
-    return (VariableBinding){depth, info};
   }
-  return (VariableBinding){0, imap_get(cenv_get_info(env), sym)};
+  return outer;
+}
+VariableBinding compiler_env_binding(VM *vm, Ptr env, Ptr sym) {
+  return _compiler_env_binding(vm, env, sym, 0);
 }
 
 void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env);
@@ -3234,7 +3237,6 @@ void emit_lambda(VM *vm, BCBuilder *parent, Ptr it, Ptr p_env) {  prot_ptrs(it, 
 
 void emit_let (VM *vm, BCBuilder *builder, Ptr it, Ptr p_env) {  prot_ptrs(it, p_env);
   auto env = compiler_env_get_subenv(vm, p_env, it);             prot_ptr(env);
-
   {
     auto vars        = nth_or_nil(it, 1);
     auto count       = list_length(vm, vars);
@@ -3401,13 +3403,18 @@ bool mark_variable_for_closure (VM *vm, Ptr sym, Ptr env, u64 level, bool saw_la
   if (exists) {
     // symbol was found in its enclosing scope, do nothing
     if (level == 0) return false;
-    // there was no lambda in the lower scopes, so do nothing.
-    if (!saw_lambda) return false;
 
-    // otherwise, was found in an outer scope, and we need to create a closure.
+    // otherwise, was found in an outer scope, or closed over elsewhere,
+    // and we need to create a closure.
     auto info = imap_get(var_map, sym);
     auto scope = varinfo_get_scope(info);
+
+    // already marked.
     if (scope == VariableScope_Closure) return true;
+
+    // there was no lambda in the lower scopes, and the var has not
+    // been marked for closure, so do nothing.
+    if (!saw_lambda) return false;
 
     prot_ptrs(sym, env, var_map);
     varinfo_set_scope(info,  VariableScope_Closure);

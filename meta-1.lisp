@@ -28,6 +28,13 @@
 (define rules (make-ht))
 (define fail '(fail fail))
 (define (failure? state) (eq state fail))
+(define nothing '(nothing))
+(define (nothing? result) (eq result nothing))
+
+(define (result-cons a b)
+  (cond ((nothing? a) b)
+        ((nothing? b) (list a))
+        (#t (cons a b))))
 
 (define (state-stream state) (car state))
 (define (state-result state) (nth state 1))
@@ -35,8 +42,8 @@
 (define (state+result state res) (lambda-bind (stream _ & rest) state
                                               `(,stream ,res,@rest)))
 (define (state+stream state stream) (cons stream (cdr state)))
-(define (state-cons a b) (state+result a (cons (state-result a) (state-result b))))
-(define (state-cons-onto a b) (state+result b (cons (state-result a) (state-result b))))
+(define (state-cons a b) (state+result a (result-cons (state-result a) (state-result b))))
+(define (state-cons-onto a b) (state+result b (result-cons (state-result a) (state-result b))))
 
 (define (make-stream str) (cons 0 str))
 (define (stream-read s) (char-at (cdr s) (car s)))
@@ -139,15 +146,23 @@
 
 (define-apply (seq state rules next)
     (let ((helper #f)
-          (result '()))
+          (result nothing))
       (set! helper (lambda (rules state)
                      (if (nil? rules) (next (state+result state (reverse-list result)))
-                         (let ((next-state (apply-rule (car rules) state id)))
+                         (let* ((reset (state+result state nothing))
+                                (next-state (apply-rule (car rules) reset id)))
                            (if (failure? next-state) fail
                                (let ()
-                                 (set! result (cons (state-result next-state) result))
+                                 (set! result (result-cons (state-result next-state)
+                                                           result))
                                  (helper (cdr rules) next-state)))))))
       (helper rules state)))
+
+(define-apply (ign state rules next)
+    (let ((rule (car rules))
+          (result (state-result state)))
+      (apply-rule rule state (lambda (next-state)
+                               (next (state+result next-state result))))))
 
 (set-rule 'any (lambda (st)
                  (let ((s (state-stream st)))
@@ -165,7 +180,7 @@
                          (char-< x #\Space))
                      st fail))))))
 
-(set-rule 'ws (lambda (st) (apply-rule '(* space) st id)))
+(set-rule 'ws (lambda (st) (apply-rule '(ign (* (ign space))) st id)))
 
 (set-rule 'alpha (lambda (st)
                    (apply-rule
@@ -213,7 +228,8 @@
             (apply-rule '(seq ws integer-or-ident ws) st
                         (lambda (st)
                           (let ((x (state-result st)))
-                            (state+result st (nth x 1)))))))
+                            (state+result st (car x))))
+                        )))
 
 ;; expr = ( expr* ) | token
 
@@ -229,14 +245,22 @@
 
 (set-rule 'expr (lambda (st) (apply-rule '(or wrapped-expression token) st id)))
 
+(set-rule 'meta-1
+          (lambda (st)
+            (apply-rule
+             '(or (seq ws #\( ws (* meta-1) ws #\) ws)
+               token)
+             st
+             id)))
+
 (define (match-string string rule-name)
     (let* ((stream (make-stream string))
-           (state  (list stream 'initial-state)))
+           (state  (list stream nothing)))
       (state-result (apply-rule rule-name state id))))
 
 (define (match-string* string rule-name)
     (let* ((stream (make-stream string))
-           (state  (list stream 'initial-state)))
+           (state  (list stream nothing)))
       (state-result (apply-rule `(* ,rule-name) state id))))
 ;;
 (trace (match-string "" 'any))
@@ -284,5 +308,9 @@
 (trace (match-string "
   
  " 'ws))
+(print "--------------------------------------------------------------------------------")
+(trace (match-string "()" 'meta-1))
+;; (trace (match-string "(lambda (x) x)" 'meta-1))
+
 
 'bye

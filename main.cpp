@@ -243,6 +243,8 @@ struct blit_surface {
 
 struct VM {
   Ptr *stack;
+  Ptr *stack_end;
+  s64 stack_depth;
   void* heap_mem;
   void* heap_end;
   void* alt_heap_mem;
@@ -992,16 +994,15 @@ defstruct(istream, InputStream, string, index);
 
 /* ---------------------------------------- */
 
-Ptr make_closure(VM *vm, Ptr code, Ptr env) {
+Ptr make_closure(VM *vm, Ptr code, Ptr env) { prot_ptrs(code, env);
   assert(is(ByteCode, code));
   assert(isNil(env) || is(PtrArray, env));
-  prot_ptrs(code, env);
   auto it = alloc_pao(vm, Closure, 2);
   set_obj_tag(it, Closure);
   auto c = objToPtr(it);
-  unprot_ptrs(code, env);
   array_set(c, 0, code);
   array_set(c, 1, env);
+  unprot_ptrs(code, env);
   return c;
 }
 
@@ -1266,20 +1267,22 @@ auto vm_map_stack_refs(VM *vm, PtrFn fn) {
   }
 }
 
-auto vm_print_stack_trace(VM *vm) {
+auto vm_print_stack_trace(VM *vm) { return Nil;
   StackFrameObject *fr = vm->frame;
   Ptr *stack = vm->stack;
-  cout << "PRINTING STACKTRACE:" << endl;
+  cerr << "PRINTING STACKTRACE: " << vm->stack_depth << endl;
+  s64 count = 0;
   while (fr) {
-    cout << " FRAME: " << fr << endl;
-    cout << "   closure: " << fr->closed_over << endl;
-    cout << "   aligned by: " << fr->pad_count << endl;
+    assert(isNil(fr->closed_over) || is(PtrArray,fr->closed_over));
+    cerr << " FRAME: " << fr << " " << count++ << endl;
+    cerr << "   closure: " << fr->closed_over << endl;
+    cerr << "   aligned by: " << fr->pad_count << endl;
     auto pad = fr->pad_count;
     for (u64 i = 1; i <= fr->argc; i++) {
-      cout << "   arg " << (i - 1) << " = " << fr->argv[pad + (fr->argc - i)] << endl;
+      cerr << "   arg " << (i - 1) << " = " << fr->argv[pad + (fr->argc - i)] << endl;
     }
     auto h =  (u64)fr - (u64)stack;
-    cout << "   stack height (bytes): " << h << endl;
+    cerr << "   stack height (bytes): " << h << endl;
     stack = &fr->argv[fr->argc + pad];
     fr = fr->prev_frame;
   }
@@ -1289,11 +1292,11 @@ auto vm_print_stack_trace(VM *vm) {
 Ptr vm_print_debug_stack_trace(VM *vm) {
   StackFrameObject *fr = vm->frame;
   debug_walk(vm, objToPtr(fr));
-  cout << "----------------------------------------" << endl;
+  cerr << "----------------------------------------" << endl;
   vm_map_stack_refs(vm, [&](Ptr it){
-      cout << "    " << it << endl;
+      cerr << "    " << it << endl;
     });
-  cout << "----------------------------------------" << endl;
+  cerr << "----------------------------------------" << endl;
   return Nil;
 }
 
@@ -1480,14 +1483,20 @@ Ptr gc_move_object(VM *vm, Object *obj) {
   return new_ptr;
 }
 
+bool gc_ptr_is_in_to_space(VM *vm, Object *ptr) {
+  return ptr >= vm->heap_mem && ptr < vm->heap_end;
+}
+
 void gc_update_ptr(VM *vm, Ptr *p) {
   auto ptr = *p;
   if (!is(NonNilObject, ptr)) return;
   auto obj = as(Object, ptr);
+  // assert(!gc_ptr_is_in_to_space(vm, obj));
   if (!gc_is_broken_heart(obj)) {
     gc_move_object(vm, obj);
   }
   auto new_addr = gc_forwarding_address(obj);
+  // assert(gc_ptr_is_in_to_space(vm, new_addr));
   auto new_ptr = objToPtr(new_addr);
   *p = new_ptr;
 }
@@ -1536,6 +1545,7 @@ void gc_update_stack(VM *vm) {
   StackFrameObject *fr = vm->frame;
   Ptr *stack = vm->stack;
   ByteCodeObject **bytecode = &vm->bc;
+  u64 count = 0;
   while (fr) {
     gc_update_ptr(vm, &fr->closed_over);
     auto pad = fr->pad_count;
@@ -1556,6 +1566,7 @@ void gc_update_stack(VM *vm) {
     stack = &fr->argv[fr->argc + pad];
     bytecode = &fr->prev_fn;
     fr = fr->prev_frame;
+    count++;
   }
 }
 
@@ -1567,7 +1578,7 @@ void gc_update_base_class(VM *vm, StandardObject **it) {
 
 
 #define handle_class(name) gc_update_base_class(vm, &vm->globals->classes._##name);
-#define update_sym(n) gc_update_ptr(vm, &vm->globals->known._##n);
+#define update_sym(n) gc_update_ptr(vm, &vm->globals->known._##n); 
 #define update_symbols(...) MAP(update_sym, __VA_ARGS__)
 
 void gc_update_globals(VM *vm) {
@@ -1582,9 +1593,10 @@ void gc_update_globals(VM *vm) {
     gc_update_base_class(vm, vm->globals->classes.builtins + i);
   }
 
-  update_symbols(lambda, quote, let, if, fixnum, cons, string,
-                 array, character, boolean, quasiquote, unquote, unquote_splicing,
-                 compiler, set_bang);
+  update_symbols(lambda, quote, let, if, fixnum, cons, string);
+  update_symbols(array, character, boolean, quasiquote, unquote, unquote_splicing);
+  update_symbols(compiler, set_bang);
+
 }
 
 #undef update_sym
@@ -2309,25 +2321,30 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
       return res;
     } else if (*input == '`') {
       input++;
-      auto it     = read(vm, &input, end, done);
+      auto it     = read(vm, &input, end, done); //FIXME: check for `done`
       auto result = cons(vm, KNOWN(quasiquote), cons(vm, it, Nil));
       *remaining = input;
       return result;
     } else if (*input == ',') {
       input++;
-      auto prefix = KNOWN(unquote);
+      auto prefix = KNOWN(unquote); prot_ptrs(prefix, done);
       if (*input == '@') {
         input++;
         if (input >= end) {
           vm->error = "unexpected end of input";
+          unprot_ptrs(prefix, done);
           *remaining = input;
           return done;
         }
         prefix = KNOWN(unquote_splicing);
       }
       auto it = read(vm, &input, end, done);
-      if (it == done) { *remaining = input; return it; }
+      if (it == done) {
+        *remaining = input;
+        unprot_ptrs(prefix, done);
+        return it; }
       auto result = cons(vm, prefix, cons(vm, it, Nil));
+      unprot_ptrs(prefix, done);
       *remaining = input;
       return result;
     }
@@ -2413,6 +2430,7 @@ void vm_pop_stack_frame(VM* vm) {
   vm->pc = fr->prev_pc;
   vm->stack = fr->prev_stack + fr->argc;
   vm->frame = fr->prev_frame;
+  vm->stack_depth--;
 
   // cout << "return stack frame to :" << vm->stack << endl;
 }
@@ -2423,14 +2441,18 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn) {
   vm_push_stack_frame(vm, argc, fn, Nil);
 };
 
+#define STACK_PADDING 64
+
 void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
 
   uint offset = (sizeof(StackFrameObject) / sizeof(u64));
 
   u64 *top = &((vm->stack - offset)->value);
-  u64 padding = ((u64)top & TAG_MASK) ? 1 : 0;
+  u64 padding = ((u64)top & TAG_MASK) ? 1 + STACK_PADDING : STACK_PADDING;
   top -= padding;
   assert(((u64)top & TAG_MASK) == 0);
+
+  if ((Ptr *)top < vm->stack_end) die("stack overflow.");
 
   StackFrameObject *new_frame = (StackFrameObject *)top;
   new_frame->header.object_type = StackFrame_ObjectType;
@@ -2456,6 +2478,7 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   vm->frame = new_frame;
   vm->bc = fn;
   vm->pc = 0;
+  vm->stack_depth++;
 }
 
 typedef Ptr (*CCallFunction)(VM*);
@@ -3363,8 +3386,7 @@ void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
       // LAZY reusing argument_index
       builder->loadFrameRel(as(Fixnum, argument_index));
     } else {
-      cout << "unexpected variable scope: " << scope << endl;
-      assert(false);
+      die("unexpected variable scope: ", scope);
     }
     unprot_ptrs(it, env);
   } else if (consp(it)) { // @safe
@@ -3887,9 +3909,10 @@ VM *vm_create() {
   VM *vm;
   vm = (VM *)calloc(sizeof(VM), 1);
 
-  auto count = 1024 * 100;
+  auto count = 1024 * 1000;
   Ptr *stack_mem = (Ptr *)calloc(sizeof(Ptr), count);
   vm->stack = stack_mem + (count - 1);
+  vm->stack_end = stack_mem + 1024; // padding
 
   auto heap_size_in_mb = 50;
   auto heap_size_in_bytes = heap_size_in_mb * 1024 * 1024;
@@ -3931,7 +3954,7 @@ VM *vm_create() {
 
   // so we have a root frame
   auto bc = (new BCBuilder(vm))->build();
-  vm_push_stack_frame(vm, 0, bc);
+  vm_push_stack_frame(vm, 0, bc, Nil);
 
   // load the stdlib
   load_file(vm, "./boot.lisp");
@@ -4097,7 +4120,7 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
     bc = build_call(vm, symbol, argc, argv);
   }
 
-  vm_push_stack_frame(vm, 0, bc);
+  vm_push_stack_frame(vm, 0, bc, Nil);
   vm_interp(vm);
   auto result = vm_pop(vm);
   vm_pop_stack_frame(vm);

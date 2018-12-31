@@ -26,23 +26,30 @@
           (fn state (safe-cdr rule) next))))
 
 (define rules (make-ht))
-(define fail '(fail fail))
+(define fail '(fail fail fail))
 (define (failure? state) (eq state fail))
 (define nothing '(nothing))
 (define (nothing? result) (eq result nothing))
+
+(define (make-initial-state stream) (list stream nothing (make-ht)))
 
 (define (result-cons a b)
   (cond ((nothing? a) b)
         ((nothing? b) (list a))
         (#t (cons a b))))
 
-
 (define (state-stream state) (car state))
 (define (state-result state) (nth state 1))
+(define (state-vars state) (nth state 2))
+(define (state-vars-at state key) (ht-at (state-vars state) key))
+(define (state-vars-at-put state key value)
+    (ht-at-put (state-vars state) key value))
 
 (define (state+result state res) (lambda-bind (stream _ & rest) state
-                                              `(,stream ,res,@rest)))
+                                              `(,stream ,res ,@rest)))
 (define (state+stream state stream) (cons stream (cdr state)))
+(define (state+vars state vars) (lambda-bind (a b c & rest) state
+                                             `(,a ,b ,vars ,@rest)))
 (define (state-cons a b) (state+result a (result-cons (state-result a) (state-result b))))
 (define (state-cons-onto a b) (state+result b (result-cons (state-result a) (state-result b))))
 
@@ -165,6 +172,33 @@
       (apply-rule rule state (lambda (next-state)
                                (next (state+result next-state nothing))))))
 
+;; this do/bind/return stuff is a bit much...
+;; should really be compiling this stuff anyway, not interpreting.
+(define-apply (do state rules next)
+    (let ((helper #f)
+          (vars (state-vars state)))
+      (set! helper (lambda (rules state)
+                     (if (nil? rules) (next (state+vars state vars))
+                         (apply-rule (car rules) state
+                                     (lambda (next-state)
+                                       (helper (cdr rules) next-state))))))
+      (helper rules (state+vars state (make-ht)))))
+
+(define-apply (bind state form next)
+    (let ((sym (nth form 0))
+          (rule (nth form 1)))
+      (apply-rule rule state
+                  (lambda (st)
+                    (state-vars-at-put st sym (state-result st))
+                    (next st)))))
+
+(define-apply (return state form next)
+    (let* ((sym (nth form 0))
+           (val (state-vars-at state sym)))
+      (print `(returning: ,sym ,val))
+      (next (state+result state val))))
+
+
 (set-rule 'any (lambda (st)
                  (let ((s (state-stream st)))
                    (if (stream-end? s)
@@ -248,19 +282,22 @@
 (set-rule 'meta-1
           (lambda (st)
             (apply-rule
-             '(or (seq ws (ign #\( ) ws (* meta-1) ws (ign #\) ) ws)
+             '(or
+               (do
+                (seq ws #\(  ws (bind x (* meta-1)) ws #\)  ws)
+                (return x))
                token)
              st
              id)))
 
 (define (match-string string rule-name)
     (let* ((stream (make-stream string))
-           (state  (list stream nothing)))
+           (state  (make-initial-state stream)))
       (state-result (apply-rule rule-name state id))))
 
 (define (match-string* string rule-name)
     (let* ((stream (make-stream string))
-           (state  (list stream nothing)))
+           (state  (make-initial-state stream)))
       (state-result (apply-rule `(* ,rule-name) state id))))
 ;;
 (trace (match-string "" 'any))

@@ -167,6 +167,14 @@
                                  (helper (cdr rules) next-state)))))))
       (helper rules state)))
 
+(define (every-other lst item)
+    (reverse-list
+     (reduce-list (lambda (acc next) (cons item (cons next acc))) (list item) lst)))
+
+(define-apply (tokens state rules next)
+    (let ((new-rule (cons 'seq (every-other rules 'ws))))
+      (apply-rule new-rule state next)))
+
 (define-apply (ign state rules next)
     (let ((rule (car rules)))
       (apply-rule rule state (lambda (next-state)
@@ -279,14 +287,25 @@
 
 (set-rule 'expr (lambda (st) (apply-rule '(or wrapped-expression token) st id)))
 
+;; defined as:
+;; expr = '(' expr* : x ')' -> x
+;;      |  ( integer | ident ) : x -> x
+
+;; would be nice to define as:
+;; expr = '(' expr* : x ')' -> x
+;;      | integer
+;;      | ident 
+
 (set-rule 'meta-1
           (lambda (st)
             (apply-rule
              '(or
                (do
-                (seq ws #\(  ws (bind x (* meta-1)) ws #\)  ws)
+                (tokens #\(  (bind x (* meta-1)) #\) )
                 (return x))
-               token)
+               (do
+                (tokens (bind x (or integer ident)))
+                (return x)))
              st
              id)))
 
@@ -352,6 +371,7 @@
 ;; (print "--------------------------------------------------------------------------------")
 (trace (match-string "()" 'meta-1))
 (trace (match-string "(lambda (x) x)" 'meta-1))
+(trace (match-string "(hello meta 1 world)" 'meta-1))
 
 
 'bye

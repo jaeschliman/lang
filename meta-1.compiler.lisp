@@ -43,8 +43,8 @@
 
 (defmacro dbg (rule string)
   (print (list rule string))
-  (print '------------>)
-  (print (compile-rule rule 'initial-state 'final-return))
+  ;; (print '------------>)
+  ;; (print (compile-rule rule 'initial-state 'final-return))
   (let ((compiled (compile-rule rule 'state 'id)))
     `(let* ((stream (make-stream ,string))
             (state  (make-initial-state stream)))
@@ -174,15 +174,19 @@
               (state ,state))
          ,run)))
 
-(define-apply (or state rules next)
-    (let ((helper #f))
-      (set! helper (lambda (rules)
-                     (if (nil? rules) fail
-                         (let ((next-state (apply-rule (car rules) state id)))
-                           (if (failure? next-state)
-                               (helper (cdr rules))
-                               (next next-state))))))
-      (helper rules)))
+(define-compile (or state rules next)
+    (let ((body
+           (reduce-list
+            (lambda (acc rule)
+              `(let ((next-state ,(compile-rule rule 'state 'id)))
+                 (if (failure? next-state)
+                     ,acc
+                     (next next-state))))
+            'fail
+            (reverse-list rules))))
+      `(let ((state ,state)
+             (next  ,next))
+         ,body)))
 
 (define-apply (seq state rules next)
     (let ((helper #f)
@@ -367,5 +371,10 @@
 (dbg (+ #\x) "xxx")
 (dbg (+ #\x) "xyz")
 (dbg (+ #\x) "zyx")
+(dbg (or any any) "a")
+(dbg (or #\a #\b) "a")
+(dbg (or #\a #\b) "b")
+(dbg (+ (or #\a #\b)) "b")
+(dbg (+ (or #\a #\b)) "ababbaabab")
 
 'bye

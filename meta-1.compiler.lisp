@@ -51,9 +51,9 @@
     (mapcar (lambda (v) (list v '()))
             (xf-vars xf)))
 
-(define (xf-un-xf xf rule)
-    (if (nil? (xf-vars xf)) (cons rule (xf-form xf))
-        `(let ,(xf-un-vars xf) ,(cons rule (xf-form xf)))))
+(define (xf-un-xf xf)
+    (if (nil? (xf-vars xf)) (car (xf-form xf))
+        `(let ,(xf-un-vars xf) ,(car (xf-form xf)))))
 
 (define (xf-rule-body b)
     (reduce-list xf-acc (cons '() '()) b))
@@ -63,8 +63,7 @@
 
 (define (xf-tl toplevel-rule)
     (if (pair? toplevel-rule)
-        (xf-un-xf (xf-rule-body (cdr toplevel-rule))
-                  (car toplevel-rule))
+        (xf-un-xf (xf-rule toplevel-rule))
         toplevel-rule))
 
 (define (xf-pass-thru r)
@@ -145,6 +144,8 @@
 (define (stream-next s) (cons (+i 1 (car s)) (cdr s)))
 (define (stream-end? s) (>i (+i 1 (car s)) (string-length (cdr s))))
 
+(define (state-position st) (car (car st)))
+
 (define (char-between b a c)
     (or (eq a b) (eq b c)
         (and (char-< a b)
@@ -192,7 +193,7 @@
       `(let* ((_state_ ,state)
               (result ,comp)
               (next   ,next))
-         (if (failure? result) (next _state_) (next result)))))
+         (if (failure? result) (next (state+result _state_ '())) (next result)))))
 
 (define-compile (* state args next)
     (let ((rule (compile-rule (cons '? args) 'last-state 'apply-next)))
@@ -201,7 +202,8 @@
               (_next_ ,next)
               (_run_1_ (lambda () ,rule)))
          (set! apply-next (lambda (new-state)
-                            (if (eq new-state last-state)
+                            (if (eq (state-position new-state)
+                                    (state-position last-state))
                                 (_next_ (state-reverse-result last-state))
                                 (let ((acc-state (state-cons new-state last-state)))
                                   (set! last-state acc-state)
@@ -241,7 +243,7 @@
 (define-compile (seq state rules next)
     (let ((body
            (reduce-list (lambda (run-next rule)
-                          `(lambda (st) ,(compile-rule rule 'st run-next)))
+                          `(lambda (_st_) ,(compile-rule rule '_st_ run-next)))
                         next
                         (reverse-list rules))))
       `(,body ,state)))
@@ -385,5 +387,88 @@
 (trace (xf-tl '(or a b)))
 (trace (xf-tl '(set! x #\x)))
 (trace (xf-tl '(seq (set! x #\x))))
+(trace (xf-tl '(seq (or (set! x #\x) (set! y #\y)))))
+
+
+(define-rule meta-mod
+    (set! m (or #\* #\? #\+))
+  (return (implode (list m))))
+
+(define-rule meta-ident
+    (or (seq (set! -id ident) (set! -mm meta-mod) (return (list -mm -id)))
+        ident))
+
+(define-rule meta-app
+    (or (seq (set! -rule meta-ident) ws #\: (set! -as ident)
+             (return `(set! ,-as ,-rule)))
+        meta-ident
+        meta-pred))
+
+(define-rule meta-pred
+   ws #\? ws (set! -it expr) (return `(where ,-it)))
+
+(define-rule meta-result
+  ws #\- #\> ws (set! -it expr) ws (return `(return ,-it)))
+
+(define-rule meta-clause 
+    ws
+  (set! -fst (+ meta-app))
+  (set! -act (? meta-result))
+  (set! -rst (* (seq ws #\| ws meta-clause)))
+  ws
+  (return
+    (let ((fst (if (nil? -act) (cons 'seq -fst) ;;@opt why so many 'seq ?
+                   `(seq ,@-fst ,-act))))
+      (if (nil? -rst) fst (cons 'or (cons fst -rst))))))
+
+(define-rule meta-rule
+    ws (set! -rn ident) ws #\= (set! -rule meta-clause) (return `(define-rule ,-rn
+                                                                     ,-rule)))
+(define-rule meta-block
+    ws #\m #\e #\t #\a ws (set! -n ident) ws #\{ ws
+    (set! -rs (+ meta-rule))
+    ws #\}
+    (return `(let ()
+               (push-meta-definition-context ',-n)
+               ,@-rs
+               (pop-meta-definition-context))))
+
+;; (dbg meta-mod "+")
+;; (dbg (seq ident meta-mod) "myrule+")
+(dbg meta-ident "myrule")
+(dbg meta-ident "myrule+")
+(dbg meta-app "myrule")
+(dbg meta-app "myrule+")
+(dbg meta-app "myrule+ :x")
+(dbg meta-clause "myrule+ :x")
+(dbg meta-clause "myrule+ :x")
+(dbg meta-clause "myrule+ :x | otherule :y ")
+(dbg meta-clause " 
+   myrule+ :x
+ | otherule :y
+ ")
+(dbg meta-clause " 
+   myrule+ :x -> (list x x)
+ | otherule :y
+ ")
+(dbg meta-clause "
+   any :ch ?(alphap ch) -> ch
+")
+(dbg meta-rule "
+  alpha = any:ch ?(alphap ch) -> ch
+")
+(dbg (+ meta-rule) "
+  alpha = any:ch ?(alphap ch) -> ch
+")
+(dbg (+ meta-rule) "
+  alpha = any:ch ?(alphap ch) -> ch
+  digit = any:ch ?(isdigi ch) -> (chdigi ch)
+")
+(dbg meta-block "
+meta mymeta {
+  alpha = any:ch ?(alphap ch) -> ch
+  digit = any:ch ?(isdigi ch) -> (chdigi ch)
+}
+")
 
 'bye

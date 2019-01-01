@@ -38,6 +38,58 @@
       ((pair? form) (ht-at compilers-table (car form)))
       (#t (ht-at compilers-table '%exactly))))
 
+(define xf-vars car)
+(define xf-form cdr)
+(define (xf+ a b)
+    (cons (append (xf-vars a) (xf-vars b))
+          (append (xf-form a) (xf-form b))))
+
+(define xf-rule #f)
+(define xf-acc (lambda (acc r) (xf+ acc (xf-rule r))))
+
+(define (xf-un-vars xf)
+    (mapcar (lambda (v) (list v '()))
+            (xf-vars xf)))
+
+(define (xf-un-xf xf rule)
+    (if (nil? (xf-vars xf)) (cons rule (xf-form xf))
+        `(let ,(xf-un-vars xf) ,(cons rule (xf-form xf)))))
+
+(define (xf-rule-body b)
+    (reduce-list xf-acc (cons '() '()) b))
+
+(define first car)
+(define (second x) (car (cdr x)))
+
+(define (xf-tl toplevel-rule)
+    (if (pair? toplevel-rule)
+        (xf-un-xf (xf-rule-body (cdr toplevel-rule))
+                  (car toplevel-rule))
+        toplevel-rule))
+
+(define (xf-pass-thru r)
+    (let ((xf (xf-rule-body (cdr r))))
+      (cons (car xf)
+            (list (cons (car r) (cdr xf))))))
+
+(define (xf-ignore r)
+    (cons '() (list r)))
+
+(define (xf-rule r)
+    (if (pair? r)
+        (case (car r)
+          (or     (cons '() (list (cons 'or (mapcar xf-tl (cdr r))))))
+          (set!   (cons (list (second r)) (list r)))
+          (seq    (xf-pass-thru r))
+          (*      (xf-pass-thru r))
+          (+      (xf-pass-thru r))
+          (?      (xf-pass-thru r))
+          (return (xf-ignore r))
+          (where  (xf-ignore r))
+          (let    (xf-ignore r))) ;; punting on let for now -- should be generated
+        (if (symbol? r) (cons '() (list r))
+            (cons '() (list r)))))
+
 (define (compile-rule rule state next)
     (let ((fn (compiler-for rule)))
       (if (not (nil? fn))
@@ -185,6 +237,7 @@
 
 ;; changed to _not_ aggregate results as I'm not sure we actually need
 ;; that from seq.
+;; TODO: optimize the single-item case e.g. (seq x) => x
 (define-compile (seq state rules next)
     (let ((body
            (reduce-list (lambda (run-next rule)
@@ -222,53 +275,46 @@
                        (state+stream (state+result st (stream-read s))
                                      (stream-next s))))))
 
-(defmacro define-rule (name form)
-  `(set-rule ',name (lambda (_state_) ,(compile-rule form '_state_ 'id))))
+(defmacro define-rule (name & forms)
+  (let ((xform (xf-tl (cons 'seq forms))))
+    `(set-rule ',name (lambda (_state_) ,(compile-rule xform '_state_ 'id)))))
 
 (define-rule space
-    (let ((x '()))
-      (set! x any)
-      (where (or (eq x #\Space)
-                 (char-< x #\Space)))
-      (return x)))
+  (set! x any)
+  (where (or (eq x #\Space)
+             (char-< x #\Space)))
+  (return x))
 
 (define-rule ws (* space))
 
 (define-rule alpha
-    (let ((x '()))
-      (set! x any)
-      (where (or (char-between x #\a #\z)
-                 (char-between x #\A #\Z)))
-      (return x)))
+  (set! x any)
+  (where (or (char-between x #\a #\z)
+             (char-between x #\A #\Z)))
+  (return x))
 
 (define-rule digit
-    (let ((x '()))
-      (set! x any)
-      (where (char-between x #\0 #\9))
-      (return (-i (char-code x) (char-code #\0)))))
+  (set! x any)
+  (where (char-between x #\0 #\9))
+  (return (-i (char-code x) (char-code #\0))))
 
 (define-rule ident
-    (let ((x '()))
-      (set! x (+ alpha))
-      (return (implode x))))
+    (set! x (+ alpha))
+  (return (implode x)))
 
 (define-rule integer
-    (let ((x '()))
-      (set! x (+ digit))
-      (return (reduce-list
-               (lambda (acc n)
-                 (+i n (*i 10 acc)))
-               0 x))))
+    (set! x (+ digit))
+  (return (reduce-list
+           (lambda (acc n) (+i n (*i 10 acc)))
+           0 x)))
 
 (define-rule token
-    (let ((x '()))
-      ws (set! x (or integer ident)) ws
-      (return x)))
+    ws (set! x (or integer ident)) ws
+    (return x))
 
 (define-rule expr
-    (or (let ((x '()))
-          ws #\( (set! x (* expr)) #\) ws
-          (return x))
+    (or (seq ws #\( (set! x (* expr)) #\) ws
+             (return x))
         token))
 
 
@@ -334,5 +380,10 @@
           (cons (f (car lst)) (mapcar f (cdr lst))))))
 "
 )
+
+(trace (xf-tl 'x))
+(trace (xf-tl '(or a b)))
+(trace (xf-tl '(set! x #\x)))
+(trace (xf-tl '(seq (set! x #\x))))
 
 'bye

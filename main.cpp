@@ -1251,12 +1251,12 @@ auto vm_map_stack_refs(VM *vm, PtrFn fn) {
   while (fr) {
     fn(fr->closed_over);
     auto pad = fr->pad_count;
-    for (u64 i = 1; i <= fr->argc; i++) {
-      auto arg = fr->argv[pad + (fr->argc - i)];
+    for (u64 i = 0; i < fr->argc; i++) {
+      auto arg = fr->argv[pad + i];
       fn(arg);
     }
     fn(objToPtr(bytecode));
-    auto on_stack = (Ptr*)(void *)fr;
+    auto on_stack = (Ptr*)(void *)fr; // go back 'up' the stack to get current args
     while (on_stack > stack) {
       on_stack--;
       fn(*on_stack);
@@ -2441,7 +2441,7 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn) {
   vm_push_stack_frame(vm, argc, fn, Nil);
 };
 
-#define STACK_PADDING 64
+#define STACK_PADDING 0ULL
 
 void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
 

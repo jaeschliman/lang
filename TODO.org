@@ -14,7 +14,7 @@
 * DONE obj_size function // heap size of object (can be 0 for imms)
 * DONE obj_ptrs function // walk Ptr s of obj (use a lambda)
 * DONE make stack frames objects
-* TODO read string
+* DONE read string
 * TODO tests! (something like an assert)
 * DONE bounds checking for heap allocation
 * DONE memory usage report function
@@ -44,6 +44,7 @@
 * DONE proper imap
 * DONE make cons a defstruct
 * TODO move stack memory into vm-managed heap
+* DONE stack overlow detection
 * TODO continuations / exceptions / signals
 * TODO dump/restore image
 * DONE write macroexpander in the language itself
@@ -55,7 +56,9 @@
 * TODO maybe expose bytecode prims as special forms? %push %call etc...
 * TODO growable heap
 * TODO looping special form (while?)
-* TODO set!
+* TODO TCO
+* DONE set!
+* TODO set! for more binding contexts
 * DONE repl
 * TODO basic notebook
 * TODO notebook w/ event reactor
@@ -76,7 +79,9 @@
 * DONE generalize blit to work b/t images as well
 * DONE blit with mask, src rect, scale, rotation (for both mask and src)
 * DONE message send facility
-* TODO something resembling OMeta / Meta II
+* DONE something resembling OMeta / Meta II
+  not as many features, by a long shot, but something basic appears to be working
+* TODO optionally plugin in Meta reader as program reader
 * DONE basic text rendering
   (very, very basic)
 * TODO type-of
@@ -122,3 +127,16 @@ after a gc, scan the old heap for byte-blobs that are not broken hearts,
 and free the mem. it's a tradeoff, two heap scans, but less copying.
 could become important as there will eventually be many images
 
+RE: meta, would be nice if could have `contextual` in-expr meta, so
+that the meta runtime could `push` and `pop` match systems:
+
+(define (copy-from-to a b)
+  (let ((i 0))
+    (while (< i (length a))
+      ;; here we push the `idx` reader which adds supports for subscripts
+      ;; for a single expression
+      #m idx (set! b[i] i[i])
+      (set! i (+ 1 i)))))
+
+also would be nice to add support for arguments, as is done in OMeta
+and col/line error reporting :P

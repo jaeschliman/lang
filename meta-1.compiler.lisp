@@ -471,4 +471,12 @@ meta mymeta {
 }
 ")
 
+(dbg meta-block "
+meta mymeta {
+  alpha   = any:ch ?(alphap ch) -> ch
+  digit   = any:ch ?(isdigi ch) -> (chdigi ch)
+  integer = digit+ :ds          -> (mknum ds)
+}
+")
+
 'bye

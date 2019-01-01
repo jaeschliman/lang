@@ -2512,7 +2512,7 @@ inline void vm_push(VM* vm, Ptr value) {
 
 inline void vm_stack_reserve_n(VM* vm, u64 n){
   vm->stack -= n;
-  memset(vm->stack, 0, n);
+  memset(vm->stack, 0, n * 8);
 }
 
 inline Ptr vm_pop(VM* vm) {

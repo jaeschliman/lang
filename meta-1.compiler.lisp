@@ -98,10 +98,13 @@
        (print (state-result ,compiled)))))
 
 (define (make-meta parent) (list parent (make-ht)))
+(define meta-by-name (make-ht))
+(define (find-meta x) (if (symbol? x) (ht-at meta-by-name x) x))
 
 (define Meta (make-meta '()))
+(ht-at-put meta-by-name 'Meta Meta)
 
-(define meta-context (list Meta))
+(define meta-context (list 'Meta))
 
 (define (push-meta-context meta)
     (set-symbol-value 'meta-context (cons meta meta-context)))
@@ -112,13 +115,14 @@
     (let ((lookup #f))
       (set! lookup (lambda (meta)
                      (if (nil? meta) '()
-                         (let ((exist (ht-at (second meta) rulename)))
-                           (if (nil? exist) (lookup (first meta))
-                               exist)))))
+                         (let ((Meta (find-meta meta)))
+                           (let ((exist (ht-at (second Meta) rulename)))
+                             (if (nil? exist) (lookup (first Meta))
+                                 exist))))))
       (lookup (first meta-context))))
 
 (define (get-rule x) (meta-lookup x))
-(define (set-rule x fn) (ht-at-put (second (first meta-context)) x fn))
+(define (set-rule x fn) (ht-at-put (second (find-meta (first meta-context))) x fn))
 
 (define fail '(fail fail fail))
 (define (failure? state) (eq state fail))
@@ -161,10 +165,12 @@
 
 (define (state-position st) (car (car st)))
 
-(define (char-between b a c)
-    (or (eq a b) (eq b c)
-        (and (char-< a b)
-             (char-< b c))))
+(set-rule 'any (lambda (st)
+                 (let ((s (state-stream st)))
+                   (if (stream-end? s)
+                       fail
+                       (state+stream (state+result st (stream-read s))
+                                     (stream-next s))))))
 
 (define-compile (%base state symbol next)
     `(apply-rule ',symbol ,state ,next))
@@ -262,18 +268,16 @@
     (let ((var (car forms)))
       `(,next (state+result ,state ,var))))
 
-(set-rule 'any (lambda (st)
-                 (let ((s (state-stream st)))
-                   (if (stream-end? s)
-                       fail
-                       (state+stream (state+result st (stream-read s))
-                                     (stream-next s))))))
-
 (defmacro define-rule (name & forms)
   (let ((xform (xf-tl (cons 'seq forms))))
     `(set-rule ',name (lambda (_state_) ,(compile-rule xform '_state_ 'id)))))
 
 ;;;; ----------------------------------------
+
+(define (char-between b a c)
+    (or (eq a b) (eq b c)
+        (and (char-< a b)
+             (char-< b c))))
 
 (define-rule space
   (set! x any)

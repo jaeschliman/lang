@@ -113,6 +113,8 @@ https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
 * TODO idea: _subclassable_ generic functions
  so each type invocation is a message, and you can subclass the function,
  and so override specific messages.
+* TODO multiple return values? check scheme syntax
+* TODO 'toplevel' do -- compile/execute exprs sequentially
 
 * notes
 maybe have a stack of compilers? can push/pop...

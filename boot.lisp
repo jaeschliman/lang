@@ -218,5 +218,24 @@
     `(let ((,name ,subj))
        (cond ,@(mapcar xform tests)))))
 
+(define (caar x) (car (car x)))
+(define (cadr x) (car (cdr x)))
+(define (cdar x) (cdr (car x)))
+(define (cddr x) (cdr (cdr x)))
+(define (caaar x) (car (car (car x))))
+(define (caddr x) (car (cdr (cdr x))))
+(define (cdaar x) (cdr (car (car x))))
+(define (cdddr x) (cdr (cdr (cdr x))))
+(define (caaar x) (car (car (car x))))
+(define (caddr x) (car (cdr (cdr x))))
+(define (cdaar x) (cdr (car (car x))))
+(define (cdddr x) (cdr (cdr (cdr x))))
+
+(define first car)
+(define second cadr)
+(define third caddr)
+
+
+
 ;;; eval
 (set 'eval (lambda (x) ((compile-to-closure x))))

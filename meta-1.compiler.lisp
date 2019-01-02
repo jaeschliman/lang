@@ -2,10 +2,6 @@
   `(let ((_res ,form))
      (print (list ',form '= _res))))
 
-(trace "trace works")
-
-;; TODO: symbol hygiene for rule compiler internals
-
 (define (id x) x)
 (define (safe-cdr it) (if (pair? it) (cdr it) it))
 
@@ -58,9 +54,6 @@
 (define (xf-rule-body b)
     (reduce-list xf-acc (cons '() '()) b))
 
-(define first car)
-(define (second x) (car (cdr x)))
-
 (define (xf-tl toplevel-rule)
     (if (pair? toplevel-rule)
         (xf-un-xf (xf-rule toplevel-rule))
@@ -104,7 +97,29 @@
             (state  (make-initial-state stream)))
        (print (state-result ,compiled)))))
 
-(define rules (make-ht))
+(define (make-meta parent) (list parent (make-ht)))
+
+(define Meta (make-meta '()))
+
+(define meta-context (list Meta))
+
+(define (push-meta-context meta)
+    (set-symbol-value 'meta-context (cons meta meta-context)))
+(define (pop-meta-context)
+    (set-symbol-value 'meta-context (cdr meta-context)))
+
+(define (meta-lookup rulename)
+    (let ((lookup #f))
+      (set! lookup (lambda (meta)
+                     (if (nil? meta) '()
+                         (let ((exist (ht-at (second meta) rulename)))
+                           (if (nil? exist) (lookup (first meta))
+                               exist)))))
+      (lookup (first meta-context))))
+
+(define (get-rule x) (meta-lookup x))
+(define (set-rule x fn) (ht-at-put (second (first meta-context)) x fn))
+
 (define fail '(fail fail fail))
 (define (failure? state) (eq state fail))
 (define nothing '(nothing))
@@ -150,29 +165,6 @@
     (or (eq a b) (eq b c)
         (and (char-< a b)
              (char-< b c))))
-
-'(rule alpha
-  (bind x any)
-  (where (or
-          (char-between x #\a #\z)
-          (char-between x #\A #\Z)))
-  (return x))
-
-'(rule symbol
-  (bind chars (+ alpha))
-  (return (intern (to-string chars))))
-
-'(lambda (st)
-  (apply-rule st 'any
-   (lambda (st)
-     (let ((x (state-result st)))
-       (if (or (char-between x #\a #\z)
-               (char-between x #\A #\Z))
-           x
-           fail)))))
-
-(define (get-rule x) (ht-at rules x))
-(define (set-rule x fn) (ht-at-put rules x fn))
 
 (define-compile (%base state symbol next)
     `(apply-rule ',symbol ,state ,next))
@@ -280,6 +272,8 @@
 (defmacro define-rule (name & forms)
   (let ((xform (xf-tl (cons 'seq forms))))
     `(set-rule ',name (lambda (_state_) ,(compile-rule xform '_state_ 'id)))))
+
+;;;; ----------------------------------------
 
 (define-rule space
   (set! x any)

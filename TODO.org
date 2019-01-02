@@ -110,7 +110,9 @@ https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
 * TODO some WEIRD bug around hashing -- was seeing the same object change hash codes
   may need to confirm that hash persists across GCs
   by all means it should
-
+* TODO idea: _subclassable_ generic functions
+ so each type invocation is a message, and you can subclass the function,
+ and so override specific messages.
 
 * notes
 maybe have a stack of compilers? can push/pop...

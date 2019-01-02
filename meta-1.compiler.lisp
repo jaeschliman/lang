@@ -304,6 +304,24 @@
     (set! x (+ alpha))
   (return (implode x)))
 
+(define (symbol-char x) ;; TODO: convert to lookup table
+    (or (char-between x #\a #\z)
+        (char-between x #\* #\-)
+        (char-between x #\< #\Z)
+        (char-between x #\/ #\9)
+        (char-between x #\# #\&)
+        (eq x #\!) (eq x #\^) (eq x #\_)
+        (eq x #\|) (eq x #\~)))
+
+(define-rule symbol-char
+    (set! x any) (where (symbol-char x)) (return x))
+
+(define-rule symbol
+    (set! x symbol-char)
+  (where (not (char-between x #\0 #\9)))
+  (set! xs (* symbol-char))
+  (return (implode (cons x xs))))
+
 (define-rule integer
     (set! x (+ digit))
   (return (reduce-list
@@ -311,7 +329,7 @@
            0 x)))
 
 (define-rule token
-    ws (set! x (or integer ident)) ws
+    ws (set! x (or integer symbol)) ws
     (return x))
 
 (define-rule expr
@@ -389,7 +407,6 @@
 (trace (xf-tl '(seq (set! x #\x))))
 (trace (xf-tl '(seq (or (set! x #\x) (set! y #\y)))))
 
-
 (define-rule meta-mod
     (set! m (or #\* #\? #\+))
   (return (implode (list m))))
@@ -417,7 +434,9 @@
   (set! -rst (* (seq ws #\| ws meta-clause)))
   ws
   (return
-    (let ((fst (if (nil? -act) (cons 'seq -fst) ;;@opt why so many 'seq ?
+    (let ((fst (if (nil? -act)
+                   (if (nil? (cdr -fst)) (car -fst)
+                       (cons 'seq -fst))
                    `(seq ,@-fst ,-act))))
       (if (nil? -rst) fst (cons 'or (cons fst -rst))))))
 
@@ -476,7 +495,17 @@ meta mymeta {
   alpha   = any:ch ?(alphap ch) -> ch
   digit   = any:ch ?(isdigi ch) -> (chdigi ch)
   integer = digit+ :ds          -> (mknum ds)
+  name    = alpha+ :as          -> (implode as)
+  atom    = integer | name
 }
+")
+
+(dbg expr "
+(define-rule integer
+    (set! x (+ digit))
+  (return (reduce-list
+           (lambda (acc n) (+i n (*i 10 acc)))
+           0 x)))
 ")
 
 'bye

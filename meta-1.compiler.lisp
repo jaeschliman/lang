@@ -78,7 +78,9 @@
           (?      (xf-pass-thru r))
           (return (xf-ignore r))
           (where  (xf-ignore r))
+          (extern (xf-ignore r))
           (let    (xf-ignore r))) ;; punting on let for now -- should be generated
+
         (if (symbol? r) (cons '() (list r))
             (cons '() (list r)))))
 
@@ -101,10 +103,9 @@
 (define meta-by-name (make-ht))
 (define (find-meta x) (if (symbol? x) (ht-at meta-by-name x) x))
 
-(define Meta (make-meta '()))
-(ht-at-put meta-by-name 'Meta Meta)
+(ht-at-put meta-by-name 'Base (make-meta '()))
 
-(define meta-context (list 'Meta))
+(define meta-context (list 'Base))
 
 (define (push-meta-context meta)
     (set-symbol-value 'meta-context (cons meta meta-context)))
@@ -185,6 +186,15 @@
       `(apply-rule 'any ,state (lambda (st)
                                  (let ((,x (state-result st)))
                                    (if (eq ,x ,item) (,next st) fail))))))
+
+(define-compile (extern state args next)
+    (let ((meta (first args))
+          (rule (second args)))
+      `(let ((_result_ '()))
+         (push-meta-context ',meta)
+         (set! _result_ ,(compile-rule rule state 'id))
+         (pop-meta-context)
+         (if (failure? _result_) fail (,next _result_)))))
 
 (define-compile (? state args next)
     (let* ((comp (compile-rule (car args) '_state_ 'id)))
@@ -272,6 +282,12 @@
   (let ((xform (xf-tl (cons 'seq forms))))
     `(set-rule ',name (lambda (_state_) ,(compile-rule xform '_state_ 'id)))))
 
+(trace (xf-tl 'x))
+(trace (xf-tl '(or a b)))
+(trace (xf-tl '(set! x #\x)))
+(trace (xf-tl '(seq (set! x #\x))))
+(trace (xf-tl '(seq (or (set! x #\x) (set! y #\y)))))
+
 ;;;; ----------------------------------------
 
 (define (char-between b a c)
@@ -301,40 +317,6 @@
 (define-rule ident
     (set! x (+ alpha))
   (return (implode x)))
-
-(define (symbol-char x) ;; TODO: convert to lookup table
-    (or (char-between x #\a #\z)
-        (char-between x #\* #\-)
-        (char-between x #\< #\Z)
-        (char-between x #\/ #\9)
-        (char-between x #\# #\&)
-        (eq x #\!) (eq x #\^) (eq x #\_)
-        (eq x #\|) (eq x #\~)))
-
-(define-rule symbol-char
-    (set! x any) (where (symbol-char x)) (return x))
-
-(define-rule symbol
-    (set! x symbol-char)
-  (where (not (char-between x #\0 #\9)))
-  (set! xs (* symbol-char))
-  (return (implode (cons x xs))))
-
-(define-rule integer
-    (set! x (+ digit))
-  (return (reduce-list
-           (lambda (acc n) (+i n (*i 10 acc)))
-           0 x)))
-
-(define-rule token
-    ws (set! x (or integer symbol)) ws
-    (return x))
-
-(define-rule expr
-    (or (seq ws #\( (set! x (* expr)) #\) ws
-             (return x))
-        token))
-
 
 (dbg any "")
 (dbg #\c  "c")
@@ -385,6 +367,44 @@
 (dbg ws " 
     
 ")
+
+(ht-at-put meta-by-name 'Lisp (make-meta 'Base))
+(push-meta-context 'Lisp)
+
+(define (symbol-char x) ;; TODO: convert to lookup table
+    (or (char-between x #\a #\z)
+        (char-between x #\* #\-)
+        (char-between x #\< #\Z)
+        (char-between x #\/ #\9)
+        (char-between x #\# #\&)
+        (eq x #\!) (eq x #\^) (eq x #\_)
+        (eq x #\|) (eq x #\~)))
+
+(define-rule symbol-char
+    (set! x any) (where (symbol-char x)) (return x))
+
+(define-rule symbol
+    (set! x symbol-char)
+  (where (not (char-between x #\0 #\9)))
+  (set! xs (* symbol-char))
+  (return (implode (cons x xs))))
+
+(define-rule integer
+    (set! x (+ digit))
+  (return (reduce-list
+           (lambda (acc n) (+i n (*i 10 acc)))
+           0 x)))
+
+(define-rule token
+    ws (set! x (or integer symbol)) ws
+    (return x))
+
+(define-rule expr
+    (or (seq ws #\( (set! x (* expr)) #\) ws
+             (return x))
+        token))
+
+
 (dbg ident "hello")
 (dbg integer "12345")
 (dbg token " 234 ")
@@ -399,11 +419,17 @@
 "
 )
 
-(trace (xf-tl 'x))
-(trace (xf-tl '(or a b)))
-(trace (xf-tl '(set! x #\x)))
-(trace (xf-tl '(seq (set! x #\x))))
-(trace (xf-tl '(seq (or (set! x #\x) (set! y #\y)))))
+(dbg expr "
+(define-rule integer
+    (set! x (+ digit))
+  (return (reduce-list
+           (lambda (acc n) (+i n (*i 10 acc)))
+           0 x)))
+")
+
+(pop-meta-context)
+(ht-at-put meta-by-name 'Meta (make-meta 'Base))
+(push-meta-context 'Meta)
 
 (define-rule meta-mod
     (set! m (or #\* #\? #\+))
@@ -420,10 +446,10 @@
         meta-pred))
 
 (define-rule meta-pred
-   ws #\? ws (set! -it expr) (return `(where ,-it)))
+   ws #\? ws (set! -it (extern Lisp expr)) (return `(where ,-it)))
 
 (define-rule meta-result
-  ws #\- #\> ws (set! -it expr) ws (return `(return ,-it)))
+  ws #\- #\> ws (set! -it (extern Lisp expr)) ws (return `(return ,-it)))
 
 (define-rule meta-clause 
     ws
@@ -446,9 +472,10 @@
     (set! -rs (+ meta-rule))
     ws #\}
     (return `(let ()
-               (push-meta-definition-context ',-n)
+               (ht-at-put meta-by-name ',-n (make-meta 'Base))
+               (push-meta-context ',-n)
                ,@-rs
-               (pop-meta-definition-context))))
+               (pop-meta-context))))
 
 ;; (dbg meta-mod "+")
 ;; (dbg (seq ident meta-mod) "myrule+")
@@ -498,12 +525,7 @@ meta mymeta {
 }
 ")
 
-(dbg expr "
-(define-rule integer
-    (set! x (+ digit))
-  (return (reduce-list
-           (lambda (acc n) (+i n (*i 10 acc)))
-           0 x)))
-")
+(pop-meta-context)
+
 
 'bye

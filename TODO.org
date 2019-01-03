@@ -142,5 +142,7 @@ that the meta runtime could `push` and `pop` match systems:
       #m idx (set! b[i] i[i])
       (set! i (+ 1 i)))))
 
+(this is actually spelled out in the ometa paper)
+
 also would be nice to add support for arguments, as is done in OMeta
 and col/line error reporting :P

@@ -115,6 +115,8 @@ https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
  and so override specific messages.
 * TODO multiple return values? check scheme syntax
 * TODO 'toplevel' do -- compile/execute exprs sequentially
+* TODO some kind of module/object system for L programs
+* TODO hygienic macros
 
 * notes
 maybe have a stack of compilers? can push/pop...
@@ -146,3 +148,23 @@ that the meta runtime could `push` and `pop` match systems:
 
 also would be nice to add support for arguments, as is done in OMeta
 and col/line error reporting :P
+
+need to learn about hygienic macro expansion
+need to learn about scm module systems? it looks like racket has a nice one.
+
+I have also been thinking about how to make lisp programs objects.
+I want them to respond to messages.
+
+I am wondering if the program should be 'instantiated' or are they
+singletons?  it would be a bit hard to know how to parse/update the
+class from the editor, or maybe I'm overthinking it?
+
+So a Program would have some sort of contructor (or maybe a couple)
+and some way of exporting function/macro/etc definitions (like a map)
+wondering if the object model could have any object provide a symbol
+namespace in addition to a messaging namespace, which I find
+intriguing... but need to learn more about racket modules first I
+think.
+
+How will Programs refer to each other? Define as inputs, but how will
+the reference be written?

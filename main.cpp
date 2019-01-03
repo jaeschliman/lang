@@ -38,6 +38,7 @@
 // so roughly 170 ops / bc via wall clock.
 // with it on, and NDEBUG: 179763496 / 12.201 / 60 = 245,550 ops/frame
 // on a different workload (meta-1), saw over 400,000 instr / frame
+// on meta1-compiler, with the GC tuned up a bit: 1276176013 / 47 / 60 = ~450,000
 
 #define unused(x) (void)(x)
 #define maybe_unused(x) (void)(x)
@@ -3939,7 +3940,7 @@ VM *vm_create() {
   vm->heap_size_in_bytes = heap_size_in_bytes;
   vm->allocation_count = 0;
   vm->gc_count = 0;
-  vm->gc_threshold_in_bytes = 5.0 * 1024 * 1024;
+  vm->gc_threshold_in_bytes = 15.0 * 1024 * 1024;
 
   vm->gc_protected = new unordered_map<Object **, u64>;
   vm->gc_protected_ptrs = new unordered_map<Ptr *, u64>;

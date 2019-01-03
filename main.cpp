@@ -297,10 +297,10 @@ inline u64 vm_heap_used(VM *vm) {
 }
 
 #define _ostream_prefix(x) << x
-#define die(...) do {                           \
-    print_stacktrace();                         \
-    cerr MAP(_ostream_prefix, __VA_ARGS__) << endl; \
-    exit(1);                                    \
+#define die(...) do {                                   \
+    print_stacktrace(stderr, 128);                      \
+    cerr MAP(_ostream_prefix, __VA_ARGS__) << endl;     \
+    exit(1);                                            \
   } while(0)
 
 #define dbg(...) cerr MAP(_ostream_prefix, __VA_ARGS__) << endl
@@ -1096,8 +1096,13 @@ void map_refs(VM *vm, Ptr it, PtrFn fn) {
   if (is(PtrArray, it))   return obj_refs(vm, as(PtrArray, it),   fn);
   if (is(Standard, it))   return obj_refs(vm, as(Standard, it),   fn);
   if (is(StackFrame, it)) return obj_refs(vm, as(StackFrame, it), fn);
-  cout << " unknown object type in map_refs" << endl;
-  assert(false);
+#if GC_DEBUG
+  if (is(BrokenHeart, it)) {
+    dbg("broken heart in map_refs");
+    return;
+  }
+#endif
+  die("unknown object type in map_refs");
 }
 
 /* ---------------------------------------- */
@@ -2049,7 +2054,8 @@ auto is_nlchar(char ch) {
 /* -------------------------------------------------- */
 
 auto quote_form(VM *vm, Ptr it) {
-  return cons(vm, KNOWN(quote), cons(vm, it, Nil));
+  auto cdr = cons(vm, it, Nil);
+  return cons(vm, KNOWN(quote), cdr);
 }
 
 void eat_ws(const char **remaining, const char *end) {
@@ -2760,6 +2766,12 @@ void vm_interp(VM* vm) {
       }
       if (!is(Closure, fn)) {
         vm->error = "value is not a closure";
+#if GC_DEBUG
+        if (is(BrokenHeart, fn)) {
+          auto other = objToPtr(gc_forwarding_address(as(Object, fn)));
+          dbg("attempted to call broken heart, fwd:", other);
+        }
+#endif
         break;
       }
       auto bc = closure_code(fn);
@@ -2800,6 +2812,7 @@ void vm_interp(VM* vm) {
       return;
     }
     if (vm->error) {
+      dbg("ERROR:", vm->error);
       vm_print_debug_stack_trace(vm);
       return;
     };

@@ -188,6 +188,11 @@
 (test-case-expr '+)
 (test-case-expr 'foo)
 
+
+(print '`(a b c))
+(print '`(a `(b c)))
+(print '`(a `(b ,c)))
+
 ;; maybe should support & in define as well?
 ;; (define (show-more a & more) (print more))
 ;; (show-more 0 1 2 3)

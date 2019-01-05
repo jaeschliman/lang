@@ -55,13 +55,13 @@
 (set 'append (lambda args (append3 (car args) (car (cdr args)) (cdr (cdr args)))))
 
 (set 'qq-process #f)
-
 (set 'qq-process
      (lambda (expr)
        (if (pair? expr)
            (let ((sym (car expr)))
-             (if (eq sym 'quasiquote) (qq-xform (car (cdr expr)))
-                 (mapcar qq-process expr)))
+             (if (eq sym 'quote) expr
+                 (if (eq sym 'quasiquote) (qq-xform (car (cdr expr)))
+                     (mapcar qq-process expr))))
            expr)))
 
 (set 'compiler qq-process)

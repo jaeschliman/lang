@@ -117,6 +117,10 @@ https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
 * TODO 'toplevel' do -- compile/execute exprs sequentially
 * TODO some kind of module/object system for L programs
 * TODO hygienic macros
+http://www.cs.utah.edu/plt/scope-sets/
+* TODO read this dissertation on implmentation of scheme
+https://www.cs.indiana.edu/~dyb/papers/3imp.pdf
+
 
 * notes
 maybe have a stack of compilers? can push/pop...

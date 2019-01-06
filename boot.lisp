@@ -1,6 +1,6 @@
 (set-symbol-value 'set set-symbol-value)
 
-;;; quasiquote support
+;;; single-level quasiquote support
 
 (set 'has-unquote-splicing #f)
 (set 'has-unquote-splicing
@@ -18,31 +18,80 @@
 
 (set 'qq-xform #f)
 
-(set 'qq-unq-spl-form (lambda (form)
+(set 'qq-is-unq-sym (lambda (sym)
+                      (if (eq sym 'unquote) #t
+                          (eq sym 'unquote-splicing))))
+
+(set 'qq-has-unq (lambda (f) (qq-is-unq-sym (car f))))
+(set 'qq-has-unq-level #f)
+(set 'qq-has-unq-level (lambda (form lvl)
+                         (if (not (pair? form)) #f
+                             (if (eq lvl 0) (qq-has-unq form)
+                                 (if (not (qq-has-unq form)) #f
+                                     (qq-has-unq-level (car (cdr form)) (-i lvl 1)))))))
+
+(set 'qq-unq-spl-form (lambda (form lvl)
                         (if (pair? form)
                             (if (eq (car form) 'unquote)
                                 (list 'list (car (cdr form)))
                                 (if (eq (car form) 'unquote-splicing)
                                     (car (cdr form))
-                                    (list 'list (qq-xform form))))
+                                    (list 'list (qq-xform form lvl))))
                             (list 'list (list 'quote form)))))
 
-(set 'qq-xform-for-unq-spl (lambda (lst) (cons 'append (mapcar qq-unq-spl-form lst))))
+(set 'qq-xform-for-unq-spl
+     (lambda (lst lvl)
+       (cons 'append
+             (mapcar (lambda (f) (qq-unq-spl-form f lvl)) lst))))
 
-(set 'qq-unq-form (lambda (form)
-                    (if (pair? form)
-                        (if (eq (car form) 'unquote)
-                            (car (cdr form))
-                            (qq-xform form))
-                        (list 'quote form))))
+(set 'qq-unq-form #f)
+(set 'qq-unq-form
+     (lambda (form lvl)
+       (if (pair? form)
+           (if (eq (car form) 'unquote)
+               (if (eq lvl 0)
+                   (car (cdr form))
+                   (if (qq-has-unq-level form lvl)
+                       (qq-unq-form (car (cdr form)) (-i lvl 1))
+                       (list 'list ''unquote
+                             (qq-xform (car (cdr form)) (-i lvl 1)))))
+               (qq-xform form lvl))
+           (list 'quote form))))
 
-(set 'qq-xform-for-unq (lambda (lst) (cons 'list (mapcar qq-unq-form lst))))
+(set 'qq-unq-form-unq
+     (lambda (form lvl sym)
+       (if (eq lvl 0)
+           (if (eq sym 'unquote)
+               (list 'list (car (cdr form)))
+               (car (cdr form)))
+           (if (qq-has-unq-level form lvl)
+               (qq-unq-form (car (cdr form)) (-i lvl 1))
+               (list 'list
+                     (list 'list (list 'quote sym)
+                           (qq-xform (car (cdr form)) (-i lvl 1))))))))
 
-(set 'qq-xform (lambda (x)
+(set 'qq-unq-form
+     (lambda (form lvl)
+       (if (pair? form)
+           (let ((sym (car form)))
+             (if (qq-is-unq-sym sym)
+                 (qq-unq-form-unq form lvl sym)
+                 (list 'list (qq-xform form lvl))))
+           (list 'list (list 'quote form)))))
+
+(set 'qq-xform-for-unq
+     (lambda (lst lvl)
+       (cons 'append (mapcar (lambda (f) (qq-unq-form f lvl)) lst))))
+
+(set 'qq-xform (lambda (x lvl)
                  (if (pair? x)
-                     (if (has-unquote-splicing x)
-                         (qq-xform-for-unq-spl x)
-                         (qq-xform-for-unq x))
+                     (if (eq (car x) 'quasiquote)
+                         (list 'list ''quasiquote (qq-xform (car (cdr x)) (+i 1 lvl)))
+                         (if (has-unquote-splicing x)
+                             (qq-xform-for-unq x lvl)
+                             ;; (qq-xform-for-unq-spl x lvl)
+                             (qq-xform-for-unq x lvl)
+                             ))
                      (list 'quote x))))
 
 (set 'append3 #f)
@@ -60,7 +109,7 @@
        (if (pair? expr)
            (let ((sym (car expr)))
              (if (eq sym 'quote) expr
-                 (if (eq sym 'quasiquote) (qq-xform (car (cdr expr)))
+                 (if (eq sym 'quasiquote) (qq-xform (car (cdr expr)) 0)
                      (mapcar qq-process expr))))
            expr)))
 
@@ -104,6 +153,9 @@
 (set 'compiler (lambda (expr) (macroexpand (qq-process expr))))
 ;;; basic macros
 
+
+(print "got here")
+
 (set-macro-function
  'and
  (lambda (expr)
@@ -116,6 +168,8 @@
                `(let ((,name ,test))
                   (if ,name (and ,@rest) #f)))
              test)))))
+
+(print "got here 2")
 
 (set-macro-function
  'or
@@ -130,6 +184,43 @@
                   (if ,name ,name (or ,@rest))))
              test)))))
 
+(print "got here 3")
+
+(print (qq-process '`(let ((,(car vars) (car ,form)))
+                       (let ((,name (cdr ,form)))
+                         (lambda-bind ,(cdr vars) ,name ,@body)))))
+
+(let ((form 'form)
+      (name 'name)
+      (vars '(var-a var-b var-c))
+      (body '(body forms here)))
+
+  (print (append (list 'let)
+        (list
+         (append
+          (list
+           (append (list (car vars))
+                   (list (append (list 'car) (list form)))))))
+        (list
+         (append (list 'let)
+                 (list
+                  (append
+                   (list
+                    (append (list name)
+                            (list (append (list 'cdr) (list form)))))))
+                 (list
+                  (append (list 'lambda-bind) (list (cdr vars)) (list name)
+                          body))))))
+
+  
+  )
+
+(print "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+(print "got here 3.3")
+
+;; somehow this is causing a segfault/memory corruption in 'append mode'
+;; specifically the final nested let.
+;; appears to be happening only on optimized builds? not clear yet.
 (set-macro-function
  'lambda-bind
  (lambda (expr)
@@ -146,6 +237,8 @@
                    `(let ((,(car vars) (car ,form)))
                       (let ((,name (cdr ,form)))
                         (lambda-bind ,(cdr vars) ,name ,@body))))))))))
+
+(print "got here 4")
 
 (set-macro-function
  'defmacro
@@ -235,7 +328,7 @@
 (define second cadr)
 (define third caddr)
 
-
+(print "got this far")
 
 ;;; eval
 (set 'eval (lambda (x) ((compile-to-closure x))))

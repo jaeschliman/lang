@@ -11,17 +11,17 @@
 
 (print (mapcar (lambda (x) (+i 1 x)) '(1 2 3)))
 
-(print (qq-xform-for-unq-spl '(a b c)))
-(print (qq-xform-for-unq-spl '(a (unquote b) c)))
-(print (qq-xform-for-unq-spl '(a (unquote-splicing b) c)))
+(print (qq-xform-for-unq-spl '(a b c) 0))
+(print (qq-xform-for-unq-spl '(a (unquote b) c) 0))
+(print (qq-xform-for-unq-spl '(a (unquote-splicing b) c) 0))
 
-(print (qq-xform-for-unq '(a b c)))
-(print (qq-xform-for-unq '(a (unquote b) c)))
+(print (qq-xform-for-unq '(a b c) 0))
+(print (qq-xform-for-unq '(a (unquote b) c) 0))
 
-(print (qq-xform '(a b c (d e f))))
-(print (qq-xform '(a b c (d (unquote e) f))))
-(print (qq-xform '(a b c (d (unquote e) f) (unquote-splicing g))))
-(print (qq-xform '(a b c (d (unquote e) f) ((unquote-splicing g) h))))
+(print (qq-xform '(a b c (d e f)) 0))
+(print (qq-xform '(a b c (d (unquote e) f)) 0))
+(print (qq-xform '(a b c (d (unquote e) f) (unquote-splicing g)) 0))
+(print (qq-xform '(a b c (d (unquote e) f) ((unquote-splicing g) h)) 0))
 
 (set 'append2 #f)
 (set 'append2 (lambda (a b)
@@ -189,9 +189,17 @@
 (test-case-expr 'foo)
 
 
-(print '`(a b c))
-(print '`(a `(b c)))
-(print '`(a `(b ,c)))
+(print `(a '(b c)))
+(print `(a `(b c)))
+(print `(a `(b ,c)))
+(let ((c 3))
+ (print `(a `(b ,,c))))
+(let ((d 3))
+ (print `(a `(b ,(c ,d)))))
+(let ((c '(3 4)))
+ (print `(a `(b ,,@c))))
+(let ((d '(3 4)))
+ (print `(a `(b ,(c ,@d)))))
 
 ;; maybe should support & in define as well?
 ;; (define (show-more a & more) (print more))

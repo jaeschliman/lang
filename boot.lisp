@@ -1,14 +1,34 @@
 (set-symbol-value 'set set-symbol-value)
 
-;;; single-level quasiquote support
-;;; partial nested support, but not well-tested
+;; helper functions
 
 (set 'mapcar #f)
 (set 'mapcar (lambda (f lst)
                (if (nil? lst) lst
                    (cons (f (car lst)) (mapcar f (cdr lst))))))
 
-(set 'qq-xform #f)
+(set 'list-every #f)
+(set 'list-every
+     (lambda (pred lst)
+       (if (nil? lst) #t
+           (if (pred (car lst)) (list-every pred (cdr lst))
+               #f))))
+
+(set 'append3 #f)
+(set 'append3 (lambda (a b cs)
+                (if (nil? a)
+                    (if (nil? cs) b
+                        (append3 b (car cs) (cdr cs)))
+                    (cons (car a) (append3 (cdr a) b cs)))))
+
+(set 'append (lambda args (append3 (car args) (car (cdr args)) (cdr (cdr args)))))
+
+;; ----------------------------------------
+;;; nested quasiquote support
+;;; nested support not yet well-tested
+
+(set 'qq-process #f) ;; entry point for quasiquoting (toplevel function)
+(set 'qq-xform #f)   ;; fn that begins qq-transforming a given form at lvl
 
 (set 'qq-is-unq-sym (lambda (sym)
                       (if (eq sym 'unquote) #t
@@ -24,13 +44,12 @@
 
 
 (set 'qq-unq-form #f)
-
 (set 'qq-unq-form-unq
      (lambda (form lvl sym)
        (if (eq lvl 0)
            (if (eq sym 'unquote)
-               (list 'list (car (cdr form)))
-               (car (cdr form)))
+               (list 'list (qq-process (car (cdr form))))
+               (qq-process (car (cdr form))))
            (if (qq-has-unq-level form lvl)
                (qq-unq-form (car (cdr form)) (-i lvl 1))
                (list 'list
@@ -46,12 +65,6 @@
                  (list 'list (qq-xform form lvl))))
            (list 'list (list 'quote form)))))
 
-(set 'list-every #f)
-(set 'list-every
-     (lambda (pred lst)
-       (if (nil? lst) #t
-           (if (pred (car lst)) (list-every pred (cdr lst))
-               #f))))
 
 (set 'qq-simple-quote-result?
      (lambda (it)
@@ -75,6 +88,7 @@
 ;; we could do more here...
 ;; (append '('a) '('b) c) => (append '('a 'b) c)
 ;; and so on
+;; (append '(a) '(b) '(c)) => (list a b c)
 (set 'qq-append-opt
      (lambda (lst)
        (if (list-every qq-simple-list-result? lst)
@@ -93,16 +107,6 @@
                          (qq-xform-for-unq x lvl))
                      (list 'quote x))))
 
-(set 'append3 #f)
-(set 'append3 (lambda (a b cs)
-                (if (nil? a)
-                    (if (nil? cs) b
-                        (append3 b (car cs) (cdr cs)))
-                    (cons (car a) (append3 (cdr a) b cs)))))
-
-(set 'append (lambda args (append3 (car args) (car (cdr args)) (cdr (cdr args)))))
-
-(set 'qq-process #f)
 (set 'qq-process
      (lambda (expr)
        (if (pair? expr)
@@ -113,6 +117,8 @@
            expr)))
 
 (set 'compiler qq-process)
+
+;;; ----------------------------------------
 ;;; macro support
 
 (set 'macro-functions (make-ht))
@@ -150,17 +156,16 @@
            expr)))
 
 (set 'compiler (lambda (expr) (macroexpand (qq-process expr))))
+
+;;; ----------------------------------------
 ;;; basic macros
-
-
 
 (set-macro-function
  'and
  (lambda (expr)
    (let ((test (car (cdr expr)))
          (rest (cdr (cdr expr))))
-     (if (nil? test)
-         #t
+     (if (nil? test) #t
          (if (not (nil? rest))
              (let ((name (gensym)))
                `(let ((,name ,test))
@@ -173,8 +178,7 @@
  (lambda (expr)
    (let ((test (car (cdr expr)))
          (rest (cdr (cdr expr))))
-     (if (nil? test)
-         #f
+     (if (nil? test) #f
          (if (not (nil? rest))
              (let ((name (gensym)))
                `(let ((,name ,test))
@@ -264,12 +268,11 @@
                    0 lst-of-chars)
       (intern str)))
 
-;; BUG!! could not properly nest backquotes...
 (defmacro case (subj & tests)
   (let* ((name (gensym))
-         (xform (lambda (it) `((eq ,name (quote ,(car it))) ,@(cdr it)))))
+         (xform '()))
     `(let ((,name ,subj))
-       (cond ,@(mapcar xform tests)))))
+       (cond ,@(mapcar (lambda (it) `((eq ,name (quote ,(car it))) ,@(cdr it))) tests)))))
 
 (define (caar x) (car (car x)))
 (define (cadr x) (car (cdr x)))

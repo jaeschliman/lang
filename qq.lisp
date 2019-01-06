@@ -14,6 +14,7 @@
 
 (set 'expect-t (lambda (r) (expect #t r)))
 (set 'expect-f (lambda (r) (expect-t (not r))))
+(define (expect-runs x) (expect #t #t))
 
 (expect-t (qq-simple-list-result? '(list 'a)))
 (expect-f (qq-simple-list-result? '(list 'a 'b)))
@@ -45,30 +46,38 @@
  '(list 'a 'b 'c (list 'd e 'f) (append g (list 'h)))
  (qq-xform '(a b c (d (unquote e) f) ((unquote-splicing g) h)) 0))
 
-(print (append3 '(a b c) '(1 2 3) '((d e f) (4 5 6) (done))))
-(print (append3 '(a b c) '(1 2 3) (list)))
-(print (append3 '(a b c) (list) (list)))
-
+;; basic varargs check
 (set 'myfun (lambda args (cons 'myfun! args)))
-(print (list 'saw: (myfun 1 2 3)))
+(expect '(myfun! 1 2 3) (myfun 1 2 3))
 
-(print (append '(a b)))
-(print (append '(a b) '(c d)))
-(print (append '(a b) '(c d) '(e f)))
-(print (append '(a b) '(c d) '(e f) '(g h)))
-(print (append '(a b) '(c d) '(e f) '(g h) '(i j)))
+;; append internals
+(expect
+ '(a b c 1 2 3 d e f 4 5 6 done)
+ (append3 '(a b c) '(1 2 3) '((d e f) (4 5 6) (done))))
 
-(print ((compile-to-closure '(+i 2 2))))
+(expect
+ '(a b c 1 2 3)
+ (append3 '(a b c) '(1 2 3) (list)))
 
-(print (qq-process '(quasiquote x)))
-(print (qq-process '(lambda (x) x)))
-(print (qq-process '(lambda (x) (quasiquote (1 2 (unquote-splicing '(3 4)) 5 6)))))
-(print (eval (qq-process '(lambda (x)
-                           (quasiquote
-                            (1 2
-                             (unquote-splicing '(3 4))
-                             5 6
-                             (unquote x)))))))
+(expect
+ '(a b c)
+ (append3 '(a b c) (list) (list)))
+
+;; basic append checks
+(expect '(a b)                 (append '(a b)))
+(expect '(a b c d)             (append '(a b) '(c d)))
+(expect '(a b c d e f)         (append '(a b) '(c d) '(e f)))
+(expect '(a b c d e f g h)     (append '(a b) '(c d) '(e f) '(g h)))
+(expect '(a b c d e f g h i j) (append '(a b) '(c d) '(e f) '(g h) '(i j)))
+
+(expect ''x (qq-process '(quasiquote x)))
+(expect '(lambda (x) x) (qq-process '(lambda (x) x)))
+
+;; TODO: could optimize (list 'x) => '(x)
+;; TODO: could optimize '1 => 1
+(expect
+ '(lambda (x) (append (list '1) (list '2) '(3 4) (list '5) (list '6)))
+ (qq-process '(lambda (x) (quasiquote (1 2 (unquote-splicing '(3 4)) 5 6)))))
 
 (let ((fn (eval (qq-process '(lambda (x)
                               (quasiquote
@@ -76,83 +85,83 @@
                                 (unquote-splicing '(3 4))
                                 5 6
                                 (unquote x))))))))
-  (print (fn 7)))
+  (expect '(1 2 3 4 5 6 7) (fn 7)))
 
-(print '(lambda (x) `(1 2 ,@'(3 4) 5 6 ,x)))
-(print (qq-process '(lambda (x) `(1 2 ,@'(3 4) 5 6 ,x))))
+(expect
+ '(lambda (x) (append (list '1) (list '2) '(3 4) (list '5) (list '6) (list x)))
+ (qq-process '(lambda (x) `(1 2 ,@'(3 4) 5 6 ,x))))
 
 (let ((fn (eval (qq-process '(lambda (x) `(1 2 ,@'(3 4) 5 6 ,x))))))
-  (print (fn 7)))
+  (expect '(1 2 3 4 5 6 7) (fn 7)))
 
-(set 'myfun (lambda (a b c)
-              `(On a rainy ,a I saw ,b (and we ,@c))))
+(set 'myfun (lambda (a b c) `(On a rainy ,a I saw ,b (and we ,@c))))
 
-(print (myfun 'day 'Julia '(had a coffee)))
+(expect
+ '(On a rainy day I saw Julia (and we had a coffee))
+ (myfun 'day 'Julia '(had a coffee)))
 
-(print `(are gensyms equal? ,(eq (gensym) (gensym))))
-(print (macroexpand 'hello))
+(expect
+ '(are gensyms equal? #f)
+ `(are gensyms equal? ,(eq (gensym) (gensym))))
+
+(expect 'hello (macroexpand 'hello))
 
 (print (ht-at macro-functions 'and))
 
-(print '(and expansions:))
-(print (macroexpand '(and)))
-(print (macroexpand '(and a)))
-(print (macroexpand '(and a b)))
-(print (macroexpand '(and a b c)))
-(print (eval (macroexpand '(and 1 2 3))))
+;; unclear how to test these.. other than asserting there is no error...
+(expect-runs (macroexpand '(and)))
+(expect-runs (macroexpand '(and a)))
+(expect-runs (macroexpand '(and a b)))
+(expect-runs (macroexpand '(and a b c)))
+(expect 3 (eval (macroexpand '(and 1 2 3))))
 
-(print '(or expansions:))
-(print (macroexpand '(or)))
-(print (macroexpand '(or a)))
-(print (macroexpand '(or a b)))
-(print (macroexpand '(or a b c)))
-(print (eval (macroexpand '(or 1 2 3))))
+(expect-runs (macroexpand '(or)))
+(expect-runs (macroexpand '(or a)))
+(expect-runs (macroexpand '(or a b)))
+(expect-runs (macroexpand '(or a b c)))
+(expect 1 (eval (macroexpand '(or 1 2 3))))
 
-(print "hello macro world")
-(print (or 'a 'b 'c))
-(print `(a b c))
-(print (and 'a 'b 'c))
+(expect 'a (or 'a 'b 'c))
+(expect '(a b c) `(a b c))
+(expect 'c (and 'a 'b 'c))
 
 ;; (print '`(let ((,name ,form)) ,@body))
 
-(print (macroexpand '(lambda-bind (a b c) '(a b c) (list c b a))))
-(print (lambda-bind (a b c) '(a b c) (list c b a)))
-(print (lambda-bind x '(1 2 3) (list x x)))
+(expect-runs (macroexpand '(lambda-bind (a b c) '(a b c) (list c b a))))
+(expect '(c b a) (lambda-bind (a b c) '(a b c) (list c b a)))
+(expect '((1 2 3) (1 2 3)) (lambda-bind x '(1 2 3) (list x x)))
+
 ;; TODO: dot-reader
 ;; (print (lambda-bind (x . y) '(1 2 3) (list x y)))
-(print (lambda-bind (x & y) '(1 2 3) (list x y)))
+(expect '(1 (2 3)) (lambda-bind (x & y) '(1 2 3) (list x y)))
 
-(print (macroexpand '(defmacro my-macro (a b c)
-                      `(,c (list ,b ,a)))))
+(expect-runs (macroexpand '(defmacro my-macro (a b c)
+                            `(,c (list ,b ,a)))))
 
-(print (macroexpand '(define x 10)))
-(define x 10)
-(print x)
-(define (print-2 a b) (print b) (print a))
-(print-2 'x 10)
+(expect-runs (macroexpand '(define x 10)))
 
 (let* ((x 'hello)
        (y (list x 'world)))
-  (print y))
+  (expect '(hello world) y))
 
 (define (show x)
-    (cond ((symbol? x) "a symbol")
-          ((nil? x) "nil!")
-          (#t "something else")))
+    (cond ((symbol? x) 'symbol)
+          ((nil? x) 'nil!)
+          (#t 'other)))
 
-(print (show 'x))
-(print (show (list)))
-(print (show 5.0))
+(expect 'symbol (show 'x))
+(expect 'nil! (show (list)))
+(expect 'nil! (show '()))
+(expect 'other (show (list (list))))
+(expect 'other (show 5.0))
 
 (define (set-test0)
     (let ((x 5))
       (set! x 6)
       (set! x (+i 1 x))
-      (print x)))
-(set-test0)
+      x))
 
-(defmacro when (test & body)
-  `(if ,test (let () ,@body)))
+(expect 7 (set-test0))
 
 (define (iota n fn)
     (let ((loop #f))
@@ -163,24 +172,27 @@
                 (loop (+i 1 i)))))
       (loop 0)))
 
-(iota 10 print)
+(let* ((r '())
+       (collect (lambda (n) (set! r (cons n r)))))
+  (iota 10 collect)
+  (expect '(9 8 7 6 5 4 3 2 1 0) r))
 
 (let ((special #f))
   (define (store x) (set! special x))
   (define (load) special))
 
 (store 'secret)
-(print (load))
+(expect 'secret (load))
 
-(print (reverse-list '(c b a)))
+(expect '(a b c) (reverse-list '(c b a)))
 
-(print (make-string 3 #\x))
+;; TODO: no string-equal? yet
+(expect-runs (make-string 3 #\x))
 
 (define my-str (make-string 3 #\Space))
-(char-at-put my-str 1 #\o)
-(print my-str)
+(expect-runs (char-at-put my-str 1 #\o))
 
-(print (implode '(#\h #\e #\l #\l #\o)))
+(expect-runs (implode '(#\h #\e #\l #\l #\o)))
 
 (define (test-let-binding)
     (let ((x 'x-value))

@@ -294,6 +294,9 @@
 ;;; eval
 (set 'eval (lambda (x) ((compile-to-closure x))))
 
+;;; more utils
+(defmacro when (test & body)
+  `(if ,test (let () ,@body)))
 
 ;;; test helpers
 

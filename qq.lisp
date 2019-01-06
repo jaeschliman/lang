@@ -4,16 +4,7 @@
 (set 'expect-t (lambda (r) (print (if r "test passed" "test failed"))))
 (set 'expect-f (lambda (r) (expect-t (not r))))
 
-(expect-t (has-unquote-splicing '(a b (unquote-splicing c) d e)))
-(expect-t (has-unquote-splicing '(a (1 2) (unquote-splicing c) d e)))
-(expect-f (has-unquote-splicing '(a b c)))
-(expect-f (has-unquote-splicing '(a (1 2) (2 3) b)))
-
 (print (mapcar (lambda (x) (+i 1 x)) '(1 2 3)))
-
-(print (qq-xform-for-unq-spl '(a b c) 0))
-(print (qq-xform-for-unq-spl '(a (unquote b) c) 0))
-(print (qq-xform-for-unq-spl '(a (unquote-splicing b) c) 0))
 
 (print (qq-xform-for-unq '(a b c) 0))
 (print (qq-xform-for-unq '(a (unquote b) c) 0))

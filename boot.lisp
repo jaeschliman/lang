@@ -46,9 +46,33 @@
                  (list 'list (qq-xform form lvl))))
            (list 'list (list 'quote form)))))
 
+(set 'list-every #f)
+(set 'list-every
+     (lambda (pred lst)
+       (if (nil? lst) #t
+           (if (pred (car lst)) (list-every pred (cdr lst))
+               #f))))
+
+(set 'qq-simple-list-result?
+     (lambda (it)
+       (if (not (pair? it)) #f
+           (if (not (eq (car it) 'list)) #f
+               (nil? (cdr (cdr it)))))))
+
+;; we could do more here...
+;; (append '('a) '('b) c) => (append '('a 'b) c)
+;; (list 'a 'b 'c) => '(a b c)
+;; and so on
+(set 'qq-append-opt
+     (lambda (lst)
+       (if (list-every qq-simple-list-result? lst)
+           (cons 'list (mapcar (lambda (it) (car (cdr it))) lst))
+           (cons 'append lst))))
+
 (set 'qq-xform-for-unq
      (lambda (lst lvl)
-       (cons 'append (mapcar (lambda (f) (qq-unq-form f lvl)) lst))))
+       (qq-append-opt
+        (mapcar (lambda (f) (qq-unq-form f lvl)) lst))))
 
 (set 'qq-xform (lambda (x lvl)
                  (if (pair? x)

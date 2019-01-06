@@ -1,10 +1,20 @@
+(print (mapcar (lambda (x) (+i 1 x)) '(1 2 3)))
 
 ;; TODO: write more tests for qq and macroexpand
 
 (set 'expect-t (lambda (r) (print (if r "test passed" "test failed"))))
 (set 'expect-f (lambda (r) (expect-t (not r))))
 
-(print (mapcar (lambda (x) (+i 1 x)) '(1 2 3)))
+(expect-t (qq-simple-list-result? '(list 'a)))
+(expect-f (qq-simple-list-result? '(list 'a 'b)))
+
+(expect-t (list-every qq-simple-list-result?
+                      '((list 'a) (list 'b) (list 'c))))
+
+(expect-f (list-every qq-simple-list-result?
+                      '((list 'a) b (list 'c))))
+
+(print (qq-append-opt '((list 'a) (list 'b) (list 'c))))
 
 (print (qq-xform-for-unq '(a b c) 0))
 (print (qq-xform-for-unq '(a (unquote b) c) 0))

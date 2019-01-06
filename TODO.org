@@ -120,6 +120,7 @@ https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
 http://www.cs.utah.edu/plt/scope-sets/
 * TODO read this dissertation on implmentation of scheme
 https://www.cs.indiana.edu/~dyb/papers/3imp.pdf
+* TODO simple userspace structs
 
 
 * notes
@@ -172,3 +173,14 @@ think.
 
 How will Programs refer to each other? Define as inputs, but how will
 the reference be written?
+
+I really like the simplicity of defmacro style macros, but without
+symbol packages, or lisp2 namespaces they are a bit troublesome. I'm
+not sure how to make defmacro work sensibly with a module system
+either.
+
+It sounds like the scheme community hasn't decided on a way to handle
+this yet either... syntax-case seems like a good bet (although it was
+withdrawn?) maybe should just look into how racket does it, but that
+is likely way more complicated than needed, due to all the other stuff
+racket does around language support.

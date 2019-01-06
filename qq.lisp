@@ -70,8 +70,6 @@
 (let ((fn (eval (qq-process '(lambda (x) `(1 2 ,@'(3 4) 5 6 ,x))))))
   (print (fn 7)))
 
-;; (set 'compiler qq-process)
-
 (set 'myfun (lambda (a b c)
               `(On a rainy ,a I saw ,b (and we ,@c))))
 

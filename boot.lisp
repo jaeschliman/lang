@@ -53,6 +53,19 @@
            (if (pred (car lst)) (list-every pred (cdr lst))
                #f))))
 
+(set 'qq-simple-quote-result?
+     (lambda (it)
+       (if (not (pair? it)) #f
+           (if (not (eq (car it) 'quote)) #f
+               (nil? (cdr (cdr it)))))))
+
+;; (list 'a 'b 'c) => '(a b c)
+(set 'qq-quote-opt
+     (lambda (lst)
+       (if (list-every qq-simple-quote-result? lst)
+           (list 'quote (mapcar (lambda (it) (car (cdr it))) lst))
+           (cons 'list lst))))
+
 (set 'qq-simple-list-result?
      (lambda (it)
        (if (not (pair? it)) #f
@@ -61,12 +74,11 @@
 
 ;; we could do more here...
 ;; (append '('a) '('b) c) => (append '('a 'b) c)
-;; (list 'a 'b 'c) => '(a b c)
 ;; and so on
 (set 'qq-append-opt
      (lambda (lst)
        (if (list-every qq-simple-list-result? lst)
-           (cons 'list (mapcar (lambda (it) (car (cdr it))) lst))
+           (qq-quote-opt (mapcar (lambda (it) (car (cdr it))) lst))
            (cons 'append lst))))
 
 (set 'qq-xform-for-unq

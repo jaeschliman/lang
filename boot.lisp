@@ -293,3 +293,14 @@
 
 ;;; eval
 (set 'eval (lambda (x) ((compile-to-closure x))))
+
+
+;;; test helpers
+
+(define deep-eq? #f)
+(define (deep-eq? a b)
+  (if (eq a b) #t
+      (if (and (pair? a) (pair? b))
+          (and (deep-eq? (car a) (car b))
+               (deep-eq? (cdr a) (cdr b)))
+          #f)))

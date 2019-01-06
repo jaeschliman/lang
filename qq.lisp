@@ -1,8 +1,18 @@
-(print (mapcar (lambda (x) (+i 1 x)) '(1 2 3)))
+(define tests-passed 0)
+(define tests-failed 0)
+(define (expect a b)
+    (if (deep-eq? a b)
+        (set 'tests-passed (+i 1 tests-passed))
+        (set 'tests-failed (+i 1 tests-failed))))
+(define (test-report)
+  (print "----------------------------------------")
+  (print `(,tests-passed tests passed))
+  (print `(,tests-failed tests failed))
+  (print `(,(+i tests-passed tests-failed) tests total)))
 
-;; TODO: write more tests for qq and macroexpand
+(expect '(2 3 4) (mapcar (lambda (x) (+i 1 x)) '(1 2 3)))
 
-(set 'expect-t (lambda (r) (print (if r "test passed" "test failed"))))
+(set 'expect-t (lambda (r) (expect #t r)))
 (set 'expect-f (lambda (r) (expect-t (not r))))
 
 (expect-t (qq-simple-list-result? '(list 'a)))
@@ -14,22 +24,26 @@
 (expect-f (list-every qq-simple-list-result?
                       '((list 'a) b (list 'c))))
 
-(print (qq-append-opt '((list 'a) (list 'b) (list 'c))))
+(expect ''(a b c) (qq-append-opt '((list 'a) (list 'b) (list 'c))))
 
-(print (qq-xform-for-unq '(a b c) 0))
-(print (qq-xform-for-unq '(a (unquote b) c) 0))
+(expect ''(a b c)
+        (qq-xform-for-unq '(a b c) 0))
 
-(print (qq-xform '(a b c (d e f)) 0))
-(print (qq-xform '(a b c (d (unquote e) f)) 0))
-(print (qq-xform '(a b c (d (unquote e) f) (unquote-splicing g)) 0))
-(print (qq-xform '(a b c (d (unquote e) f) ((unquote-splicing g) h)) 0))
+(expect '(list 'a b 'c)
+        (qq-xform-for-unq '(a (unquote b) c) 0))
 
-(set 'append2 #f)
-(set 'append2 (lambda (a b)
-                (if (nil? a) b
-                    (cons (car a) (append2 (cdr a) b)))))
+(expect ''(a b c (d e f))
+        (qq-xform '(a b c (d e f)) 0))
 
-(print (append2 '(a b c) '(1 2 3)))
+(expect '(list 'a 'b 'c (list 'd e 'f))
+ (qq-xform '(a b c (d (unquote e) f)) 0))
+
+(expect '(append (list 'a) (list 'b) (list 'c) (list (list 'd e 'f)) g)
+        (qq-xform '(a b c (d (unquote e) f) (unquote-splicing g)) 0))
+
+(expect
+ '(list 'a 'b 'c (list 'd e 'f) (append g (list 'h)))
+ (qq-xform '(a b c (d (unquote e) f) ((unquote-splicing g) h)) 0))
 
 (print (append3 '(a b c) '(1 2 3) '((d e f) (4 5 6) (done))))
 (print (append3 '(a b c) '(1 2 3) (list)))
@@ -200,6 +214,9 @@
 (let ((d '(3 4)))
  (print `(a `(b ,(c ,@d)))))
 
+(print (deep-eq? '(a b c) '(a b c)))
+
+(test-report)
 ;; maybe should support & in define as well?
 ;; (define (show-more a & more) (print more))
 ;; (show-more 0 1 2 3)

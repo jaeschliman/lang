@@ -2847,7 +2847,7 @@ private:
   void _reserveInstruction() {
     if (bc_index - 1 >= bc_capacity) {
       bc_capacity *= 2;
-      bc_mem = (u64 *)realloc(bc_mem, bc_capacity);
+      bc_mem = (u64 *)realloc(bc_mem, bc_capacity * 8);
     }
   }
   BCBuilder* pushPair(u8 op, u32 data) {
@@ -2914,7 +2914,7 @@ public:
     bc_index            = 0;
     lit_index           = 0;
     bc_capacity         = 1024;
-    bc_mem              = (u64 *)calloc(bc_capacity, 1);
+    bc_mem              = (u64 *)calloc(bc_capacity, 8);
     labelsMap           = new map<string, u64>;
     branchLocations     = new vector<branch_entry>;
     labelContextCounter = 0;

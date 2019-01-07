@@ -56,7 +56,7 @@
 * TODO maybe expose bytecode prims as special forms? %push %call etc...
 * TODO growable heap
 * TODO looping special form (while?)
-* TODO TCO
+* DONE TCO
 * DONE set!
 * TODO set! for more binding contexts
 * DONE repl

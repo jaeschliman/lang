@@ -2426,6 +2426,9 @@ Ptr read_from_istream(VM *vm, Ptr s) { prot_ptr(s);
 }
 
 /* -------------------------------------------------- */
+Ptr vm_pop(VM *vm);
+void vm_push(VM *vm, Ptr it);
+
 
 void vm_pop_stack_frame(VM* vm) {
   auto fr = vm->frame;
@@ -2440,6 +2443,18 @@ void vm_pop_stack_frame(VM* vm) {
   vm->stack_depth--;
 
   // cout << "return stack frame to :" << vm->stack << endl;
+}
+
+void vm_prepare_for_tail_call(VM *vm, s64 argc) {
+  // argc + 1 to account for the function, which is also on the stack.
+  Ptr args[argc + 1];
+  for (auto i = 0; i < argc + 1; i++) { //@speed could just 'move' these
+    args[i] = vm_pop(vm);
+  }
+  vm_pop_stack_frame(vm);
+  for (auto i = argc; i >= 0; i--) {
+    vm_push(vm, args[i]);
+  }
 }
 
 void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over);
@@ -2499,6 +2514,7 @@ enum OpCode : u8 {
   BR_IF_NOT_ZERO       ,
   DUP                  ,
   CALL                 ,
+  TAIL_CALL            ,
   LOAD_ARG             ,
   LOAD_GLOBAL          ,
   LOAD_CLOSURE         ,
@@ -2724,6 +2740,11 @@ void vm_interp(VM* vm) {
       vm_push(vm, it);
       vm_push(vm, it);
       break;
+    }
+    case TAIL_CALL: {
+      u32 argc = data;
+      vm_prepare_for_tail_call(vm, argc);
+      // fallthrough
     }
     case CALL: {
       u32 argc = data;
@@ -3011,6 +3032,10 @@ public:
     pushPair(CALL, argc);
     return this;
   }
+  auto tailCall(u32 argc) {
+    pushPair(TAIL_CALL, argc);
+    return this;
+  }
   auto pop(){
     pushOp(POP);
     return this;
@@ -3207,7 +3232,7 @@ void emit_call(VM *vm, BCBuilder *builder, Ptr it, Ptr env, bool tail) {
     });
   emit_expr(vm, builder, fn, env, false);
   if (tail) {
-    builder->call(argc); // TODO: tailcall
+    builder->tailCall(argc);
   } else {
     builder->call(argc);
   }

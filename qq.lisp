@@ -181,6 +181,9 @@
   (iota 10 collect)
   (expect '(9 8 7 6 5 4 3 2 1 0) r))
 
+;; TCO!
+(expect-runs (iota 100000 (lambda (x) x)))
+
 (let ((special #f))
   (define (store x) (set! special x))
   (define (load) special))

@@ -3194,19 +3194,23 @@ VariableBinding compiler_env_binding(VM *vm, Ptr env, Ptr sym) {
   return _compiler_env_binding(vm, env, sym, 0);
 }
 
-void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env);
+void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env, bool tail);
 
-void emit_call(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
+void emit_call(VM *vm, BCBuilder *builder, Ptr it, Ptr env, bool tail) {
   prot_ptr(env);
   auto fn   = car(it); prot_ptr(fn);
   auto args = cdr(it); prot_ptr(args);
   auto argc = 0;
   do_list(vm, args, [&](Ptr arg){
       argc++;
-      emit_expr(vm, builder, arg, env);
+      emit_expr(vm, builder, arg, env, false);
     });
-  emit_expr(vm, builder, fn, env);
-  builder->call(argc);
+  emit_expr(vm, builder, fn, env, false);
+  if (tail) {
+    builder->call(argc); // TODO: tailcall
+  } else {
+    builder->call(argc);
+  }
   unprot_ptrs(env, fn, args);
 }
 
@@ -3218,10 +3222,12 @@ void emit_lambda_body(VM *vm, BCBuilder *builder, Ptr body, Ptr env) {
   assert(consp(body));
   prot_ptrs(env, body);
   builder->pushLit(Nil);
-  emit_expr(vm, builder, car(body), env);
-  do_list(vm, cdr(body), [&](Ptr expr){
+  s64 count = list_length(vm, body);
+  auto idx = 0;
+  do_list(vm, body, [&](Ptr expr){
       builder->pop();
-      emit_expr(vm, builder, expr, env);
+      auto in_tail = (++idx) == count;
+      emit_expr(vm, builder, expr, env, in_tail);
     });
   unprot_ptrs(env, body);
 }
@@ -3273,8 +3279,9 @@ void emit_lambda(VM *vm, BCBuilder *parent, Ptr it, Ptr p_env) {  prot_ptrs(it, 
   unprot_ptrs(it, p_env, env);
 }
 
-void emit_let (VM *vm, BCBuilder *builder, Ptr it, Ptr p_env) {  prot_ptrs(it, p_env);
-  auto env = compiler_env_get_subenv(vm, p_env, it);             prot_ptr(env);
+void emit_let
+(VM *vm, BCBuilder *builder, Ptr it, Ptr p_env, bool tail) { prot_ptrs(it, p_env);
+  auto env = compiler_env_get_subenv(vm, p_env, it);         prot_ptr(env);
   {
     auto vars        = nth_or_nil(it, 1);
     auto count       = list_length(vm, vars);
@@ -3290,7 +3297,7 @@ void emit_let (VM *vm, BCBuilder *builder, Ptr it, Ptr p_env) {  prot_ptrs(it, p
         auto idx     = as(Fixnum, argidx) + start_index;
         varinfo_set_argument_index(binding.variable_info, to(Fixnum, idx));
 
-        emit_expr(vm, builder, expr, p_env);
+        emit_expr(vm, builder, expr, p_env, false);
 
         builder->storeFrameRel(idx);
       });
@@ -3315,34 +3322,37 @@ void emit_let (VM *vm, BCBuilder *builder, Ptr it, Ptr p_env) {  prot_ptrs(it, p
 
   {
     auto body = cdr(cdr(it));                            prot_ptr(body);
+    s64 count = list_length(vm, body);
+    auto idx = 0;
     builder->pushLit(Nil);
     do_list(vm, body, [&](Ptr expr){
         builder->pop();
-        emit_expr(vm, builder, expr, env);
+        auto in_tail = (++idx) == count ? tail : false;
+        emit_expr(vm, builder, expr, env, in_tail);
       });
     unprot_ptr(body);
   }
 
   if (has_closure) {
-    builder->popClosureEnv();
+    builder->popClosureEnv(); // TODO: vet this w/ TCO
   }
 
   unprot_ptrs(it, p_env, env);
 }
 
 
-void emit_if(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
+void emit_if(VM *vm, BCBuilder *builder, Ptr it, Ptr env, bool tail) {
   auto test = nth_or_nil(it, 1);
   auto _thn = nth_or_nil(it, 2);
   auto _els = nth_or_nil(it, 3);
   prot_ptrs(env, test, _thn, _els);
 
   builder->pushLabelContext();
-  emit_expr(vm, builder, test, env);
+  emit_expr(vm, builder, test, env, false);
   builder->branchIfFalse("else");
-  emit_expr(vm, builder, _thn, env);
+  emit_expr(vm, builder, _thn, env, tail);
   builder->jump("endif")->label("else");
-  emit_expr(vm, builder, _els, env);
+  emit_expr(vm, builder, _els, env, tail);
   builder->label("endif");
   builder->popLabelContext();
 
@@ -3353,7 +3363,8 @@ void emit_set_bang(VM *vm, BCBuilder *builder, Ptr it, Ptr env) { prot_ptrs(it, 
   auto sym = nth_or_nil(it, 1); prot_ptr(sym);
   auto expr = nth_or_nil(it, 2); prot_ptr(expr);
 
-  emit_expr(vm, builder, expr, env);
+  emit_expr(vm, builder, expr, env, false);
+  builder->dup(); // return the value
 
   auto binding        = compiler_env_binding(vm, env, sym);
   auto info           = binding.variable_info;
@@ -3381,7 +3392,7 @@ void emit_set_bang(VM *vm, BCBuilder *builder, Ptr it, Ptr env) { prot_ptrs(it, 
   unprot_ptrs(it, env, sym, expr);
 }
 
-void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
+void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env, bool tail) {
   if (is(Symbol, it)) { /*                                  */ prot_ptrs(it, env);
     auto binding        = compiler_env_binding(vm, env, it);
     auto info           = binding.variable_info;
@@ -3414,17 +3425,17 @@ void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
         builder->pushLit(item);
         return;
       } else if (ptr_eq(KNOWN(if), fst)) {
-        emit_if(vm, builder, it, env);
+        emit_if(vm, builder, it, env, tail);
         return;
       } else if (ptr_eq(KNOWN(let), fst)) {
-        emit_let(vm, builder, it, env);
+        emit_let(vm, builder, it, env, tail);
         return;
       } else if (ptr_eq(KNOWN(set_bang), fst)) {
         emit_set_bang(vm, builder, it, env);
         return;
       }
     }
-    emit_call(vm, builder, it, env);
+    emit_call(vm, builder, it, env, tail);
   } else {
     builder->pushLit(it);
   }
@@ -3588,7 +3599,7 @@ auto _compile_toplevel_expression(VM *vm, Ptr it, bool ret) { prot_ptr(it);
   auto env = cenv(vm, Nil);                                   prot_ptr(env);
   auto builder = new BCBuilder(vm);
   mark_closed_over_variables(vm, it, env);
-  emit_expr(vm, builder, it, env);
+  emit_expr(vm, builder, it, env, false);
   if (ret) builder->ret();
   auto result = builder->build();
   delete builder;

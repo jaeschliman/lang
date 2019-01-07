@@ -15,7 +15,7 @@
 * DONE obj_ptrs function // walk Ptr s of obj (use a lambda)
 * DONE make stack frames objects
 * DONE read string
-* TODO tests! (something like an assert)
+* DONE tests! (something like an assert)
 * DONE bounds checking for heap allocation
 * DONE memory usage report function
 * DONE if compiler
@@ -113,6 +113,7 @@ https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
 * TODO idea: _subclassable_ generic functions
  so each type invocation is a message, and you can subclass the function,
  and so override specific messages.
+... but ... not sure if I want subclassing at all...
 * TODO multiple return values? check scheme syntax
 * TODO 'toplevel' do -- compile/execute exprs sequentially
 * TODO some kind of module/object system for L programs
@@ -120,7 +121,8 @@ https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
 http://www.cs.utah.edu/plt/scope-sets/
 * TODO read this dissertation on implmentation of scheme
 https://www.cs.indiana.edu/~dyb/papers/3imp.pdf
-* TODO simple userspace structs
+* TODO simple userspace structs (StandardObject)
+* TODO convert BC to 32 bit so we can assemble from user space
 
 
 * notes

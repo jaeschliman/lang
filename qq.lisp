@@ -3,7 +3,9 @@
 (define (expect a b)
     (if (deep-eq? a b)
         (set 'tests-passed (+i 1 tests-passed))
-        (set 'tests-failed (+i 1 tests-failed))))
+        (let ()
+          (print `(expected ,a ,b))
+          (set 'tests-failed (+i 1 tests-failed)))))
 (define (test-report)
   (print `(,tests-passed tests passed))
   (print `(,tests-failed tests failed))
@@ -156,8 +158,11 @@
 
 (define (set-test0)
     (let ((x 5))
+      (list x x)
       (set! x 6)
+      (list x x)
       (set! x (+i 1 x))
+      (list x x)
       x))
 
 (expect 7 (set-test0))

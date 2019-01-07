@@ -5,7 +5,6 @@
         (set 'tests-passed (+i 1 tests-passed))
         (set 'tests-failed (+i 1 tests-failed))))
 (define (test-report)
-  (print "----------------------------------------")
   (print `(,tests-passed tests passed))
   (print `(,tests-failed tests failed))
   (print `(,(+i tests-passed tests-failed) tests total)))
@@ -106,7 +105,7 @@
 
 (expect 'hello (macroexpand 'hello))
 
-(print (ht-at macro-functions 'and))
+(expect-runs (ht-at macro-functions 'and))
 
 ;; unclear how to test these.. other than asserting there is no error...
 (expect-runs (macroexpand '(and)))
@@ -199,34 +198,46 @@
       (let ((f (lambda () x)))
         x)))
 
-(print (test-let-binding))
+(expect 'x-value (test-let-binding))
 
 (define (test-case-expr x)
-    (print (case x
-             (hello 'hi)
-             (hi 'hello)
-             (* '+)
-             (foo 'bar))))
+    (case x
+      (hello 'hi)
+      (hi 'hello)
+      (* '+)
+      (foo 'bar)))
 
-(test-case-expr 'hi)
-(test-case-expr '*)
-(test-case-expr '+)
-(test-case-expr 'foo)
+(expect 'hello (test-case-expr 'hi))
+(expect '+     (test-case-expr '*))
+(expect '()    (test-case-expr '+))
+(expect 'bar   (test-case-expr 'foo))
+(expect '()    (test-case-expr 'unknown))
 
 
-(print `(a '(b c)))
-(print `(a `(b c)))
-(print `(a `(b ,c)))
+(expect '(a (quote (b c))) `(a '(b c)))
+(expect '(a (quasiquote (b c))) `(a `(b c)))
+(expect '(a (quasiquote (b (unquote c)))) `(a `(b ,c)))
+
 (let ((c 3))
- (print `(a `(b ,,c))))
-(let ((d 3))
- (print `(a `(b ,(c ,d)))))
-(let ((c '(3 4)))
- (print `(a `(b ,,@c))))
-(let ((d '(3 4)))
- (print `(a `(b ,(c ,@d)))))
+ (expect '(a (quasiquote (b 3))) `(a `(b ,,c))))
 
-(print (deep-eq? '(a b c) '(a b c)))
+(let ((d 3))
+  (expect
+   '(a (quasiquote (b (unquote (c 3)))))
+   `(a `(b ,(c ,d)))))
+
+(let ((c '(3 4)))
+  (expect
+   '(a (quasiquote (b 3 4)))
+   `(a `(b ,,@c))))
+
+(let ((d '(3 4)))
+  (expect
+   '(a (quasiquote (b (unquote (c 3 4)))))
+   `(a `(b ,(c ,@d)))))
+
+(expect #t (deep-eq? '(a b c) '(a b c)))
+(expect #f (deep-eq? '(a c b) '(a b c)))
 
 (test-report)
 ;; maybe should support & in define as well?

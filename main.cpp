@@ -1031,8 +1031,9 @@ u64 obj_size(ByteCodeObject *)    { return sizeof(ByteCodeObject) + 0;          
 u64 obj_size(ByteArrayObject *it) { return sizeof(ByteArrayObject) + it->length;       }
 u64 obj_size(PtrArrayObject *it)  { return sizeof(PtrArrayObject) + it->length * 8;    }
 u64 obj_size(StandardObject *it)  { return sizeof(StandardObject) + it->ivar_count * 8;}
-// TODO: include padding
-u64 obj_size(StackFrameObject*it) { return sizeof(StackFrameObject) + it->argc * 8;    }
+u64 obj_size(StackFrameObject*it) {
+  return sizeof(StackFrameObject) + (it->argc + it->pad_count) * 8;
+}
 
 Object *gc_forwarding_address(Object *obj);
 
@@ -1544,11 +1545,30 @@ void gc_update(VM *vm, StandardObject* it) {
   }
 }
 
+void gc_update(VM *vm, StackFrameObject *it) {
+  for (u64 i = 0; i < it->argc; i++) {
+    gc_update_ptr(vm, it->argv + it->pad_count + i);
+  }
+  gc_update_ptr(vm, &it->closed_over);
+  gc_update_ptr(vm, &it->mark);
+  if (it->prev_frame) {
+    Ptr p = objToPtr(it->prev_frame);
+    gc_update_ptr(vm, &p);
+    it->prev_frame = as(StackFrame, p);
+  }
+  if (it->prev_fn) {
+    Ptr p = objToPtr(it->prev_fn);
+    gc_update_ptr(vm, &p);
+    it->prev_fn = as(ByteCode, p);
+  }
+}
+
 void gc_update_copied_object(VM *vm, Ptr it) {
   assert(is(Object, it));
   if (is(ByteCode, it)) return gc_update(vm, as(ByteCode, it));
   if (is(PtrArray, it)) return gc_update(vm, as(PtrArray, it));
   if (is(Standard, it)) return gc_update(vm, as(Standard, it));
+  if (is(StackFrame, it)) return gc_update(vm, as(StackFrame, it));
 }
 
 void gc_update_stack(VM *vm) {

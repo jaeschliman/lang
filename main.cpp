@@ -221,6 +221,7 @@ struct StackFrameObject : Object {
   ByteCodeObject* prev_fn;
   u64 prev_pc;
   Ptr closed_over;
+  Ptr mark;
   u64 argc;
   u64 pad_count;
   Ptr argv[];
@@ -1066,6 +1067,7 @@ void obj_refs(VM *vm, StackFrameObject *it, PtrFn fn) {
     fn(it->argv[it->pad_count + i]);
   }
   fn(it->closed_over);
+  fn(it->mark);
   if (it->prev_frame) fn(objToPtr(it->prev_frame));
 }
 
@@ -1256,6 +1258,7 @@ auto vm_map_stack_refs(VM *vm, PtrFn fn) {
   ByteCodeObject *bytecode = vm->bc;
   while (fr) {
     fn(fr->closed_over);
+    fn(fr->mark);
     auto pad = fr->pad_count;
     for (u64 i = 0; i < fr->argc; i++) {
       auto arg = fr->argv[pad + i];
@@ -1282,6 +1285,7 @@ auto vm_print_stack_trace(VM *vm) { return Nil;
     assert(isNil(fr->closed_over) || is(PtrArray,fr->closed_over));
     cerr << " FRAME: " << fr << " " << count++ << endl;
     cerr << "   closure: " << fr->closed_over << endl;
+    cerr << " mark: " << fr-> mark << endl;
     cerr << "   aligned by: " << fr->pad_count << endl;
     auto pad = fr->pad_count;
     for (u64 i = 1; i <= fr->argc; i++) {
@@ -1554,6 +1558,7 @@ void gc_update_stack(VM *vm) {
   u64 count = 0;
   while (fr) {
     gc_update_ptr(vm, &fr->closed_over);
+    gc_update_ptr(vm, &fr->mark);
     auto pad = fr->pad_count;
     for (u64 i = 1; i <= fr->argc; i++) {
       auto offs = pad + (fr->argc - i);
@@ -2491,6 +2496,7 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   // cout << "  &ps = " << &new_frame->argc << endl;
 
   new_frame->closed_over = closed_over;
+  new_frame->mark = Nil;
   new_frame->prev_stack = vm->stack;
   new_frame->prev_frame = vm->frame;
   new_frame->prev_fn = vm->bc;
@@ -2501,6 +2507,12 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   vm->bc = fn;
   vm->pc = 0;
   vm->stack_depth++;
+}
+
+
+Ptr vm_set_stack_mark(VM *vm, Ptr mark) {
+  vm->frame->mark = mark;
+  return Nil;
 }
 
 typedef Ptr (*CCallFunction)(VM*);

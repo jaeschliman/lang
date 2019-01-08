@@ -123,7 +123,8 @@ http://www.cs.utah.edu/plt/scope-sets/
 https://www.cs.indiana.edu/~dyb/papers/3imp.pdf
 * TODO simple userspace structs (StandardObject)
 * TODO convert BC to 32 bit so we can assemble from user space
-
+* TODO adaptons? (see will byrd miniAdapton)
+http://adapton.org/
 
 * notes
 maybe have a stack of compilers? can push/pop...

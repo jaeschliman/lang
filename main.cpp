@@ -1280,24 +1280,79 @@ auto vm_map_stack_refs(VM *vm, PtrFn fn) {
 auto vm_print_stack_trace(VM *vm) { return Nil;
   StackFrameObject *fr = vm->frame;
   Ptr *stack = vm->stack;
-  cerr << "PRINTING STACKTRACE: " << vm->stack_depth << endl;
+  dbg("PRINTING STACKTRACE: ", vm->stack_depth);
   s64 count = 0;
   while (fr) {
     assert(isNil(fr->closed_over) || is(PtrArray,fr->closed_over));
-    cerr << " FRAME: " << fr << " " << count++ << endl;
-    cerr << "   closure: " << fr->closed_over << endl;
-    cerr << " mark: " << fr-> mark << endl;
-    cerr << "   aligned by: " << fr->pad_count << endl;
+    dbg("FRAME: ", fr, count++);
+    dbg("  closure:", fr->closed_over);
+    dbg("  mark:", fr->mark);
+    dbg("  aligned by: ", fr->pad_count);
     auto pad = fr->pad_count;
     for (u64 i = 1; i <= fr->argc; i++) {
-      cerr << "   arg " << (i - 1) << " = " << fr->argv[pad + (fr->argc - i)] << endl;
+      dbg("    arg", (i - 1), " = ", fr->argv[pad + (fr->argc - i)]);
     }
-    auto h =  (u64)fr - (u64)stack;
-    cerr << "   stack height (bytes): " << h << endl;
+    auto h = (u64)fr - (u64)stack;
+    dbg("  stack height (bytes):", h);
     stack = &fr->argv[fr->argc + pad];
     fr = fr->prev_frame;
   }
   return Nil;
+};
+
+// count of items beyond argv until next frame
+s64 vm_stack_frame_additional_item_count(StackFrameObject *fr) {
+  if (!fr->prev_frame) return 0;
+  // off by one?
+  Ptr *end_of_argv = fr->argv + fr->pad_count + fr->argc;
+  Ptr *pf = (Ptr *)(void *)fr->prev_frame;
+  return pf - end_of_argv;
+}
+
+// returns a 2 element array containing the top of the stack, and the top stack frame
+Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
+  StackFrameObject *fr = vm->frame;
+  Ptr result  = Nil;                               prot_ptr(result);
+  result = make_zf_array(vm, 2);
+  {
+    Ptr *stack = vm->stack;
+    // TODO: copy top of stack into an array.
+    auto on_stack = (Ptr*)(void *)vm->frame; // go back 'up' the stack to get current args
+    auto count = on_stack - stack;
+    auto objs  = make_zf_array(vm, count);
+    for (auto i = 0; i < count; i++) {
+      array_set(objs, i, stack[i]);
+    }
+    array_set(result, 0, objs);
+  }
+
+  Ptr top_fr  = Nil;                               prot_ptr(top_fr);
+  Ptr prev_fr = Nil;                               prot_ptr(prev_fr);
+
+  while (fr && !ptr_eq(fr->mark, mark)) {
+    auto added = vm_stack_frame_additional_item_count(fr);
+    auto byte_count = obj_size(fr) + added * 8;
+
+    auto nf = (StackFrameObject *)vm_alloc(vm, byte_count);
+    memcpy(nf, fr, byte_count);
+    nf->argc += added; // this is a bit of a hack...
+
+    if (!isNil(prev_fr)) {
+      auto pf = as(StackFrame, prev_fr);
+      pf->prev_frame = nf; 
+    }
+
+    prev_fr = objToPtr(nf);
+    if (isNil(top_fr)) top_fr = prev_fr;
+    fr = fr->prev_frame;
+  }
+  if (!isNil(prev_fr)) {
+    auto pf = as(StackFrame, prev_fr);
+    pf->prev_frame = 0;
+  }
+  array_set(result, 1, top_fr);
+  unprot_ptrs(mark, result, top_fr, prev_fr);
+  return result;
 }
 
 Ptr vm_print_debug_stack_trace(VM *vm) {

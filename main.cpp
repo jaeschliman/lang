@@ -1230,9 +1230,9 @@ std::ostream &operator<<(std::ostream &os, Ptr it) {
 void vm_dump_args(VM *vm) {
   auto f = vm->frame;
   auto c = f->argc;
-  cout << " dumping args:" << endl;
+  dbg(" dumping args: ", c, " pad count =", f->pad_count, " pac =", f->preserved_argc);
   while(c--) {
-    cout << "  argument: " << f->argv[f->pad_count + c] << endl;
+    dbg("  argument: ", f->argv[f->pad_count + c]);
   }
 }
 
@@ -1310,6 +1310,16 @@ void vm_debug_print_stack_top(VM *vm) {
   }
   dbg(" done.");
 }
+
+void vm_debug_print_stackframe_args(VM *vm, StackFrameObject *fr) {
+  dbg(" printing stack frame args: arg=", fr->argc, " pac =", fr->preserved_argc);
+    for (auto i = 0; i < fr->argc; i++) {
+      auto it = fr->argv[i + fr->pad_count];
+      dbg("     : ", it);
+    }
+  dbg(" done.");
+}
+
 
 
 Ptr vm_print_debug_stack_trace(VM *vm) {
@@ -2479,7 +2489,9 @@ void vm_pop_stack_frame(VM* vm) {
   vm->frame = fr->prev_frame;
   vm->stack_depth--;
 
-  // cout << "return stack frame to :" << vm->stack << endl;
+  // dbg("--- popped stack frame.");
+  // vm_dump_args(vm);
+
 }
 
 void vm_prepare_for_tail_call(VM *vm, s64 argc) {
@@ -2550,7 +2562,6 @@ Ptr vm_set_stack_mark(VM *vm, Ptr mark) {
 // count of items beyond argv until next frame
 s64 vm_stack_frame_additional_item_count(StackFrameObject *fr) {
   if (!fr->prev_frame) return 0;
-  // off by one?
   Ptr *end_of_argv = fr->argv + fr->pad_count + fr->argc;
   Ptr *pf = (Ptr *)(void *)fr->prev_frame;
   return pf - end_of_argv;
@@ -2565,13 +2576,12 @@ Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
   array_set(result, 3, objToPtr(vm->bc));
   {
     Ptr *stack = vm->stack;
-    // TODO: copy top of stack into an array.
     auto on_stack = (Ptr*)(void *)vm->frame; // go back 'up' the stack to get current args
     auto count = on_stack - stack;
     auto objs  = make_zf_array(vm, count);
     for (auto i = 0; i < count; i++) {
       array_set(objs, i, stack[i]);
-      dbg("saving stack object: ", stack[i]);
+      // dbg("saving stack object: ", stack[i]);
     }
     array_set(result, 0, objs);
   }
@@ -2580,17 +2590,20 @@ Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
   Ptr prev_fr = Nil;                               prot_ptr(prev_fr);
 
   while (fr && !ptr_eq(fr->mark, mark)) {
-    dbg("snapshotting frame.");
     auto added = vm_stack_frame_additional_item_count(fr);
     auto byte_count = obj_size(fr) + added * 8;
+    // dbg("snapshotting frame + ", added);
+    // vm_debug_print_stackframe_args(vm, fr);
 
     auto nf = (StackFrameObject *)vm_alloc(vm, byte_count);
     memcpy(nf, fr, byte_count);
     // this is a bit of a hack...
+    nf->argc = fr->argc + added;
     nf->preserved_argc = fr->argc;
-    nf->argc += added;
     nf->prev_stack = 0;
     nf->prev_frame = 0;
+    // dbg("have new frame:");
+    // vm_debug_print_stackframe_args(vm, nf);
 
     if (!isNil(prev_fr)) {
       auto pf = as(StackFrame, prev_fr);
@@ -2603,12 +2616,15 @@ Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
   }
   // mark the end of the frame list
   if (!isNil(prev_fr)) {
-    dbg("cutting tail of final frame.");
+    // dbg("cutting tail of final frame.");
     auto pf = as(StackFrame, prev_fr);
     pf->prev_frame = 0;
   } else {
-    dbg("no frame!??");
+    // dbg("no frame!??");
   }
+  // dbg("args of top_fr: ");
+  // vm_debug_print_stackframe_args(vm, as(StackFrame, top_fr));
+
   array_set(result, 1, top_fr);
   unprot_ptrs(mark, result, top_fr, prev_fr);
   return result;
@@ -2622,18 +2638,19 @@ void vm_unwind_to_mark(VM *vm, Ptr mark) {
 }
 
 Ptr vm_abort_to_mark(VM *vm, Ptr mark) {
-  dbg("will abort...");
-  vm_debug_print_stack_top(vm);
+  // dbg("will abort...");
+  // vm_debug_print_stack_top(vm);
   Ptr cont = vm_snapshot_stack_to_mark(vm, mark);
   vm_unwind_to_mark(vm, mark);
   return cont;
 }
 
 void _vm_copy_stack_snapshot_args_to_stack(VM *vm, StackFrameObject *fr) {
-  dbg("restoring items to stack");
+  // dbg("restoring items to stack");
+  // for (u64 i = 0; i < fr->argc; i++) {
   for (s64 i = fr->argc - 1; i >= 0; i--) {
     auto it = fr->argv[i + fr->pad_count];
-    dbg("  item = ", it);
+    // dbg("  item = ", it);
     vm_push(vm, it);
   }
 }
@@ -2642,36 +2659,43 @@ void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
   if (!fr) return;
   // first restore previous frame
   _vm_restore_stack_snapshot(vm, fr->prev_frame);
-  dbg("restoring frame.");
+  // dbg("restoring frame.");
   //restore previous frame stack top
   _vm_copy_stack_snapshot_args_to_stack(vm, fr);
 
   // alloc and align new frame;
-  auto top = vm->stack - (sizeof(StackFrameObject) / 8);
+  auto top = vm->stack - (sizeof(StackFrameObject) / sizeof(u64));
   auto was_aligned = true;
-  if (!pointer_is_aligned(vm->stack)) {
+  if (!pointer_is_aligned(top)) {
     top -= 1;
     was_aligned = false;
   }
+  assert(pointer_is_aligned(top));
+
   auto new_frame = (StackFrameObject *)(void *)top;
   memcpy(new_frame, fr, sizeof(StackFrameObject));
+
   new_frame->prev_stack = vm->stack;
   new_frame->pad_count = was_aligned ? 0 : 1;
-  new_frame->argc = fr->preserved_argc;
+  // dbg("restored frame with argc = ", new_frame->argc, " pac: ", new_frame->preserved_argc);
+  new_frame->argc = new_frame->preserved_argc;
 
   // hook in the tail frame
   if (!new_frame->prev_frame) {
-    dbg("restoring tail frame");
-    new_frame->prev_frame = vm->frame;
+    // dbg("restoring tail frame");
     new_frame->prev_fn = vm->bc;
     new_frame->prev_pc = vm->pc;
   } else {
-    dbg("restoring upper frame", objToPtr(new_frame->prev_frame));
+    // dbg("restoring upper frame", objToPtr(new_frame->prev_frame));
   }
+
+  new_frame->prev_frame = vm->frame;
 
   // update the stack etc
   vm->stack = (Ptr *)(void *)new_frame;
   vm->frame = new_frame;
+  vm->stack_depth++;
+  // vm_dump_args(vm);
 }
 
 void vm_restore_stack_snapshot(VM *vm, Ptr snap) {
@@ -2685,9 +2709,12 @@ void vm_restore_stack_snapshot(VM *vm, Ptr snap) {
 
   // retore stack top
   auto args = as(PtrArray, extra_args);
-  for (s64 i = args->length - 1; i >= 0; i--) {
-    dbg("restoring final stack top: ", args->data[i]);
-    vm_push(vm, args->data[i]);
+  // dbg("extra args: ", extra_args);
+  if (args->length > 0) {
+    for (s64 i = args->length - 1; i >= 0; i--) {
+      // dbg(" restoring final stack top: ", args->data[i]);
+      vm_push(vm, args->data[i]);
+    }
   }
 
   // restore bc and pc
@@ -2698,8 +2725,7 @@ void vm_restore_stack_snapshot(VM *vm, Ptr snap) {
 
 Ptr vm_resume_stack_snapshot(VM *vm, Ptr snap, Ptr arg) {
   vm_restore_stack_snapshot(vm, snap);
-  // vm_push(vm, arg);
-  vm_debug_print_stack_top(vm);
+  // vm_debug_print_stack_top(vm);
   return arg;
 }
 

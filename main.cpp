@@ -222,8 +222,9 @@ struct StackFrameObject : Object {
   u64 prev_pc;
   Ptr closed_over;
   Ptr mark;
+  u64 preserved_argc; // used for snapshots;
   u64 argc;
-  u64 pad_count;
+  u64 pad_count; // must be 0 or 1
   Ptr argv[];
 };
 
@@ -1300,60 +1301,7 @@ auto vm_print_stack_trace(VM *vm) { return Nil;
   return Nil;
 };
 
-// count of items beyond argv until next frame
-s64 vm_stack_frame_additional_item_count(StackFrameObject *fr) {
-  if (!fr->prev_frame) return 0;
-  // off by one?
-  Ptr *end_of_argv = fr->argv + fr->pad_count + fr->argc;
-  Ptr *pf = (Ptr *)(void *)fr->prev_frame;
-  return pf - end_of_argv;
-}
 
-// returns a 2 element array containing the top of the stack, and the top stack frame
-Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
-  StackFrameObject *fr = vm->frame;
-  Ptr result  = Nil;                               prot_ptr(result);
-  result = make_zf_array(vm, 2);
-  {
-    Ptr *stack = vm->stack;
-    // TODO: copy top of stack into an array.
-    auto on_stack = (Ptr*)(void *)vm->frame; // go back 'up' the stack to get current args
-    auto count = on_stack - stack;
-    auto objs  = make_zf_array(vm, count);
-    for (auto i = 0; i < count; i++) {
-      array_set(objs, i, stack[i]);
-    }
-    array_set(result, 0, objs);
-  }
-
-  Ptr top_fr  = Nil;                               prot_ptr(top_fr);
-  Ptr prev_fr = Nil;                               prot_ptr(prev_fr);
-
-  while (fr && !ptr_eq(fr->mark, mark)) {
-    auto added = vm_stack_frame_additional_item_count(fr);
-    auto byte_count = obj_size(fr) + added * 8;
-
-    auto nf = (StackFrameObject *)vm_alloc(vm, byte_count);
-    memcpy(nf, fr, byte_count);
-    nf->argc += added; // this is a bit of a hack...
-
-    if (!isNil(prev_fr)) {
-      auto pf = as(StackFrame, prev_fr);
-      pf->prev_frame = nf; 
-    }
-
-    prev_fr = objToPtr(nf);
-    if (isNil(top_fr)) top_fr = prev_fr;
-    fr = fr->prev_frame;
-  }
-  if (!isNil(prev_fr)) {
-    auto pf = as(StackFrame, prev_fr);
-    pf->prev_frame = 0;
-  }
-  array_set(result, 1, top_fr);
-  unprot_ptrs(mark, result, top_fr, prev_fr);
-  return result;
-}
 
 Ptr vm_print_debug_stack_trace(VM *vm) {
   StackFrameObject *fr = vm->frame;
@@ -2589,6 +2537,138 @@ Ptr vm_set_stack_mark(VM *vm, Ptr mark) {
   vm->frame->mark = mark;
   return Nil;
 }
+
+// count of items beyond argv until next frame
+s64 vm_stack_frame_additional_item_count(StackFrameObject *fr) {
+  if (!fr->prev_frame) return 0;
+  // off by one?
+  Ptr *end_of_argv = fr->argv + fr->pad_count + fr->argc;
+  Ptr *pf = (Ptr *)(void *)fr->prev_frame;
+  return pf - end_of_argv;
+}
+
+// returns a 2 element array containing the top of the stack, and the top stack frame
+Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
+  StackFrameObject *fr = vm->frame;
+  Ptr result  = Nil;                               prot_ptr(result);
+  result = make_zf_array(vm, 4);
+  array_set(result, 2, to(Fixnum, vm->pc));
+  array_set(result, 3, objToPtr(vm->bc));
+  {
+    Ptr *stack = vm->stack;
+    // TODO: copy top of stack into an array.
+    auto on_stack = (Ptr*)(void *)vm->frame; // go back 'up' the stack to get current args
+    auto count = on_stack - stack;
+    auto objs  = make_zf_array(vm, count);
+    for (auto i = 0; i < count; i++) {
+      array_set(objs, i, stack[i]);
+    }
+    array_set(result, 0, objs);
+  }
+
+  Ptr top_fr  = Nil;                               prot_ptr(top_fr);
+  Ptr prev_fr = Nil;                               prot_ptr(prev_fr);
+
+  while (fr && !ptr_eq(fr->mark, mark)) {
+    auto added = vm_stack_frame_additional_item_count(fr);
+    auto byte_count = obj_size(fr) + added * 8;
+
+    auto nf = (StackFrameObject *)vm_alloc(vm, byte_count);
+    memcpy(nf, fr, byte_count);
+    // this is a bit of a hack...
+    nf->preserved_argc = fr->argc;
+    nf->argc += added;
+    nf->prev_stack = 0;
+
+    if (!isNil(prev_fr)) {
+      auto pf = as(StackFrame, prev_fr);
+      pf->prev_frame = nf; 
+    }
+
+    prev_fr = objToPtr(nf);
+    if (isNil(top_fr)) top_fr = prev_fr;
+    fr = fr->prev_frame;
+  }
+  // mark the end of the frame list
+  if (!isNil(prev_fr)) {
+    auto pf = as(StackFrame, prev_fr);
+    pf->prev_frame = 0;
+  }
+  array_set(result, 1, top_fr);
+  unprot_ptrs(mark, result, top_fr, prev_fr);
+  return result;
+}
+
+void vm_unwind_to_mark(VM *vm, Ptr mark) {
+  while (vm->frame && !ptr_eq(vm->frame->mark, mark)) {
+    vm_pop_stack_frame(vm); 
+    if (vm->error) return;
+  }
+}
+
+Ptr vm_abort_to_mark(VM *vm, Ptr mark) {
+  Ptr cont = vm_snapshot_stack_to_mark(vm, mark);
+  vm_unwind_to_mark(vm, mark);
+  return cont;
+}
+
+void _vm_copy_stack_snapshot_args_to_stack(VM *vm, StackFrameObject *fr) {
+  for (s64 i = fr->argc - 1; i >= 0; i--) {
+    vm_push(vm, fr->argv[i + fr->pad_count]);
+  }
+}
+
+void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
+  // first restore previous frame
+  if (fr->prev_frame) _vm_restore_stack_snapshot(vm, fr->prev_frame);
+  //restore previous frame stack top
+  _vm_copy_stack_snapshot_args_to_stack(vm, fr);
+
+  // alloc and align new frame;
+  auto top = vm->stack - (sizeof(StackFrameObject) / 8);
+  auto was_aligned = true;
+  if (!pointer_is_aligned(vm->stack)) {
+    top -= 1;
+    was_aligned = false;
+  }
+  auto new_frame = (StackFrameObject *)(void *)top;
+  memcpy(fr, new_frame, sizeof(StackFrameObject));
+  new_frame->prev_stack = vm->stack;
+  new_frame->pad_count = was_aligned ? 0 : 1;
+  new_frame->argc = fr->preserved_argc;
+
+  // hook in the tail frame
+  if (!fr->prev_frame) {
+    new_frame->prev_frame = vm->frame;
+    new_frame->prev_fn = vm->bc;
+    new_frame->prev_pc = vm->pc;
+  }
+
+  // update the stack etc
+  vm->stack = (Ptr *)(void *)new_frame;
+  vm->frame = new_frame;
+}
+
+void vm_restore_stack_snapshot(VM *vm, Ptr snap) {
+  Ptr extra_args = array_get(snap, 0);
+  Ptr frame = array_get(snap, 1);
+  Ptr pc = array_get(snap, 2);
+  Ptr bc = array_get(snap, 3);
+
+  // restore frames
+  _vm_restore_stack_snapshot(vm, as(StackFrame, frame));
+
+  // retore stack top
+  auto args = as(PtrArray, extra_args);
+  for (s64 i = args->length - 1; i >= 0; i--) {
+    vm_push(vm, args->data[i]);
+  }
+
+  // restore bc and pc
+  vm->bc = as(ByteCode, bc);
+  vm->pc = as(Fixnum, pc);
+}
+
 
 typedef Ptr (*CCallFunction)(VM*);
 

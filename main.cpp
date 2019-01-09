@@ -1107,7 +1107,7 @@ void map_refs(VM *vm, Ptr it, PtrFn fn) {
     return;
   }
 #endif
-  die("unknown object type in map_refs");
+  die("unknown object type in map_refs: " , it);
 }
 
 /* ---------------------------------------- */
@@ -1301,6 +1301,15 @@ auto vm_print_stack_trace(VM *vm) { return Nil;
   return Nil;
 };
 
+void vm_debug_print_stack_top(VM *vm) {
+  auto bottom = vm->stack;
+  auto top = (Ptr *)(void *)vm->frame;
+  dbg(" printing stack top:");
+  for (auto it = top - 1; it >= bottom; it--) {
+    dbg("     : ", *it);
+  }
+  dbg(" done.");
+}
 
 
 Ptr vm_print_debug_stack_trace(VM *vm) {
@@ -2562,6 +2571,7 @@ Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
     auto objs  = make_zf_array(vm, count);
     for (auto i = 0; i < count; i++) {
       array_set(objs, i, stack[i]);
+      dbg("saving stack object: ", stack[i]);
     }
     array_set(result, 0, objs);
   }
@@ -2570,6 +2580,7 @@ Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
   Ptr prev_fr = Nil;                               prot_ptr(prev_fr);
 
   while (fr && !ptr_eq(fr->mark, mark)) {
+    dbg("snapshotting frame.");
     auto added = vm_stack_frame_additional_item_count(fr);
     auto byte_count = obj_size(fr) + added * 8;
 
@@ -2579,6 +2590,7 @@ Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
     nf->preserved_argc = fr->argc;
     nf->argc += added;
     nf->prev_stack = 0;
+    nf->prev_frame = 0;
 
     if (!isNil(prev_fr)) {
       auto pf = as(StackFrame, prev_fr);
@@ -2591,8 +2603,11 @@ Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
   }
   // mark the end of the frame list
   if (!isNil(prev_fr)) {
+    dbg("cutting tail of final frame.");
     auto pf = as(StackFrame, prev_fr);
     pf->prev_frame = 0;
+  } else {
+    dbg("no frame!??");
   }
   array_set(result, 1, top_fr);
   unprot_ptrs(mark, result, top_fr, prev_fr);
@@ -2607,20 +2622,27 @@ void vm_unwind_to_mark(VM *vm, Ptr mark) {
 }
 
 Ptr vm_abort_to_mark(VM *vm, Ptr mark) {
+  dbg("will abort...");
+  vm_debug_print_stack_top(vm);
   Ptr cont = vm_snapshot_stack_to_mark(vm, mark);
   vm_unwind_to_mark(vm, mark);
   return cont;
 }
 
 void _vm_copy_stack_snapshot_args_to_stack(VM *vm, StackFrameObject *fr) {
+  dbg("restoring items to stack");
   for (s64 i = fr->argc - 1; i >= 0; i--) {
-    vm_push(vm, fr->argv[i + fr->pad_count]);
+    auto it = fr->argv[i + fr->pad_count];
+    dbg("  item = ", it);
+    vm_push(vm, it);
   }
 }
 
 void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
+  if (!fr) return;
   // first restore previous frame
-  if (fr->prev_frame) _vm_restore_stack_snapshot(vm, fr->prev_frame);
+  _vm_restore_stack_snapshot(vm, fr->prev_frame);
+  dbg("restoring frame.");
   //restore previous frame stack top
   _vm_copy_stack_snapshot_args_to_stack(vm, fr);
 
@@ -2632,16 +2654,19 @@ void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
     was_aligned = false;
   }
   auto new_frame = (StackFrameObject *)(void *)top;
-  memcpy(fr, new_frame, sizeof(StackFrameObject));
+  memcpy(new_frame, fr, sizeof(StackFrameObject));
   new_frame->prev_stack = vm->stack;
   new_frame->pad_count = was_aligned ? 0 : 1;
   new_frame->argc = fr->preserved_argc;
 
   // hook in the tail frame
-  if (!fr->prev_frame) {
+  if (!new_frame->prev_frame) {
+    dbg("restoring tail frame");
     new_frame->prev_frame = vm->frame;
     new_frame->prev_fn = vm->bc;
     new_frame->prev_pc = vm->pc;
+  } else {
+    dbg("restoring upper frame", objToPtr(new_frame->prev_frame));
   }
 
   // update the stack etc
@@ -2661,12 +2686,21 @@ void vm_restore_stack_snapshot(VM *vm, Ptr snap) {
   // retore stack top
   auto args = as(PtrArray, extra_args);
   for (s64 i = args->length - 1; i >= 0; i--) {
+    dbg("restoring final stack top: ", args->data[i]);
     vm_push(vm, args->data[i]);
   }
 
   // restore bc and pc
   vm->bc = as(ByteCode, bc);
   vm->pc = as(Fixnum, pc);
+
+}
+
+Ptr vm_resume_stack_snapshot(VM *vm, Ptr snap, Ptr arg) {
+  vm_restore_stack_snapshot(vm, snap);
+  // vm_push(vm, arg);
+  vm_debug_print_stack_top(vm);
+  return arg;
 }
 
 

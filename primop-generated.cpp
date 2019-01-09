@@ -68,6 +68,9 @@ enum PrimitiveOperation : u64 {
   PRIM_CH_GT = ((65ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_MKSTR = ((66ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_STRLEN = ((67ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_SSTKMARK = ((68ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PSTKMARK = ((69ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_RSTKSNAP = ((70ULL << 32) | (2ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -674,6 +677,31 @@ Ptr PRIM_STRLEN_impl(VM *vm, u32 argc) {
   return to(Fixnum,(string_length(str)));
 }
 
+// Primitive 67
+Ptr PRIM_SSTKMARK_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("set-stack-mark",any,m);
+
+ return vm_set_stack_mark(vm, m);
+}
+
+// Primitive 68
+Ptr PRIM_PSTKMARK_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("snapshot-to-stack-mark",any,m);
+
+ return vm_abort_to_mark(vm, m);
+}
+
+// Primitive 69
+Ptr PRIM_RSTKSNAP_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("resume-stack-snapshot",any,arg);
+   VM_ARG("resume-stack-snapshot",any,s);
+
+ return vm_resume_stack_snapshot(vm, s, arg);
+}
+
 
 PrimitiveFunction PrimLookupTable[] = {
   (PrimitiveFunction)(void *)0, // apply
@@ -744,6 +772,9 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_CH_GT_impl,
   &PRIM_MKSTR_impl,
   &PRIM_STRLEN_impl,
+  &PRIM_SSTKMARK_impl,
+  &PRIM_PSTKMARK_impl,
+  &PRIM_RSTKSNAP_impl,
 
   (PrimitiveFunction)(void *)0
 };
@@ -818,6 +849,9 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "char->", to(PrimOp, PRIM_CH_GT));
   set_global(vm, "make-string", to(PrimOp, PRIM_MKSTR));
   set_global(vm, "string-length", to(PrimOp, PRIM_STRLEN));
+  set_global(vm, "set-stack-mark", to(PrimOp, PRIM_SSTKMARK));
+  set_global(vm, "snapshot-to-stack-mark", to(PrimOp, PRIM_PSTKMARK));
+  set_global(vm, "resume-stack-snapshot", to(PrimOp, PRIM_RSTKSNAP));
 
 }
 
@@ -1356,6 +1390,28 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("string-length",String,str);
 
      vm_push(vm, to(Fixnum,(string_length(str)))); 
+    break;
+  }
+
+  case 68: {
+   VM_ARG("set-stack-mark",any,m);
+
+    vm_push(vm, vm_set_stack_mark(vm, m)); 
+    break;
+  }
+
+  case 69: {
+   VM_ARG("snapshot-to-stack-mark",any,m);
+
+    vm_push(vm, vm_abort_to_mark(vm, m)); 
+    break;
+  }
+
+  case 70: {
+   VM_ARG("resume-stack-snapshot",any,arg);
+   VM_ARG("resume-stack-snapshot",any,s);
+
+    vm_push(vm, vm_resume_stack_snapshot(vm, s, arg)); 
     break;
   }
 

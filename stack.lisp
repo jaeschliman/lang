@@ -84,11 +84,30 @@
                                r)
                           )
                           '(1 2 3 4 5)))
-          r)
-        ;; (+i 7 (snapshot-to-stack-mark 'foo))
-        )
+          r))
       (lambda (k) (k 6)))))
 
 (print "++++++++++++++++++++++++++++++++++++++++++++++++++")
 (print (test3))
+(print "++++++++++++++++++++++++++++++++++++++++++++++++++")
+
+(define mapcar3 #f)
+(define (mapcar3 f lst)
+    (let ((mark 'mapcar3))
+      (if (nil? lst) lst
+          (cons (f (car lst)) (mapcar3 f (cdr lst))))))
+
+(define (test4)
+    (print
+     (call-with-tag
+      'foo
+      (lambda ()
+        (mapcar3 (lambda (v)
+                   (if (eq v 3) (snapshot-to-stack-mark 'foo)
+                       v))
+                 '(1 2 3 4 5)))
+      (lambda (k) (k 6)))))
+
+(print "++++++++++++++++++++++++++++++++++++++++++++++++++")
+(print (test4))
 (print "++++++++++++++++++++++++++++++++++++++++++++++++++")

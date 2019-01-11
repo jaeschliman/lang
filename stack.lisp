@@ -40,7 +40,7 @@
                          ;; FIXME: appears to be necc. to avoid TCO when resuming
                          (let ((r (resume-stack-snapshot snapshot v)))
                            r)))
-               (result (handler resume)))
+               (result (handler resume (continuation-value snapshot))))
           result)
         snapshot)))
 
@@ -49,10 +49,8 @@
      (call-with-tag
       'foo
       (lambda ()
-        ;; would be nice if we could pass value along with 'foo
-        (+i 7 (snapshot-to-stack-mark 'foo '()))
-        )
-      (lambda (k) (k 6)))))
+        (+i 7 (snapshot-to-stack-mark 'foo 1)))
+      (lambda (k v) (k (+i v 5))))))
 
 (print "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
 (print (test2))
@@ -83,7 +81,7 @@
                           )
                           '(1 2 3 4 5)))
           r))
-      (lambda (k) (k 6)))))
+      (lambda (k v) (k 6)))))
 
 (print "++++++++++++++++++++++++++++++++++++++++++++++++++")
 (print (test3))
@@ -101,10 +99,10 @@
       'foo
       (lambda ()
         (mapcar3 (lambda (v)
-                   (if (eq v 3) (snapshot-to-stack-mark 'foo '())
+                   (if (eq v 3) (snapshot-to-stack-mark 'foo v)
                        v))
                  '(1 2 3 4 5)))
-      (lambda (k) (k 6)))))
+      (lambda (k v) (k (*i v 2))))))
 
 (print "++++++++++++++++++++++++++++++++++++++++++++++++++")
 (print (test4))
@@ -116,10 +114,10 @@
       'foo
       (lambda ()
         (mapcar3 (lambda (v)
-                   (if (eq v 3) (snapshot-to-stack-mark 'foo '())
+                   (if (eq v 3) (snapshot-to-stack-mark 'foo v)
                        v))
                  '(1 2 3 4 5)))
-      (lambda (k)
+      (lambda (k v)
         (list
          (list (k 6) (k 7) (k 8))
          (mapcar k '(6 7 8))
@@ -134,7 +132,7 @@
      (call-with-tag
       'foo
       (lambda () (mapcar3 (lambda (v) v) '(1 2 3 4 5)))
-      (lambda (k) '(whoops!)))))
+      (lambda (k v) '(whoops!)))))
 
 (print "++++++++++++++++++++++++++++++++++++++++++++++++++")
 (print (test6))

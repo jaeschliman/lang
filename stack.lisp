@@ -34,14 +34,15 @@
 
 (define (call-with-tag tag body handler)
     (set-stack-mark tag)
-    (let* ((snapshot (body)) ;; TODO: how to tell if it is a snapshot or normal value?
-           (resume (lambda (v)
-                     ;; FIXME: appears to be necc. to avoid TCO when resuming
-                     (let ((r (resume-stack-snapshot snapshot v)))
-                       r)))
-           (result (handler resume)))
-      result))
-
+  (let* ((snapshot (body)))
+    (if (continuation? snapshot)
+        (let* ((resume (lambda (v)
+                         ;; FIXME: appears to be necc. to avoid TCO when resuming
+                         (let ((r (resume-stack-snapshot snapshot v)))
+                           r)))
+               (result (handler resume)))
+          result)
+        snapshot)))
 
 (define (test2)
     (print
@@ -128,4 +129,15 @@
 
 (print "++++++++++++++++++++++++++++++++++++++++++++++++++")
 (print (test5))
+(print "++++++++++++++++++++++++++++++++++++++++++++++++++")
+
+(define (test6)
+    (print
+     (call-with-tag
+      'foo
+      (lambda () (mapcar3 (lambda (v) v) '(1 2 3 4 5)))
+      (lambda (k) '(whoops!)))))
+
+(print "++++++++++++++++++++++++++++++++++++++++++++++++++")
+(print (test6))
 (print "++++++++++++++++++++++++++++++++++++++++++++++++++")

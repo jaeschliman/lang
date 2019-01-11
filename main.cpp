@@ -2573,7 +2573,6 @@ s64 vm_stack_frame_additional_item_count(StackFrameObject *fr) {
   return pf - end_of_argv;
 }
 
-// returns a 2 element array containing the top of the stack, and the top stack frame
 Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
   StackFrameObject *fr = vm->frame;
   Ptr result  = Nil;                               prot_ptr(result);

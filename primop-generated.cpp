@@ -71,6 +71,7 @@ enum PrimitiveOperation : u64 {
   PRIM_SSTKMARK = ((68ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_PSTKMARK = ((69ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_RSTKSNAP = ((70ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_IS_CONT = ((71ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -702,6 +703,14 @@ Ptr PRIM_RSTKSNAP_impl(VM *vm, u32 argc) {
  return vm_resume_stack_snapshot(vm, s, arg);
 }
 
+// Primitive 70
+Ptr PRIM_IS_CONT_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("continuation?",any,a);
+
+  return to(Bool,(is(cont, a)));
+}
+
 
 PrimitiveFunction PrimLookupTable[] = {
   (PrimitiveFunction)(void *)0, // apply
@@ -775,6 +784,7 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_SSTKMARK_impl,
   &PRIM_PSTKMARK_impl,
   &PRIM_RSTKSNAP_impl,
+  &PRIM_IS_CONT_impl,
 
   (PrimitiveFunction)(void *)0
 };
@@ -852,6 +862,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "set-stack-mark", to(PrimOp, PRIM_SSTKMARK));
   set_global(vm, "snapshot-to-stack-mark", to(PrimOp, PRIM_PSTKMARK));
   set_global(vm, "resume-stack-snapshot", to(PrimOp, PRIM_RSTKSNAP));
+  set_global(vm, "continuation?", to(PrimOp, PRIM_IS_CONT));
 
 }
 
@@ -1412,6 +1423,13 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("resume-stack-snapshot",any,s);
 
     vm_push(vm, vm_resume_stack_snapshot(vm, s, arg)); 
+    break;
+  }
+
+  case 71: {
+   VM_ARG("continuation?",any,a);
+
+     vm_push(vm, to(Bool,(is(cont, a)))); 
     break;
   }
 

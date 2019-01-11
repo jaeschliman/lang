@@ -69,9 +69,10 @@ enum PrimitiveOperation : u64 {
   PRIM_MKSTR = ((66ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_STRLEN = ((67ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_SSTKMARK = ((68ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PSTKMARK = ((69ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PSTKMARK = ((69ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_RSTKSNAP = ((70ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_IS_CONT = ((71ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_CONT_VAL = ((72ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -689,9 +690,10 @@ Ptr PRIM_SSTKMARK_impl(VM *vm, u32 argc) {
 // Primitive 68
 Ptr PRIM_PSTKMARK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("snapshot-to-stack-mark",any,v);
    VM_ARG("snapshot-to-stack-mark",any,m);
 
- return vm_abort_to_mark(vm, m);
+ return vm_abort_to_mark(vm, m, v);
 }
 
 // Primitive 69
@@ -709,6 +711,14 @@ Ptr PRIM_IS_CONT_impl(VM *vm, u32 argc) {
    VM_ARG("continuation?",any,a);
 
   return to(Bool,(is(cont, a)));
+}
+
+// Primitive 71
+Ptr PRIM_CONT_VAL_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("continuation-value",any,a);
+
+ return cont_get_value(a);
 }
 
 
@@ -785,6 +795,7 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_PSTKMARK_impl,
   &PRIM_RSTKSNAP_impl,
   &PRIM_IS_CONT_impl,
+  &PRIM_CONT_VAL_impl,
 
   (PrimitiveFunction)(void *)0
 };
@@ -863,6 +874,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "snapshot-to-stack-mark", to(PrimOp, PRIM_PSTKMARK));
   set_global(vm, "resume-stack-snapshot", to(PrimOp, PRIM_RSTKSNAP));
   set_global(vm, "continuation?", to(PrimOp, PRIM_IS_CONT));
+  set_global(vm, "continuation-value", to(PrimOp, PRIM_CONT_VAL));
 
 }
 
@@ -1412,9 +1424,10 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
   }
 
   case 69: {
+   VM_ARG("snapshot-to-stack-mark",any,v);
    VM_ARG("snapshot-to-stack-mark",any,m);
 
-    vm_push(vm, vm_abort_to_mark(vm, m)); 
+    vm_push(vm, vm_abort_to_mark(vm, m, v)); 
     break;
   }
 
@@ -1430,6 +1443,13 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("continuation?",any,a);
 
      vm_push(vm, to(Bool,(is(cont, a)))); 
+    break;
+  }
+
+  case 72: {
+   VM_ARG("continuation-value",any,a);
+
+    vm_push(vm, cont_get_value(a)); 
     break;
   }
 

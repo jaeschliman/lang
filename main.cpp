@@ -999,7 +999,8 @@ defstruct(cont, Continuation,
           stack_top,
           program_counter,
           bytecode,
-          stack)
+          stack,
+          value)
 
 /* ---------------------------------------- */
 
@@ -2642,11 +2643,13 @@ void vm_unwind_to_mark(VM *vm, Ptr mark) {
   }
 }
 
-Ptr vm_abort_to_mark(VM *vm, Ptr mark) {
+Ptr vm_abort_to_mark(VM *vm, Ptr mark, Ptr value) { prot_ptrs(mark, value);
   // dbg("will abort...");
   // vm_debug_print_stack_top(vm);
   Ptr cont = vm_snapshot_stack_to_mark(vm, mark);
+  cont_set_value(cont, value);
   vm_unwind_to_mark(vm, mark);
+  unprot_ptrs(mark, value);
   return cont;
 }
 

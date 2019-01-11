@@ -1,5 +1,5 @@
 (define (test-snap0)
-    (print (list '=> (snapshot-to-stack-mark 'test) '<=)))
+    (print (list '=> (snapshot-to-stack-mark 'test '()) '<=)))
 
 (define (test-mark0)
     (set-stack-mark 'test)
@@ -50,7 +50,7 @@
       'foo
       (lambda ()
         ;; would be nice if we could pass value along with 'foo
-        (+i 7 (snapshot-to-stack-mark 'foo))
+        (+i 7 (snapshot-to-stack-mark 'foo '()))
         )
       (lambda (k) (k 6)))))
 
@@ -73,13 +73,11 @@
       (lambda ()
         (let ((r '()))
           (set! r (mapcar2 (lambda (v)
-                          ;; would be nice if we could pass value along with 'foo
                              (let ((m 'hello)
-                                   (r '()))
+                                   (r #f))
                                (set! r 
                                      (print
-                                      ;;let ((x 'hello))
-                                      (if (eq v 3) (snapshot-to-stack-mark 'foo)
+                                      (if (eq v 3) (snapshot-to-stack-mark 'foo '())
                                           v)))
                                r)
                           )
@@ -103,7 +101,7 @@
       'foo
       (lambda ()
         (mapcar3 (lambda (v)
-                   (if (eq v 3) (snapshot-to-stack-mark 'foo)
+                   (if (eq v 3) (snapshot-to-stack-mark 'foo '())
                        v))
                  '(1 2 3 4 5)))
       (lambda (k) (k 6)))))
@@ -118,7 +116,7 @@
       'foo
       (lambda ()
         (mapcar3 (lambda (v)
-                   (if (eq v 3) (snapshot-to-stack-mark 'foo)
+                   (if (eq v 3) (snapshot-to-stack-mark 'foo '())
                        v))
                  '(1 2 3 4 5)))
       (lambda (k)

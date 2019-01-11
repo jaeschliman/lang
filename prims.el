@@ -285,9 +285,10 @@ void initialize_primitive_functions(VM *vm) {
   (prim string-length STRLEN ((str String)) Fixnum "string_length(str)")
 
   (prim set-stack-mark SSTKMARK ((m any)) any "vm_set_stack_mark(vm, m)")
-  (prim snapshot-to-stack-mark PSTKMARK ((m any)) any "vm_abort_to_mark(vm, m)")
+  (prim snapshot-to-stack-mark PSTKMARK ((m any) (v any)) any "vm_abort_to_mark(vm, m, v)")
   (prim resume-stack-snapshot RSTKSNAP ((s any) (arg any)) any "vm_resume_stack_snapshot(vm, s, arg)")
   (prim continuation? IS_CONT ((a any)) Bool "is(cont, a)")
+  (prim continuation-value CONT_VAL ((a any)) any "cont_get_value(a)")
 
   (setf *prims* (reverse *prims*))
   (write-prims))

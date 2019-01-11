@@ -981,6 +981,7 @@ enum StructTag : s64 {
   StructTag_CompilerEnv,
   StructTag_HashTable,
   StructTag_InputStream,
+  StructTag_Continuation,
   StructTag_End
 };
 
@@ -994,6 +995,11 @@ StructTag struct_get_tag(Ptr it) {
 defstruct(cons, Cons, car, cdr);
 defstruct(ht, HashTable, array);
 defstruct(istream, InputStream, string, index);
+defstruct(cont, Continuation,
+          stack_top,
+          program_counter,
+          bytecode,
+          stack)
 
 /* ---------------------------------------- */
 
@@ -2571,9 +2577,9 @@ s64 vm_stack_frame_additional_item_count(StackFrameObject *fr) {
 Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
   StackFrameObject *fr = vm->frame;
   Ptr result  = Nil;                               prot_ptr(result);
-  result = make_zf_array(vm, 4);
-  array_set(result, 2, to(Fixnum, vm->pc));
-  array_set(result, 3, objToPtr(vm->bc));
+  result = alloc_cont(vm);
+  cont_set_program_counter(result, to(Fixnum, vm->pc));
+  cont_set_bytecode(result, objToPtr(vm->bc));
   {
     Ptr *stack = vm->stack;
     auto on_stack = (Ptr*)(void *)vm->frame; // go back 'up' the stack to get current args
@@ -2583,7 +2589,7 @@ Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
       array_set(objs, i, stack[i]);
       // dbg("saving stack object: ", stack[i]);
     }
-    array_set(result, 0, objs);
+    cont_set_stack_top(result, objs);
   }
 
   Ptr top_fr  = Nil;                               prot_ptr(top_fr);
@@ -2625,7 +2631,7 @@ Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
   // dbg("args of top_fr: ");
   // vm_debug_print_stackframe_args(vm, as(StackFrame, top_fr));
 
-  array_set(result, 1, top_fr);
+  cont_set_stack(result, top_fr);
   unprot_ptrs(mark, result, top_fr, prev_fr);
   return result;
 }
@@ -2698,11 +2704,11 @@ void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
   // vm_dump_args(vm);
 }
 
-void vm_restore_stack_snapshot(VM *vm, Ptr snap) {
-  Ptr extra_args = array_get(snap, 0);
-  Ptr frame = array_get(snap, 1);
-  Ptr pc = array_get(snap, 2);
-  Ptr bc = array_get(snap, 3);
+void vm_restore_stack_snapshot(VM *vm, Ptr cont) {
+  Ptr extra_args = cont_get_stack_top(cont);
+  Ptr frame = cont_get_stack(cont);
+  Ptr pc = cont_get_program_counter(cont);
+  Ptr bc = cont_get_bytecode(cont);
 
   // restore frames
   _vm_restore_stack_snapshot(vm, as(StackFrame, frame));
@@ -2723,8 +2729,8 @@ void vm_restore_stack_snapshot(VM *vm, Ptr snap) {
 
 }
 
-Ptr vm_resume_stack_snapshot(VM *vm, Ptr snap, Ptr arg) {
-  vm_restore_stack_snapshot(vm, snap);
+Ptr vm_resume_stack_snapshot(VM *vm, Ptr cont, Ptr arg) {
+  vm_restore_stack_snapshot(vm, cont);
   // vm_debug_print_stack_top(vm);
   return arg;
 }

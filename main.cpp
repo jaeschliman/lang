@@ -4432,6 +4432,13 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
 }
 
 
+auto current_time_ms() {
+  auto now = chrono::system_clock::now();
+  auto ms = chrono::duration_cast<chrono::milliseconds>(now.time_since_epoch());
+  return ms.count();
+}
+
+
 void start_up_and_run_event_loop(const char *path) {
   auto vm = vm_create();
   load_file(vm, path);
@@ -4487,9 +4494,15 @@ void start_up_and_run_event_loop(const char *path) {
   auto onmousedrag = intern(vm, "onmousedrag"); prot_ptr(onmousedrag);
   auto onmousemove = intern(vm, "onmousemove"); prot_ptr(onmousemove);
   auto onmousedown = intern(vm, "onmousedown"); prot_ptr(onmousedown);
+  auto onframe     = intern(vm, "onframe");     prot_ptr(onframe);
+
+  auto frame_length_ms = 1000 / 60;
+
+  auto msec_s = current_time_ms();
 
   while (running) {
-    if (SDL_WaitEvent(&event)) { //or SDL_PollEvent for continual updates
+
+    while (SDL_PollEvent(&event)) { // or if(SDL_WaitEvent(&event)) for reactive
       switch (event.type) {
       case SDL_QUIT: running = false; break;
       case SDL_KEYDOWN : {
@@ -4525,11 +4538,22 @@ void start_up_and_run_event_loop(const char *path) {
         break;
       }
     }
+
+    // TODO: actually pass elapsed time
+    auto elapsed = to(Fixnum, frame_length_ms);
+    vm_call_global(vm, onframe, 1, (Ptr[]){elapsed});
+    {
+      auto msec_e = current_time_ms();
+      auto delta = msec_e - msec_s;
+      auto delay = frame_length_ms - (delta % frame_length_ms);
+      SDL_Delay(delay);
+    }
+
     SDL_UpdateWindowSurface(window);
-    // SDL_Delay(10);
+    msec_s = current_time_ms();
   }
 
-  unprot_ptrs(onkey, onmousedrag, onmousemove, onmousedown);
+  unprot_ptrs(onkey, onmousedrag, onmousemove, onmousedown, onframe);
 
   SDL_DestroyWindow(window);
   cerr << " executed " << vm->instruction_count << " instructions." << endl;

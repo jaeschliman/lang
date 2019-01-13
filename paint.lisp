@@ -85,3 +85,4 @@
 (set 'onmousedown mouse-handler)
 (set 'onmousedrag mouse-handler)
 (set 'onkey ignore1)
+(set 'onframe ignore1)

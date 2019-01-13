@@ -27,3 +27,4 @@
 (set 'onmousedown ignore1)
 (set 'onmousedrag ignore1)
 (set 'onkey ignore1)
+(set 'onframe ignore1)

@@ -105,7 +105,7 @@
 (define (clear-screen)
     (screen-fill-rect 0@0 screen-size 0xffffff))
 
-(define (mouse-handler p)
+(define (update dt)
     (clear-screen)
     (step!))
 
@@ -119,6 +119,7 @@
 
 (define (onshow w h) (set-symbol-value 'screen-size (make-point w h)))
 (define onkey ignore1)
-(define onmousemove mouse-handler)
+(define onmousemove ignore1)
 (define onmousedown add-point)
-(define onmousedrag mouse-handler)
+(define onmousedrag ignore1)
+(define onframe update)

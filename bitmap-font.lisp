@@ -1,5 +1,5 @@
 (set-symbol-value 'set set-symbol-value)
-(set 'ignore1 (lambda (_)))
+(set 'ignore1 (lambda (_) '()))
 
 (set 'font (load-image "./res/charmap-futuristic_white.png"))
 (set 'font-start 32)
@@ -52,8 +52,10 @@
 (set 'onshow (lambda (w h)
                (set 'screen-size (make-point w h))
                (display-string 0@0 3.3 "hello, world!")
-               (display-string 0@30 1.3 "(lambda (x) x) [ ^ self ].") ))
+               (display-string 0@30 1.3 "(lambda (x) x) [ ^ self ].")))
+
 (set 'onmousemove ignore1)
 (set 'onmousedown ignore1)
 (set 'onmousedrag ignore1)
 (set 'onkey ignore1)
+(set 'onframe ignore1)

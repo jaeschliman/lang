@@ -125,6 +125,8 @@ https://www.cs.indiana.edu/~dyb/papers/3imp.pdf
 * TODO convert BC to 32 bit so we can assemble from user space
 * TODO adaptons? (see will byrd miniAdapton)
 http://adapton.org/
+* TODO bezier + fourier transforms is cool!
+http://www.jezzamon.com/fourier/index.html
 
 * notes
 maybe have a stack of compilers? can push/pop...

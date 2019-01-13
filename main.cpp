@@ -28,7 +28,7 @@
 #include "./stacktrace.h"
 #include "./macro_support.h"
 
-#define GC_DEBUG 1
+#define GC_DEBUG 0
 #define PRIM_USE_GIANT_SWITCH 1
 // with it on:  216533389 / 15 / 60 = ~240,600 instr / frame
 //              187983512 / 13.048 / 60 = ~240,117

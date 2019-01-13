@@ -1,14 +1,19 @@
 (define (call-with-tag tag body handler)
     (set-stack-mark tag)
-  (let* ((snapshot (body)))
+  (let* ((invoke body)
+         (snapshot (invoke)))
+    (set! invoke #f)
     (if (continuation? snapshot)
         (let* ((resume (lambda (v)
+                         ;; not sure about this... but needed...
+                         (set-stack-mark tag)
                          ;; FIXME: appears to be necc. to avoid TCO when resuming
                          (let ((r (resume-stack-snapshot snapshot v)))
+                           (set! snapshot #f)
                            r)))
                (result (handler resume (continuation-value snapshot))))
           ;; (set! body #f)
-
+          ;; 
           ;; (set! resume #f)
           ;; (set! handler #f)
           result)
@@ -20,12 +25,20 @@
 (define (make-coroutine fn)
   (lambda args
     (call-with-tag 'co
-                   (lambda () (apply fn args))
+                   (lambda ()
+                     ;; (set-stack-mark 'co)
+                     (let ((r (apply fn args)))
+                       r))
                    continue)))
 
-(define (step-coroutine fn)
-    (call-with-tag 'co (lambda () (fn '()))
-                   continue))
+(define (step-coroutine next)
+    (let ((fn next))
+      (call-with-tag 'co (lambda ()
+                           ;; (set-stack-mark 'co)
+                           (let ((r (fn '())))
+                             (set! fn #f)
+                             r))
+                     continue)))
 
 (defmacro forever (& body)
   (let ((loop (gensym)))
@@ -76,9 +89,14 @@
 
 (define bounce-at (make-coroutine my-bouncer))
 
-(define running (list (bounce-at 10 10)
-                      (bounce-at 100 100)
-                      (bounce-at 150 33)))
+(define running (list
+                 (bounce-at 10 10)
+                 (bounce-at 200 70)
+                 (bounce-at 100 100)
+                 (bounce-at 150 33)
+                 (bounce-at 300 122)
+
+                      ))
 
 (define (step!)
     (set-symbol-value 'running (mapcar step-coroutine running)))
@@ -91,11 +109,16 @@
     (clear-screen)
     (step!))
 
+(define (add-point p)
+    (set-symbol-value 'running
+                      (cons (bounce-at (point-x p) (point-y p))
+                            running)))
+
 (define (ignore1 _) '())
 (define (ignore2 _ __) '())
 
 (define (onshow w h) (set-symbol-value 'screen-size (make-point w h)))
 (define onkey ignore1)
 (define onmousemove mouse-handler)
-(define onmousedown mouse-handler)
+(define onmousedown add-point)
 (define onmousedrag mouse-handler)

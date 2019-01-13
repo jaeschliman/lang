@@ -28,7 +28,7 @@
 #include "./stacktrace.h"
 #include "./macro_support.h"
 
-#define GC_DEBUG 0
+#define GC_DEBUG 1
 #define PRIM_USE_GIANT_SWITCH 1
 // with it on:  216533389 / 15 / 60 = ~240,600 instr / frame
 //              187983512 / 13.048 / 60 = ~240,117
@@ -1077,6 +1077,7 @@ void obj_refs(VM *vm, StackFrameObject *it, PtrFn fn) {
   }
   fn(it->closed_over);
   fn(it->mark);
+  if (it->prev_fn) fn(objToPtr(it->prev_fn));
   if (it->prev_frame) fn(objToPtr(it->prev_frame));
 }
 
@@ -1273,7 +1274,7 @@ auto vm_map_stack_refs(VM *vm, PtrFn fn) {
       auto arg = fr->argv[pad + i];
       fn(arg);
     }
-    fn(objToPtr(bytecode));
+    if (bytecode) fn(objToPtr(bytecode));
     auto on_stack = (Ptr*)(void *)fr; // go back 'up' the stack to get current args
     while (on_stack > stack) {
       on_stack--;
@@ -1795,11 +1796,16 @@ void gc(VM *vm) {
   vm->gc_compacted_size_in_bytes = (u64)vm->heap_end - (u64)vm->heap_mem;
 
   if (GC_DEBUG) {
+    auto frame_count = 0;
     vm_map_reachable_refs(vm, [&](Ptr it){
         if (is(BrokenHeart, it)) {
           die("found broken heart after gc");
         }
+        if (is(StackFrame, it)) {
+          frame_count++;
+        }
       });
+    dbg(frame_count, " stack frames in the heap after GC");
   }
 
   // cerr << " protected Object count : " << vm->gc_protected->size() << endl;
@@ -2571,7 +2577,9 @@ s64 vm_stack_frame_additional_item_count(StackFrameObject *fr) {
   if (!fr->prev_frame) return 0;
   Ptr *end_of_argv = fr->argv + fr->pad_count + fr->argc;
   Ptr *pf = (Ptr *)(void *)fr->prev_frame;
-  return pf - end_of_argv;
+  auto result = pf - end_of_argv;
+  if (result > 1000) die("unexpected added count:", result, pf, end_of_argv);
+  return result;
 }
 
 Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
@@ -2596,7 +2604,10 @@ Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
   Ptr prev_fr = Nil;                               prot_ptr(prev_fr);
 
   while (fr && !ptr_eq(fr->mark, mark)) {
+    auto is_root_frame = fr->prev_frame && ptr_eq(fr->prev_frame->mark, mark);
+
     auto added = vm_stack_frame_additional_item_count(fr);
+    if (is_root_frame) added = 0; // we don't need the additional previous stack
     auto byte_count = obj_size(fr) + added * 8;
     // dbg("snapshotting frame + ", added);
     // vm_debug_print_stackframe_args(vm, fr);
@@ -2614,6 +2625,12 @@ Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
     if (!isNil(prev_fr)) {
       auto pf = as(StackFrame, prev_fr);
       pf->prev_frame = nf; 
+    }
+
+    if (is_root_frame) {
+      nf->prev_fn = 0;
+      nf->prev_frame = 0;
+      nf->prev_stack = 0;
     }
 
     prev_fr = objToPtr(nf);

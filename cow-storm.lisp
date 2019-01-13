@@ -33,8 +33,7 @@
      (lambda (s)
        (let ((p (aget ctx ctx-idx))
              (r (aget ctx (+i ctx-idx 1))))
-         (blit-to-screen cow (center-image-at p s cow)
-                s (point-x p))
+         (blit-to-screen cow (center-image-at p s cow) s r)
          (if (>i s 30)
              (let ()
                (push-t-r -170@-150 -33)
@@ -52,23 +51,34 @@
 
 (set 'screen-size #f)
 
-(set 'cow-mania (lambda (p s)
+(set 'cow-mania (lambda (s)
                   (screen-fill-rect 0@0 screen-size 0xffffff)
-                  (push-t-r p (point-x p))
-                  (draw-cows s)
-                  (pop-t-r)))
+                  (draw-cows s)))
+
+(define curr-point #f)
+
+(define (draw-frame dt)
+    (let ((p curr-point))
+      (let ((s (+i 80 (/i (point-y p) 24)))
+            (r (%i (+i 2 (aget ctx 1)) 360)))
+        (aset ctx 1 r)
+        (cow-mania s))))
 
 (set 'mouse-handler
      (lambda (p)
-       (let ((s (+i 80 (/i (point-y p) 24))))
-         (cow-mania p s))))
+       (set 'curr-point p)
+       (aset ctx 0 p)))
 
 ;;;;;;; register event handlers
 
-(set 'onshow (lambda (w h) (set 'screen-size (make-point w h))))
+(set 'onshow (lambda (w h)
+               (set 'screen-size (make-point w h))
+               (let ((mid (make-point (/i w 2) (/i h 2))))
+                 (set 'curr-point mid)
+                 (aset ctx 0 mid))))
 
 (set 'onmousemove mouse-handler)
 (set 'onmousedown mouse-handler)
 (set 'onmousedrag mouse-handler)
 (set 'onkey ignore1)
-(set 'onframe ignore1)
+(set 'onframe draw-frame)

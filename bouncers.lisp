@@ -12,10 +12,6 @@
                            (set! snapshot #f)
                            r)))
                (result (handler resume (continuation-value snapshot))))
-          ;; (set! body #f)
-          ;; 
-          ;; (set! resume #f)
-          ;; (set! handler #f)
           result)
         snapshot)))
 
@@ -26,7 +22,6 @@
   (lambda args
     (call-with-tag 'co
                    (lambda ()
-                     ;; (set-stack-mark 'co)
                      (let ((r (apply fn args)))
                        r))
                    continue)))
@@ -34,7 +29,6 @@
 (define (step-coroutine next)
     (let ((fn next))
       (call-with-tag 'co (lambda ()
-                           ;; (set-stack-mark 'co)
                            (let ((r (fn '())))
                              (set! fn #f)
                              r))
@@ -42,11 +36,15 @@
 
 (defmacro forever (& body)
   (let ((loop (gensym)))
-    `(let ((,loop #f))
+    `(let ((running #t)
+           (,loop #f))
        (set! ,loop (lambda ()
                      ,@body
-                     (yield)
-                     (,loop)))
+                     (if running
+                         (let ()
+                           (yield)
+                           (,loop))
+                         '())))
        (,loop))))
 
 
@@ -67,11 +65,22 @@
           (dy sdy)
           (mx (point-x screen-size))
           (my (point-y screen-size))
-          (w 10)
-          (h 10))
+          (w 10.0)
+          (h 10.0)
+          (age 0)
+          (alpha 255))
       (forever
        (set! x (+i x dx))
        (set! y (+i y dy))
+       (set! age (+i age 1))
+       (set! w (+f w 0.3))
+       (set! h (+f h 0.3))
+       (when (>i age 255)
+         (set! running #f))
+       (when (>i age 64)
+         (set! alpha (-i alpha 3))
+         (when (<i alpha 0)
+           (set! alpha 0)))
        (when (<i x 0)
          (set! x 0)
          (set! dx (*i dx -1)))
@@ -84,20 +93,33 @@
        (when (>i y my)
          (set! y my)
          (set! dy (*i dy -1)))
-       (let ((ul (make-point x y)))
-         (screen-fill-rect ul
-                           (point+ ul (make-point w h))
-                           0xff0000)))))
+       (when (>i alpha 0)
+         (let* ((W (f->i w)) (H (f->i h))
+                (center (make-point x y))
+                (ul (point- center (make-point (/i W 2) (/i H 2)))))
+           (screen-fill-rect ul
+                             (point+ ul (make-point W H))
+                             (+i (*i alpha 0x01000000)
+                                 (+i age
+                                     0x00ff0000))))))))
 
 (define bounce-at (make-coroutine my-bouncer))
 
 (define running '())
 
+(define mapcar? #f)
+(define (mapcar? fn lst)
+  (if (nil? lst) '()
+      (let ((n (fn (car lst))))
+        (if (nil? n)
+            (mapcar? fn (cdr lst))
+            (cons n (mapcar? fn (cdr lst)))))))
+
 (define (step!)
-    (set-symbol-value 'running (mapcar step-coroutine running)))
+    (set-symbol-value 'running (mapcar? step-coroutine running)))
 
 (define (clear-screen)
-    (screen-fill-rect 0@0 screen-size 0xffffff))
+    (screen-fill-rect 0@0 screen-size 0xffffffff))
 
 (define (update dt)
     (clear-screen)

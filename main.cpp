@@ -3906,17 +3906,34 @@ Ptr gfx_set_pixel(VM *vm, point p) { // assumes 4 bytes pp
 
 void _gfx_fill_rect(blit_surface *dst, point a, point b, s64 color) {
   u32 pixel = color > 0 ? color : 0L;
-  u8* components = (u8*)&pixel;
+  u8* over = (u8*)&pixel;
+  auto alpha = over[3];
   s64 max_x = min((s64)b.x, dst->width);
   s64 max_y = min((s64)b.y, dst->height);
-  for (s64 y = a.y; y < max_y; y++) {
-    for (s64 x = a.x; x < max_x; x++) {
-      auto idx = y * dst->pitch + x * 4;
-      auto mem = dst->mem + idx;
-      mem[0] = components[0];
-      mem[1] = components[1];
-      mem[2] = components[2];
-      mem[3] = components[3];
+  if (alpha == 255) {
+    for (s64 y = a.y; y < max_y; y++) {
+      for (s64 x = a.x; x < max_x; x++) {
+        auto idx = y * dst->pitch + x * 4;
+        auto mem = dst->mem + idx;
+        mem[0] = over[0];
+        mem[1] = over[1];
+        mem[2] = over[2];
+        mem[3] = 255;
+      }
+    }
+  } else {
+    for (s64 y = a.y; y < max_y; y++) {
+      for (s64 x = a.x; x < max_x; x++) {
+        auto idx = y * dst->pitch + x * 4;
+        auto under = dst->mem + idx;
+        // aA + (1-a)B = a(A-B)+B
+        under[0] = ((over[0] - under[0]) * alpha /  255)  + under[0];
+        under[1] = ((over[1] - under[1]) * alpha /  255)  + under[1];
+        under[2] = ((over[2] - under[2]) * alpha /  255)  + under[2];
+        u8 ualpha = under[3];
+        u8 calpha = alpha + ualpha;
+        under[3] = calpha < alpha ? 255 : calpha;
+      }
     }
   }
 }

@@ -58,13 +58,15 @@
 
 (define count-up (make-coroutine my-counter-body))
 
-(define (my-bouncer sx sy)
+(define screen-size #f)
+
+(define (my-bouncer sx sy sdx sdy)
     (let ((x sx)
           (y sy)
-          (dx -1)
-          (dy 1)
-          (mx 900)
-          (my 500)
+          (dx sdx)
+          (dy sdy)
+          (mx (point-x screen-size))
+          (my (point-y screen-size))
           (w 10)
           (h 10))
       (forever
@@ -89,19 +91,11 @@
 
 (define bounce-at (make-coroutine my-bouncer))
 
-(define running (list
-                 (bounce-at 10 10)
-                 (bounce-at 200 70)
-                 (bounce-at 100 100)
-                 (bounce-at 150 33)
-                 (bounce-at 300 122)
-
-                      ))
+(define running '())
 
 (define (step!)
     (set-symbol-value 'running (mapcar step-coroutine running)))
 
-(define screen-size #f)
 (define (clear-screen)
     (screen-fill-rect 0@0 screen-size 0xffffff))
 
@@ -109,17 +103,33 @@
     (clear-screen)
     (step!))
 
+(define last-point 0@0)
+(define last-last-point 0@0)
+
+(define (set-last-point p)
+    (set-symbol-value 'last-last-point last-point)
+    (set-symbol-value 'last-point p))
+
 (define (add-point p)
-    (set-symbol-value 'running
-                      (cons (bounce-at (point-x p) (point-y p))
-                            running)))
+    (let ((delta
+           (point-rotate
+            (point- last-point last-last-point)
+            90.0)))
+      (set-symbol-value 'running
+                        (cons (bounce-at (point-x p) (point-y p)
+                                         (point-x delta) (point-y delta))
+                              running))))
+
+(define (go-bananas p)
+    (set-last-point p)
+  (add-point p))
 
 (define (ignore1 _) '())
 (define (ignore2 _ __) '())
 
 (define (onshow w h) (set-symbol-value 'screen-size (make-point w h)))
 (define onkey ignore1)
-(define onmousemove ignore1)
+(define onmousemove set-last-point)
 (define onmousedown add-point)
-(define onmousedrag ignore1)
+(define onmousedrag go-bananas)
 (define onframe update)

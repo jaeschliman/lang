@@ -12,8 +12,11 @@
 (fill-rect mask 0@0 mask-extent 0xffffffff)
 (blit font mask 0@0 0@0 font-extent 1.0 0.0)
 
-(set 'onshow (lambda (w h)
-               (screen-fill-rect 0@0 (make-point w h) 0xff00cccc)
+(set 'screen-size 0@0)
+(set 'mouse-pos 0@0)
+
+(define (display)
+               (screen-fill-rect 0@0 screen-size 0xff00cccc)
                (fill-rect buffer 0@0 500@500 0xff00ff00)
                (blit-with-mask
                 texture buffer font 0@0
@@ -21,10 +24,24 @@
                 0@0 font-extent 3.3 0.0)
                (blit-to-screen mask 500@0 100 0)
                (blit-to-screen font 800@0 100 0)
-               (blit-to-screen buffer 0@0 100 0)))
+               (blit-to-screen buffer 0@0 100 0))
 
-(set 'onmousemove ignore1)
+(define (update-cow)
+    (fill-rect texture 0@0 500@500 0xffff0000)
+  (blit cow texture mouse-pos 0@0 500@500 1.0 0.0))
+
+(define (update-mousepos p)
+    (let ((x (%i (-i (point-x p) 250) 500))
+          (y (%i (-i (point-y p) 250) 500)))
+      (set 'mouse-pos (make-point x y))))
+
+(set 'onshow (lambda (w h)
+               (set 'screen-size (make-point w h)))) 
+
+(set 'onmousemove update-mousepos)
 (set 'onmousedown ignore1)
 (set 'onmousedrag ignore1)
 (set 'onkey ignore1)
-(set 'onframe ignore1)
+(set 'onframe (lambda (dt)
+                (update-cow)
+                (display)))

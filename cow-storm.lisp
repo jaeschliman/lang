@@ -52,7 +52,7 @@
 (set 'screen-size #f)
 
 (set 'cow-mania (lambda (s)
-                  (screen-fill-rect 0@0 screen-size 0xffffff)
+                  (screen-fill-rect 0@0 screen-size 0xffffffff)
                   (draw-cows s)))
 
 (define curr-point #f)

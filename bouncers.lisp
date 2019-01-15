@@ -58,29 +58,51 @@
 
 (define screen-size #f)
 
-(define (my-bouncer sx sy sdx sdy)
+(define spawn #f)
+(define pending '())
+(define bounce-at #f)
+(define (spawn-next sx sy sdx sdy max-age)
+   (set-symbol-value 'pending (cons (bounce-at sx sy sdx sdy max-age) pending)))
+
+(define (my-bouncer sx sy sdx sdy max-age)
     (let ((x sx)
           (y sy)
           (dx sdx)
           (dy sdy)
+          (dage 1)
           (mx (point-x screen-size))
           (my (point-y screen-size))
           (w 10.0)
           (h 10.0)
           (age 0)
-          (alpha 255))
+          (alpha 255)
+          (spawn-age (f->i (*f (i->f max-age) 0.35))) 
+          (child-age (f->i (*f (i->f max-age) 0.75))))
       (forever
        (set! x (+i x dx))
        (set! y (+i y dy))
-       (set! age (+i age 1))
-       (set! w (+f w 0.3))
-       (set! h (+f h 0.3))
-       (when (>i age 255)
+       (set! w (+f 10.0 (*f 0.1 (i->f age))))
+       (set! h (+f 10.0 (*f 0.1 (i->f age))))
+       (set! age (+i age dage))
+       (when (and (eq age spawn-age)
+                  (>i age 32))
+         (let* ((p (make-point dx dy))
+                (pa (point-rotate p 66.6))
+                (pb (point-rotate p 246.6)))
+           (spawn-next x y (point-x pa) (point-y pa) child-age)
+           (spawn-next x y (point-x pb) (point-y pb) child-age)))
+       (when (>i age max-age)
+         (set! age max-age)
+         (set! dage (*i dage -1))
+
          (set! running #f))
-       (when (>i age 64)
-         (set! alpha (-i alpha 3))
-         (when (<i alpha 0)
-           (set! alpha 0)))
+
+       (when (<i age 0)
+         (set! age 0)
+         (set! dage (*i dage -1)))
+
+       (set! alpha (-i max-age age))
+
        (when (<i x 0)
          (set! x 0)
          (set! dx (*i dx -1)))
@@ -116,7 +138,9 @@
             (cons n (mapcar? fn (cdr lst)))))))
 
 (define (step!)
-    (set-symbol-value 'running (mapcar? step-coroutine running)))
+    (set-symbol-value 'running (mapcar? step-coroutine running))
+  (set-symbol-value 'running (append running pending))
+  (set-symbol-value 'pending '()))
 
 (define (clear-screen)
     (screen-fill-rect 0@0 screen-size 0xffffffff))
@@ -132,15 +156,20 @@
     (set-symbol-value 'last-last-point last-point)
     (set-symbol-value 'last-point p))
 
+(define (spawn sx sy sdx sdy max-age)
+      (set-symbol-value 'running
+                        (cons (bounce-at sx sy
+                                         sdx sdy
+                                         max-age)
+                              running)))
+
 (define (add-point p)
     (let ((delta
            (point-rotate
             (point- last-point last-last-point)
             90.0)))
-      (set-symbol-value 'running
-                        (cons (bounce-at (point-x p) (point-y p)
-                                         (point-x delta) (point-y delta))
-                              running))))
+      (spawn (point-x p) (point-y p)
+             (point-x delta) (point-y delta) 255)))
 
 (define (go-bananas p)
     (set-last-point p)

@@ -22,8 +22,7 @@
                 (run-next)
                 (let ((val (pop vals)))
                   (push (cons vals fn) amb-stack)
-                  (let ((r (fn val)))
-                    r))))))
+                  (fn val))))))
 
   (define (assert bool)
       (when (not bool)
@@ -41,14 +40,11 @@
                             (let ((r (resume-stack-snapshot it val)))
                               r))))
               (push (cons vals resume) amb-stack)
-              (let ((r (run run-next)))
-                r)))))))
+              (run run-next))))))
 
-
-
-(define amb
-    (lambda args
-     (snapshot-to-stack-mark 'run args)))
+  (define amb
+      (lambda args
+        (snapshot-to-stack-mark 'run args))))
 
 (run (lambda ()
        (let* ((a (amb 1 2 3))

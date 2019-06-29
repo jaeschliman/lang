@@ -1,32 +1,21 @@
-
-
-(define stack '())
+(defmacro unless (test & body)
+  `(when (not ,test) ,@body))
 
 (define run #f)
 (define (run fn)
     (set-stack-mark 'run)
   (let ((it (fn)))
     (if (continuation? it)
-        (let ()
-          (if (nil? (continuation-value it)) ;; TODO: pass an exception instead
-              (let ((resume (car stack)))
-                (set 'stack (cdr stack))
-                (run resume)
-                #f) ;; false indicates there was an exception
-              (let* ((val (continuation-value it))
-                     (tryfn (car val))
-                     (catchfn (cdr val))
-                     (resume (lambda ()
-                               (run catchfn)
-                               (let ((r (resume-stack-snapshot it '())))
-                                 r))))
-                (set 'stack (cons resume stack))
-                (let ((ok (run tryfn)))
-                  (when ok ;; only resume if there was no exception
-                    (set 'stack (cdr stack))
-                    (resume-stack-snapshot it '()))
-                  ok))))
-        #t))) ;; true indicates there was no exception
+        (if (nil? (continuation-value it)) ;; TODO: pass an exception instead
+            #f ;; false indicates there was an exception
+            (let* ((val (continuation-value it))
+                   (tryfn (car val))
+                   (catchfn (cdr val)))
+              (let ((ok (run tryfn)))
+                (unless ok (run catchfn)) ;; TODO: what if we throw in catch clause?
+                (resume-stack-snapshot it '())
+                ok)))
+        #t)))) ;; true indicates there was no exception
 
 (define (try-catch tryfn catchfn)
     (snapshot-to-stack-mark 'run (cons tryfn catchfn)))

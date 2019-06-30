@@ -292,7 +292,7 @@
 (define third caddr)
 
 ;;; eval
-(set 'eval (lambda (x) ((compile-to-closure x))))
+(set 'eval (lambda (x) ((compile-to-closure (compiler x)))))
 
 ;;; more utils
 (defmacro when (test & body)

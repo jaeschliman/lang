@@ -166,12 +166,38 @@
 
 (define (state-position st) (car (car st)))
 
+(define (match-1 rule string)
+    (let* ((stream (make-stream string))
+           (state  (make-initial-state stream))
+           (fn (get-rule rule))
+           (newstate (fn state)))
+      (state-result newstate)))
+
+(define (match-all rule string)
+    (let* ((stream (make-stream string))
+           (state  (make-initial-state stream))
+           (fn (get-rule rule))
+           (loop #f))
+      (set! loop
+            (lambda (state results)
+              (let ((newstate (fn state)))
+                (if (failure? newstate) (reverse-list results)
+                    (let ((newresults (cons (state-result newstate) results)))
+                      (if (stream-end? (state-stream newstate)) (reverse-list newresults)
+                          (loop newstate newresults)))))))
+      (loop state '())))
+
 (set-rule 'any (lambda (st)
                  (let ((s (state-stream st)))
                    (if (stream-end? s)
                        fail
                        (state+stream (state+result st (stream-read s))
                                      (stream-next s))))))
+(set-rule 'nothing (lambda (st)
+                     (let ((s (state-stream st)))
+                       (if (stream-end? s)
+                           st
+                           fail))))
 
 (define-compile (%base state symbol next)
     `(apply-rule ',symbol ,state ,next))
@@ -411,6 +437,9 @@
                ,@-rs
                (pop-meta-context))))
 
+(define-rule EOF
+    (+ ws) nothing (return 'EOF))
+
 (define-rule meta-main
     (set! -it (or meta-block (extern Lisp expr)))
   (return -it))
@@ -430,6 +459,16 @@ meta mymeta {
 (defmacro reset-tag (tag & body)
   `(run-reset ,tag (lambda () ,@body)))
 ")
+
+(print "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+(print (match-all 'meta-main "
+(defmacro reset-tag (tag & body)
+  `(run-reset ,tag (lambda () ,@body)))
+a
+(new thing)
+"))
+(print "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+
 
 (pop-meta-context)
 

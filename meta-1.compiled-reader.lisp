@@ -173,7 +173,7 @@
            (newstate (fn state)))
       (state-result newstate)))
 
-(define (match-all rule string)
+(define (match-map xf rule string)
     (let* ((stream (make-stream string))
            (state  (make-initial-state stream))
            (fn (get-rule rule))
@@ -185,7 +185,10 @@
                     (let ((newresults (cons (state-result newstate) results)))
                       (if (stream-end? (state-stream newstate)) (reverse-list newresults)
                           (loop newstate newresults)))))))
-      (loop state '())))
+      (mapcar xf (loop state '()))))
+
+(define (match-all rule string)
+    (match-map (lambda (x) x) rule string))
 
 (set-rule 'any (lambda (st)
                  (let ((s (state-stream st)))
@@ -399,11 +402,14 @@
     (or (seq (set! -id ident) (set! -mm meta-mod) (return (list -mm -id)))
         ident))
 
-(define-rule meta-app
+(define-rule meta-app-1
     (or (seq (set! -rule meta-ident) ws #\: (set! -as ident)
              (return `(set! ,-as ,-rule)))
         meta-ident
         meta-pred))
+
+(define-rule meta-app
+    ws (set! -app meta-app-1) ws (return -app))
 
 (define-rule meta-pred
    ws #\? ws (set! -it (extern Lisp expr)) (return `(where ,-it)))
@@ -460,17 +466,43 @@ meta mymeta {
   `(run-reset ,tag (lambda () ,@body)))
 ")
 
-(print "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
-(print (match-all 'meta-main "
-(defmacro reset-tag (tag & body)
-  `(run-reset ,tag (lambda () ,@body)))
-a
-(new thing)
-"))
-(print "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+(define (whitespace-char? ch)
+    (or (eq ch #\Space)
+        (char-< ch #\Space)))
+(define (digit-char? ch)
+    (char-between ch #\0 #\9))
+(define (char-to-digit ch)
+    (-i (char-code ch) (char-code #\0)))
+(define (make-integer numbers)
+    (reduce-list
+     (lambda (acc n) (+i n (*i 10 acc)))
+     0 numbers))
 
+
+;; FIXME: can't write a 'bare' rule yet
+;; e.g.
+;; ws = space*
+;; eats the beginning of the next rule and fails
+
+(match-map eval 'meta-main "
+(print `(hello world))
+meta Test {
+space   = any:ch ?(whitespace-char? ch) -> ch
+ws      = space*:chs                    -> chs
+digit   = any:ch ?(digit-char? ch)      -> (char-to-digit ch)
+int     = ws digit+:ds ws               -> (make-integer ds)
+}
+(print `(did we do it?))
+")
 
 (pop-meta-context)
+
+(push-meta-context 'Test)
+(match-map print 'int "
+123 456 789
+")
+(pop-meta-context)
+(print "you tell me.")
 
 
 'bye

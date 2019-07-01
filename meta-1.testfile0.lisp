@@ -20,5 +20,7 @@ string
 (print "string with \"quotation\"!")
 (print "string with \n some escape \t chars like \\n and \\t")
 
+(print `(got some floats 0.1 1.2345 0.5 876.1234 3.14159))
+
 (print `(so long from ; internal test comment
             testfile))

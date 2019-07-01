@@ -435,6 +435,15 @@
            (lambda (acc n) (+i n (*i 10 acc)))
            0 x)))
 
+(define-rule float
+    (set! x (+ digit)) #\. (set! y (+ digit))
+    (return (+f (i->f (reduce-list
+                       (lambda (acc n) (+i n (*i 10 acc)))
+                       0 x))
+                (reduce-list
+                 (lambda (acc n) (*f 0.1 (+f (i->f n) acc)))
+                 0.0 (reverse-list y)))))
+
 (define-rule quoted
     #\' ws (set! x expr) (return (list 'quote x)))
 (define-rule quasiquoted
@@ -448,7 +457,7 @@
     (or quoted quasiquoted unquoted-splicing unquoted))
 
 (define-rule atom
-    ws (set! x (or character integer symbol string)) ws
+    ws (set! x (or character float integer symbol string)) ws
     (return x))
 
 (define-rule expr

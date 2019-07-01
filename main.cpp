@@ -1143,6 +1143,15 @@ void initialize_character_names() {
 #undef X
 }
 
+Ptr character_by_name(ByteArrayObject *str) {
+  auto lookup = string((char *)&str->data, str->length);
+  if (character_codes_by_name.find(lookup) == character_codes_by_name.end()) {
+    return Nil;
+  } else {
+    return to(Char, character_codes_by_name[lookup]);
+  }
+}
+
 std::ostream &operator<<(std::ostream &os, Object *obj) {
   auto otype = obj->header.object_type;
   switch (otype) {

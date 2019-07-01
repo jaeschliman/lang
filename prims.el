@@ -281,6 +281,8 @@ void initialize_primitive_functions(VM *vm) {
   (prim char-<       CH_LT ((a Char) (b Char))         Bool   "a < b")
   (prim char->       CH_GT ((a Char) (b Char))         Bool   "a > b")
 
+  (prim char-by-name CHNM ((name String)) any "character_by_name(name)")
+
   (prim make-string MKSTR ((len Fixnum) (ch Char)) any "make_filled_string(vm, len, ch)")
   (prim string-length STRLEN ((str String)) Fixnum "string_length(str)")
 

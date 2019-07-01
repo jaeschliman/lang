@@ -430,19 +430,25 @@
   (return (implode (cons x xs))))
 
 (define-rule integer
-    (set! x (+ digit))
-  (return (reduce-list
-           (lambda (acc n) (+i n (*i 10 acc)))
-           0 x)))
+    (set! sign? (? #\-))  (set! x (+ digit))
+    (return
+      (let ((n (reduce-list
+                (lambda (acc n) (+i n (*i 10 acc)))
+                0 x))
+            (s (if (nil? sign?) 1 -1)))
+        (*i s n))))
 
 (define-rule float
-    (set! x (+ digit)) #\. (set! y (+ digit))
-    (return (+f (i->f (reduce-list
-                       (lambda (acc n) (+i n (*i 10 acc)))
-                       0 x))
-                (reduce-list
-                 (lambda (acc n) (*f 0.1 (+f (i->f n) acc)))
-                 0.0 (reverse-list y)))))
+    (set! sign? (? #\-)) (set! x (+ digit)) #\. (set! y (+ digit))
+    (return
+      (let ((n (+f (i->f (reduce-list
+                          (lambda (acc n) (+i n (*i 10 acc)))
+                          0 x))
+                   (reduce-list
+                    (lambda (acc n) (*f 0.1 (+f (i->f n) acc)))
+                    0.0 (reverse-list y))))
+            (s (if (nil? sign?) 1.0 -1.0)))
+        (*f s n))))
 
 (define-rule point
     (set! x integer) #\@ (set! y integer)

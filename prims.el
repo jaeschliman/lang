@@ -290,6 +290,8 @@ void initialize_primitive_functions(VM *vm) {
   (prim continuation? IS_CONT ((a any)) Bool "is(cont, a)")
   (prim continuation-value CONT_VAL ((a any)) any "cont_get_value(a)")
 
+  (prim slurp SLURP ((path String)) any "slurp(vm, path)")
+
   (setf *prims* (reverse *prims*))
   (write-prims))
 

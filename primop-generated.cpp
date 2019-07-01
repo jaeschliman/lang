@@ -73,6 +73,7 @@ enum PrimitiveOperation : u64 {
   PRIM_RSTKSNAP = ((70ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_IS_CONT = ((71ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_CONT_VAL = ((72ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_SLURP = ((73ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -721,6 +722,14 @@ Ptr PRIM_CONT_VAL_impl(VM *vm, u32 argc) {
  return cont_get_value(a);
 }
 
+// Primitive 72
+Ptr PRIM_SLURP_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("slurp",String,path);
+
+ return slurp(vm, path);
+}
+
 
 PrimitiveFunction PrimLookupTable[] = {
   (PrimitiveFunction)(void *)0, // apply
@@ -796,6 +805,7 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_RSTKSNAP_impl,
   &PRIM_IS_CONT_impl,
   &PRIM_CONT_VAL_impl,
+  &PRIM_SLURP_impl,
 
   (PrimitiveFunction)(void *)0
 };
@@ -875,6 +885,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "resume-stack-snapshot", to(PrimOp, PRIM_RSTKSNAP));
   set_global(vm, "continuation?", to(PrimOp, PRIM_IS_CONT));
   set_global(vm, "continuation-value", to(PrimOp, PRIM_CONT_VAL));
+  set_global(vm, "slurp", to(PrimOp, PRIM_SLURP));
 
 }
 
@@ -883,21 +894,21 @@ inline Ptr giant_switch(VM *vm, u32 argc, u32 idx) {
    
   case 1: {
 Ptr unused = vm_get_stack_values_as_list(vm, argc);
-    vm_push(vm, unused); 
+    vm_push(vm, unused);
     break;
   }
 
   case 2: {
    VM_ARG("compile-to-closure",any,expr);
 
-    vm_push(vm, compile_to_closure(vm, expr)); 
+    vm_push(vm, compile_to_closure(vm, expr));
     break;
   }
 
   case 3: {
    VM_ARG("class-of",any,a);
 
-    vm_push(vm, class_of(vm, a)); 
+    vm_push(vm, class_of(vm, a));
     break;
   }
 
@@ -906,7 +917,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("class-set-method",Symbol,sym);
    VM_ARG("class-set-method",Standard,a);
 
-    vm_push(vm, class_set_method(vm, a, sym, fn)); 
+    vm_push(vm, class_set_method(vm, a, sym, fn));
     break;
   }
 
@@ -914,7 +925,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("+i",Fixnum,b);
    VM_ARG("+i",Fixnum,a);
 
-     vm_push(vm, to(Fixnum,(a + b))); 
+     vm_push(vm, to(Fixnum,(a + b)));
     break;
   }
 
@@ -922,7 +933,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("-i",Fixnum,b);
    VM_ARG("-i",Fixnum,a);
 
-     vm_push(vm, to(Fixnum,(a - b))); 
+     vm_push(vm, to(Fixnum,(a - b)));
     break;
   }
 
@@ -930,7 +941,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("*i",Fixnum,b);
    VM_ARG("*i",Fixnum,a);
 
-     vm_push(vm, to(Fixnum,(a * b))); 
+     vm_push(vm, to(Fixnum,(a * b)));
     break;
   }
 
@@ -938,7 +949,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("/i",Fixnum,b);
    VM_ARG("/i",Fixnum,a);
 
-     vm_push(vm, to(Fixnum,(a / b))); 
+     vm_push(vm, to(Fixnum,(a / b)));
     break;
   }
 
@@ -946,7 +957,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("<i",Fixnum,b);
    VM_ARG("<i",Fixnum,a);
 
-     vm_push(vm, to(Bool,(a < b))); 
+     vm_push(vm, to(Bool,(a < b)));
     break;
   }
 
@@ -954,7 +965,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
    VM_ARG(">i",Fixnum,b);
    VM_ARG(">i",Fixnum,a);
 
-     vm_push(vm, to(Bool,(a > b))); 
+     vm_push(vm, to(Bool,(a > b)));
     break;
   }
 
@@ -962,7 +973,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("%i",Fixnum,b);
    VM_ARG("%i",Fixnum,a);
 
-     vm_push(vm, to(Fixnum,(a % b))); 
+     vm_push(vm, to(Fixnum,(a % b)));
     break;
   }
 
@@ -970,7 +981,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("+f",Float,b);
    VM_ARG("+f",Float,a);
 
-     vm_push(vm, to(Float,(a + b))); 
+     vm_push(vm, to(Float,(a + b)));
     break;
   }
 
@@ -978,7 +989,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("-f",Float,b);
    VM_ARG("-f",Float,a);
 
-     vm_push(vm, to(Float,(a - b))); 
+     vm_push(vm, to(Float,(a - b)));
     break;
   }
 
@@ -986,7 +997,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("*f",Float,b);
    VM_ARG("*f",Float,a);
 
-     vm_push(vm, to(Float,(a * b))); 
+     vm_push(vm, to(Float,(a * b)));
     break;
   }
 
@@ -994,7 +1005,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("/f",Float,b);
    VM_ARG("/f",Float,a);
 
-     vm_push(vm, to(Float,(a / b))); 
+     vm_push(vm, to(Float,(a / b)));
     break;
   }
 
@@ -1002,7 +1013,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("<f",Float,b);
    VM_ARG("<f",Float,a);
 
-     vm_push(vm, to(Bool,(a < b))); 
+     vm_push(vm, to(Bool,(a < b)));
     break;
   }
 
@@ -1010,27 +1021,27 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
    VM_ARG(">f",Float,b);
    VM_ARG(">f",Float,a);
 
-     vm_push(vm, to(Bool,(a > b))); 
+     vm_push(vm, to(Bool,(a > b)));
     break;
   }
 
   case 18: {
    VM_ARG("i->f",Fixnum,a);
 
-     vm_push(vm, to(Float,((f32)a))); 
+     vm_push(vm, to(Float,((f32)a)));
     break;
   }
 
   case 19: {
    VM_ARG("f->i",Float,a);
 
-     vm_push(vm, to(Fixnum,((s64)a))); 
+     vm_push(vm, to(Fixnum,((s64)a)));
     break;
   }
 
   case 20: {
 Ptr list = vm_get_stack_values_as_list(vm, argc);
-    vm_push(vm, list); 
+    vm_push(vm, list);
     break;
   }
 
@@ -1038,28 +1049,28 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("cons",any,b);
    VM_ARG("cons",any,a);
 
-    vm_push(vm, cons(vm, a, b)); 
+    vm_push(vm, cons(vm, a, b));
     break;
   }
 
   case 22: {
    VM_ARG("pair?",any,a);
 
-     vm_push(vm, to(Bool,(is(cons, a)))); 
+     vm_push(vm, to(Bool,(is(cons, a))));
     break;
   }
 
   case 23: {
    VM_ARG("car",any,a);
 
-    vm_push(vm, car(a)); 
+    vm_push(vm, car(a));
     break;
   }
 
   case 24: {
    VM_ARG("cdr",any,a);
 
-    vm_push(vm, cdr(a)); 
+    vm_push(vm, cdr(a));
     break;
   }
 
@@ -1067,28 +1078,28 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("eq",any,b);
    VM_ARG("eq",any,a);
 
-     vm_push(vm, to(Bool,(ptr_eq(a, b)))); 
+     vm_push(vm, to(Bool,(ptr_eq(a, b))));
     break;
   }
 
   case 26: {
    VM_ARG("nil?",any,a);
 
-     vm_push(vm, to(Bool,(isNil(a)))); 
+     vm_push(vm, to(Bool,(isNil(a))));
     break;
   }
 
   case 27: {
    VM_ARG("not",any,a);
 
-     vm_push(vm, to(Bool,(a == False))); 
+     vm_push(vm, to(Bool,(a == False)));
     break;
   }
 
   case 28: {
    VM_ARG("print",any,a);
 
-    vm_push(vm, primitive_print(a)); 
+    vm_push(vm, primitive_print(a));
     break;
   }
 
@@ -1096,14 +1107,14 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("nth",Fixnum,idx);
    VM_ARG("nth",any,a);
 
-    vm_push(vm, nth_or_nil(a, idx)); 
+    vm_push(vm, nth_or_nil(a, idx));
     break;
   }
 
   case 30: {
    VM_ARG("make-array",Fixnum,len);
 
-    vm_push(vm, make_zf_array(vm, len)); 
+    vm_push(vm, make_zf_array(vm, len));
     break;
   }
 
@@ -1111,7 +1122,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("aget",Fixnum,idx);
    VM_ARG("aget",PtrArray,a);
 
-    vm_push(vm, aget(a, idx)); 
+    vm_push(vm, aget(a, idx));
     break;
   }
 
@@ -1120,13 +1131,13 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("aset",Fixnum,idx);
    VM_ARG("aset",PtrArray,a);
 
-    vm_push(vm, aset(a, idx, val)); 
+    vm_push(vm, aset(a, idx, val));
     break;
   }
 
   case 33: {
 
-    vm_push(vm, ht(vm)); 
+    vm_push(vm, ht(vm));
     break;
   }
 
@@ -1134,7 +1145,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("ht-at",any,key);
    VM_ARG("ht-at",any,ht);
 
-    vm_push(vm, ht_at(ht, key)); 
+    vm_push(vm, ht_at(ht, key));
     break;
   }
 
@@ -1143,7 +1154,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("ht-at-put",any,key);
    VM_ARG("ht-at-put",any,ht);
 
-    vm_push(vm, ht_at_put(vm, ht, key, val)); 
+    vm_push(vm, ht_at_put(vm, ht, key, val));
     break;
   }
 
@@ -1151,46 +1162,46 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("set-symbol-value",any,b);
    VM_ARG("set-symbol-value",Symbol,a);
 
-    vm_push(vm, set_global(vm, objToPtr(a), b)); 
+    vm_push(vm, set_global(vm, objToPtr(a), b));
     break;
   }
 
   case 37: {
 
-    vm_push(vm, make_symbol(vm, "_gensym_")); 
+    vm_push(vm, make_symbol(vm, "_gensym_"));
     break;
   }
 
   case 38: {
    VM_ARG("symbol?",any,a);
 
-     vm_push(vm, to(Bool,(is(Symbol, a)))); 
+     vm_push(vm, to(Bool,(is(Symbol, a))));
     break;
   }
 
   case 39: {
    VM_ARG("intern",String,a);
 
-    vm_push(vm, intern(vm, a)); 
+    vm_push(vm, intern(vm, a));
     break;
   }
 
   case 40: {
 
-    vm_push(vm, vm_print_stack_trace(vm)); 
+    vm_push(vm, vm_print_stack_trace(vm));
     break;
   }
 
   case 41: {
 
-    vm_push(vm, vm_print_debug_stack_trace(vm)); 
+    vm_push(vm, vm_print_debug_stack_trace(vm));
     break;
   }
 
   case 42: {
    VM_ARG("set-pixel",Point,p);
 
-    vm_push(vm, gfx_set_pixel(vm, p)); 
+    vm_push(vm, gfx_set_pixel(vm, p));
     break;
   }
 
@@ -1198,7 +1209,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("point+",Point,b);
    VM_ARG("point+",Point,a);
 
-     vm_push(vm, to(Point,(a + b))); 
+     vm_push(vm, to(Point,(a + b)));
     break;
   }
 
@@ -1206,7 +1217,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("point-",Point,b);
    VM_ARG("point-",Point,a);
 
-     vm_push(vm, to(Point,(a - b))); 
+     vm_push(vm, to(Point,(a - b)));
     break;
   }
 
@@ -1214,21 +1225,21 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("make-point",Fixnum,b);
    VM_ARG("make-point",Fixnum,a);
 
-     vm_push(vm, to(Point,((point){(s32)a, (s32)b}))); 
+     vm_push(vm, to(Point,((point){(s32)a, (s32)b})));
     break;
   }
 
   case 46: {
    VM_ARG("point-x",Point,p);
 
-     vm_push(vm, to(Fixnum,((s64)p.x))); 
+     vm_push(vm, to(Fixnum,((s64)p.x)));
     break;
   }
 
   case 47: {
    VM_ARG("point-y",Point,p);
 
-     vm_push(vm, to(Fixnum,((s64)p.y))); 
+     vm_push(vm, to(Fixnum,((s64)p.y)));
     break;
   }
 
@@ -1236,7 +1247,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("point-rotate",Float,degrees);
    VM_ARG("point-rotate",Point,p);
 
-     vm_push(vm, to(Point,(rotate_point(p, degrees)))); 
+     vm_push(vm, to(Point,(rotate_point(p, degrees))));
     break;
   }
 
@@ -1245,7 +1256,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("screen-fill-rect",Point,b);
    VM_ARG("screen-fill-rect",Point,a);
 
-    vm_push(vm, gfx_screen_fill_rect(vm, a, b, color)); 
+    vm_push(vm, gfx_screen_fill_rect(vm, a, b, color));
     break;
   }
 
@@ -1255,7 +1266,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("blit-to-screen",Point,p);
    VM_ARG("blit-to-screen",Image,img);
 
-    vm_push(vm, gfx_blit_image_at(vm, img, p, scale, rot)); 
+    vm_push(vm, gfx_blit_image_at(vm, img, p, scale, rot));
     break;
   }
 
@@ -1265,7 +1276,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("fill-rect",Point,a);
    VM_ARG("fill-rect",Image,dst);
 
-    vm_push(vm, gfx_fill_rect(dst, a, b, color)); 
+    vm_push(vm, gfx_fill_rect(dst, a, b, color));
     break;
   }
 
@@ -1274,7 +1285,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("clear-rect",Point,a);
    VM_ARG("clear-rect",Image,dst);
 
-    vm_push(vm, gfx_clear_rect(dst, a, b)); 
+    vm_push(vm, gfx_clear_rect(dst, a, b));
     break;
   }
 
@@ -1287,7 +1298,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("blit",Image,dst);
    VM_ARG("blit",Image,src);
 
-    vm_push(vm, gfx_blit(src, dst, at, ul, lr, scale, degrees_rotation)); 
+    vm_push(vm, gfx_blit(src, dst, at, ul, lr, scale, degrees_rotation));
     break;
   }
 
@@ -1308,7 +1319,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     vm_push(vm, gfx_blit_image_with_mask(src, dst, msk, at,
   points_to_rect(src_ul, src_lr), src_scale, src_rot,
   points_to_rect(msk_ul, msk_lr), msk_scale, msk_rot
-)); 
+));
     break;
   }
 
@@ -1320,14 +1331,14 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("blit-from-screen",Point,at);
    VM_ARG("blit-from-screen",Image,dst);
 
-    vm_push(vm, gfx_blit_from_screen(vm, dst, at, ul, lr, scale, degrees_rotation)); 
+    vm_push(vm, gfx_blit_from_screen(vm, dst, at, ul, lr, scale, degrees_rotation));
     break;
   }
 
   case 56: {
    VM_ARG("load-image",String,path);
 
-    vm_push(vm, gfx_load_image(vm, path)); 
+    vm_push(vm, gfx_load_image(vm, path));
     break;
   }
 
@@ -1335,21 +1346,21 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("make-image",Fixnum,h);
    VM_ARG("make-image",Fixnum,w);
 
-    vm_push(vm, gfx_make_image(vm, w, h)); 
+    vm_push(vm, gfx_make_image(vm, w, h));
     break;
   }
 
   case 58: {
    VM_ARG("image-width",Image,img);
 
-     vm_push(vm, to(Fixnum,(image_width(img)))); 
+     vm_push(vm, to(Fixnum,(image_width(img))));
     break;
   }
 
   case 59: {
    VM_ARG("image-height",Image,img);
 
-     vm_push(vm, to(Fixnum,(image_height(img)))); 
+     vm_push(vm, to(Fixnum,(image_height(img))));
     break;
   }
 
@@ -1357,14 +1368,14 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("char-code-at",Fixnum,idx);
    VM_ARG("char-code-at",String,str);
 
-     vm_push(vm, to(Fixnum,(string_char_code_at(vm, str, idx)))); 
+     vm_push(vm, to(Fixnum,(string_char_code_at(vm, str, idx))));
     break;
   }
 
   case 61: {
    VM_ARG("char-code",Char,ch);
 
-     vm_push(vm, to(Fixnum,((s64)ch))); 
+     vm_push(vm, to(Fixnum,((s64)ch)));
     break;
   }
 
@@ -1372,7 +1383,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("char-at",Fixnum,idx);
    VM_ARG("char-at",String,str);
 
-     vm_push(vm, to(Char,(string_char_at(vm, str, idx)))); 
+     vm_push(vm, to(Char,(string_char_at(vm, str, idx))));
     break;
   }
 
@@ -1381,7 +1392,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("char-at-put",Fixnum,idx);
    VM_ARG("char-at-put",String,str);
 
-    vm_push(vm, string_set_char_at(vm, str, idx, ch)); 
+    vm_push(vm, string_set_char_at(vm, str, idx, ch));
     break;
   }
 
@@ -1389,7 +1400,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("char-<",Char,b);
    VM_ARG("char-<",Char,a);
 
-     vm_push(vm, to(Bool,(a < b))); 
+     vm_push(vm, to(Bool,(a < b)));
     break;
   }
 
@@ -1397,7 +1408,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("char->",Char,b);
    VM_ARG("char->",Char,a);
 
-     vm_push(vm, to(Bool,(a > b))); 
+     vm_push(vm, to(Bool,(a > b)));
     break;
   }
 
@@ -1405,21 +1416,21 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("make-string",Char,ch);
    VM_ARG("make-string",Fixnum,len);
 
-    vm_push(vm, make_filled_string(vm, len, ch)); 
+    vm_push(vm, make_filled_string(vm, len, ch));
     break;
   }
 
   case 67: {
    VM_ARG("string-length",String,str);
 
-     vm_push(vm, to(Fixnum,(string_length(str)))); 
+     vm_push(vm, to(Fixnum,(string_length(str))));
     break;
   }
 
   case 68: {
    VM_ARG("set-stack-mark",any,m);
 
-    vm_push(vm, vm_set_stack_mark(vm, m)); 
+    vm_push(vm, vm_set_stack_mark(vm, m));
     break;
   }
 
@@ -1427,7 +1438,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("snapshot-to-stack-mark",any,v);
    VM_ARG("snapshot-to-stack-mark",any,m);
 
-    vm_push(vm, vm_abort_to_mark(vm, m, v)); 
+    vm_push(vm, vm_abort_to_mark(vm, m, v));
     break;
   }
 
@@ -1435,21 +1446,28 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("resume-stack-snapshot",any,arg);
    VM_ARG("resume-stack-snapshot",any,s);
 
-    vm_push(vm, vm_resume_stack_snapshot(vm, s, arg)); 
+    vm_push(vm, vm_resume_stack_snapshot(vm, s, arg));
     break;
   }
 
   case 71: {
    VM_ARG("continuation?",any,a);
 
-     vm_push(vm, to(Bool,(is(cont, a)))); 
+     vm_push(vm, to(Bool,(is(cont, a))));
     break;
   }
 
   case 72: {
    VM_ARG("continuation-value",any,a);
 
-    vm_push(vm, cont_get_value(a)); 
+    vm_push(vm, cont_get_value(a));
+    break;
+  }
+
+  case 73: {
+   VM_ARG("slurp",String,path);
+
+    vm_push(vm, slurp(vm, path));
     break;
   }
 

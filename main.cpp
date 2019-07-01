@@ -4218,6 +4218,35 @@ Ptr compile_to_closure(VM *vm, Ptr expr) {
   return closure;
 }
 
+const char *read_file_contents(string path) {
+  ifstream istream(path);
+  stringstream buffer;
+  buffer << istream.rdbuf();
+  auto str = buffer.str();
+  // TODO: does this require freeing later?
+  auto cstr = str.c_str();
+  auto len = strlen(cstr) + 1;
+  auto mem = (char *)calloc(len, 1);
+  strcpy(mem, (char *)cstr);
+  return (const char *)mem;
+}
+
+const char *bao_to_c_string(ByteArrayObject *bao) {
+  auto len = bao->length + 1;
+  auto mem = (char *)calloc(len, 1);
+  memcpy(mem, &bao->data, len - 1);
+  return mem;
+}
+
+Ptr slurp(VM *vm, ByteArrayObject* path) {
+  auto c_path = bao_to_c_string(path);
+  auto c_str = read_file_contents(c_path);
+  free((char *)c_path);
+  auto result = make_string(vm, c_str);
+  free((char *)c_str);
+  return result;
+}
+
 #include "./primop-generated.cpp"
 
 /* -------------------------------------------------- */
@@ -4361,19 +4390,6 @@ void start_up_and_run_repl() {
     auto result = run_string(vm, input.c_str());
     cout << result << endl;
   }
-}
-
-const char *read_file_contents(string path) {
-  ifstream istream(path);
-  stringstream buffer;
-  buffer << istream.rdbuf();
-  auto str = buffer.str();
-  // TODO: does this require freeing later?
-  auto cstr = str.c_str();
-  auto len = strlen(cstr) + 1;
-  auto mem = (char *)calloc(len, 1);
-  strcpy(mem, (char *)cstr);
-  return (const char *)mem;
 }
 
 auto run_file(string path, bool soak_test) {

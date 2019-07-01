@@ -487,10 +487,10 @@ meta mymeta {
 (match-map eval 'meta-main "
 (print `(hello world))
 meta Test {
-space   = any:ch ?(whitespace-char? ch) -> ch
-ws      = space*:chs                    -> chs
-digit   = any:ch ?(digit-char? ch)      -> (char-to-digit ch)
-int     = ws digit+:ds ws               -> (make-integer ds)
+  space   = any:ch ?(whitespace-char? ch) -> ch
+  ws      = space*:chs                    -> chs
+  digit   = any:ch ?(digit-char? ch)      -> (char-to-digit ch)
+  int     = ws digit+:ds ws               -> (make-integer ds)
 }
 (print `(did we do it?))
 ")
@@ -502,7 +502,19 @@ int     = ws digit+:ds ws               -> (make-integer ds)
 123 456 789
 ")
 (pop-meta-context)
-(print "you tell me.")
 
+(define (meta1-runfile path)
+    (let ((input (slurp path)))
+      (push-meta-context 'Meta)
+      (match-map eval 'meta-main input)
+      (pop-meta-context)))
+
+(meta1-runfile "./meta-1.testfile0.lisp")
+
+(push-meta-context 'testfile)
+(match-map print 'int "
+123 456 789
+")
+(pop-meta-context)
 
 'bye

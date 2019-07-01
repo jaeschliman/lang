@@ -387,6 +387,14 @@
     (where (character-name? (charlist-to-string -name)))
     (return (char-by-name (charlist-to-string -name))))
 
+(define-rule non-quote
+    (set! x any)
+  (where (not (eq x #\")))
+  (return x))
+
+(define-rule string
+    #\" (set! -chars (* non-quote)) #\" (return (charlist-to-string -chars)))
+
 (define (symbol-char x) ;; TODO: convert to lookup table
     (or (char-between x #\a #\z)
         (char-between x #\* #\-)
@@ -423,15 +431,15 @@
 (define-rule quotation
     (or quoted quasiquoted unquoted-splicing unquoted))
 
-(define-rule token
-    ws (set! x (or character integer symbol)) ws
+(define-rule atom
+    ws (set! x (or character integer symbol string)) ws
     (return x))
 
 (define-rule expr
     (or (seq ws #\( (set! x (* expr)) #\) ws
              (return x))
         quotation
-        token))
+        atom))
 
 (pop-meta-context)
 (ht-at-put meta-by-name 'Meta (make-meta 'Base))

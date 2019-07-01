@@ -10,5 +10,12 @@ meta testfile {
 ;; test comment
 (print `(we have characters #\a #\b #c #\; #\*)) ; test comment 2
 
+(print "single-line a string!") 
+
+(print "multi
+line
+string
+!")
+
 (print `(so long from ; internal test comment
             testfile))

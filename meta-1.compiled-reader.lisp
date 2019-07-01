@@ -470,6 +470,14 @@
              (lambda (acc hx) (+i (hex-char-value hx) (*i 16 acc)))
              0 x)))
 
+(define-rule true #\# #\t (return #t))
+(define-rule false #\# #\f (return #f))
+(define-rule boolean (or true false))
+
+(define-rule atom
+    ws (set! x (or boolean character hex-integer float point integer symbol string)) ws
+    (return x))
+
 (define-rule quoted
     #\' ws (set! x expr) (return (list 'quote x)))
 (define-rule quasiquoted
@@ -482,9 +490,6 @@
 (define-rule quotation
     (or quoted quasiquoted unquoted-splicing unquoted))
 
-(define-rule atom
-    ws (set! x (or character hex-integer float point integer symbol string)) ws
-    (return x))
 
 (define-rule expr
     (or (seq ws #\( (set! x (* expr)) #\) ws
@@ -612,6 +617,7 @@
       (pop-meta-context)))
 
 (meta1-runfile "./meta-1.testfile0.lisp")
+;; (meta1-runfile "./cow-storm.lisp")
 
 (push-meta-context 'testfile)
 (match-map print 'int "

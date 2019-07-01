@@ -617,7 +617,6 @@
       (pop-meta-context)))
 
 (meta1-runfile "./meta-1.testfile0.lisp")
-;; (meta1-runfile "./cow-storm.lisp")
 
 (push-meta-context 'testfile)
 (match-map print 'int "

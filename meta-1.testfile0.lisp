@@ -7,6 +7,8 @@ meta testfile {
   int     = ws digit+:ds ws               -> (make-integer ds)
 }
 
-(print `(we have characters #\a #\b #c #\; #\*))
+;; test comment
+(print `(we have characters #\a #\b #c #\; #\*)) ; test comment 2
 
-(print `(so long from testfile))
+(print `(so long from ; internal test comment
+            testfile))

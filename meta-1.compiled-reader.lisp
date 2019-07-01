@@ -365,6 +365,20 @@
 (ht-at-put meta-by-name 'Lisp (make-meta 'Base))
 (push-meta-context 'Lisp)
 
+(define-rule eol
+    (or #\Return #\Newline nothing))
+(define-rule non-eol
+    (set! x any)
+  (where (not (or (eq x #\Return)
+                  (eq x #\Newline))))
+  (return x))
+
+(define-rule comment
+    #\; (* non-eol) eol)
+
+(define-rule ws
+    (* (or space comment)))
+
 (define (character-name? str)
     (not (nil? (char-by-name str))))
 

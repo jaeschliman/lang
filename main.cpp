@@ -2684,6 +2684,11 @@ void vm_handle_error(VM *vm) {
   vm->error = 0;
   vm_unwind_to_mark(vm, KNOWN(exception));
   vm_push(vm, ex);
+  // TODO: better uncaught exception handling than a hard exit would be nice.
+  if (!vm->frame->prev_frame) {
+    dbg("Uncaught exception at top level: ", ex);
+    exit(1);
+  }
 }
 
 void _vm_copy_stack_snapshot_args_to_stack(VM *vm, StackFrameObject *fr) {

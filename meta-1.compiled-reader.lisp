@@ -444,6 +444,10 @@
                  (lambda (acc n) (*f 0.1 (+f (i->f n) acc)))
                  0.0 (reverse-list y)))))
 
+(define-rule point
+    (set! x integer) #\@ (set! y integer)
+    (return (make-point x y)))
+
 (define-rule quoted
     #\' ws (set! x expr) (return (list 'quote x)))
 (define-rule quasiquoted
@@ -457,7 +461,7 @@
     (or quoted quasiquoted unquoted-splicing unquoted))
 
 (define-rule atom
-    ws (set! x (or character float integer symbol string)) ws
+    ws (set! x (or character float point integer symbol string)) ws
     (return x))
 
 (define-rule expr

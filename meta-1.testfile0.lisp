@@ -21,6 +21,7 @@ string
 (print "string with \n some escape \t chars like \\n and \\t")
 
 (print `(got some floats 0.1 1.2345 0.5 876.1234 3.14159))
+(print `(got some points 0@0 234@456))
 
 (print `(so long from ; internal test comment
             testfile))

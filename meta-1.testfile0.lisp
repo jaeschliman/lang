@@ -22,6 +22,7 @@ string
 
 (print `(got some floats 0.1 1.2345 0.5 876.1234 3.14159))
 (print `(got some points 0@0 234@456))
+(print `(read some hex 0x0 0xf 0x10 0xff 0x100))
 
 (print `(so long from ; internal test comment
             testfile))

@@ -448,6 +448,22 @@
     (set! x integer) #\@ (set! y integer)
     (return (make-point x y)))
 
+(define-rule hex-char
+    (set! x any) (where (or (char-between x #\0 #\9)
+                            (char-between x #\a #\f)))
+    (return x))
+
+(define (hex-char-value ch)
+    (if (char-between ch #\a #\f)
+        (+i 10 (-i (char-code ch) (char-code #\a)))
+        (-i (char-code ch) (char-code #\0))))
+
+(define-rule hex-integer
+    #\0 #\x (set! x (+ hex-char))
+    (return (reduce-list
+             (lambda (acc hx) (+i (hex-char-value hx) (*i 16 acc)))
+             0 x)))
+
 (define-rule quoted
     #\' ws (set! x expr) (return (list 'quote x)))
 (define-rule quasiquoted
@@ -461,7 +477,7 @@
     (or quoted quasiquoted unquoted-splicing unquoted))
 
 (define-rule atom
-    ws (set! x (or character float point integer symbol string)) ws
+    ws (set! x (or character hex-integer float point integer symbol string)) ws
     (return x))
 
 (define-rule expr

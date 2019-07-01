@@ -60,4 +60,12 @@
            (lambda (ex)
              (print ex)))
 
+(try-catch (lambda ()
+             (print 'hello)
+             (*f 1.0 1) ;; catch a type error
+             (print 'whoops))
+           (lambda (ex)
+             (print `(caught ,ex))
+             (print 'world)))
+
 'done

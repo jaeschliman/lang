@@ -1389,7 +1389,7 @@ struct Globals {
   Ptr env; // the global environment (currently an alist)
   Ptr call1;
   struct {
-    Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean, _quasiquote, _unquote, _unquote_splicing, _compiler, _set_bang;
+    Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean, _quasiquote, _unquote, _unquote_splicing, _compiler, _set_bang, _exception;
   } known;
 };
 
@@ -1665,7 +1665,7 @@ void gc_update_globals(VM *vm) {
 
   update_symbols(lambda, quote, let, if, fixnum, cons, string);
   update_symbols(array, character, boolean, quasiquote, unquote, unquote_splicing);
-  update_symbols(compiler, set_bang);
+  update_symbols(compiler, set_bang, exception);
 
 }
 
@@ -2025,7 +2025,7 @@ Ptr intern(VM *vm, string name) {
 void initialize_known_symbols(VM *vm) {
 
   auto globals = vm->globals;
-  _init_symbols(lambda, quote, let, if, fixnum, cons, string, array, character, boolean, quasiquote, unquote, compiler);
+  _init_symbols(lambda, quote, let, if, fixnum, cons, string, array, character, boolean, quasiquote, unquote, compiler, exception);
   globals->known._unquote_splicing = intern(vm, "unquote-splicing");
   globals->known._set_bang = intern(vm, "set!");
 
@@ -2679,6 +2679,13 @@ Ptr vm_abort_to_mark(VM *vm, Ptr mark, Ptr value) { prot_ptrs(mark, value);
   return cont;
 }
 
+void vm_handle_error(VM *vm) {
+  Ptr ex = make_string(vm, vm->error); // TODO: signal better errors than just strings
+  vm->error = 0;
+  vm_unwind_to_mark(vm, KNOWN(exception));
+  vm_push(vm, ex);
+}
+
 void _vm_copy_stack_snapshot_args_to_stack(VM *vm, StackFrameObject *fr) {
   // dbg("restoring items to stack");
   // for (u64 i = 0; i < fr->argc; i++) {
@@ -2879,6 +2886,7 @@ Ptr class_set_method(VM *vm, StandardObject *klass, ByteArrayObject* sym, Ptr ca
 }
 
 inline Ptr giant_switch(VM *vm, u32 argc, u32 idx);
+void vm_handle_error(VM *vm);
 
 // @speed would be nice to have less indirection here,
 //        but need to integrate with stack push/pop and gc both
@@ -3095,9 +3103,10 @@ void vm_interp(VM* vm) {
       return;
     }
     if (vm->error) {
-      dbg("ERROR:", vm->error);
-      vm_print_debug_stack_trace(vm);
-      return;
+      // dbg("ERROR:", vm->error);
+      // vm_print_debug_stack_trace(vm);
+      // return;
+      vm_handle_error(vm);
     };
     ++vm->pc;
   }
@@ -4312,6 +4321,7 @@ VM *vm_create() {
   // so we have a root frame
   auto bc = (new BCBuilder(vm))->build();
   vm_push_stack_frame(vm, 0, bc, Nil);
+  vm->frame->mark = KNOWN(exception);
 
   // load the stdlib
   load_file(vm, "./boot.lisp");
@@ -4465,6 +4475,7 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
   }
 
   vm_push_stack_frame(vm, 0, bc, Nil);
+  vm->frame->mark = KNOWN(exception);
   vm_interp(vm);
   auto result = vm_pop(vm);
   vm_pop_stack_frame(vm);

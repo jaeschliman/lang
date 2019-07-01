@@ -327,6 +327,18 @@
   (where (whitespace-char? x))
   (return x)) 
 
+(define-rule constituent
+    (set! x any)
+  (where (not (or
+               (whitespace-char? x)
+               (eq x #\))
+               (eq x #\()
+               (eq x #\[)
+               (eq x #\])
+               (eq x #\{)
+               (eq x #\}))))
+  (return x))
+
 (define-rule non-space
   (set! x any)
   (where (not (whitespace-char? x)))
@@ -357,7 +369,7 @@
     (not (nil? (char-by-name str))))
 
 (define-rule character
-    #\# #\\ (set! -name (+ non-space))
+    #\# #\\ (set! -name (+ constituent))
     (where (character-name? (charlist-to-string -name)))
     (return (char-by-name (charlist-to-string -name))))
 
@@ -468,20 +480,20 @@
   (return -it))
 
 
-(dbg meta-main "
-meta mymeta {
-  alpha   = any:ch ?(alphap ch) -> ch
-  digit   = any:ch ?(isdigi ch) -> (chdigi ch)
-  integer = digit+ :ds          -> (mknum ds)
-  name    = alpha+ :as          -> (implode as)
-  atom    = integer | name
-}
-")
+;; (dbg meta-main "
+;; meta mymeta {
+;;   alpha   = any:ch ?(alphap ch) -> ch
+;;   digit   = any:ch ?(isdigi ch) -> (chdigi ch)
+;;   integer = digit+ :ds          -> (mknum ds)
+;;   name    = alpha+ :as          -> (implode as)
+;;   atom    = integer | name
+;; }
+;; ")
 
-(dbg meta-main "
-(defmacro reset-tag (tag & body)
-  `(run-reset ,tag (lambda () ,@body)))
-")
+;; (dbg meta-main "
+;; (defmacro reset-tag (tag & body)
+;;   `(run-reset ,tag (lambda () ,@body)))
+;; ")
 
 (define (whitespace-char? ch)
     (or (eq ch #\Space)
@@ -501,24 +513,24 @@ meta mymeta {
 ;; ws = space*
 ;; eats the beginning of the next rule and fails
 
-(match-map eval 'meta-main "
-(print `(hello world))
-meta Test {
-  space   = any:ch ?(whitespace-char? ch) -> ch
-  ws      = space*:chs                    -> chs
-  digit   = any:ch ?(digit-char? ch)      -> (char-to-digit ch)
-  int     = ws digit+:ds ws               -> (make-integer ds)
-}
-(print `(did we do it?))
-")
+;; (match-map eval 'meta-main "
+;; (print `(hello world))
+;; meta Test {
+;;   space   = any:ch ?(whitespace-char? ch) -> ch
+;;   ws      = space*:chs                    -> chs
+;;   digit   = any:ch ?(digit-char? ch)      -> (char-to-digit ch)
+;;   int     = ws digit+:ds ws               -> (make-integer ds)
+;; }
+;; (print `(did we do it?))
+;; ")
 
 (pop-meta-context)
 
-(push-meta-context 'Test)
-(match-map print 'int "
-123 456 789
-")
-(pop-meta-context)
+;; (push-meta-context 'Test)
+;; (match-map print 'int "
+;; 123 456 789
+;; ")
+;; (pop-meta-context)
 
 (define (meta1-runfile path)
     (let ((input (slurp path)))

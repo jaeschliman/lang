@@ -17,5 +17,8 @@ line
 string
 !")
 
+(print "string with \"quotation\"!")
+(print "string with \n some escape \t chars like \\n and \\t")
+
 (print `(so long from ; internal test comment
             testfile))

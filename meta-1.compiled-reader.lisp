@@ -389,11 +389,27 @@
 
 (define-rule non-quote
     (set! x any)
-  (where (not (eq x #\")))
+  (where (not (or (eq x #\")
+                  (eq x #\\))))
   (return x))
 
+(define (escaped-char-character ch)
+    (case ch
+         (#\n #\Newline)
+         (#\r #\Return)
+         (#\t #\Tab)
+         (#\\ #\\)
+         (#\" #\")))
+
+(define-rule escaped-char
+    #\\ (set! x any) (return (escaped-char-character x)))
+
+(define-rule string-char
+    (or non-quote escaped-char))
+
 (define-rule string
-    #\" (set! -chars (* non-quote)) #\" (return (charlist-to-string -chars)))
+    #\" (set! -chars (* string-char)) #\"
+    (return (charlist-to-string -chars)))
 
 (define (symbol-char x) ;; TODO: convert to lookup table
     (or (char-between x #\a #\z)

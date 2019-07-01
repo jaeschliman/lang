@@ -7,4 +7,6 @@ meta testfile {
   int     = ws digit+:ds ws               -> (make-integer ds)
 }
 
+(print `(we have characters #\a #\b #c #\; #\*))
+
 (print `(so long from testfile))

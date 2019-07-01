@@ -318,10 +318,18 @@
         (and (char-< a b)
              (char-< b c))))
 
+(define (whitespace-char? x)
+    (or (eq x #\Space)
+        (char-< x #\Space)) )
+
 (define-rule space
   (set! x any)
-  (where (or (eq x #\Space)
-             (char-< x #\Space)))
+  (where (whitespace-char? x))
+  (return x)) 
+
+(define-rule non-space
+  (set! x any)
+  (where (not (whitespace-char? x)))
   (return x))
 
 (define-rule ws (* space))
@@ -341,8 +349,17 @@
     (set! x (+ alpha))
   (return (implode x)))
 
+
 (ht-at-put meta-by-name 'Lisp (make-meta 'Base))
 (push-meta-context 'Lisp)
+
+(define (character-name? str)
+    (not (nil? (char-by-name str))))
+
+(define-rule character
+    #\# #\\ (set! -name (+ non-space))
+    (where (character-name? (charlist-to-string -name)))
+    (return (char-by-name (charlist-to-string -name))))
 
 (define (symbol-char x) ;; TODO: convert to lookup table
     (or (char-between x #\a #\z)
@@ -381,7 +398,7 @@
     (or quoted quasiquoted unquoted-splicing unquoted))
 
 (define-rule token
-    ws (set! x (or integer symbol)) ws
+    ws (set! x (or character integer symbol)) ws
     (return x))
 
 (define-rule expr

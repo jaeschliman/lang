@@ -25,8 +25,16 @@
 #include <chrono>
 #include <thread>
 #include <bitset>
+#include <unistd.h> 
+#include <stdio.h> 
+#include <sys/socket.h> 
+#include <stdlib.h> 
+#include <netinet/in.h>
+#include <fcntl.h>
 #include "./stacktrace.h"
 #include "./macro_support.h"
+
+using std::string;
 
 #define GC_DEBUG 0
 #define PRIM_USE_GIANT_SWITCH 1
@@ -44,8 +52,6 @@
 #define maybe_unused(x) (void)(x)
 #define KNOWN(symbol) vm->globals->known._##symbol
 #define _deg_to_rad(x) (x) * (M_PI / 180.0f)
-
-using namespace std;
 
 typedef unsigned int uint;
 typedef uint64_t u64;
@@ -266,9 +272,9 @@ struct VM {
   u64 gc_threshold_in_bytes;
   u64 gc_compacted_size_in_bytes;
   u64 allocation_high_watermark;
-  unordered_map<Object **, u64> *gc_protected;
-  unordered_map<Ptr *, u64> *gc_protected_ptrs;
-  unordered_map<Ptr *, u64> *gc_protected_ptr_vectors;
+  std::unordered_map<Object **, u64> *gc_protected;
+  std::unordered_map<Ptr *, u64> *gc_protected_ptrs;
+  std::unordered_map<Ptr *, u64> *gc_protected_ptr_vectors;
   blit_surface *surface;
 };
 
@@ -300,13 +306,13 @@ inline u64 vm_heap_used(VM *vm) {
 }
 
 #define _ostream_prefix(x) << x
-#define die(...) do {                                   \
-    print_stacktrace(stderr, 128);                      \
-    cerr MAP(_ostream_prefix, __VA_ARGS__) << endl;     \
-    exit(1);                                            \
+#define die(...) do {                                         \
+    print_stacktrace(stderr, 128);                            \
+    std::cerr MAP(_ostream_prefix, __VA_ARGS__) << std::endl; \
+    exit(1);                                                  \
   } while(0)
 
-#define dbg(...) cerr MAP(_ostream_prefix, __VA_ARGS__) << endl
+#define dbg(...) std::cerr MAP(_ostream_prefix, __VA_ARGS__) << std::endl
 
 void gc(VM *vm);
 
@@ -323,7 +329,7 @@ void * vm_alloc(VM *vm, u64 bytes) {
   u64 threshold = vm->gc_threshold_in_bytes;
 
   u64 last_byte_count = vm->gc_compacted_size_in_bytes;
-  u64 limit = min(threshold + last_byte_count, vm->heap_size_in_bytes);
+  u64 limit = std::min(threshold + last_byte_count, vm->heap_size_in_bytes);
 
   if (used_byte_count > limit && !vm->gc_disabled && !vm->in_gc) {
       vm->heap_end = preserved_heap_end;
@@ -352,8 +358,8 @@ void * vm_alloc(VM *vm, u64 bytes) {
 void report_memory_usage(VM *vm) {
   double byte_count = (u64)vm->heap_end - (u64)vm->heap_mem;
   double max_byte_count = vm->allocation_high_watermark;
-  cerr << " heap used MB: " << (byte_count / (1024 * 1024));
-  cerr << " max heap used MB: " << (max_byte_count / (1024 * 1024)) << endl;
+  std::cerr << " heap used MB: " << (byte_count / (1024 * 1024));
+  std::cerr << " max heap used MB: " << (max_byte_count / (1024 * 1024)) << std::endl;
 }
 
 /* -------------------------------------------------- */
@@ -1131,8 +1137,8 @@ typedef void(*DebugPrintFunction)(std::ostream &os, Ptr p);
 
 DebugPrintFunction StructPrintTable[StructTag_End] = {0};
 
-unordered_map<string, char> character_codes_by_name;
-unordered_map<char, string> character_names_by_code;
+std::unordered_map<string, char> character_codes_by_name;
+std::unordered_map<char, string> character_names_by_code;
 
 void initialize_character_names() {
 #define X(code, name) character_codes_by_name[name] = code;
@@ -1203,11 +1209,11 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
   case Standard_ObjectType: {
     auto sobj = (StandardObject *)obj;
     auto name = standard_object_get_ivar(sobj->klass, BaseClassName);
-    cout << "#<A " << as(Object, name) << " " << (void*)obj << ">";
+    std::cout << "#<A " << as(Object, name) << " " << (void*)obj << ">";
     return os;
   }
   case ByteCode_ObjectType: {
-    cout << "#<ByteCode " << (void*)obj << ">";
+    std::cout << "#<ByteCode " << (void*)obj << ">";
     return os;
   }
   case U64Array_ObjectType: {
@@ -1222,7 +1228,7 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
     return os << "#<GC Broken Heart>";
   }
   }
-  return os << "don't know how to print object: " << otype << (void*)obj << endl;
+  return os << "don't know how to print object: " << otype << (void*)obj << std::endl;
 }
 
 std::ostream &operator<<(std::ostream &os, Ptr it) {
@@ -1253,21 +1259,21 @@ void vm_dump_args(VM *vm) {
   }
 }
 
-void _debug_walk(VM *vm, Ptr it, set<u64>*seen) {
+void _debug_walk(VM *vm, Ptr it, std::set<u64>*seen) {
   map_refs(vm, it, [&](Ptr p){
       if (seen->find(p.value) != seen->end()) return;
       seen->insert(p.value);
-      cout << "    " << p << endl;
+      std::cout << "    " << p << std::endl;
       _debug_walk(vm, p, seen);
     });
 }
 
 void debug_walk(VM *vm, Ptr it) {
-  set<u64> seen;
-  cout << "DEBUG WALK::" << endl;
+  std::set<u64> seen;
+  std::cout << "DEBUG WALK::" << std::endl;
   // TODO: print out `it` as well :P
   _debug_walk(vm, it, &seen);
-  cout << "========================================" << endl << endl;
+  std::cout << "========================================" << std::endl << std::endl;
 }
 
 // @unsafe
@@ -1330,7 +1336,7 @@ void vm_debug_print_stack_top(VM *vm) {
 
 void vm_debug_print_stackframe_args(VM *vm, StackFrameObject *fr) {
   dbg(" printing stack frame args: arg=", fr->argc, " pac =", fr->preserved_argc);
-    for (auto i = 0; i < fr->argc; i++) {
+    for (u64 i = 0; i < fr->argc; i++) {
       auto it = fr->argv[i + fr->pad_count];
       dbg("     : ", it);
     }
@@ -1342,11 +1348,11 @@ void vm_debug_print_stackframe_args(VM *vm, StackFrameObject *fr) {
 Ptr vm_print_debug_stack_trace(VM *vm) {
   StackFrameObject *fr = vm->frame;
   debug_walk(vm, objToPtr(fr));
-  cerr << "----------------------------------------" << endl;
+  std::cerr << "----------------------------------------" << std::endl;
   vm_map_stack_refs(vm, [&](Ptr it){
-      cerr << "    " << it << endl;
+      std::cerr << "    " << it << std::endl;
     });
-  cerr << "----------------------------------------" << endl;
+  std::cerr << "----------------------------------------" << std::endl;
   return Nil;
 }
 
@@ -1385,7 +1391,7 @@ struct Globals {
     StandardObject *builtins[127];
 
   } classes;
-  unordered_map<string, Ptr> *symtab;
+  std::unordered_map<string, Ptr> *symtab;
   Ptr env; // the global environment (currently an alist)
   Ptr call1;
   struct {
@@ -1430,7 +1436,7 @@ Ptr class_of(VM *vm, Ptr it) {
 
 // @unsafe
 auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
-  set<u64> seen;
+  std::set<u64> seen;
   PtrFn recurse = [&](Ptr it) {
     if (!is(NonNilObject, it)) return;
     if (seen.find(it.value) != seen.end()) return;
@@ -1460,7 +1466,7 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
 void vm_count_reachable_refs(VM *vm) {
   u64 count = 0;
   vm_map_reachable_refs(vm, [&](Ptr it){ unused(it); count++; });
-  cout << "  " << count << "  reachable objects." << endl;
+  std::cout << "  " << count << "  reachable objects." << std::endl;
 }
 
 // @unsafe
@@ -1470,7 +1476,7 @@ void scan_heap(void *start, void*end, PtrFn fn) {
     auto it = objToPtr((Object *)start);
     auto offset = size_of(it);
     if (offset == 0) {
-      cout << " error while scanning heap." << endl;
+      std::cout << " error while scanning heap." << std::endl;
       return;
     }
     fn(it);
@@ -1481,8 +1487,8 @@ void scan_heap(void *start, void*end, PtrFn fn) {
 void vm_count_objects_on_heap(VM *vm) {
   u64 count = 0;
   scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it){ unused(it); count++; });
-  cout << " counted " << count << " objects on heap. " << endl;
-  cout << " allocation count is : " << vm->allocation_count << endl;
+  std::cout << " counted " << count << " objects on heap. " << std::endl;
+  std::cout << " allocation count is : " << vm->allocation_count << std::endl;
 }
 
 /* ---------------------------------------- */
@@ -1675,7 +1681,7 @@ void gc_update_globals(VM *vm) {
 
 void gc_copy_symtab(VM *vm) {
   auto old_symtab = vm->globals->symtab;
-  auto new_symtab = new unordered_map<string, Ptr>;
+  auto new_symtab = new std::unordered_map<string, Ptr>;
   for (auto pair : *old_symtab) {
     gc_update_ptr(vm, &pair.second);
     new_symtab->insert(pair);
@@ -1709,7 +1715,7 @@ inline void gc_protect_reference(VM *vm, Object **ref){
   auto map = vm->gc_protected;
   auto found = map->find(ref);
   if (found == map->end()) {
-    vm->gc_protected->insert(make_pair(ref, 1));
+    vm->gc_protected->insert(std::make_pair(ref, 1));
   } else {
     found->second++;
   }
@@ -1731,7 +1737,7 @@ inline void gc_protect_ptr(VM *vm, Ptr *ref){
   auto map = vm->gc_protected_ptrs;
   auto found = map->find(ref);
   if (found == map->end()) {
-    vm->gc_protected_ptrs->insert(make_pair(ref, 1));
+    vm->gc_protected_ptrs->insert(std::make_pair(ref, 1));
   } else {
     found->second++;
   }
@@ -1754,7 +1760,7 @@ inline void gc_protect_ptr_vector(VM *vm, Ptr *ref, u64 count){
   auto map = vm->gc_protected_ptr_vectors;
   auto found = map->find(ref);
   if (found == map->end()) {
-    map->insert(make_pair(ref, count));
+    map->insert(std::make_pair(ref, count));
   } else {
     if (found->second != count) {
       die("bad ptr vector protection");
@@ -1902,7 +1908,7 @@ Ptr make_list_rev(VM *vm, u64 len, Ptr* ptrs) { protect_ptr_vector(ptrs, len);
   return result;
 }
 
-void debug_print_list(ostream &os, Ptr p) {
+void debug_print_list(std::ostream &os, Ptr p) {
   os << "(" << car(p);
   p = cdr(p);
   while (!isNil(p)) {
@@ -2640,6 +2646,8 @@ Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
       nf->prev_fn = 0;
       nf->prev_frame = 0;
       nf->prev_stack = 0;
+      // dbg("tail frame closing over: ", nf->closed_over);
+      // nf->closed_over = Nil;
     }
 
     prev_fr = objToPtr(nf);
@@ -3119,7 +3127,7 @@ void vm_interp(VM* vm) {
 #undef vm_curr_instr
 #undef vm_adv_instr
 
-typedef tuple<u64*, string> branch_entry;
+typedef std::tuple<u64*, string> branch_entry;
 
 class BCBuilder {
 private:
@@ -3131,10 +3139,10 @@ private:
   bool is_varargs;
 
   ByteCodeObject *bc;
-  map<string, u64> *labelsMap; // label -> bc_index
-  vector<branch_entry> *branchLocations; // tuple of label and &bc_mem
+  std::map<string, u64> *labelsMap; // label -> bc_index
+  std::vector<branch_entry> *branchLocations; // tuple of label and &bc_mem
   u64 labelContextCounter;
-  vector<u64> *labelContextStack;
+  std::vector<u64> *labelContextStack;
   u64 labelContext;
 
   u64 *temp_count;
@@ -3164,7 +3172,7 @@ private:
   }
   string labelify(const char * raw_name) {
     string name = raw_name;
-    name += "____" + to_string(labelContext);
+    name += "____" + std::to_string(labelContext);
     return name;
   }
   BCBuilder* pushJumpLocation(const char* raw_name) {
@@ -3175,8 +3183,8 @@ private:
   }
   void fixupJumpLocations() {
     for (branch_entry it : *branchLocations) {
-      auto loc = get<0>(it);
-      auto lbl = get<1>(it);
+      auto loc = std::get<0>(it);
+      auto lbl = std::get<1>(it);
       auto tgt = (*labelsMap)[lbl];
       *loc = tgt;
     }
@@ -3211,11 +3219,11 @@ public:
     lit_index           = 0;
     bc_capacity         = 1024;
     bc_mem              = (u64 *)calloc(bc_capacity, 8);
-    labelsMap           = new map<string, u64>;
-    branchLocations     = new vector<branch_entry>;
+    labelsMap           = new std::map<string, u64>;
+    branchLocations     = new std::vector<branch_entry>;
     labelContextCounter = 0;
     labelContext        = labelContextCounter;
-    labelContextStack   = new vector<u64>;
+    labelContextStack   = new std::vector<u64>;
     is_varargs          = false;
 
     // cleaned up in finalizeByteCode
@@ -3686,7 +3694,7 @@ void emit_set_bang(VM *vm, BCBuilder *builder, Ptr it, Ptr env) { prot_ptrs(it, 
     // LAZY reusing argument_index
     builder->storeFrameRel(as(Fixnum, argument_index));
   } else {
-    cout << "unexpected variable scope: " << scope << endl;
+    std::cout << "unexpected variable scope: " << scope << std::endl;
     assert(false);
   }
   unprot_ptrs(it, env, sym, expr);
@@ -3913,7 +3921,7 @@ auto compile_toplevel_expression(VM *vm, Ptr it) {
 
 /* -------------------------------------------------- */
 
-Ptr primitive_print(Ptr a) { cout << a << endl; return a; }
+Ptr primitive_print(Ptr a) { std::cout << a << std::endl; return a; }
 
 Ptr gfx_set_pixel(VM *vm, point p) { // assumes 4 bytes pp
   auto surface = vm->surface;
@@ -3931,8 +3939,8 @@ void _gfx_fill_rect(blit_surface *dst, point a, point b, s64 color) {
   u32 pixel = color > 0 ? color : 0L;
   u8* over = (u8*)&pixel;
   auto alpha = over[3];
-  s64 max_x = min((s64)b.x, dst->width);
-  s64 max_y = min((s64)b.y, dst->height);
+  s64 max_x = std::min((s64)b.x, dst->width);
+  s64 max_y = std::min((s64)b.y, dst->height);
   if (alpha == 255) {
     for (s64 y = a.y; y < max_y; y++) {
       for (s64 x = a.x; x < max_x; x++) {
@@ -4023,8 +4031,10 @@ inline void blit_sampler_init(blit_sampler *s, blit_surface *src,
   s->row_v = s->src_y;
 
   // source sample range
-  s->min_x = max(from->x, 0LL); s->max_x = min(from->x + from->width,  src->width);
-  s->min_y = max(from->y, 0LL); s->max_y = min(from->y + from->height, src->height);
+  s->min_x = std::max(from->x, 0LL);
+  s->max_x = std::min(from->x + from->width,  src->width);
+  s->min_y = std::max(from->y, 0LL);
+  s->max_y = std::min(from->y + from->height, src->height);
 }
 
 inline void blit_sampler_start_row(blit_sampler *s) {
@@ -4068,8 +4078,8 @@ Ptr gfx_blit_image(blit_surface *src, blit_surface *dst,
     scan_width = scan_height = (u32)floorf(sqrtf(sw * sw + sh * sh));
   }
 
-  s32 right  = min((s32)scan_width, (s32)dst->width - at.x);
-  s32 bottom = min((s32)scan_height, (s32)dst->height - at.y);
+  s32 right  = std::min((s32)scan_width, (s32)dst->width - at.x);
+  s32 bottom = std::min((s32)scan_height, (s32)dst->height - at.y);
 
   blit_sampler bs_src;
   blit_sampler_init(&bs_src, src, scale, deg_rot, from);
@@ -4128,8 +4138,8 @@ Ptr _gfx_blit_image_with_mask(blit_surface *src, blit_surface *dst, blit_surface
     scan_width = scan_height = (u32)floorf(sqrtf(sw * sw + sh * sh));
   }
 
-  s32 right  = min((s32)scan_width, (s32)dst->width - at.x);
-  s32 bottom = min((s32)scan_height, (s32)dst->height - at.y);
+  s32 right  = std::min((s32)scan_width, (s32)dst->width - at.x);
+  s32 bottom = std::min((s32)scan_height, (s32)dst->height - at.y);
 
   blit_sampler bs_src;
   blit_sampler_init(&bs_src, src, scale, deg_rot, from);
@@ -4242,8 +4252,8 @@ Ptr compile_to_closure(VM *vm, Ptr expr) {
 }
 
 const char *read_file_contents(string path) {
-  ifstream istream(path);
-  stringstream buffer;
+  std::ifstream istream(path);
+  std::stringstream buffer;
   buffer << istream.rdbuf();
   auto str = buffer.str();
   // TODO: does this require freeing later?
@@ -4299,9 +4309,9 @@ VM *vm_create() {
   vm->gc_count = 0;
   vm->gc_threshold_in_bytes = 15.0 * 1024 * 1024;
 
-  vm->gc_protected = new unordered_map<Object **, u64>;
-  vm->gc_protected_ptrs = new unordered_map<Ptr *, u64>;
-  vm->gc_protected_ptr_vectors = new unordered_map<Ptr *, u64>;
+  vm->gc_protected = new std::unordered_map<Object **, u64>;
+  vm->gc_protected_ptrs = new std::unordered_map<Ptr *, u64>;
+  vm->gc_protected_ptr_vectors = new std::unordered_map<Ptr *, u64>;
   vm->gc_protected->reserve(100);
   vm->gc_protected_ptrs->reserve(100);
   vm->gc_protected_ptr_vectors->reserve(100);
@@ -4312,7 +4322,7 @@ VM *vm_create() {
   vm->error = 0;
 
   vm->globals = (Globals *)calloc(sizeof(Globals), 1);
-  vm->globals->symtab = new unordered_map<string, Ptr>;
+  vm->globals->symtab = new std::unordered_map<string, Ptr>;
   vm->globals->env = Nil;
 
   vm->gc_disabled = true;
@@ -4359,7 +4369,7 @@ Ptr eval(VM *vm, Ptr expr) { // N.B. should /not/ be exposed
   vm_pop_stack_frame(vm);
 
   if (vm->error) {
-    cerr << "VM ERROR: " << vm->error << endl;
+    std::cerr << "VM ERROR: " << vm->error << std::endl;
     exit(3);
   }
   return result;
@@ -4393,8 +4403,8 @@ void start_up_and_run_string(const char* str, bool soak) {
     if (soak) {
       vm_count_objects_on_heap(vm);
       vm_count_reachable_refs(vm);
-      cerr << " executed " << vm->instruction_count << " instructions." << endl;
-      cerr << " gc count: " << vm->gc_count;
+      std::cerr << " executed " << vm->instruction_count << " instructions." << std::endl;
+      std::cerr << " gc count: " << vm->gc_count;
       report_memory_usage(vm);
       // this_thread::sleep_for(chrono::milliseconds(10));
       // this_thread::sleep_for(chrono::milliseconds(100));
@@ -4408,11 +4418,11 @@ void start_up_and_run_string(const char* str, bool soak) {
 void start_up_and_run_repl() {
   VM *vm = vm_create();
   while (true) {
-    cout << "lang>";
+    std::cout << "lang>";
     string input;
-    getline(cin, input);
+    getline(std::cin, input);
     auto result = run_string(vm, input.c_str());
-    cout << result << endl;
+    std::cout << result << std::endl;
   }
 }
 
@@ -4491,8 +4501,8 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
 
 
 auto current_time_ms() {
-  auto now = chrono::system_clock::now();
-  auto ms = chrono::duration_cast<chrono::milliseconds>(now.time_since_epoch());
+  auto now = std::chrono::system_clock::now();
+  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
   return ms.count();
 }
 
@@ -4545,6 +4555,46 @@ void start_up_and_run_event_loop(const char *path) {
     SDL_UpdateWindowSurface(window);
   }
 
+#define PORT 8080
+  int server_fd, new_socket, valread; 
+  struct sockaddr_in address; 
+  int opt = 1; 
+  int addrlen = sizeof(address); 
+  char buffer[1024] = {0}; 
+  {
+    // Creating socket file descriptor 
+    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) { 
+      perror("socket failed"); 
+      exit(EXIT_FAILURE); 
+    } 
+    // Make socket nonblocking
+    if(fcntl(server_fd, F_SETFL, fcntl(server_fd, F_GETFL, 0) | O_NONBLOCK) == -1) {
+      perror("calling fcntl");
+      exit(EXIT_FAILURE);
+    } 
+
+    // Forcefully attaching socket to the port
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) { 
+      perror("setsockopt"); 
+      exit(EXIT_FAILURE); 
+    } 
+    address.sin_family = AF_INET; 
+    address.sin_addr.s_addr = INADDR_ANY; 
+    address.sin_port = htons( PORT ); 
+        
+    // Forcefully attaching socket to the port 
+    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) { 
+      perror("bind failed"); 
+      exit(EXIT_FAILURE); 
+    } 
+    if (listen(server_fd, 3) < 0) { 
+      perror("listen"); 
+      exit(EXIT_FAILURE); 
+    } 
+    new_socket = 0;
+  }
+  
+
   bool running = true;
   SDL_Event event;
 
@@ -4559,7 +4609,20 @@ void start_up_and_run_event_loop(const char *path) {
   auto msec_s = current_time_ms();
 
   while (running) {
-
+    if (new_socket <= 0) {
+      new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen);
+      if (new_socket >= 0) {
+        dbg("socket connected");
+      } 
+    }
+    if (new_socket >= 0) {
+      bzero(buffer, 1024);
+      int valread = read( new_socket , buffer, 1024 - 1);
+      if (valread > 0) {
+        dbg("read ", valread);
+        puts(buffer);
+      }
+    }
     while (SDL_PollEvent(&event)) { // or if(SDL_WaitEvent(&event)) for reactive
       switch (event.type) {
       case SDL_QUIT: running = false; break;
@@ -4592,7 +4655,7 @@ void start_up_and_run_event_loop(const char *path) {
       }
       }
       if (vm->error) {
-        dbg(vm->error);
+        dbg(vm->error); // TODO: vm_handle_error
         break;
       }
     }
@@ -4614,8 +4677,8 @@ void start_up_and_run_event_loop(const char *path) {
   unprot_ptrs(onkey, onmousedrag, onmousemove, onmousedown, onframe);
 
   SDL_DestroyWindow(window);
-  cerr << " executed " << vm->instruction_count << " instructions." << endl;
-  cerr << " gc count: " << vm->gc_count;
+  std::cerr << " executed " << vm->instruction_count << " instructions." << std::endl;
+  std::cerr << " gc count: " << vm->gc_count;
   report_memory_usage(vm);
   SDL_Quit();
 }
@@ -4626,7 +4689,7 @@ const char *require_argv_file(int argc, const char** argv) {
   if (argc > 1) {
     return argv[1];
   } else {
-    cerr << "must provide a file to run" << endl;
+    std::cerr << "must provide a file to run" << std::endl;
     exit(1);
   }
 }
@@ -4657,7 +4720,7 @@ int main(int argc, const char** argv) {
     auto file = require_argv_file(argc, argv);
     start_up_and_run_event_loop(file);
   } else {
-    cerr << " unrecognized invocation: " << invoked << endl;
+    std::cerr << " unrecognized invocation: " << invoked << std::endl;
     return 2;
   }
   return 0;

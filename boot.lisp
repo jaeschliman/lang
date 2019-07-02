@@ -305,6 +305,8 @@
 ;;; more utils
 (defmacro when (test & body)
   `(if ,test (let () ,@body)))
+(defmacro unless (test & body)
+  `(when (not ,test) ,@body))
 
 ;;; test helpers
 
@@ -315,3 +317,41 @@
           (and (deep-eq? (car a) (car b))
                (deep-eq? (cdr a) (cdr b)))
           #f)))
+
+;;; shift/reset exception support
+
+(define run-reset #f)
+(define (run-reset tag fn)
+    (set-stack-mark tag)
+  (let ((it (fn)))
+    (if (continuation? it)
+        (let* ((resume (lambda (val)
+                         (let* ((thunk (lambda () (resume-stack-snapshot it val)))) 
+                           (run-reset tag thunk))))
+               (handler (continuation-value it)))
+          (handler resume))
+        it)))
+
+(define (run-shift tag fn)
+    (snapshot-to-stack-mark tag fn))
+
+(defmacro reset-tag (tag & body)
+  `(run-reset ,tag (lambda () ,@body)))
+
+(defmacro shift-tag (tag var & body)
+  `(run-shift ,tag (lambda (,var) ,@body)))
+
+(define (escape-to-tag tag value)
+    (shift-tag tag _ value))
+
+(define (try-catch tryfn catchfn)
+    (reset-tag
+     'success
+     (let ((exception (reset-tag
+                       'exception
+                       (let ((result (tryfn)))
+                         (escape-to-tag 'success result))))) 
+       (catchfn exception))))
+
+(define (throw ex)
+    (escape-to-tag 'exception ex))

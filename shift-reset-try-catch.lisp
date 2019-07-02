@@ -1,3 +1,5 @@
+;; This functionality now included in boot
+
 (define run-reset #f)
 (define (run-reset tag fn)
     (set-stack-mark tag)

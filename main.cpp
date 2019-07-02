@@ -4556,11 +4556,12 @@ void start_up_and_run_event_loop(const char *path) {
   }
 
 #define PORT 8080
-  int server_fd, new_socket, valread; 
+#define BUF_SIZE 5120
+
+  int server_fd, new_socket; 
   struct sockaddr_in address; 
   int opt = 1; 
   int addrlen = sizeof(address); 
-  char buffer[1024] = {0}; 
   {
     // Creating socket file descriptor 
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) { 
@@ -4608,6 +4609,8 @@ void start_up_and_run_event_loop(const char *path) {
 
   auto msec_s = current_time_ms();
 
+  char *buffer = (char *)calloc(BUF_SIZE, 1);
+
   while (running) {
     if (new_socket <= 0) {
       new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen);
@@ -4615,13 +4618,14 @@ void start_up_and_run_event_loop(const char *path) {
         dbg("socket connected");
       } 
     }
-    if (new_socket >= 0) {
-      bzero(buffer, 1024);
-      int valread = read( new_socket , buffer, 1024 - 1);
+    if (new_socket > 0) {
+      // TODO: proper communication protocol here
+      int valread = read(new_socket, buffer, BUF_SIZE - 1);
       if (valread > 0) {
         dbg("read ", valread);
         puts(buffer);
         run_string(vm, buffer);
+        bzero(buffer, BUF_SIZE);
       }
     }
     while (SDL_PollEvent(&event)) { // or if(SDL_WaitEvent(&event)) for reactive

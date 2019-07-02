@@ -268,6 +268,14 @@
                    0 lst-of-chars)
       str))
 
+(define (string-to-charlist str)
+    (let ((loop #f))
+      (set! loop (lambda (acc n)
+                   (if (<i n 0)
+                       acc
+                       (loop (cons (char-at str n) acc) (-i n 1)))))
+      (loop '() (-i (string-length str) 1))))
+
 (define (implode lst-of-chars)
     (let ((str (make-string (list-length lst-of-chars) #\Space)))
       (reduce-list (lambda (idx chr)
@@ -355,3 +363,6 @@
 
 (define (throw ex)
     (escape-to-tag 'exception ex))
+
+
+'done

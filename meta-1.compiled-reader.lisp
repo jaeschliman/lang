@@ -32,6 +32,7 @@
     (cond
       ((symbol? form) (ht-at compilers-table '%base))
       ((pair? form) (ht-at compilers-table (car form)))
+      ((string? form) (ht-at compilers-table'%string))
       (#t (ht-at compilers-table '%exactly))))
 
 (define xf-vars car)
@@ -215,6 +216,12 @@
       `(apply-rule 'any ,state (lambda (st)
                                  (let ((,x (state-result st)))
                                    (if (eq ,x ,item) (,next st) fail))))))
+
+(define-compile (%string state item next)
+    (let ((chars (string-to-charlist item)))
+      (print `(chars are ,chars))
+      (compile-rule (cons 'seq chars)
+                    state next)))
 
 (define-compile (extern state args next)
     (let ((meta (first args))
@@ -465,13 +472,13 @@
         (-i (char-code ch) (char-code #\0))))
 
 (define-rule hex-integer
-    #\0 #\x (set! x (+ hex-char))
+    "0x" (set! x (+ hex-char))
     (return (reduce-list
              (lambda (acc hx) (+i (hex-char-value hx) (*i 16 acc)))
              0 x)))
 
-(define-rule true #\# #\t (return #t))
-(define-rule false #\# #\f (return #f))
+(define-rule true "#t" (return #t))
+(define-rule false "#f" (return #f))
 (define-rule boolean (or true false))
 
 (define-rule atom
@@ -522,7 +529,7 @@
    ws #\? ws (set! -it (extern Lisp expr)) (return `(where ,-it)))
 
 (define-rule meta-result
-  ws #\- #\> ws (set! -it (extern Lisp expr)) ws (return `(return ,-it)))
+  ws "->" ws (set! -it (extern Lisp expr)) ws (return `(return ,-it)))
 
 (define-rule meta-clause 
     ws
@@ -541,7 +548,7 @@
     ws (set! -rn ident) ws #\= (set! -rule meta-clause) (return `(define-rule ,-rn
                                                                      ,-rule)))
 (define-rule meta-block
-    ws #\m #\e #\t #\a ws (set! -n ident) ws #\{ ws
+    ws "meta" ws (set! -n ident) ws #\{ ws
     (set! -rs (+ meta-rule))
     ws #\}
     (return `(let ()

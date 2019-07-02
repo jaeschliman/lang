@@ -285,6 +285,7 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim make-string MKSTR ((len Fixnum) (ch Char)) any "make_filled_string(vm, len, ch)")
   (prim string-length STRLEN ((str String)) Fixnum "string_length(str)")
+  (prim string? STR_P ((a any)) Bool "is(String, a)")
 
   (prim set-stack-mark SSTKMARK ((m any)) any "vm_set_stack_mark(vm, m)")
   (prim snapshot-to-stack-mark PSTKMARK ((m any) (v any)) any "vm_abort_to_mark(vm, m, v)")

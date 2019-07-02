@@ -4621,6 +4621,7 @@ void start_up_and_run_event_loop(const char *path) {
       if (valread > 0) {
         dbg("read ", valread);
         puts(buffer);
+        run_string(vm, buffer);
       }
     }
     while (SDL_PollEvent(&event)) { // or if(SDL_WaitEvent(&event)) for reactive

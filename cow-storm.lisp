@@ -37,7 +37,7 @@
          (if (>i s 20)
              (let ()
                (push-t-r -170@-150 -33.0)
-               (draw-cows (scale s 30))
+               (draw-cows (scale s 75))
                (pop-t-r)
                (push-t-r -100@-300 45.0)
                (draw-cows (scale s 40))

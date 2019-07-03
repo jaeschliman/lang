@@ -186,6 +186,21 @@ void initialize_primitive_functions(VM *vm) {
   (prim class-set-method SETMETHOD
         ((a Standard) (sym Symbol) (fn any)) any "class_set_method(vm, a, sym, fn)")
 
+  (prim bool?         IS_BOOL ((a any)) Bool "is(Bool, a)")
+  (prim closure?      IS_CLS  ((a any)) Bool "is(Closure, a)")
+  (prim primop?       IS_PRIM ((a any)) Bool "is(PrimOp, a)")
+  (prim float?        IS_FLT  ((a any)) Bool "is(Float, a)")
+  (prim fixnum?       IS_INT  ((a any)) Bool "is(Fixnum, a)")
+  (prim pair?         PAIR_Q  ((a any)) Bool "is(cons, a)")
+  (prim nil?          ISNIL   ((a any)) Bool "isNil(a)")
+  (prim ht?           IS_HT   ((a any)) Bool "is(ht, a)")
+  (prim array?        IS_ARY  ((a any)) Bool "is(Array, a)")
+  (prim symbol?       SYM_Q   ((a any)) Bool "is(Symbol, a)")
+  (prim char?         ISCHAR  ((a any)) Bool "is(Char, a)")
+  (prim image?        ISIMAGE ((a any)) Bool "is(Image, a)")
+  (prim point?        IS_PT   ((a any)) Bool "is(Point, a)")
+  (prim continuation? IS_CONT ((a any)) Bool "is(cont, a)")
+
   (prim +i    FIX_PLUS   ((a Fixnum) (b Fixnum)) Fixnum "a + b")
   (prim -i    FIX_MINUS  ((a Fixnum) (b Fixnum)) Fixnum "a - b")
   (prim *i    FIX_TIMES  ((a Fixnum) (b Fixnum)) Fixnum "a * b")
@@ -207,11 +222,9 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim list  LIST       list                    any    "list")
   (prim cons  CONS       ((a any) (b any))       any    "cons(vm, a, b)")
-  (prim pair? PAIR_Q     ((a any))               Bool   "is(cons, a)")
   (prim car   CAR        ((a any))               any    "car(a)")
   (prim cdr   CDR        ((a any))               any    "cdr(a)")
   (prim eq    EQ         ((a any) (b any))       Bool   "ptr_eq(a, b)")
-  (prim nil?  ISNIL      ((a any))               Bool   "isNil(a)")
   (prim not   NOT        ((a any))               Bool   "a == False")
   (prim print PRINT      ((a any))               any    "primitive_print(a)")
   (prim nth   NTH        ((a any) (idx Fixnum))  any    "nth_or_nil(a, idx)")
@@ -226,7 +239,6 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim set-symbol-value SET_SYM_VAL ((a Symbol) (b any)) any  "set_global(vm, objToPtr(a), b)")
   (prim gensym           GSYM        ()                   any  "make_symbol(vm, \"_gensym_\")")
-  (prim symbol?          SYM_Q       ((a any))            Bool "is(Symbol, a)")
   (prim intern           INTERN      ((a String))         any  "intern(vm, a)")
 
   (prim print-stacktrace PRINT_STACK () any "vm_print_stack_trace(vm)")
@@ -291,7 +303,6 @@ void initialize_primitive_functions(VM *vm) {
   (prim set-stack-mark SSTKMARK ((m any)) any "vm_set_stack_mark(vm, m)")
   (prim snapshot-to-stack-mark PSTKMARK ((m any) (v any)) any "vm_abort_to_mark(vm, m, v)")
   (prim resume-stack-snapshot RSTKSNAP ((s any) (arg any)) any "vm_resume_stack_snapshot(vm, s, arg)")
-  (prim continuation? IS_CONT ((a any)) Bool "is(cont, a)")
   (prim continuation-value CONT_VAL ((a any)) any "cont_get_value(a)")
 
   (prim slurp SLURP ((path String)) any "slurp(vm, path)")

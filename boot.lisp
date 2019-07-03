@@ -364,5 +364,15 @@
 (define (throw ex)
     (escape-to-tag 'exception ex))
 
+;; default event handlers
+(define (ignore1 _))
+(define (ignore2 a b))
+(define onshow ignore2)
+(define onmousedown ignore1)
+(define onmousedrag ignore1)
+(define onmousemove ignore1)
+(define onkey ignore1)
+(define onframe ignore1)
+
 
 'done

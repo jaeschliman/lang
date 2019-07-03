@@ -1395,7 +1395,7 @@ struct Globals {
   Ptr env; // the global environment (currently an alist)
   Ptr call1;
   struct {
-    Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean, _quasiquote, _unquote, _unquote_splicing, _compiler, _set_bang, _exception;
+    Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean, _quasiquote, _unquote, _unquote_splicing, _compiler, _set_bang, _exception, _run_string;
   } known;
 };
 
@@ -1671,7 +1671,7 @@ void gc_update_globals(VM *vm) {
 
   update_symbols(lambda, quote, let, if, fixnum, cons, string);
   update_symbols(array, character, boolean, quasiquote, unquote, unquote_splicing);
-  update_symbols(compiler, set_bang, exception);
+  update_symbols(compiler, set_bang, exception, run_string);
 
 }
 
@@ -2034,6 +2034,7 @@ void initialize_known_symbols(VM *vm) {
   _init_symbols(lambda, quote, let, if, fixnum, cons, string, array, character, boolean, quasiquote, unquote, compiler, exception);
   globals->known._unquote_splicing = intern(vm, "unquote-splicing");
   globals->known._set_bang = intern(vm, "set!");
+  globals->known._run_string = intern(vm, "run-string");
 
 }
 #undef _init_sym
@@ -4386,6 +4387,15 @@ Ptr run_string(VM *vm, const char *str) {
   return result;
 }
 
+Ptr run_string_with_hooks(VM *vm, const char *str) {
+  if (boundp(vm, KNOWN(run_string))) {
+    auto string = make_string(vm, str);
+    return vm_call_global(vm, KNOWN(run_string), 1, (Ptr[]){string});
+  } else {
+    return run_string(vm, str);
+  }
+}
+
 void start_up_and_run_string(const char* str, bool soak) {
   VM *vm = vm_create();
 
@@ -4624,7 +4634,7 @@ void start_up_and_run_event_loop(const char *path) {
       if (valread > 0) {
         dbg("read ", valread);
         puts(buffer);
-        run_string(vm, buffer);
+        run_string_with_hooks(vm, buffer);
         bzero(buffer, BUF_SIZE);
       }
     }

@@ -631,4 +631,10 @@
 ")
 (pop-meta-context)
 
+;; use as default reader for the repl
+(define (run-string input)
+    (push-meta-context 'Meta)
+  (match-map eval 'meta-main input)
+  (pop-meta-context))
+
 'bye

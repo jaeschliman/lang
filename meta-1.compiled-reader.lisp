@@ -588,7 +588,6 @@
 
 (define-rule meta-block
     ws "meta" ws (set! -n ident) ws #\{ ws
-    ;; (set! -rs (+ meta-rule))
     (set! -rs (+ rule))
     ws #\}
     (return `(let ()
@@ -600,22 +599,6 @@
 (define-rule meta-main
     (set! -it (or meta-block (extern Lisp expr)))
   (return -it))
-
-
-;; (dbg meta-main "
-;; meta mymeta {
-;;   alpha   = any:ch ?(alphap ch) -> ch
-;;   digit   = any:ch ?(isdigi ch) -> (chdigi ch)
-;;   integer = digit+ :ds          -> (mknum ds)
-;;   name    = alpha+ :as          -> (implode as)
-;;   atom    = integer | name
-;; }
-;; ")
-
-;; (dbg meta-main "
-;; (defmacro reset-tag (tag & body)
-;;   `(run-reset ,tag (lambda () ,@body)))
-;; ")
 
 (define (whitespace-char? ch)
     (or (eq ch #\Space)
@@ -630,29 +613,7 @@
      0 numbers))
 
 
-;; FIXME: can't write a 'bare' rule yet
-;; e.g.
-;; ws = space*
-;; eats the beginning of the next rule and fails
-
-;; (match-map eval 'meta-main "
-;; (print `(hello world))
-;; meta Test {
-;;   space   = any:ch ?(whitespace-char? ch) -> ch
-;;   ws      = space*:chs                    -> chs
-;;   digit   = any:ch ?(digit-char? ch)      -> (char-to-digit ch)
-;;   int     = ws digit+:ds ws               -> (make-integer ds)
-;; }
-;; (print `(did we do it?))
-;; ")
-
 (pop-meta-context)
-
-;; (push-meta-context 'Test)
-;; (match-map print 'int "
-;; 123 456 789
-;; ")
-;; (pop-meta-context)
 
 (define (meta1-runfile path)
     (let ((input (slurp path)))

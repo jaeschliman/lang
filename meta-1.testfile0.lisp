@@ -6,7 +6,7 @@ meta testfile {
   int     = ws digit+:ds ws          -> (make-integer ds)
   alpha   = any:ch ?(alpha-char? ch) -> ch
   ident   = ws alpha+:chs ws         -> (implode chs)
-  foo     = ws "foo"+ ws             -> 'some-foo
+  foo     = ws "foo"+:fs ws          -> `(foo-count ,(list-length fs))
   main    = int | foo | ident
 }
 

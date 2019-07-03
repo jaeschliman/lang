@@ -328,6 +328,10 @@
     (or (eq x #\Space)
         (char-< x #\Space)) )
 
+(define (alpha-char? x)
+    (or (char-between x #\a #\z)
+        (char-between x #\A #\Z)))
+
 (define-rule space
   (set! x any)
   (where (whitespace-char? x))
@@ -538,8 +542,11 @@
     (return (cons 'seq (append -match (if (nil? -result) '() (list -result))))))
 
 (define-rule rule-body-list
-    (set! -first rule-branch) ws (? (seq "|" (set! -rest (* rule-body-list))))
+    (set! -first rule-branch) ws (set! -rest (? more-rule-body-list))
     (return (cons -first -rest)))
+
+(define-rule more-rule-body-list
+    "|" (set! -rest rule-body-list) (return -rest))
 
 (define-rule rule-body
     (set! -rules rule-body-list)
@@ -628,8 +635,8 @@
 (meta1-runfile "./meta-1.testfile0.lisp")
 
 (push-meta-context 'testfile)
-(match-map print 'int "
-123 456 789
+(match-map print 'main "
+123 456 a 789 hello how are you
 ")
 (pop-meta-context)
 

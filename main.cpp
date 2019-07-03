@@ -4614,7 +4614,7 @@ void start_up_and_run_event_loop(const char *path) {
   while (running) {
     if (new_socket <= 0) {
       new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen);
-      if (new_socket >= 0) {
+      if (new_socket > 0) {
         dbg("socket connected");
       } 
     }
@@ -4665,18 +4665,22 @@ void start_up_and_run_event_loop(const char *path) {
       }
     }
 
-    // TODO: actually pass elapsed time
-    auto elapsed = to(Fixnum, frame_length_ms);
-    vm_call_global(vm, onframe, 1, (Ptr[]){elapsed});
     {
-      auto msec_e = current_time_ms();
-      auto delta = msec_e - msec_s;
-      auto delay = frame_length_ms - (delta % frame_length_ms);
+      auto msec_e0 = current_time_ms();
+      auto delta1 = msec_e0 - msec_s;
+      auto frame_len = delta1 / 1000.0;
+      auto elapsed = to(Float, frame_len);
+      vm_call_global(vm, onframe, 1, (Ptr[]){elapsed});
+
+      auto msec_e1 = current_time_ms();
+      auto delta2 = msec_e1 - msec_s;
+      auto frame_ns = frame_length_ms;
+      auto delay = frame_ns - (delta2 % frame_ns);
+      msec_s = current_time_ms() - (delta2 - delta1);
       SDL_Delay(delay);
     }
 
     SDL_UpdateWindowSurface(window);
-    msec_s = current_time_ms();
   }
 
   unprot_ptrs(onkey, onmousedrag, onmousemove, onmousedown, onframe);

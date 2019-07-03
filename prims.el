@@ -200,6 +200,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim /f    FLT_DIVIDE ((a Float) (b Float))   Float  "a / b")
   (prim <f    FLT_LT     ((a Float) (b Float))   Bool   "a < b")
   (prim >f    FLT_GT     ((a Float) (b Float))   Bool   "a > b")
+  (prim %f    FLT_MOD    ((a Float) (b Float))   Float  "fmodf(a, b)")
 
   (prim i->f  FIX_TO_FLT ((a Fixnum))            Float  "(f32)a")
   (prim f->i  FLT_TO_FIX ((a Float))             Fixnum "(s64)a")

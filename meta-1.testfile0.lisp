@@ -1,13 +1,13 @@
 (print `(hello from testfile))
 
 meta testfile {
-  space   = any:ch ?(whitespace-char? ch) -> ch
-  ws      = space*
-  digit   = any:ch ?(digit-char? ch)      -> (char-to-digit ch)
-  int     = ws digit+:ds ws               -> (make-integer ds)
-  alpha   = any:ch ?(alpha-char? ch)      -> ch
-  ident   = ws alpha+:chs ws              -> (implode chs)
-  main    = int | ident
+  ws      = [ \n\r]*
+  digit   = any:ch ?(digit-char? ch) -> (char-to-digit ch)
+  int     = ws digit+:ds ws          -> (make-integer ds)
+  alpha   = any:ch ?(alpha-char? ch) -> ch
+  ident   = ws alpha+:chs ws         -> (implode chs)
+  foo     = ws "foo"+ ws             -> 'some-foo
+  main    = int | foo | ident
 }
 
 ;; test comment

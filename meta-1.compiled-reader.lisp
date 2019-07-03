@@ -515,14 +515,42 @@
     (set! m (or #\* #\? #\+))
   (return (implode (list m))))
 
-(define-rule meta-ident
-    (or (seq (set! -id ident) (set! -mm meta-mod) (return (list -mm -id)))
-        ident))
+
+(define-rule string-lit
+    (set! x (extern Lisp string)) (return (cons 'seq (string-to-charlist x))))
+
+(define (bracket-escaped-char-character ch)
+    (case ch
+         (#\n #\Newline)
+         (#\r #\Return)
+         (#\t #\Tab)
+         (#\\ #\\)
+         (#\] #\])))
+
+(define-rule bracket-body-char
+    (set! x any) (where (not (or (eq x #\])
+                                 (eq x #\\))))
+    (return x))
+
+(define-rule bracket-escaped-char
+    #\\ (set! x any) (return (bracket-escaped-char-character x)))
+
+;; TODO: A-Za-z syntax
+(define-rule bracket-lit
+    "[" (set! chs (+ (or bracket-body-char bracket-escaped-char))) "]"
+    (return (cons 'or chs)))
+
+(define-rule meta-lit
+    (or ident string-lit bracket-lit))
+
+(define-rule meta-atom
+    (or (seq (set! -id meta-lit) (set! -mm meta-mod) (return (list -mm -id)))
+        meta-lit))
 
 (define-rule meta-app-1
-    (or (seq (set! -rule meta-ident) ws #\: (set! -as ident)
+    (or (seq (set! -rule meta-atom) ws #\: (set! -as ident)
              (return `(set! ,-as ,-rule)))
-        meta-ident
+        meta-atom
         meta-pred))
 
 (define-rule meta-app
@@ -636,7 +664,7 @@
 
 (push-meta-context 'testfile)
 (match-map print 'main "
-123 456 a 789 hello how are you
+123 456 a 789 hello how are you foo foofoo
 ")
 (pop-meta-context)
 

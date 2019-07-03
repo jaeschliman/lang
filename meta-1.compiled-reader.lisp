@@ -219,7 +219,6 @@
 
 (define-compile (%string state item next)
     (let ((chars (string-to-charlist item)))
-      (print `(chars are ,chars))
       (compile-rule (cons 'seq chars)
                     state next)))
 
@@ -523,42 +522,45 @@
         meta-pred))
 
 (define-rule meta-app
-    ws (set! -app meta-app-1) ws (return -app))
+    (set! -app meta-app-1) (return -app))
 
 (define-rule meta-pred
-   ws #\? ws (set! -it (extern Lisp expr)) (return `(where ,-it)))
+    #\? ws (set! -it (extern Lisp expr)) (return `(where ,-it)))
 
 (define-rule meta-result
-  ws "->" ws (set! -it (extern Lisp expr)) ws (return `(return ,-it)))
+    "->" ws (set! -it (extern Lisp expr)) (return `(return ,-it)))
 
-(define-rule meta-clause 
-    ws
-  (set! -fst (+ meta-app))
-  (set! -act (? meta-result))
-  (set! -rst (* (seq ws #\| ws meta-clause)))
-  ws
-  (return
-    (let ((fst (if (nil? -act)
-                   (if (nil? (cdr -fst)) (car -fst)
-                       (cons 'seq -fst))
-                   `(seq ,@-fst ,-act))))
-      (if (nil? -rst) fst (cons 'or (cons fst -rst))))))
+(define-rule rule-app
+    (* #\Space) (set! -app meta-app-1) (return -app))
 
-(define-rule meta-rule
-    ws (set! -rn ident) ws #\= (set! -rule meta-clause) (return `(define-rule ,-rn
-                                                                     ,-rule)))
+(define-rule rule-branch
+    (set! -match (+ rule-app)) (* #\Space) (set! -result (? meta-result))
+    (return (cons 'seq (append -match (if (nil? -result) '() (list -result))))))
+
+(define-rule rule-body-list
+    (set! -first rule-branch) ws (? (seq "|" (set! -rest (* rule-body-list))))
+    (return (cons -first -rest)))
+
+(define-rule rule-body
+    (set! -rules rule-body-list)
+  (return (cons 'or -rules)))
+
+(define-rule rule
+    ws (set! -name ident) ws "=" (set! -body rule-body)
+    (return (let ()
+              ;; (print `(matched rule ,-name ,-body))
+              `(define-rule ,-name ,-body))))
+
 (define-rule meta-block
     ws "meta" ws (set! -n ident) ws #\{ ws
-    (set! -rs (+ meta-rule))
+    ;; (set! -rs (+ meta-rule))
+    (set! -rs (+ rule))
     ws #\}
     (return `(let ()
                (ht-at-put meta-by-name ',-n (make-meta 'Base))
                (push-meta-context ',-n)
                ,@-rs
                (pop-meta-context))))
-
-(define-rule EOF
-    (+ ws) nothing (return 'EOF))
 
 (define-rule meta-main
     (set! -it (or meta-block (extern Lisp expr)))
@@ -636,5 +638,6 @@
     (push-meta-context 'Meta)
   (match-map eval 'meta-main input)
   (pop-meta-context))
+
 
 'bye

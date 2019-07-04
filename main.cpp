@@ -277,6 +277,7 @@ struct VM {
   std::unordered_map<Ptr *, u64> *gc_protected_ptr_vectors;
   blit_surface *surface;
   std::vector<Ptr> *threads;
+  bool suspended;
 };
 
 /* ---------------------------------------- */
@@ -2848,6 +2849,7 @@ bool vm_maybe_start_next_thread(VM *vm) {
 void vm_suspend_current_thread(VM *vm) {
   Ptr curr = _vm_thread_suspend(vm);
   if (is(cont,curr)) vm->threads->push_back(curr);
+  vm->suspended = true;
 }
 
 bool vm_swap_threads(VM *vm) {
@@ -3007,6 +3009,9 @@ void vm_interp(VM* vm, interp_params params) {
   s64 ctx_switch_budget, spent_instructions;
   ctx_switch_budget = params.thread_switch_instr_budget;
   spent_instructions = 0;
+
+  vm->suspended = false;
+
  restart_interp:
   while ((instr = vm_curr_instr(vm))) {
     vm->instruction_count++;
@@ -3201,11 +3206,13 @@ void vm_interp(VM* vm, interp_params params) {
           spent_instructions >= params.total_execution_instr_budget) {
         // dbg("suspending execution");
         vm_suspend_current_thread(vm);
+        if (vm->error) { dbg("error suspending: ", vm->error); }
+        // dbg("suspended.");
         return;
       }
       if (params.thread_switch_instr_budget && ctx_switch_budget <= 0) {
         if (vm_swap_threads(vm)) {
-          // dbg("swapped threads.");
+           dbg("swapped threads.");
         }
         ctx_switch_budget = params.thread_switch_instr_budget;
       }
@@ -3249,7 +3256,7 @@ void vm_interp(VM* vm, interp_params params) {
 
   bool restarting = vm_maybe_start_next_thread(vm);
   if (restarting) {
-    dbg("restarting interpreter loop, remaining other threads: ", vm->threads->size());
+    // dbg("restarting interpreter loop, remaining other threads: ", vm->threads->size());
     ctx_switch_budget = params.thread_switch_instr_budget;
     ++vm->pc;
     goto restart_interp;
@@ -4453,6 +4460,7 @@ VM *vm_create() {
   vm->in_gc = false;
 
   vm->threads = new std::vector<Ptr>;
+  vm->suspended = false;
 
   vm->frame = 0;
   vm->error = 0;
@@ -4622,7 +4630,8 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params param
   // TODO: bc patches for more arities
   //       NB: will require special method for reserving room for literals,
   //           as they are now de-duplicated
-  if (argc == 1) {
+
+  if (0 && argc == 1) { // can't reuse global frame yet due to suspension
     if (!is(ByteCode, vm->globals->call1)) {
       bc = build_call(vm, symbol, argc, argv);
       vm->globals->call1 = objToPtr(bc);
@@ -4637,9 +4646,13 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params param
   vm_push_stack_frame(vm, 0, bc, Nil);
   vm->frame->mark = KNOWN(exception);
   vm_interp(vm, params);
-  auto result = vm_pop(vm);
-  vm_pop_stack_frame(vm);
-
+  auto result = Nil;
+  if (vm->suspended) {
+    // do nothing
+  } else {
+    result = vm_pop(vm);
+    vm_pop_stack_frame(vm);
+  }
   unprot_ptr(symbol); unprotect_ptr_vector(argv);
   return result;
 }

@@ -635,6 +635,6 @@
   (match-map eval 'meta-main input)
   (pop-meta-context))
 
-(meta1-runfile "./threads.lisp")
+(meta1-runfile "./threads-and-events.lisp")
 (print "ran the file")
 'done

@@ -34,12 +34,6 @@
 #include "./stacktrace.h"
 #include "./macro_support.h"
 
-auto current_time_ms() {
-  auto now = std::chrono::system_clock::now();
-  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-  return ms.count();
-}
-
 using std::string;
 
 #define GC_DEBUG 0
@@ -70,6 +64,12 @@ typedef uint8_t u8;
 typedef int8_t s8;
 typedef float f32;
 typedef double f64;
+
+s64 current_time_ms() {
+  auto now = std::chrono::system_clock::now();
+  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+  return ms.count();
+}
 
 #define EXTRACT_PTR_MASK 0xFFFFFFFFFFFFFFF0
 #define TAG_MASK 0b1111
@@ -2842,8 +2842,9 @@ Ptr vm_resume_stack_snapshot(VM *vm, Ptr cont, Ptr arg) {
 Ptr _vm_maybe_get_next_available_thread(VM *vm) {
   if (vm->threads->size() > 0) {
     auto found_idx = -1;
-    auto now = current_time_ms();
-    for (auto i = 0; i < vm->threads->size(); i++) {
+    s64 now = current_time_ms();
+    int count = vm->threads->size();
+    for (auto i = 0; i < count; i++) {
       auto thread = vm->threads->at(i);
       auto status = thread_get_status(thread);
       if (status == THREAD_STATUS_WAITING) {
@@ -2852,7 +2853,10 @@ Ptr _vm_maybe_get_next_available_thread(VM *vm) {
       }
       if (status == THREAD_STATUS_SLEEPING) {
         auto wake_after = thread_get_wake_after(thread);
-        if (as(Fixnum, wake_after) <= now) {
+        s64 delta = as(Fixnum, wake_after) - now;
+        // if (delta > 0) dbg("thread still sleeping for ", delta, " ms");
+        if (delta <= 0) {
+          // dbg("waking sleeping thread");
           found_idx = i;
           break;
         }
@@ -2860,7 +2864,9 @@ Ptr _vm_maybe_get_next_available_thread(VM *vm) {
     }
     if (found_idx == -1) return Nil;
     auto result = vm->threads->at(found_idx);
+    // dbg("thread count was: ", vm->threads->size());
     vm->threads->erase(vm->threads->begin() + found_idx);
+    // dbg("thread count is now: ", vm->threads->size());
     return result;
   }
   return Nil;
@@ -2889,6 +2895,7 @@ bool vm_maybe_start_next_thread(VM *vm) {
   auto next = _vm_maybe_get_next_available_thread(vm);
   if (is(thread, next)) {
     _vm_thread_resume(vm, next);
+    // dbg("did resume next thread...", next);
     return true;
   }
   return false;
@@ -2897,25 +2904,34 @@ bool vm_maybe_start_next_thread(VM *vm) {
 void vm_suspend_current_thread(VM *vm) {
   Ptr curr = _vm_thread_suspend(vm);
   if (is(thread,curr)) vm->threads->push_back(curr);
-  vm->globals->current_thread = Nil; // XXX careful!
+  // vm->globals->current_thread = Nil; // XXX careful!
   vm->suspended = true;
 }
 
 bool vm_sleep_current_thread(VM *vm, s64 ms) {
   Ptr curr = _vm_thread_suspend(vm);
-  if (is(thread,curr)) vm->threads->push_back(curr);
-  thread_set_status(curr, THREAD_STATUS_SLEEPING);
-  s64 wake_after = current_time_ms() + ms;
-  thread_set_wake_after(curr, FIXNUM((u64)wake_after));
-  vm->globals->current_thread = Nil; // XXX careful!
-  return vm_maybe_start_next_thread(vm);
+  if (is(thread,curr)) {
+    // dbg("putting thread to sleep, count is now: ", vm->threads->size());
+    thread_set_status(curr, THREAD_STATUS_SLEEPING);
+    s64 wake_after = current_time_ms() + ms;
+    thread_set_wake_after(curr, to(Fixnum, wake_after));
+    vm->threads->push_back(curr);
+    // dbg("put thread to sleep, count is now: ", vm->threads->size());
+    // dbg("slept to thread: ", curr);
+  }
+  // vm->globals->current_thread = Nil; // XXX careful!
+  auto result = vm_maybe_start_next_thread(vm);
+  return result;
 }
 
 bool vm_swap_threads(VM *vm) {
-  if (vm->threads->size() > 0) {
+  auto next = _vm_maybe_get_next_available_thread(vm);
+  if (is(thread, next)) { prot_ptr(next);
     Ptr curr = _vm_thread_suspend(vm);
     if (is(thread,curr)) vm->threads->push_back(curr);
-    return vm_maybe_start_next_thread(vm);
+    _vm_thread_resume(vm, next);
+    unprot_ptr(next);
+    return true;
   }
   return false;
 }
@@ -3228,10 +3244,14 @@ void vm_interp(VM* vm, interp_params params) {
         } else if (idx == 2) { // SLEEP
           auto ms = vm_pop(vm); 
           vm_push(vm, Nil);
+          // dbg("sleeping for ", as(Fixnum, ms));
+          vm->pc++;
           if (!vm_sleep_current_thread(vm, as(Fixnum, ms))) {
             // if we failed to resume another thread, we are suspended
             vm->suspended = true;
             return;
+          } else {
+            // do nothing, we have another thread ready to go
           }
           break;
         }
@@ -3281,7 +3301,7 @@ void vm_interp(VM* vm, interp_params params) {
       }
       if (params.thread_switch_instr_budget && ctx_switch_budget <= 0) {
         if (vm_swap_threads(vm)) {
-           dbg("swapped threads.");
+          // dbg("swapped threads.");
         }
         ctx_switch_budget = params.thread_switch_instr_budget;
       }
@@ -3333,6 +3353,7 @@ void vm_interp(VM* vm, interp_params params) {
 }
 #undef vm_curr_instr
 #undef vm_adv_instr
+
 
 typedef std::tuple<u64*, string> branch_entry;
 
@@ -3583,6 +3604,42 @@ public:
     return bc;
   }
 };
+
+/* ---------------------------------------------------*/
+
+void vm_run_until_thread_completion(VM *vm) {
+  // dbg("running remaining threads");
+
+  // so we have a root frame
+  auto bc = (new BCBuilder(vm))->build();
+  vm_push_stack_frame(vm, 0, bc, Nil);
+  vm->frame->mark = KNOWN(exception);
+
+  while (vm->threads->size() > 0) {
+    auto success = vm_maybe_start_next_thread(vm);
+    if (success) {
+      // dbg("resuming with thread count: ", vm->threads->size());
+      vm_interp(vm, INTERP_PARAMS_MAIN_EXECUTION);
+
+      // if (vm->suspended) {
+      //   dbg("suspended with thread count: ", vm->threads->size());
+      // } else {
+      //   dbg("returned normally with thread count: ", vm->threads->size());
+      // }
+      // re-add root frame
+      auto bc = (new BCBuilder(vm))->build();
+      vm_push_stack_frame(vm, 0, bc, Nil);
+      vm->frame->mark = KNOWN(exception);
+
+    } else {
+      // XXX HACKY
+      auto seconds = 0.001;
+      usleep(seconds * 1000000);
+    }
+  }
+  // dbg("all threads finished: ", vm->threads->size());
+}
+
 
 /* -------------------------------------------------- */
 // @deprecated
@@ -4622,6 +4679,8 @@ void start_up_and_run_string(const char* str, bool soak) {
     }
 
     unprot_ptrs(istream);
+
+    vm_run_until_thread_completion(vm);
 
     if (soak) {
       vm_count_objects_on_heap(vm);

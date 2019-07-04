@@ -86,7 +86,8 @@ enum PrimitiveOperation : u64 {
   PRIM_PSTKMARK = ((83ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_RSTKSNAP = ((84ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_CONT_VAL = ((85ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_SLURP = ((86ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_FORK = ((86ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_SLURP = ((87ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -841,6 +842,14 @@ Ptr PRIM_CONT_VAL_impl(VM *vm, u32 argc) {
 }
 
 // Primitive 85
+Ptr PRIM_FORK_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("fork-continuation",any,a);
+
+ return vm_schedule_thread(vm, a);
+}
+
+// Primitive 86
 Ptr PRIM_SLURP_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("slurp",String,path);
@@ -936,6 +945,7 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_PSTKMARK_impl,
   &PRIM_RSTKSNAP_impl,
   &PRIM_CONT_VAL_impl,
+  &PRIM_FORK_impl,
   &PRIM_SLURP_impl,
 
   (PrimitiveFunction)(void *)0
@@ -1029,6 +1039,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "snapshot-to-stack-mark", to(PrimOp, PRIM_PSTKMARK));
   set_global(vm, "resume-stack-snapshot", to(PrimOp, PRIM_RSTKSNAP));
   set_global(vm, "continuation-value", to(PrimOp, PRIM_CONT_VAL));
+  set_global(vm, "fork-continuation", to(PrimOp, PRIM_FORK));
   set_global(vm, "slurp", to(PrimOp, PRIM_SLURP));
 
 }
@@ -1701,6 +1712,13 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
   }
 
   case 86: {
+   VM_ARG("fork-continuation",any,a);
+
+    vm_push(vm, vm_schedule_thread(vm, a));
+    break;
+  }
+
+  case 87: {
    VM_ARG("slurp",String,path);
 
     vm_push(vm, slurp(vm, path));

@@ -1,12 +1,9 @@
-
 (define (lambda->continuation fn)
     (set-stack-mark 'helper)
   (let ((r ((lambda ()
               (snapshot-to-stack-mark 'helper '())
               (fn)))))
     r))
-
-(define cont (lambda->continuation (lambda () (print '(hello world!)))))
 
 (defmacro fork (& forms)
   `(fork-continuation (lambda->continuation (lambda () (let ((r (let () ,@forms))) r)))))

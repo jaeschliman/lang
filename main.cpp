@@ -2850,19 +2850,27 @@ Ptr _vm_maybe_get_next_available_thread(VM *vm) {
       if (status == THREAD_STATUS_WAITING) {
         found_idx = i;
         break;
-      }
-      if (status == THREAD_STATUS_SLEEPING) {
+      } else if (status == THREAD_STATUS_SLEEPING) {
         auto wake_after = thread_get_wake_after(thread);
         s64 delta = as(Fixnum, wake_after) - now;
-        // if (delta > 0) dbg("thread still sleeping for ", delta, " ms");
+        // if (delta > 0) dbg("thread still sleeping for ", delta, " ms", thread);
         if (delta <= 0) {
           // dbg("waking sleeping thread");
           found_idx = i;
           break;
         }
+      } else if (status == THREAD_STATUS_RUNNING) {
+        // should not get here
+        dbg("somehow wound up with running thread in scheduled?");
       }
     }
-    if (found_idx == -1) return Nil;
+    if (found_idx == -1) {
+      // dbg("no suitable thread found.");
+      // for (auto thread : *vm->threads) {
+      //   dbg("  status of thread: ", thread_get_status(thread));
+      // }
+      return Nil;
+    }
     auto result = vm->threads->at(found_idx);
     // dbg("thread count was: ", vm->threads->size());
     vm->threads->erase(vm->threads->begin() + found_idx);
@@ -2901,9 +2909,19 @@ bool vm_maybe_start_next_thread(VM *vm) {
   return false;
 }
 
+void vm_add_thread_to_background_set(VM *vm, Ptr thread){
+  assert(is(thread, thread));
+  if (!ptr_eq(thread_get_status(thread), THREAD_STATUS_SLEEPING) &&
+      !ptr_eq(thread_get_status(thread), THREAD_STATUS_WAITING) ) {
+    dbg(" !!!! ensuring thread status !!!");
+    thread_set_status(thread, THREAD_STATUS_WAITING);
+  }
+  vm->threads->push_back(thread);
+}
+
 void vm_suspend_current_thread(VM *vm) {
   Ptr curr = _vm_thread_suspend(vm);
-  if (is(thread,curr)) vm->threads->push_back(curr);
+  if (is(thread,curr)) vm_add_thread_to_background_set(vm, curr);
   // vm->globals->current_thread = Nil; // XXX careful!
   vm->suspended = true;
 }
@@ -2915,7 +2933,7 @@ bool vm_sleep_current_thread(VM *vm, s64 ms) {
     thread_set_status(curr, THREAD_STATUS_SLEEPING);
     s64 wake_after = current_time_ms() + ms;
     thread_set_wake_after(curr, to(Fixnum, wake_after));
-    vm->threads->push_back(curr);
+    vm_add_thread_to_background_set(vm, curr);
     // dbg("put thread to sleep, count is now: ", vm->threads->size());
     // dbg("slept to thread: ", curr);
   }
@@ -2927,8 +2945,9 @@ bool vm_sleep_current_thread(VM *vm, s64 ms) {
 bool vm_swap_threads(VM *vm) {
   auto next = _vm_maybe_get_next_available_thread(vm);
   if (is(thread, next)) { prot_ptr(next);
+    assert(!ptr_eq(next, vm->globals->current_thread));
     Ptr curr = _vm_thread_suspend(vm);
-    if (is(thread,curr)) vm->threads->push_back(curr);
+    if (is(thread, curr)) vm_add_thread_to_background_set(vm, curr);
     _vm_thread_resume(vm, next);
     unprot_ptr(next);
     return true;
@@ -2939,7 +2958,7 @@ bool vm_swap_threads(VM *vm) {
 Ptr vm_schedule_cont(VM *vm, Ptr cont) {
   assert(is(cont, cont));
   auto thread = make_thread(vm, cont, THREAD_STATUS_WAITING, FIXNUM(0));
-  vm->threads->push_back(thread);
+  vm_add_thread_to_background_set(vm, thread);
   return Nil;
 }
 
@@ -3302,6 +3321,8 @@ void vm_interp(VM* vm, interp_params params) {
       if (params.thread_switch_instr_budget && ctx_switch_budget <= 0) {
         if (vm_swap_threads(vm)) {
           // dbg("swapped threads.");
+        } else {
+          // dbg("did not swap threads. ", vm->threads->size());
         }
         ctx_switch_budget = params.thread_switch_instr_budget;
       }
@@ -4774,6 +4795,9 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params param
 
   vm_push_stack_frame(vm, 0, bc, Nil);
   vm->frame->mark = KNOWN(exception);
+  // would be nice if there was a way to cut down on allocations here...
+  // not yet sure _exactly_ why we need a fresh TL thread for each event handler
+  vm->globals->current_thread = make_thread(vm, Nil, THREAD_STATUS_RUNNING, FIXNUM(0));
   vm_interp(vm, params);
   auto result = Nil;
   if (vm->suspended) {

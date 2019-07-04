@@ -93,6 +93,7 @@ struct Ptr { u64 value; };
 #define False ((Ptr){0b00100})
 // do we really need nil?
 #define Nil   ((Ptr){0b0001})
+#define FIXNUM(x) ((Ptr){ (x) << TAG_BITS })
 
 std::ostream &operator<<(std::ostream &os, Ptr p);
 
@@ -993,6 +994,7 @@ enum StructTag : s64 {
   StructTag_HashTable,
   StructTag_InputStream,
   StructTag_Continuation,
+  StructTag_Thread,
   StructTag_End
 };
 
@@ -1011,7 +1013,14 @@ defstruct(cont, Continuation,
           program_counter,
           bytecode,
           stack,
-          value)
+          value);
+defstruct(thread, Thread,
+          continuation,
+          status);
+
+auto THREAD_STATUS_RUNNING = FIXNUM(0);
+auto THREAD_STATUS_WAITING = FIXNUM(1);
+auto THREAD_STATUS_DEAD    = FIXNUM(2);
 
 /* ---------------------------------------- */
 
@@ -1402,6 +1411,8 @@ struct Globals {
   struct {
     Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean, _quasiquote, _unquote, _unquote_splicing, _compiler, _set_bang, _exception, _run_string;
   } known;
+
+  Ptr current_thread;
 };
 
 /* ---------------------------------------- */
@@ -1665,6 +1676,7 @@ void gc_update_base_class(VM *vm, StandardObject **it) {
 void gc_update_globals(VM *vm) {
   gc_update_ptr(vm, &vm->globals->call1);
   gc_update_ptr(vm, &vm->globals->env);
+  gc_update_ptr(vm, &vm->globals->current_thread);
 
 #define X(...) MAP(handle_class, __VA_ARGS__)
 #include "./primitive-classes.include"
@@ -2824,23 +2836,25 @@ Ptr _vm_thread_suspend(VM *vm) {
   auto predicate = [&](StackFrameObject *fr){
     return fr->prev_frame == 0;
   };
-  auto result = vm_snapshot_stack_with_predicate(vm, predicate);
+  auto cont = vm_snapshot_stack_with_predicate(vm, predicate);
+  thread_set_continuation(vm->globals->current_thread, cont);
+  thread_set_status(vm->globals->current_thread, THREAD_STATUS_WAITING);
   vm_unwind_to_predicate(vm, predicate);
-  return result;
+  return vm->globals->current_thread;
 }
 
-void _vm_thread_resume(VM *vm, Ptr cont) {
+void _vm_thread_resume(VM *vm, Ptr thread) {
+  auto cont = thread_get_continuation(thread);
   vm_restore_stack_snapshot(vm, cont);
+  vm->globals->current_thread = thread;
+  thread_set_status(thread, THREAD_STATUS_RUNNING);
 }
 
 bool vm_maybe_start_next_thread(VM *vm) {
   if (vm->threads->size() > 0) {
     Ptr next = vm->threads->at(0);
-    // dbg("2 is cont?", is(cont, next));
     vm->threads->erase(vm->threads->begin());
-    // dbg("erased front item");
     _vm_thread_resume(vm, next);
-    // dbg("called resume");
     return true;
   }
   return false;
@@ -2848,23 +2862,23 @@ bool vm_maybe_start_next_thread(VM *vm) {
 
 void vm_suspend_current_thread(VM *vm) {
   Ptr curr = _vm_thread_suspend(vm);
-  if (is(cont,curr)) vm->threads->push_back(curr);
+  if (is(thread,curr)) vm->threads->push_back(curr);
   vm->suspended = true;
 }
 
 bool vm_swap_threads(VM *vm) {
   if (vm->threads->size() > 0) {
     Ptr curr = _vm_thread_suspend(vm);
-    // dbg("1 is cont?", is(cont, curr), " ", vm->stack_depth);
-    if (is(cont,curr)) vm->threads->push_back(curr);
+    if (is(thread,curr)) vm->threads->push_back(curr);
     return vm_maybe_start_next_thread(vm);
   }
   return false;
 }
 
-Ptr vm_schedule_thread(VM *vm, Ptr cont) {
+Ptr vm_schedule_cont(VM *vm, Ptr cont) {
   assert(is(cont, cont));
-  vm->threads->push_back(cont);
+  auto thread = make_thread(vm, cont, THREAD_STATUS_WAITING);
+  vm->threads->push_back(thread);
   return Nil;
 }
 
@@ -4471,6 +4485,7 @@ VM *vm_create() {
 
   vm->gc_disabled = true;
 
+  vm->globals->current_thread = make_thread(vm, Nil, THREAD_STATUS_RUNNING);
   initialize_known_symbols(vm);
   initialize_classes(vm);
   initialize_primitive_functions(vm);

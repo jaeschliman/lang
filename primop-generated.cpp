@@ -846,7 +846,7 @@ Ptr PRIM_FORK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("fork-continuation",any,a);
 
- return vm_schedule_thread(vm, a);
+ return vm_schedule_cont(vm, a);
 }
 
 // Primitive 86
@@ -1714,7 +1714,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
   case 86: {
    VM_ARG("fork-continuation",any,a);
 
-    vm_push(vm, vm_schedule_thread(vm, a));
+    vm_push(vm, vm_schedule_cont(vm, a));
     break;
   }
 

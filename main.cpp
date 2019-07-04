@@ -276,6 +276,7 @@ struct VM {
   std::unordered_map<Ptr *, u64> *gc_protected_ptrs;
   std::unordered_map<Ptr *, u64> *gc_protected_ptr_vectors;
   blit_surface *surface;
+  std::vector<Ptr> *threads;
 };
 
 /* ---------------------------------------- */
@@ -966,14 +967,16 @@ u32 hash_code(Ptr it) {
       ptr_eq(to(Fixnum, StructTag_##tag), array_get(it, 0));    \
   }
 
-#define _define_structure_accessors(slot, name, idx)    \
-  Ptr name##_get_##slot(Ptr obj) {                      \
-    assert(is(name, obj));                              \
-    return array_get(obj, idx + 1);                     \
-  }                                                     \
-  void name##_set_##slot(Ptr obj, Ptr value) {          \
-    assert(is(name, obj));                              \
-    array_set(obj, idx + 1, value);                     \
+#define _define_structure_accessors(slot, name, idx)         \
+  Ptr name##_get_##slot(Ptr obj) {                           \
+    if (! is(name, obj)) { die("GOT ", #name, #slot, obj); } \
+                                                             \
+    assert(is(name, obj));                                   \
+    return array_get(obj, idx + 1);                          \
+  }                                                          \
+  void name##_set_##slot(Ptr obj, Ptr value) {               \
+    assert(is(name, obj));                                   \
+    array_set(obj, idx + 1, value);                          \
   }
 
 #define defstruct(name, tag, ...)                                       \
@@ -1690,6 +1693,17 @@ void gc_copy_symtab(VM *vm) {
   delete old_symtab;
 }
 
+void gc_copy_threads(VM *vm) {
+  auto old_threads = vm->threads;
+  auto new_threads = new std::vector<Ptr>;
+  for (auto ptr : *old_threads) {
+    gc_update_ptr(vm, &ptr);
+    new_threads->push_back(ptr);
+  }
+  vm->threads = new_threads;
+  delete old_threads;
+}
+
 void gc_update_protected_references(VM *vm) {
   for (auto pair : *vm->gc_protected) {
     Object **ref = pair.first;
@@ -1791,12 +1805,15 @@ void gc(VM *vm) {
 
   // set start ptr (everything on heap should be symbols right now)
   auto start = vm->heap_end;
+
   // update stack. (loop through stack and gc_copy_object on-stack and args etc.)
   gc_update_stack(vm);
   // update global refs
   gc_update_globals(vm);
   // update protected refs
   gc_update_protected_references(vm);
+  // copy threads
+  gc_copy_threads(vm);
 
   auto end = vm->heap_end;
   // repeatedly update new allocations on the heap
@@ -2598,7 +2615,9 @@ s64 vm_stack_frame_additional_item_count(StackFrameObject *fr) {
   return result;
 }
 
-Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
+typedef std::function<bool(StackFrameObject*)> StackPred;
+
+Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
   StackFrameObject *fr = vm->frame;
   Ptr result  = Nil;                               prot_ptr(result);
   result = alloc_cont(vm);
@@ -2619,8 +2638,8 @@ Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
   Ptr top_fr  = Nil;                               prot_ptr(top_fr);
   Ptr prev_fr = Nil;                               prot_ptr(prev_fr);
 
-  while (fr && !ptr_eq(fr->mark, mark)) {
-    auto is_root_frame = fr->prev_frame && ptr_eq(fr->prev_frame->mark, mark);
+  while (fr && !fn(fr)) {
+    auto is_root_frame = fr->prev_frame && fn(fr->prev_frame);
 
     auto added = vm_stack_frame_additional_item_count(fr);
     if (is_root_frame) added = 0; // we don't need the additional previous stack
@@ -2667,12 +2686,26 @@ Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) {  prot_ptr(mark);
   // vm_debug_print_stackframe_args(vm, as(StackFrame, top_fr));
 
   cont_set_stack(result, top_fr);
-  unprot_ptrs(mark, result, top_fr, prev_fr);
+  unprot_ptrs(result, top_fr, prev_fr);
+  return result;
+}
+
+Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) { prot_ptr(mark);
+  auto result = vm_snapshot_stack_with_predicate(vm,[&](StackFrameObject *fr){
+      return ptr_eq(fr->mark, mark); });
+  unprot_ptr(mark);
   return result;
 }
 
 void vm_unwind_to_mark(VM *vm, Ptr mark) {
   while (vm->frame && !ptr_eq(vm->frame->mark, mark)) {
+    vm_pop_stack_frame(vm); 
+    if (vm->error) return;
+  }
+}
+
+void vm_unwind_to_predicate(VM *vm, StackPred fn) {
+  while (vm->frame && !fn(vm->frame)) {
     vm_pop_stack_frame(vm); 
     if (vm->error) return;
   }
@@ -2784,6 +2817,39 @@ Ptr vm_resume_stack_snapshot(VM *vm, Ptr cont, Ptr arg) {
   return arg;
 }
 
+Ptr _vm_thread_suspend(VM *vm) {
+  if (vm->frame->prev_frame == 0) return Nil;
+  auto predicate = [&](StackFrameObject *fr){
+    return fr->prev_frame == 0;
+  };
+  auto result = vm_snapshot_stack_with_predicate(vm, predicate);
+  vm_unwind_to_predicate(vm, predicate);
+  return result;
+}
+
+void _vm_thread_resume(VM *vm, Ptr cont) {
+  vm_restore_stack_snapshot(vm, cont);
+}
+
+void vm_swap_threads(VM *vm) {
+  Ptr curr = _vm_thread_suspend(vm);
+  // dbg("1 is cont?", is(cont, curr), " ", vm->stack_depth);
+  if (is(cont,curr)) vm->threads->push_back(curr);
+  if (vm->threads->size() > 0) {
+    Ptr next = vm->threads->at(0);
+    // dbg("2 is cont?", is(cont, next));
+    vm->threads->erase(vm->threads->begin());
+    // dbg("erased front item");
+    _vm_thread_resume(vm, next);
+    // dbg("called resume");
+  }
+}
+
+Ptr vm_schedule_thread(VM *vm, Ptr cont) {
+  assert(is(cont, cont));
+  vm->threads->push_back(cont);
+  return Nil;
+}
 
 typedef Ptr (*CCallFunction)(VM*);
 
@@ -2906,10 +2972,13 @@ void vm_handle_error(VM *vm);
 //        but need to integrate with stack push/pop and gc both
 #define vm_curr_instr(vm) vm->bc->code->data[vm->pc]
 #define vm_adv_instr(vm) vm->bc->code->data[++vm->pc]
+#define INSTR_BUDGET 100
 void vm_interp(VM* vm) {
   u64 instr; u8 code; u32 data;
+  s64 budget = INSTR_BUDGET;
   while ((instr = vm_curr_instr(vm))) {
     vm->instruction_count++;
+    budget--;
     code = instr_code(instr);
     data = instr_data(instr);
     switch (code){
@@ -3092,6 +3161,10 @@ void vm_interp(VM* vm) {
         vm_push_stack_frame(vm, argc, bc, env);
       }
       vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
+      if (budget <= 0 ) {
+        vm_swap_threads(vm); budget = INSTR_BUDGET;
+        // dbg("swapped threads.");
+      }
       break;
     }
     case RET: {
@@ -4318,6 +4391,8 @@ VM *vm_create() {
   vm->gc_protected_ptr_vectors->reserve(100);
 
   vm->in_gc = false;
+
+  vm->threads = new std::vector<Ptr>;
 
   vm->frame = 0;
   vm->error = 0;

@@ -9,7 +9,7 @@
 (define cont (lambda->continuation (lambda () (print '(hello world!)))))
 
 (defmacro fork (& forms)
-  `(fork-continuation (lambda->continuation (lambda () ,@forms))))
+  `(fork-continuation (lambda->continuation (lambda () (let ((r (let () ,@forms))) r)))))
 
 (defmacro forever (& forms)
   `(let ((loop #f))
@@ -23,11 +23,16 @@
                           (loop (-i c 1)))))
      (loop ,count)))
 
-
-;; still haven't got termination worked out yet.
-(fork (forever (print 'hello)))
-;; (fork (repeat 1000 (print '!!!!!))) -- not working yet
-(fork (forever (print '!!!!!)))
-(forever (print 'world)) ;; required
-
+;; this has to be run via the metacompiler,
+;; becuase the cpp compiler re-runs the interp loop for each form,
+;; and the 'preemption' doesn't work correctly that way.
+;; going to take a good bit of thought to figure out how to do this with
+;; with the events based system...
+(define (say-bye)
+    (repeat 200 (print 'world))
+  (print 'the-end))
+(fork (repeat 200 (print '!!!!!)))
+(fork (repeat 200 (print 'hello))) ;; changing this 200 to a 800 'removes' the crash
+(fork (say-bye))
+(print 'goodbye)
 'done

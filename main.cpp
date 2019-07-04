@@ -423,6 +423,7 @@ unwrap_ptr_for(any, it) { return it; }
             (as(Object, it))->header.object_type == type##_ObjectType); \
   };                                                                    \
   unwrap_ptr_for(type, it) {                                            \
+   if (! is(type, it)) { die("unwrap of ", #type, " got ", it); } \
     assert(is(type, it));                                               \
     return (type##Object *)as(Object, it);                              \
   }
@@ -1200,10 +1201,10 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
     case Closure:
       os << "[";
       if (vobj->length > 0) {
-        cout << vobj->data[0];
+        std::cout << vobj->data[0];
       }
       for (uint i = 1; i < vobj->length; i++) {
-        cout << " " << vobj->data[i];
+        std::cout << " " << vobj->data[i];
       }
       os << "]";
     }
@@ -2831,10 +2832,7 @@ void _vm_thread_resume(VM *vm, Ptr cont) {
   vm_restore_stack_snapshot(vm, cont);
 }
 
-void vm_swap_threads(VM *vm) {
-  Ptr curr = _vm_thread_suspend(vm);
-  // dbg("1 is cont?", is(cont, curr), " ", vm->stack_depth);
-  if (is(cont,curr)) vm->threads->push_back(curr);
+bool vm_maybe_start_next_thread(VM *vm) {
   if (vm->threads->size() > 0) {
     Ptr next = vm->threads->at(0);
     // dbg("2 is cont?", is(cont, next));
@@ -2842,7 +2840,19 @@ void vm_swap_threads(VM *vm) {
     // dbg("erased front item");
     _vm_thread_resume(vm, next);
     // dbg("called resume");
+    return true;
   }
+  return false;
+}
+
+bool vm_swap_threads(VM *vm) {
+  if (vm->threads->size() > 0) {
+    Ptr curr = _vm_thread_suspend(vm);
+    // dbg("1 is cont?", is(cont, curr), " ", vm->stack_depth);
+    if (is(cont,curr)) vm->threads->push_back(curr);
+    return vm_maybe_start_next_thread(vm);
+  }
+  return false;
 }
 
 Ptr vm_schedule_thread(VM *vm, Ptr cont) {
@@ -2972,10 +2982,13 @@ void vm_handle_error(VM *vm);
 //        but need to integrate with stack push/pop and gc both
 #define vm_curr_instr(vm) vm->bc->code->data[vm->pc]
 #define vm_adv_instr(vm) vm->bc->code->data[++vm->pc]
+// absurdly low for testing
 #define INSTR_BUDGET 100
 void vm_interp(VM* vm) {
   u64 instr; u8 code; u32 data;
-  s64 budget = INSTR_BUDGET;
+  s64 budget;
+  budget = INSTR_BUDGET;
+ restart_interp:
   while ((instr = vm_curr_instr(vm))) {
     vm->instruction_count++;
     budget--;
@@ -3123,6 +3136,7 @@ void vm_interp(VM* vm) {
           argc = count;
           goto reenter_call;
         } else if (idx == 1) { // SEND
+          dbg("preparing to send... ", idx);
           vm_interp_prepare_for_send(vm, argc);
           argc--;
           goto reenter_call;
@@ -3161,9 +3175,11 @@ void vm_interp(VM* vm) {
         vm_push_stack_frame(vm, argc, bc, env);
       }
       vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
-      if (budget <= 0 ) {
-        vm_swap_threads(vm); budget = INSTR_BUDGET;
-        // dbg("swapped threads.");
+      if (budget <= 0) {
+        if (vm_swap_threads(vm)) {
+          // dbg("swapped threads.");
+        }
+        budget = INSTR_BUDGET;
       }
       break;
     }
@@ -3189,13 +3205,24 @@ void vm_interp(VM* vm) {
       vm->error = "unexpected BC";
       return;
     }
+
     if (vm->error) {
       // dbg("ERROR:", vm->error);
       // vm_print_debug_stack_trace(vm);
       // return;
       vm_handle_error(vm);
+
     };
     ++vm->pc;
+  }
+
+
+  bool restarting = vm_maybe_start_next_thread(vm);
+  if (restarting) {
+    dbg("restarting interpreter loop, remaining other threads: ", vm->threads->size());
+    budget = INSTR_BUDGET;
+    ++vm->pc;
+    goto restart_interp;
   }
 }
 #undef vm_curr_instr

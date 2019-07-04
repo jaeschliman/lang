@@ -635,5 +635,6 @@
   (match-map eval 'meta-main input)
   (pop-meta-context))
 
-
-'bye
+(meta1-runfile "./threads.lisp")
+(print "ran the file")
+'done

@@ -2845,6 +2845,11 @@ bool vm_maybe_start_next_thread(VM *vm) {
   return false;
 }
 
+void vm_suspend_current_thread(VM *vm) {
+  Ptr curr = _vm_thread_suspend(vm);
+  if (is(cont,curr)) vm->threads->push_back(curr);
+}
+
 bool vm_swap_threads(VM *vm) {
   if (vm->threads->size() > 0) {
     Ptr curr = _vm_thread_suspend(vm);
@@ -2982,16 +2987,31 @@ void vm_handle_error(VM *vm);
 //        but need to integrate with stack push/pop and gc both
 #define vm_curr_instr(vm) vm->bc->code->data[vm->pc]
 #define vm_adv_instr(vm) vm->bc->code->data[++vm->pc]
-// absurdly low for testing
-#define INSTR_BUDGET 100
-void vm_interp(VM* vm) {
+
+typedef struct {
+  s64 thread_switch_instr_budget, total_execution_instr_budget;
+} interp_params;
+
+//absurdly low for testing
+#define CTX_SWITCH 100
+#define RUN_QUICK 1000
+#define RUN_AWHILE 100000
+#define RUN_INDEFINITELY 0
+auto INTERP_PARAMS_EVENT_HANDLER = (interp_params){0,RUN_QUICK};
+auto INTERP_PARAMS_MAIN_EXECUTION = (interp_params){CTX_SWITCH,RUN_INDEFINITELY};
+auto INTERP_PARAMS_MAIN_EVENT_HANDLER = (interp_params){CTX_SWITCH,RUN_AWHILE};
+auto INTERP_PARAMS_EXCLUSIVE = (interp_params){0,RUN_INDEFINITELY};
+
+void vm_interp(VM* vm, interp_params params) {
   u64 instr; u8 code; u32 data;
-  s64 budget;
-  budget = INSTR_BUDGET;
+  s64 ctx_switch_budget, spent_instructions;
+  ctx_switch_budget = params.thread_switch_instr_budget;
+  spent_instructions = 0;
  restart_interp:
   while ((instr = vm_curr_instr(vm))) {
     vm->instruction_count++;
-    budget--;
+    spent_instructions++;
+    ctx_switch_budget--;
     code = instr_code(instr);
     data = instr_data(instr);
     switch (code){
@@ -3175,11 +3195,19 @@ void vm_interp(VM* vm) {
         vm_push_stack_frame(vm, argc, bc, env);
       }
       vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
-      if (budget <= 0) {
+
+      // we choose the end of a CALL as our safe point for ctx switching
+      if (params.total_execution_instr_budget &&
+          spent_instructions >= params.total_execution_instr_budget) {
+        // dbg("suspending execution");
+        vm_suspend_current_thread(vm);
+        return;
+      }
+      if (params.thread_switch_instr_budget && ctx_switch_budget <= 0) {
         if (vm_swap_threads(vm)) {
           // dbg("swapped threads.");
         }
-        budget = INSTR_BUDGET;
+        ctx_switch_budget = params.thread_switch_instr_budget;
       }
       break;
     }
@@ -3222,7 +3250,7 @@ void vm_interp(VM* vm) {
   bool restarting = vm_maybe_start_next_thread(vm);
   if (restarting) {
     dbg("restarting interpreter loop, remaining other threads: ", vm->threads->size());
-    budget = INSTR_BUDGET;
+    ctx_switch_budget = params.thread_switch_instr_budget;
     ++vm->pc;
     goto restart_interp;
   }
@@ -4390,7 +4418,7 @@ Ptr slurp(VM *vm, ByteArrayObject* path) {
 
 /* -------------------------------------------------- */
 
-void load_file(VM *vm, const char* path);
+void load_file(VM *vm, const char* path, interp_params params);
 
 VM *vm_create() {
   VM *vm;
@@ -4447,23 +4475,23 @@ VM *vm_create() {
   vm->frame->mark = KNOWN(exception);
 
   // load the stdlib
-  load_file(vm, "./boot.lisp");
+  load_file(vm, "./boot.lisp", INTERP_PARAMS_EXCLUSIVE);
   return vm;
 }
 
-Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]);
+Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params params);
 bool boundp(VM*, Ptr);
 
 Ptr compile_toplevel_expression_with_hooks(VM *vm, Ptr expr) {
   if (boundp(vm, KNOWN(compiler))) {
-    Ptr new_expr = vm_call_global(vm, KNOWN(compiler), 1, (Ptr[]){expr});
+    Ptr new_expr = vm_call_global(vm, KNOWN(compiler), 1, (Ptr[]){expr}, INTERP_PARAMS_EXCLUSIVE);
     return make_closure(vm, objToPtr(compile_toplevel_expression(vm, new_expr)), Nil);
   } else {
     return make_closure(vm, objToPtr(compile_toplevel_expression(vm, expr)), Nil);
   }
 }
 
-Ptr eval(VM *vm, Ptr expr) { // N.B. should /not/ be exposed
+Ptr eval(VM *vm, Ptr expr, interp_params params) { // N.B. should /not/ be exposed
   auto closure = compile_toplevel_expression_with_hooks(vm, expr);
 
   auto bc = closure_code(closure);
@@ -4471,7 +4499,7 @@ Ptr eval(VM *vm, Ptr expr) { // N.B. should /not/ be exposed
 
   vm_push_stack_frame(vm, 0, bc, env);
 
-  vm_interp(vm);
+  vm_interp(vm, params);
   Ptr result = vm_pop(vm);
 
   vm_pop_stack_frame(vm);
@@ -4483,23 +4511,23 @@ Ptr eval(VM *vm, Ptr expr) { // N.B. should /not/ be exposed
   return result;
 }
 
-Ptr run_string(VM *vm, const char *str) {
+Ptr run_string(VM *vm, const char *str, interp_params params) {
   Ptr result = Nil;                                 prot_ptr(result);
   auto istream = make_istream_from_string(vm, str); prot_ptr(istream);
   while (!istream_at_end(istream)) {
     auto read = read_from_istream(vm, istream);
-    result = eval(vm, read);
+    result = eval(vm, read, params);
   }
   unprot_ptrs(result, istream);
   return result;
 }
 
-Ptr run_string_with_hooks(VM *vm, const char *str) {
+Ptr run_string_with_hooks(VM *vm, const char *str, interp_params params) {
   if (boundp(vm, KNOWN(run_string))) {
     auto string = make_string(vm, str);
-    return vm_call_global(vm, KNOWN(run_string), 1, (Ptr[]){string});
+    return vm_call_global(vm, KNOWN(run_string), 1, (Ptr[]){string}, params);
   } else {
-    return run_string(vm, str);
+    return run_string(vm, str, params);
   }
 }
 
@@ -4512,7 +4540,7 @@ void start_up_and_run_string(const char* str, bool soak) {
 
     while (!istream_at_end(istream)) {
       auto read = read_from_istream(vm, istream);
-      eval(vm, read);
+      eval(vm, read, INTERP_PARAMS_MAIN_EXECUTION);
     }
 
     unprot_ptrs(istream);
@@ -4538,7 +4566,7 @@ void start_up_and_run_repl() {
     std::cout << "lang>";
     string input;
     getline(std::cin, input);
-    auto result = run_string(vm, input.c_str());
+    auto result = run_string(vm, input.c_str(), INTERP_PARAMS_MAIN_EXECUTION);
     std::cout << result << std::endl;
   }
 }
@@ -4549,8 +4577,8 @@ auto run_file(string path, bool soak_test) {
   // TODO: free contents
 }
 
-void load_file(VM *vm, const char *path) {
-  run_string(vm, read_file_contents(path));
+void load_file(VM *vm, const char *path, interp_params params) {
+  run_string(vm, read_file_contents(path), params);
 }
 
 ByteCodeObject *build_call(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
@@ -4586,7 +4614,7 @@ void patch_bytecode_for_call(VM *vm, ByteCodeObject *bc, Ptr symbol, u64 argc, P
 
 /* should only be used as an 'entry' into the VM */
 /* IOW, we don't want two of these on the stack, they will interfere */
-Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
+Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params params) {
   prot_ptr(symbol); protect_ptr_vector(argv, argc);
 
   ByteCodeObject *bc;
@@ -4608,7 +4636,7 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
 
   vm_push_stack_frame(vm, 0, bc, Nil);
   vm->frame->mark = KNOWN(exception);
-  vm_interp(vm);
+  vm_interp(vm, params);
   auto result = vm_pop(vm);
   vm_pop_stack_frame(vm);
 
@@ -4626,7 +4654,7 @@ auto current_time_ms() {
 
 void start_up_and_run_event_loop(const char *path) {
   auto vm = vm_create();
-  load_file(vm, path);
+  load_file(vm, path, INTERP_PARAMS_MAIN_EXECUTION);
 
   SDL_Window *window;
 
@@ -4668,7 +4696,7 @@ void start_up_and_run_event_loop(const char *path) {
     SDL_FillRect(window_surface, NULL, SDL_MapRGBA(fmt, 255, 255, 255, 255));
     auto W = to(Fixnum, w);
     auto H = to(Fixnum, h);
-    vm_call_global(vm, intern(vm, "onshow"), 2, (Ptr[]){W, H});
+    vm_call_global(vm, intern(vm, "onshow"), 2, (Ptr[]){W, H}, INTERP_PARAMS_EVENT_HANDLER);
     SDL_UpdateWindowSurface(window);
   }
 
@@ -4722,6 +4750,10 @@ void start_up_and_run_event_loop(const char *path) {
   auto onmousedown = intern(vm, "onmousedown"); prot_ptr(onmousedown);
   auto onframe     = intern(vm, "onframe");     prot_ptr(onframe);
 
+  auto as_main = INTERP_PARAMS_MAIN_EXECUTION;
+  auto as_event = INTERP_PARAMS_EVENT_HANDLER;
+  auto as_main_event = INTERP_PARAMS_MAIN_EVENT_HANDLER;
+
   auto frame_length_ms = 1000 / 60;
 
   auto msec_s = current_time_ms();
@@ -4741,7 +4773,7 @@ void start_up_and_run_event_loop(const char *path) {
       if (valread > 0) {
         dbg("read ", valread);
         puts(buffer);
-        run_string_with_hooks(vm, buffer);
+        run_string_with_hooks(vm, buffer, as_main);
         bzero(buffer, BUF_SIZE);
       }
     }
@@ -4751,7 +4783,7 @@ void start_up_and_run_event_loop(const char *path) {
       case SDL_KEYDOWN : {
         auto key = event.key.keysym.scancode;
         Ptr num = to(Fixnum, key);
-        vm_call_global(vm, onkey, 1, (Ptr[]){num});
+        vm_call_global(vm, onkey, 1, (Ptr[]){num}, as_event);
         break;
       }
       case SDL_MOUSEMOTION: {
@@ -4760,9 +4792,9 @@ void start_up_and_run_event_loop(const char *path) {
         auto p = (point){x, y};
         auto pt = to(Point, p);
         if (event.motion.state & SDL_BUTTON_LMASK) {
-          vm_call_global(vm, onmousedrag, 1, (Ptr[]){pt});
+          vm_call_global(vm, onmousedrag, 1, (Ptr[]){pt}, as_event);
         } else {
-          vm_call_global(vm, onmousemove, 1, (Ptr[]){pt});
+          vm_call_global(vm, onmousemove, 1, (Ptr[]){pt}, as_event);
         }
         SDL_FlushEvent(SDL_MOUSEMOTION);
         break;
@@ -4772,7 +4804,7 @@ void start_up_and_run_event_loop(const char *path) {
         auto y = event.button.y;
         auto p = (point){x, y};
         auto pt = to(Point, p);
-        vm_call_global(vm, onmousedown, 1, (Ptr[]){pt});
+        vm_call_global(vm, onmousedown, 1, (Ptr[]){pt}, as_event);
         break;
       }
       }
@@ -4787,7 +4819,7 @@ void start_up_and_run_event_loop(const char *path) {
       auto delta1 = msec_e0 - msec_s;
       auto frame_len = delta1 / 1000.0;
       auto elapsed = to(Float, frame_len);
-      vm_call_global(vm, onframe, 1, (Ptr[]){elapsed});
+      vm_call_global(vm, onframe, 1, (Ptr[]){elapsed}, as_main_event);
 
       auto msec_e1 = current_time_ms();
       auto delta2 = msec_e1 - msec_s;

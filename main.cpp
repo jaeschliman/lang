@@ -3202,6 +3202,8 @@ void vm_interp(VM* vm) {
     }
     default:
       dbg("instr = ", instr, " code = ", (int)code, " data = ", data);
+      dbg("bc = ", vm->bc);
+      dbg("mk = ", vm->frame->mark);
       vm->error = "unexpected BC";
       return;
     }
@@ -3467,6 +3469,9 @@ public:
     pushOp(POP_CLOSURE_ENV);
   }
   ByteCodeObject *build() {
+    // FIXME: somewhere there's an off-by-one
+    //        occurs when final thread terminates
+    pushOp(END);
     pushOp(END);
     fixupJumpLocations();
     finalizeByteCode();

@@ -31,6 +31,7 @@
     (set-pixel (cadr e))))
 
 (define (poll-for-pending-events) ;; clearly not thread safe ; )
+    (sleep-ms 500)
     (let ((found pending-events))
       (when (not (nil? found))
         (set 'pending-events '()) 

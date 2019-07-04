@@ -34,6 +34,12 @@
 #include "./stacktrace.h"
 #include "./macro_support.h"
 
+auto current_time_ms() {
+  auto now = std::chrono::system_clock::now();
+  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+  return ms.count();
+}
+
 using std::string;
 
 #define GC_DEBUG 0
@@ -1016,11 +1022,13 @@ defstruct(cont, Continuation,
           value);
 defstruct(thread, Thread,
           continuation,
-          status);
+          status,
+          wake_after);
 
-auto THREAD_STATUS_RUNNING = FIXNUM(0);
-auto THREAD_STATUS_WAITING = FIXNUM(1);
-auto THREAD_STATUS_DEAD    = FIXNUM(2);
+auto THREAD_STATUS_RUNNING  = FIXNUM(0);
+auto THREAD_STATUS_WAITING  = FIXNUM(1);
+auto THREAD_STATUS_DEAD     = FIXNUM(2);
+auto THREAD_STATUS_SLEEPING = FIXNUM(3);
 
 /* ---------------------------------------- */
 
@@ -2831,6 +2839,33 @@ Ptr vm_resume_stack_snapshot(VM *vm, Ptr cont, Ptr arg) {
   return arg;
 }
 
+Ptr _vm_maybe_get_next_available_thread(VM *vm) {
+  if (vm->threads->size() > 0) {
+    auto found_idx = -1;
+    auto now = current_time_ms();
+    for (auto i = 0; i < vm->threads->size(); i++) {
+      auto thread = vm->threads->at(i);
+      auto status = thread_get_status(thread);
+      if (status == THREAD_STATUS_WAITING) {
+        found_idx = i;
+        break;
+      }
+      if (status == THREAD_STATUS_SLEEPING) {
+        auto wake_after = thread_get_wake_after(thread);
+        if (as(Fixnum, wake_after) <= now) {
+          found_idx = i;
+          break;
+        }
+      }
+    }
+    if (found_idx == -1) return Nil;
+    auto result = vm->threads->at(found_idx);
+    vm->threads->erase(vm->threads->begin() + found_idx);
+    return result;
+  }
+  return Nil;
+}
+
 Ptr _vm_thread_suspend(VM *vm) {
   if (vm->frame->prev_frame == 0) return Nil;
   auto predicate = [&](StackFrameObject *fr){
@@ -2851,9 +2886,8 @@ void _vm_thread_resume(VM *vm, Ptr thread) {
 }
 
 bool vm_maybe_start_next_thread(VM *vm) {
-  if (vm->threads->size() > 0) {
-    Ptr next = vm->threads->at(0);
-    vm->threads->erase(vm->threads->begin());
+  auto next = _vm_maybe_get_next_available_thread(vm);
+  if (is(thread, next)) {
     _vm_thread_resume(vm, next);
     return true;
   }
@@ -2863,7 +2897,18 @@ bool vm_maybe_start_next_thread(VM *vm) {
 void vm_suspend_current_thread(VM *vm) {
   Ptr curr = _vm_thread_suspend(vm);
   if (is(thread,curr)) vm->threads->push_back(curr);
+  vm->globals->current_thread = Nil; // XXX careful!
   vm->suspended = true;
+}
+
+bool vm_sleep_current_thread(VM *vm, s64 ms) {
+  Ptr curr = _vm_thread_suspend(vm);
+  if (is(thread,curr)) vm->threads->push_back(curr);
+  thread_set_status(curr, THREAD_STATUS_SLEEPING);
+  s64 wake_after = current_time_ms() + ms;
+  thread_set_wake_after(curr, FIXNUM((u64)wake_after));
+  vm->globals->current_thread = Nil; // XXX careful!
+  return vm_maybe_start_next_thread(vm);
 }
 
 bool vm_swap_threads(VM *vm) {
@@ -2877,7 +2922,7 @@ bool vm_swap_threads(VM *vm) {
 
 Ptr vm_schedule_cont(VM *vm, Ptr cont) {
   assert(is(cont, cont));
-  auto thread = make_thread(vm, cont, THREAD_STATUS_WAITING);
+  auto thread = make_thread(vm, cont, THREAD_STATUS_WAITING, FIXNUM(0));
   vm->threads->push_back(thread);
   return Nil;
 }
@@ -3160,7 +3205,8 @@ void vm_interp(VM* vm, interp_params params) {
         // auto argc = (v >> 16) & 0xFF;
         auto idx  = (v >> 32) & 0xFFFF;
 
-        // @speed it is horrible to have two if checks here for every call.
+        // @speed it is horrible to have multiple checks here for every call.
+        //        perhaps we could have a bitmask for special functions
         if (idx == 0) { // APPLY
           // TODO: multi-arity apply
           auto args = vm_pop(vm);
@@ -3179,6 +3225,15 @@ void vm_interp(VM* vm, interp_params params) {
           vm_interp_prepare_for_send(vm, argc);
           argc--;
           goto reenter_call;
+        } else if (idx == 2) { // SLEEP
+          auto ms = vm_pop(vm); 
+          vm_push(vm, Nil);
+          if (!vm_sleep_current_thread(vm, as(Fixnum, ms))) {
+            // if we failed to resume another thread, we are suspended
+            vm->suspended = true;
+            return;
+          }
+          break;
         }
 
         // cerr << " calling prim at idx: " << idx << " arg count = " << argc << endl;
@@ -4485,7 +4540,7 @@ VM *vm_create() {
 
   vm->gc_disabled = true;
 
-  vm->globals->current_thread = make_thread(vm, Nil, THREAD_STATUS_RUNNING);
+  vm->globals->current_thread = make_thread(vm, Nil, THREAD_STATUS_RUNNING, FIXNUM(0));
   initialize_known_symbols(vm);
   initialize_classes(vm);
   initialize_primitive_functions(vm);
@@ -4670,13 +4725,6 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params param
   }
   unprot_ptr(symbol); unprotect_ptr_vector(argv);
   return result;
-}
-
-
-auto current_time_ms() {
-  auto now = std::chrono::system_clock::now();
-  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-  return ms.count();
 }
 
 

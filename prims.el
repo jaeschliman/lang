@@ -179,6 +179,7 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim @send SEND unused any "unused") ;; N.B. this is handled specially in the VM
   ;; syntax is (@send method recvr ..args)
+  (prim sleep-ms SLEEP_MS unused any "unused") ;; handled specially in VM
 
   (prim compile-to-closure CMPC ((expr any)) any "compile_to_closure(vm, expr)")
 

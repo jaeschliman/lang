@@ -1023,12 +1023,16 @@ defstruct(cont, Continuation,
 defstruct(thread, Thread,
           continuation,
           status,
-          wake_after);
+          wake_after,
+          priority);
 
 auto THREAD_STATUS_RUNNING  = FIXNUM(0);
 auto THREAD_STATUS_WAITING  = FIXNUM(1);
 auto THREAD_STATUS_DEAD     = FIXNUM(2);
 auto THREAD_STATUS_SLEEPING = FIXNUM(3);
+
+auto THREAD_PRIORITY_NORMAL  = FIXNUM(0);
+auto THREAD_PRIORITY_HIGHEST = FIXNUM(100);
 
 /* ---------------------------------------- */
 
@@ -2839,25 +2843,36 @@ Ptr vm_resume_stack_snapshot(VM *vm, Ptr cont, Ptr arg) {
   return arg;
 }
 
+// FIXME: doesn't yet respect priority (see break statements)
+//        will require a priority queue or some other structure better than
+//        just a vector to work efficiently
 Ptr _vm_maybe_get_next_available_thread(VM *vm) {
   if (vm->threads->size() > 0) {
+    auto best_priority = -1000;
     auto found_idx = -1;
     s64 now = current_time_ms();
     int count = vm->threads->size();
     for (auto i = 0; i < count; i++) {
       auto thread = vm->threads->at(i);
       auto status = thread_get_status(thread);
+      auto priority = as(Fixnum, thread_get_priority(thread));
       if (status == THREAD_STATUS_WAITING) {
-        found_idx = i;
-        break;
+        if (priority > best_priority) {
+          found_idx = i;
+          best_priority = priority;
+          break;
+        }
       } else if (status == THREAD_STATUS_SLEEPING) {
         auto wake_after = thread_get_wake_after(thread);
         s64 delta = as(Fixnum, wake_after) - now;
         // if (delta > 0) dbg("thread still sleeping for ", delta, " ms", thread);
         if (delta <= 0) {
           // dbg("waking sleeping thread");
-          found_idx = i;
-          break;
+          if (priority > best_priority) {
+            found_idx = i;
+            best_priority = priority;
+            break;
+          }
         }
       } else if (status == THREAD_STATUS_RUNNING) {
         // should not get here
@@ -2955,9 +2970,9 @@ bool vm_swap_threads(VM *vm) {
   return false;
 }
 
-Ptr vm_schedule_cont(VM *vm, Ptr cont) {
+Ptr vm_schedule_cont(VM *vm, Ptr cont, Ptr priority) {
   assert(is(cont, cont));
-  auto thread = make_thread(vm, cont, THREAD_STATUS_WAITING, FIXNUM(0));
+  auto thread = make_thread(vm, cont, THREAD_STATUS_WAITING, FIXNUM(0), priority);
   vm_add_thread_to_background_set(vm, thread);
   return Nil;
 }
@@ -3089,9 +3104,9 @@ typedef struct {
 } interp_params;
 
 //absurdly low for testing
-#define CTX_SWITCH 100
-#define RUN_QUICK 1000
-#define RUN_AWHILE 100000
+#define CTX_SWITCH 1000
+#define RUN_QUICK 10000
+#define RUN_AWHILE 1000000
 #define RUN_INDEFINITELY 0
 auto INTERP_PARAMS_EVENT_HANDLER = (interp_params){0,RUN_QUICK};
 auto INTERP_PARAMS_MAIN_EXECUTION = (interp_params){CTX_SWITCH,RUN_INDEFINITELY};
@@ -4618,7 +4633,10 @@ VM *vm_create() {
 
   vm->gc_disabled = true;
 
-  vm->globals->current_thread = make_thread(vm, Nil, THREAD_STATUS_RUNNING, FIXNUM(0));
+  vm->globals->current_thread = make_thread(vm, Nil,
+                                            THREAD_STATUS_RUNNING,
+                                            FIXNUM(0),
+                                            THREAD_PRIORITY_NORMAL);
   initialize_known_symbols(vm);
   initialize_classes(vm);
   initialize_primitive_functions(vm);
@@ -4797,7 +4815,10 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params param
   vm->frame->mark = KNOWN(exception);
   // would be nice if there was a way to cut down on allocations here...
   // not yet sure _exactly_ why we need a fresh TL thread for each event handler
-  vm->globals->current_thread = make_thread(vm, Nil, THREAD_STATUS_RUNNING, FIXNUM(0));
+  vm->globals->current_thread = make_thread(vm, Nil,
+                                            THREAD_STATUS_RUNNING,
+                                            FIXNUM(0),
+                                            THREAD_PRIORITY_NORMAL);
   vm_interp(vm, params);
   auto result = Nil;
   if (vm->suspended) {

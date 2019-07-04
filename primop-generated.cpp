@@ -87,7 +87,7 @@ enum PrimitiveOperation : u64 {
   PRIM_PSTKMARK = ((84ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_RSTKSNAP = ((85ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_CONT_VAL = ((86ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_FORK = ((87ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_FORK = ((87ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_SLURP = ((88ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
@@ -853,8 +853,9 @@ Ptr PRIM_CONT_VAL_impl(VM *vm, u32 argc) {
 Ptr PRIM_FORK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("fork-continuation",any,a);
+   VM_ARG("fork-continuation",any,priority);
 
- return vm_schedule_cont(vm, a);
+ return vm_schedule_cont(vm, a, priority);
 }
 
 // Primitive 87
@@ -1729,8 +1730,9 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
 
   case 87: {
    VM_ARG("fork-continuation",any,a);
+   VM_ARG("fork-continuation",any,priority);
 
-    vm_push(vm, vm_schedule_cont(vm, a));
+    vm_push(vm, vm_schedule_cont(vm, a, priority));
     break;
   }
 

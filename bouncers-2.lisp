@@ -5,8 +5,8 @@
               (fn)))))
     r))
 
-(defmacro fork (& forms)
-  `(fork-continuation (lambda->continuation (lambda () (let ((r (let () ,@forms))) r)))))
+(defmacro fork (priority & forms)
+  `(fork-continuation ,priority (lambda->continuation (lambda () (let ((r (let () ,@forms))) r)))))
 
 (defmacro forever (& forms)
   `(let ((loop #f))
@@ -16,6 +16,7 @@
 
 (define boxes '())
 (define screen-size #f)
+(define back-buffer #f)
 
 (define (move-box box)
     (let* ((x (aget box 0))
@@ -50,19 +51,22 @@
       (aset box 2 1)
       (aset box 3 1)
       (set 'boxes (cons box boxes))
-      (fork (forever
-             (sleep-ms 10)
-             (move-box box)))))
+      (fork 0 (forever
+               (sleep-ms 10)
+               (move-box box)))))
 
 (define (clear-screen)
-    (screen-fill-rect 0@0 screen-size 0xffffffff))
+    (fill-rect back-buffer 0@0 screen-size 0xffffffff))
+
+(define (flip-buffer)
+    (blit-to-screen back-buffer 0@0 100 0))
 
 (define (draw-one-box box)
     (let* ((x (aget box 0))
            (y (aget box 1))
            (a (make-point x y))
            (b (point+ a 10@10)))
-      (screen-fill-rect a b 0xff00ffff)))
+      (fill-rect back-buffer a b 0xff00ffff)))
 
 (define (draw-boxes)
     (let ((loop #f))
@@ -72,11 +76,15 @@
                      (loop (cdr remaining)))))
       (loop boxes)))
 
+(define (draw-frame)
+    (clear-screen)
+  (draw-boxes)
+  (flip-buffer))
+
 (define (onshow w h)
-    (set 'screen-size (make-point w h)))
+    (set 'screen-size (make-point w h))
+  (set 'back-buffer (make-image w h))
+  (fork 100 (forever (draw-frame) (sleep-ms 10))))
 
 (define (onmousedown p) (add-box p))
-
-(define (onframe dt)
-    (clear-screen)
-  (draw-boxes))
+(define (onmousedrag p) (add-box p))

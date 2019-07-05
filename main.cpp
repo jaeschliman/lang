@@ -1154,9 +1154,10 @@ void map_refs(VM *vm, Ptr it, PtrFn fn) {
 
 enum {
   BaseClassName       = 0,
-  BaseClassIvarCount  = 1, //TODO: we don't actually need this for Base Classes
+  BaseClassIvarCount  = 1,
   BaseClassMethodDict = 2,
-  BaseClassEnd        = 3
+  BaseClassMetadata   = 3,
+  BaseClassEnd        = 4
 };
 
 typedef void(*DebugPrintFunction)(std::ostream &os, Ptr p);
@@ -1388,15 +1389,20 @@ StandardObject *make_standard_object(VM *vm, StandardObject *klass, Ptr*ivars) {
   auto ivar_count_object = standard_object_get_ivar(klass, BaseClassIvarCount);
   assert(is(Fixnum, ivar_count_object));
   auto ivar_count = as(Fixnum, ivar_count_object);
-  protect_ptr_vector(ivars, ivar_count);
+
+  if (ivars) {
+    protect_ptr_vector(ivars, ivar_count);
+  }
 
   auto result = alloc_standard_object(vm, klass, ivar_count);
 
-  for (auto i = 0; i < ivar_count; i++) {
-    standard_object_set_ivar(result, i, ivars[i]);
+  if (ivars) {
+    for (auto i = 0; i < ivar_count; i++) {
+      standard_object_set_ivar(result, i, ivars[i]);
+    }
+    unprotect_ptr_vector(ivars);
   }
 
-  unprotect_ptr_vector(ivars);
   return result;
 }
 
@@ -2086,7 +2092,7 @@ void initialize_known_symbols(VM *vm) {
 /* ---------------------------------------- */
 // @unsafe
 auto make_base_class(VM *vm, const char* name) {
-  Ptr slots[] = {make_string(vm,name), make_number(0), ht(vm)};
+  Ptr slots[] = {make_string(vm,name), make_number(0), ht(vm), ht(vm)};
   auto base = vm->globals->classes.builtins[BuiltinClassIndex_Base];
   return make_standard_object(vm, base, slots);
 }
@@ -2099,6 +2105,7 @@ void initialize_classes(VM *vm)
   standard_object_set_ivar(Base, BaseClassName, make_string(vm, "Base"));
   standard_object_set_ivar(Base, BaseClassIvarCount, make_number(BaseClassEnd));
   standard_object_set_ivar(Base, BaseClassMethodDict, ht(vm));
+  standard_object_set_ivar(Base, BaseClassMetadata, ht(vm));
   vm->globals->classes.builtins[BuiltinClassIndex_Base] = Base;
 
 #define make_class(name) if (!builtin(name)) builtin(name) = make_base_class(vm, #name);
@@ -2116,6 +2123,32 @@ void initialize_classes(VM *vm)
 #undef make_class
 #undef builtin
 
+}
+
+Ptr make_user_class(VM *vm, Ptr name, s64 ivar) { prot_ptrs(name);
+  auto ivar_ct = to(Fixnum, ivar);
+  auto method_dict = ht(vm); prot_ptr(method_dict);
+  auto metadata = ht(vm);
+  auto superclass = vm->globals->classes.builtins[BuiltinClassIndex_Base];
+  Ptr slots[] = {name, ivar_ct, method_dict, metadata};
+  auto result = make_standard_object(vm, superclass, slots);
+  unprot_ptrs(name, method_dict);
+  return objToPtr(result);
+}
+
+Ptr instantiate_user_class(VM *vm, StandardObject *klass) {
+  return objToPtr(make_standard_object(vm, klass, 0));
+}
+
+Ptr class_get_metadata(StandardObject *klass, Ptr key) {
+  auto meta = standard_object_get_ivar(klass, BaseClassMetadata);
+  return ht_at(meta, key);
+}
+
+Ptr class_set_metadata(VM *vm, StandardObject *klass, Ptr key, Ptr value) {
+  auto meta = standard_object_get_ivar(klass, BaseClassMetadata);
+  ht_at_put(vm, meta, key, value);
+  return Nil;
 }
 
 Ptr set_global(VM *vm, Ptr sym, Ptr value) {

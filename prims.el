@@ -184,8 +184,22 @@ void initialize_primitive_functions(VM *vm) {
   (prim compile-to-closure CMPC ((expr any)) any "compile_to_closure(vm, expr)")
 
   (prim class-of CLASSOF ((a any)) any "class_of(vm, a)")
+  (prim create-class MKCLASS
+        ((name any) (ivars Fixnum)) any "make_user_class(vm, name, ivars)")
   (prim class-set-method SETMETHOD
         ((a Standard) (sym Symbol) (fn any)) any "class_set_method(vm, a, sym, fn)")
+  (prim class-get-metadata CLSGETMETA
+        ((a Standard) (key any)) any "class_get_metadata(a, key)")
+  (prim class-set-metadata CLSSETMETA
+        ((a Standard) (key any) (val any)) any "class_set_metadata(vm, a, key, val)")
+  (prim instantiate-class MKINST
+        ((klass Standard)) any "instantiate_user_class(vm, klass)")
+  (prim instance-get-ivar IVAR_GET
+        ((obj Standard) (idx Fixnum)) any "standard_object_get_ivar(obj, idx)")
+  (prim instance-set-ivar IVAR_SET
+        ((obj Standard) (idx Fixnum) (val any)) any
+        "standard_object_set_ivar(obj, idx, val)")
+
 
   (prim bool?         IS_BOOL ((a any)) Bool "is(Bool, a)")
   (prim closure?      IS_CLS  ((a any)) Bool "is(Closure, a)")

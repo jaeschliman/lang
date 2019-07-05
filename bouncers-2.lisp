@@ -1,18 +1,7 @@
-(define (lambda->continuation fn)
-    (set-stack-mark 'helper)
-  (let ((r ((lambda ()
-              (snapshot-to-stack-mark 'helper '())
-              (fn)))))
-    r))
-
-(defmacro fork (priority & forms)
-  `(fork-continuation ,priority (lambda->continuation (lambda () (let ((r (let () ,@forms))) r)))))
-
 (defmacro forever (& forms)
   `(let ((loop #f))
      (set! loop (lambda () ,@forms (loop)))
      (loop)))
-
 
 (define mouse-position 0@0)
 (define boxes '())
@@ -61,9 +50,9 @@
       (aset box 3 1)
       (aset box 4  0xff00ffff)
       (set 'boxes (cons box boxes))
-      (fork 0 (forever
-               (sleep-ms 10)
-               (move-box box)))))
+      (fork-with-priority 0 (forever
+                             (sleep-ms 10)
+                             (move-box box)))))
 
 (define (clear-screen)
     (fill-rect back-buffer 0@0 screen-size 0xffffffff))
@@ -95,7 +84,7 @@
 (define (onshow w h)
     (set 'screen-size (make-point w h))
   (set 'back-buffer (make-image w h))
-  (fork 100 (forever (draw-frame) (sleep-ms 10))))
+  (fork-with-priority 100 (forever (draw-frame) (sleep-ms 10))))
 
 (define (onmousedown p) (add-box p))
 (define (onmousedrag p) (add-box p))

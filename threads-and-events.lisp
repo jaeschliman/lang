@@ -1,15 +1,3 @@
-(define (lambda->continuation fn)
-    (set-stack-mark 'helper)
-  (let ((r ((lambda ()
-              (snapshot-to-stack-mark 'helper '())
-              (fn)))))
-    r))
-
-(define cont (lambda->continuation (lambda () (print '(hello world!)))))
-
-(defmacro fork (& forms)
-  `(fork-continuation (lambda->continuation (lambda () (let ((r (let () ,@forms))) r)))))
-
 (defmacro forever (& forms)
   `(let ((loop #f))
      (set! loop (lambda () ,@forms (loop)))
@@ -21,7 +9,6 @@
                         (when (>i c 0)
                           (loop (-i c 1)))))
      (loop ,count)))
-
 
 (define pending-events '())
 

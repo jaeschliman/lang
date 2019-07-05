@@ -364,7 +364,8 @@
 (define (throw ex)
     (escape-to-tag 'exception ex))
 
-;; default event handlers
+;;---------------------------------------- default event handlers
+
 (define (ignore1 _))
 (define (ignore2 a b))
 (define onshow ignore2)
@@ -374,5 +375,40 @@
 (define onkey ignore1)
 (define onframe ignore1)
 
+;;---------------------------------------- basic threading support
+
+(define (lambda->continuation fn)
+    (set-stack-mark 'helper)
+  (let ((r ((lambda ()
+              (snapshot-to-stack-mark 'helper '())
+              (fn)))))
+    r))
+
+(defmacro fork-with-priority (priority & forms)
+  `(fork-continuation ,priority
+                      (lambda->continuation (lambda () (let ((r (let () ,@forms))) r)))))
+
+
+(defmacro fork (& forms)
+  `(fork-continuation 1 (lambda->continuation (lambda () (let ((r (let () ,@forms))) r)))))
+
+;;---------------------------------------- built-in classes
+
+;; TODO: set the class names as well
+(define Continuation (class-of (lambda->continuation (lambda ()))))
+(define Fixnum       (class-of 0))
+(define Float        (class-of 0.0))
+(define String       (class-of ""))
+(define Symbol       (class-of 'symbol))
+(define Closure      (class-of (lambda ())))
+(define PrimOp       (class-of class-of))
+(define Image        (class-of (make-image 0 0)))
+(define Point        (class-of 0@0))
+(define Array        (class-of (make-array 0)))
+(define HashTable    (class-of (make-ht)))
+(define Null         (class-of '()))
+(define Cons         (class-of (cons 0 0)))
+(define Boolean      (class-of #t))
+(define Character    (class-of #\0))
 
 'done

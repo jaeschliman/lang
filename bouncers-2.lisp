@@ -14,9 +14,13 @@
      (loop)))
 
 
+(define mouse-position 0@0)
 (define boxes '())
 (define screen-size #f)
 (define back-buffer #f)
+
+(define (ordered? a b c)
+    (and (<i a b) (<i b c)))
 
 (define (move-box box)
     (let* ((x (aget box 0))
@@ -26,7 +30,9 @@
            (nx (+i x dx))
            (ny (+i y dy))
            (sw (point-x screen-size))
-           (sh (point-y screen-size)))
+           (sh (point-y screen-size))
+           (mx (point-x mouse-position))
+           (my (point-y mouse-position)))
       (when (<i nx 0)
         (set! nx 0)
         (set! dx (*i -1 dx)))
@@ -39,17 +45,21 @@
       (when (>i ny sh)
         (set! ny sh)
         (set! dy (*i -1 dy)))
+      (if (and (ordered? nx mx (+i 15 nx)) (ordered? ny my (+i 15 ny)))
+          (aset box 4 0xff0000ff)
+          (aset box 4 0xff00ffff))
       (aset box 0 nx)
       (aset box 1 ny)
       (aset box 2 dx)
       (aset box 3 dy)))
 
 (define (add-box p)
-    (let ((box (make-array 4)))
+    (let ((box (make-array 5)))
       (aset box 0 (point-x p))
       (aset box 1 (point-y p))
       (aset box 2 1)
       (aset box 3 1)
+      (aset box 4  0xff00ffff)
       (set 'boxes (cons box boxes))
       (fork 0 (forever
                (sleep-ms 10)
@@ -64,9 +74,10 @@
 (define (draw-one-box box)
     (let* ((x (aget box 0))
            (y (aget box 1))
+           (color (aget box 4))
            (a (make-point x y))
-           (b (point+ a 10@10)))
-      (fill-rect back-buffer a b 0xff00ffff)))
+           (b (point+ a 15@15)))
+      (fill-rect back-buffer a b color)))
 
 (define (draw-boxes)
     (let ((loop #f))
@@ -88,3 +99,4 @@
 
 (define (onmousedown p) (add-box p))
 (define (onmousedrag p) (add-box p))
+(define (onmousemove p) (set 'mouse-position p))

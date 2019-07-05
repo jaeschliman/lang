@@ -201,6 +201,7 @@ void initialize_primitive_functions(VM *vm) {
         "standard_object_set_ivar(obj, idx, val)")
 
 
+  (prim class?        IS_CLSS ((a any)) Bool "is_class(a)")
   (prim bool?         IS_BOOL ((a any)) Bool "is(Bool, a)")
   (prim closure?      IS_CLS  ((a any)) Bool "is(Closure, a)")
   (prim primop?       IS_PRIM ((a any)) Bool "is(PrimOp, a)")

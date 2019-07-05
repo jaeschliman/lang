@@ -130,7 +130,7 @@ enum ObjectType : u8 {
 struct Header {
   ObjectType object_type;       // 8
   u8         custom_class;      // 8
-  u16        flags;             // 16 -- currently unused
+  u16        flags;             // 16
   u32        hashcode;          // 32
 };
 
@@ -394,6 +394,8 @@ struct StandardObject : Object { // really more of a structure object
   u64 ivar_count;
   Ptr ivars[];
 };
+
+#define StandardObjectFlag_IsClass 0b1
 
 #define _type_test_name(type) is_##type##__Impl
 #define _ptr_creation_name(type) to_##type##_Ptr__Impl
@@ -1185,6 +1187,8 @@ Ptr character_by_name(ByteArrayObject *str) {
   }
 }
 
+bool is_object_class(StandardObject *obj);
+
 std::ostream &operator<<(std::ostream &os, Object *obj) {
   auto otype = obj->header.object_type;
   switch (otype) {
@@ -1235,8 +1239,15 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
   }
   case Standard_ObjectType: {
     auto sobj = (StandardObject *)obj;
-    auto name = standard_object_get_ivar(sobj->klass, BaseClassName);
-    std::cout << "#<A " << as(Object, name) << " " << (void*)obj << ">";
+    auto klass = sobj->klass;
+    auto is_class = is_object_class(sobj);
+    if (is_class) {
+      auto name = standard_object_get_ivar(sobj, BaseClassName);
+      std::cout << "#<Class " << as(Object, name) << " " << (void*)obj << ">";
+    } else {
+      auto name = standard_object_get_ivar(klass, BaseClassName);
+      std::cout << "#<A " << as(Object, name) << " " << (void*)obj << ">";
+    }
     return os;
   }
   case ByteCode_ObjectType: {
@@ -2090,11 +2101,24 @@ void initialize_known_symbols(VM *vm) {
 #undef _init_symbols
 
 /* ---------------------------------------- */
+
+bool is_object_class(StandardObject *obj) {
+  return obj->header.flags & StandardObjectFlag_IsClass;
+}
+
+Ptr mark_object_as_class(StandardObject *obj) {
+  obj->header.flags = obj->header.flags | StandardObjectFlag_IsClass;
+  return Nil;
+}
+
+
 // @unsafe
 auto make_base_class(VM *vm, const char* name) {
   Ptr slots[] = {make_string(vm,name), make_number(0), ht(vm), ht(vm)};
   auto base = vm->globals->classes.builtins[BuiltinClassIndex_Base];
-  return make_standard_object(vm, base, slots);
+  auto result = make_standard_object(vm, base, slots);
+  mark_object_as_class(result);
+  return result;
 }
 
 // @unsafe
@@ -2106,6 +2130,7 @@ void initialize_classes(VM *vm)
   standard_object_set_ivar(Base, BaseClassIvarCount, make_number(BaseClassEnd));
   standard_object_set_ivar(Base, BaseClassMethodDict, ht(vm));
   standard_object_set_ivar(Base, BaseClassMetadata, ht(vm));
+  mark_object_as_class(Base);
   vm->globals->classes.builtins[BuiltinClassIndex_Base] = Base;
 
 #define make_class(name) if (!builtin(name)) builtin(name) = make_base_class(vm, #name);
@@ -2125,6 +2150,12 @@ void initialize_classes(VM *vm)
 
 }
 
+bool is_class(Ptr obj) {
+  if (is(Standard, obj)) return is_object_class(as(Standard, obj));
+  return false;
+}
+
+
 Ptr make_user_class(VM *vm, Ptr name, s64 ivar) { prot_ptrs(name);
   auto ivar_ct = to(Fixnum, ivar);
   auto method_dict = ht(vm); prot_ptr(method_dict);
@@ -2133,6 +2164,7 @@ Ptr make_user_class(VM *vm, Ptr name, s64 ivar) { prot_ptrs(name);
   Ptr slots[] = {name, ivar_ct, method_dict, metadata};
   auto result = make_standard_object(vm, superclass, slots);
   unprot_ptrs(name, method_dict);
+  mark_object_as_class(result);
   return objToPtr(result);
 }
 

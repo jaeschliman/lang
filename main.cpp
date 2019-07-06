@@ -1026,7 +1026,8 @@ defstruct(thread, Thread,
           continuation,
           status,
           wake_after,
-          priority);
+          priority,
+          local_bindings);
 
 auto THREAD_STATUS_RUNNING  = FIXNUM(0);
 auto THREAD_STATUS_WAITING  = FIXNUM(1);
@@ -3035,9 +3036,10 @@ bool vm_swap_threads(VM *vm) {
   return false;
 }
 
-Ptr vm_schedule_cont(VM *vm, Ptr cont, Ptr priority) {
+Ptr vm_schedule_cont(VM *vm, Ptr cont, Ptr priority, Ptr bindings) {
   assert(is(cont, cont));
-  auto thread = make_thread(vm, cont, THREAD_STATUS_WAITING, FIXNUM(0), priority);
+  auto thread = make_thread(vm, cont,
+                            THREAD_STATUS_WAITING, FIXNUM(0), priority, bindings);
   vm_add_thread_to_background_set(vm, thread);
   return Nil;
 }
@@ -4701,7 +4703,8 @@ VM *vm_create() {
   vm->globals->current_thread = make_thread(vm, Nil,
                                             THREAD_STATUS_RUNNING,
                                             FIXNUM(0),
-                                            THREAD_PRIORITY_NORMAL);
+                                            THREAD_PRIORITY_NORMAL,
+                                            Nil);
   initialize_known_symbols(vm);
   initialize_classes(vm);
   initialize_primitive_functions(vm);
@@ -4883,7 +4886,8 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params param
   vm->globals->current_thread = make_thread(vm, Nil,
                                             THREAD_STATUS_RUNNING,
                                             FIXNUM(0),
-                                            THREAD_PRIORITY_NORMAL);
+                                            THREAD_PRIORITY_NORMAL,
+                                            Nil);
   vm_interp(vm, params);
   auto result = Nil;
   if (vm->suspended) {

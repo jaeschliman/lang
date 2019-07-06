@@ -925,7 +925,7 @@ Ptr PRIM_FORK_impl(VM *vm, u32 argc) {
    VM_ARG("fork-continuation",any,a);
    VM_ARG("fork-continuation",any,priority);
 
- return vm_schedule_cont(vm, a, priority);
+ return vm_schedule_cont(vm, a, priority, Nil);
 }
 
 // Primitive 94
@@ -1872,7 +1872,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("fork-continuation",any,a);
    VM_ARG("fork-continuation",any,priority);
 
-    vm_push(vm, vm_schedule_cont(vm, a, priority));
+    vm_push(vm, vm_schedule_cont(vm, a, priority, Nil));
     break;
   }
 

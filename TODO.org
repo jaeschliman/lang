@@ -45,10 +45,11 @@
 * DONE make cons a defstruct
 * TODO move stack memory into vm-managed heap
 * DONE stack overlow detection
-* TODO continuations / exceptions / signals
+* DONE continuations / exceptions
+* TODO signals
 * TODO dump/restore image
 * DONE write macroexpander in the language itself
-* TODO write reader in the language itself
+* DONE write reader in the language itself
 * DONE basic sdl integration
 * DONE single floats
 * TODO U32 Array etc
@@ -81,7 +82,7 @@
 * DONE message send facility
 * DONE something resembling OMeta / Meta II
   not as many features, by a long shot, but something basic appears to be working
-* TODO optionally plugin in Meta reader as program reader
+* DONE optionally plugin in Meta reader as program reader
 * DONE basic text rendering
   (very, very basic)
 * TODO type-of
@@ -121,12 +122,24 @@ https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
 http://www.cs.utah.edu/plt/scope-sets/
 * TODO read this dissertation on implmentation of scheme
 https://www.cs.indiana.edu/~dyb/papers/3imp.pdf
-* TODO simple userspace structs (StandardObject)
+* DONE simple userspace structs (StandardObject)
 * TODO convert BC to 32 bit so we can assemble from user space
 * TODO adaptons? (see will byrd miniAdapton)
 http://adapton.org/
 * TODO bezier + fourier transforms is cool!
 http://www.jezzamon.com/fourier/index.html
+* TODO CFFI
+* DONE basic green threading
+* DONE basic special variables
+* TODO wierd bug -- off-by-one error in vm->pc at termination of final thread
+* TODO work out threading issues with run_file
+* TODO clean up (new BCBuilder(vm)) callsites (ensure delete)
+* TODO CAS for object slots
+* TODO userspace print-object (requires output stream)
+* TODO a GUI
+* TODO a smalltalk-like
+* TODO an actor system
+* TODO a prolog
 
 * notes
 maybe have a stack of compilers? can push/pop...

@@ -32,3 +32,12 @@
 
 (print `(expecting 10 done))
 (print (show-my-var))
+
+(print `(expecting 10))
+(try-catch (lambda ()
+             (with-special-binding *my-var* 20 (throw 'whoops)))
+           (lambda (ex)
+             (print *my-var*)))
+
+(print `(expecting 10))
+(print *my-var*)

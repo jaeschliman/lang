@@ -34,13 +34,16 @@
       (when (>i ny sh)
         (set! ny sh)
         (set! dy (*i -1 dy)))
-      (if (and (ordered? nx mx (+i 15 nx)) (ordered? ny my (+i 15 ny)))
-          (aset box 4 0xff0000ff)
-          (aset box 4 0xff00ffff))
-      (aset box 0 nx)
-      (aset box 1 ny)
-      (aset box 2 dx)
-      (aset box 3 dy)))
+      (let ((mouseover (and (ordered? nx mx (+i 15 nx))
+                            (ordered? ny my (+i 15 ny)))))
+        (if mouseover
+            (aset box 4 0xff0000ff)
+            (aset box 4 0xff00ffff))
+        (unless mouseover
+          (aset box 0 nx)
+          (aset box 1 ny)
+          (aset box 2 dx)
+          (aset box 3 dy)))))
 
 (define (add-box p)
     (let ((box (make-array 5)))

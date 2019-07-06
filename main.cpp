@@ -234,11 +234,12 @@ struct StackFrameObject : Object {
   ByteCodeObject* prev_fn;
   u64 prev_pc;
   Ptr closed_over;
+  Ptr special_variables;
   Ptr mark;
   u64 preserved_argc; // used for snapshots;
   u64 argc;
   u64 pad_count; // must be 0 or 1
-  Ptr argv[];
+  Ptr argv[]; // MUST be trailing element
 };
 
 struct Globals;
@@ -1110,6 +1111,7 @@ void obj_refs(VM *vm, StackFrameObject *it, PtrFn fn) {
   for (u64 i = 0; i < it->argc; i++) {
     fn(it->argv[it->pad_count + i]);
   }
+  fn(it->special_variables);
   fn(it->closed_over);
   fn(it->mark);
   if (it->prev_fn) fn(objToPtr(it->prev_fn));
@@ -1321,6 +1323,7 @@ auto vm_map_stack_refs(VM *vm, PtrFn fn) {
   Ptr *stack = vm->stack;
   ByteCodeObject *bytecode = vm->bc;
   while (fr) {
+    fn(fr->special_variables);
     fn(fr->closed_over);
     fn(fr->mark);
     auto pad = fr->pad_count;
@@ -1641,6 +1644,7 @@ void gc_update(VM *vm, StackFrameObject *it) {
   for (u64 i = 0; i < it->argc; i++) {
     gc_update_ptr(vm, it->argv + it->pad_count + i);
   }
+  gc_update_ptr(vm, &it->special_variables);
   gc_update_ptr(vm, &it->closed_over);
   gc_update_ptr(vm, &it->mark);
   if (it->prev_frame) {
@@ -2217,7 +2221,7 @@ Ptr get_global(VM *vm,  const char*name) {
 }
 
 inline Ptr get_special_binding(VM *vm, Ptr sym) {
-  auto pair = assoc(sym, thread_get_local_bindings(vm->globals->current_thread));
+  auto pair = assoc(sym, vm->frame->special_variables);
   if (pair == Nil) pair = assoc(sym, vm->globals->env);
   return pair;
 }
@@ -2247,15 +2251,15 @@ Ptr set_symbol_value(VM *vm, Ptr sym, Ptr value) {
 
 inline void _thread_local_binding_push(VM *vm, Ptr sym, Ptr val) {
   auto assoc = cons(vm, sym, val);
-  auto exist = thread_get_local_bindings(vm->globals->current_thread);
+  auto exist = vm->frame->special_variables;
   auto update = cons(vm, assoc, exist);
-  thread_set_local_bindings(vm->globals->current_thread, update);
+  vm->frame->special_variables = update;
 }
 
 inline void _thread_local_binding_pop(VM *vm) {
-  auto exist = thread_get_local_bindings(vm->globals->current_thread);
+  auto exist = vm->frame->special_variables;
   auto update = cdr(exist);
-  thread_set_local_bindings(vm->globals->current_thread, update);
+  vm->frame->special_variables = update;
 }
 
 
@@ -2741,6 +2745,11 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   new_frame->prev_fn = vm->bc;
   new_frame->prev_pc = vm->pc;
   new_frame->argc = argc;
+  if (vm->frame) {
+    new_frame->special_variables = vm->frame->special_variables;
+  } else {
+    new_frame->special_variables = thread_get_local_bindings(vm->globals->current_thread);
+  }
   vm->stack = (Ptr*)(void *)new_frame; // - 100; // STACK_PADDING
   vm->frame = new_frame;
   vm->bc = fn;

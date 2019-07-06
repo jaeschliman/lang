@@ -590,7 +590,7 @@ Ptr PRIM_SET_SYM_VAL_impl(VM *vm, u32 argc) {
    VM_ARG("set-symbol-value",any,b);
    VM_ARG("set-symbol-value",Symbol,a);
 
- return set_global(vm, objToPtr(a), b);
+ return set_symbol_value(vm, objToPtr(a), b);
 }
 
 // Primitive 58
@@ -1573,7 +1573,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("set-symbol-value",any,b);
    VM_ARG("set-symbol-value",Symbol,a);
 
-    vm_push(vm, set_global(vm, objToPtr(a), b));
+    vm_push(vm, set_symbol_value(vm, objToPtr(a), b));
     break;
   }
 

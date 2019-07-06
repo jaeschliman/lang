@@ -1443,6 +1443,7 @@ struct Globals {
   } known;
 
   Ptr current_thread;
+  Ptr special_variables; //ht
 };
 
 /* ---------------------------------------- */
@@ -1707,6 +1708,7 @@ void gc_update_globals(VM *vm) {
   gc_update_ptr(vm, &vm->globals->call1);
   gc_update_ptr(vm, &vm->globals->env);
   gc_update_ptr(vm, &vm->globals->current_thread);
+  gc_update_ptr(vm, &vm->globals->special_variables);
 
 #define X(...) MAP(handle_class, __VA_ARGS__)
 #include "./primitive-classes.include"
@@ -2085,6 +2087,10 @@ Ptr intern(VM *vm, string name) {
   return intern(vm, str, strlen(str));
 }
 
+bool is_special_symbol(VM *vm, Ptr sym) {
+  return !(ht_at(vm->globals->special_variables, sym) == Nil);
+}
+
 // @unsafe
 #define _init_sym(n) globals->known._##n = intern(vm, #n);
 #define _init_symbols(...) MAP(_init_sym, __VA_ARGS__)
@@ -2184,9 +2190,10 @@ Ptr class_set_metadata(VM *vm, StandardObject *klass, Ptr key, Ptr value) {
   return Nil;
 }
 
-Ptr set_global(VM *vm, Ptr sym, Ptr value) {
+Ptr set_global(VM *vm, Ptr sym, Ptr value) { prot_ptr(sym);
   assert(is(Symbol, sym));
-  set_assoc(vm, &vm->globals->env, sym, value);
+  set_assoc(vm, &vm->globals->env, sym, value); 
+  unprot_ptr(sym);
   return sym;
 }
 
@@ -2201,6 +2208,49 @@ Ptr get_global(VM *vm,  const char*name) {
   if (isNil(pair)) return pair;
   return cdr(pair);
 }
+
+inline Ptr get_special_binding(VM *vm, Ptr sym) {
+  auto pair = assoc(sym, thread_get_local_bindings(vm->globals->current_thread));
+  if (pair == Nil) pair = assoc(sym, vm->globals->env);
+  return pair;
+}
+
+Ptr set_special(VM *vm, Ptr sym, Ptr value) {
+  auto pair = get_special_binding(vm, sym);
+  if (!consp(pair)) {
+    die("special ", sym, "is unbound");
+  }
+  set_cdr(pair, value);
+  return sym;
+}
+
+Ptr get_special(VM *vm, Ptr sym) {
+  auto pair = get_special_binding(vm, sym);
+  if (!consp(pair)) {
+    die("special ", sym, "is unbound");
+  }
+  return cdr(pair);
+}
+
+Ptr set_symbol_value(VM *vm, Ptr sym, Ptr value) {
+  assert(is(Symbol, sym));
+  if (is_special_symbol(vm, sym)) return set_special(vm, sym, value); 
+  else return set_global(vm, sym, value);
+}
+
+inline void _thread_local_binding_push(VM *vm, Ptr sym, Ptr val) {
+  auto assoc = cons(vm, sym, val);
+  auto exist = thread_get_local_bindings(vm->globals->current_thread);
+  auto update = cons(vm, assoc, exist);
+  thread_set_local_bindings(vm->globals->current_thread, update);
+}
+
+inline void _thead_local_binding_pop(VM *vm) {
+  auto exist = thread_get_local_bindings(vm->globals->current_thread);
+  auto update = cdr(exist);
+  thread_set_local_bindings(vm->globals->current_thread, update);
+}
+
 
 /* -------------------------------------------------- */
 
@@ -3058,6 +3108,7 @@ enum OpCode : u8 {
   TAIL_CALL            ,
   LOAD_ARG             ,
   LOAD_GLOBAL          ,
+  LOAD_SPECIAL         ,
   LOAD_CLOSURE         ,
   STORE_CLOSURE        ,
   BUILD_CLOSURE        ,
@@ -3068,6 +3119,8 @@ enum OpCode : u8 {
   LOAD_FRAME_RELATIVE  ,
   STORE_FRAME_RELATIVE ,
   POP_CLOSURE_ENV      ,
+  PUSH_SPECIAL_BINDING ,
+  POP_SPECIAL_BINDING  ,
 };
 
 inline void vm_push(VM* vm, Ptr value) {
@@ -4705,6 +4758,8 @@ VM *vm_create() {
                                             FIXNUM(0),
                                             THREAD_PRIORITY_NORMAL,
                                             Nil);
+  vm->globals->special_variables = ht(vm);
+
   initialize_known_symbols(vm);
   initialize_classes(vm);
   initialize_primitive_functions(vm);

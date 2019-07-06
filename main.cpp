@@ -1439,7 +1439,7 @@ struct Globals {
   Ptr env; // the global environment (currently an alist)
   Ptr call1;
   struct {
-    Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean, _quasiquote, _unquote, _unquote_splicing, _compiler, _set_bang, _exception, _run_string;
+    Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean, _quasiquote, _unquote, _unquote_splicing, _compiler, _set_bang, _exception, _run_string, _with_special_binding;
   } known;
 
   Ptr current_thread;
@@ -1720,7 +1720,7 @@ void gc_update_globals(VM *vm) {
 
   update_symbols(lambda, quote, let, if, fixnum, cons, string);
   update_symbols(array, character, boolean, quasiquote, unquote, unquote_splicing);
-  update_symbols(compiler, set_bang, exception, run_string);
+  update_symbols(compiler, set_bang, exception, run_string, with_special_binding);
 
 }
 
@@ -2091,6 +2091,12 @@ bool is_special_symbol(VM *vm, Ptr sym) {
   return !(ht_at(vm->globals->special_variables, sym) == Nil);
 }
 
+Ptr mark_symbol_as_special(VM *vm, Ptr sym) {
+  assert(is(Symbol, sym));
+  ht_at_put(vm, vm->globals->special_variables, sym, sym);
+  return Nil;
+}
+
 // @unsafe
 #define _init_sym(n) globals->known._##n = intern(vm, #n);
 #define _init_symbols(...) MAP(_init_sym, __VA_ARGS__)
@@ -2102,6 +2108,7 @@ void initialize_known_symbols(VM *vm) {
   globals->known._unquote_splicing = intern(vm, "unquote-splicing");
   globals->known._set_bang = intern(vm, "set!");
   globals->known._run_string = intern(vm, "run-string");
+  globals->known._with_special_binding = intern(vm, "with-special-binding");
 
 }
 #undef _init_sym
@@ -2245,7 +2252,7 @@ inline void _thread_local_binding_push(VM *vm, Ptr sym, Ptr val) {
   thread_set_local_bindings(vm->globals->current_thread, update);
 }
 
-inline void _thead_local_binding_pop(VM *vm) {
+inline void _thread_local_binding_pop(VM *vm) {
   auto exist = thread_get_local_bindings(vm->globals->current_thread);
   auto update = cdr(exist);
   thread_set_local_bindings(vm->globals->current_thread, update);
@@ -3480,6 +3487,21 @@ void vm_interp(VM* vm, interp_params params) {
       // vm_dump_args(vm);
       break;
     }
+    case PUSH_SPECIAL_BINDING: {
+      auto val = vm_pop(vm);
+      auto var = vm_pop(vm);
+      _thread_local_binding_push(vm, var, val);
+      break;
+    }
+    case POP_SPECIAL_BINDING: {
+      _thread_local_binding_pop(vm);
+      break;
+    }
+    case LOAD_SPECIAL: {
+      // assumes it comes after a pushlit of a special symbol
+      *vm->stack = get_special(vm, *vm->stack);
+      break;
+    }
     default:
       dbg("instr = ", instr, " code = ", (int)code, " data = ", data);
       dbg("bc = ", vm->bc);
@@ -3726,6 +3748,20 @@ public:
     pushLit(pair);
     pushOp(LOAD_GLOBAL);
     return this;
+  }
+  auto loadSpecial(Ptr sym) {
+    if (!is(Symbol, sym)) {
+      die(sym, " is not a special symbol");
+    }
+    pushLit(sym);
+    pushOp(LOAD_SPECIAL);
+    return this;
+  }
+  auto pushSpecialBinding() {
+    pushOp(PUSH_SPECIAL_BINDING);
+  }
+  auto popSpecialBinding() {
+    pushOp(POP_SPECIAL_BINDING);
   }
   auto loadClosure(u64 slot, u64 depth) {
     pushOp(LOAD_CLOSURE);
@@ -4123,6 +4159,17 @@ void emit_set_bang(VM *vm, BCBuilder *builder, Ptr it, Ptr env) { prot_ptrs(it, 
   unprot_ptrs(it, env, sym, expr);
 }
 
+void emit_with_special_binding(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
+  auto sym       = car(cdr(it));
+  auto val_expr  = car(cdr(cdr(it)));
+  auto body_form = car(cdr(cdr(cdr(it))));
+  builder->pushLit(sym);
+  emit_expr(vm, builder, val_expr, env, false);
+  builder->pushSpecialBinding();
+  emit_expr(vm, builder, body_form, env, false);
+  builder->popSpecialBinding();
+}
+
 void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env, bool tail) {
   if (is(Symbol, it)) { /*                                  */ prot_ptrs(it, env);
     auto binding        = compiler_env_binding(vm, env, it);
@@ -4131,7 +4178,9 @@ void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env, bool tail) {
     auto argument_index = varinfo_get_argument_index(info);
     auto closure_index  = varinfo_get_closure_index(info);
     if (scope == VariableScope_Global) {
-      builder->loadGlobal(it);
+      // TODO: eventually have a VariableScope_Special instead
+      if (is_special_symbol(vm, it)) builder->loadSpecial(it);
+      else builder->loadGlobal(it);
     } else if (scope == VariableScope_Argument) {
       builder->loadArg(as(Fixnum, argument_index));
     } else if (scope == VariableScope_Closure) {
@@ -4163,6 +4212,9 @@ void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env, bool tail) {
         return;
       } else if (ptr_eq(KNOWN(set_bang), fst)) {
         emit_set_bang(vm, builder, it, env);
+        return;
+      } else if (ptr_eq(KNOWN(with_special_binding), fst)) {
+        emit_with_special_binding(vm, builder, it, env);
         return;
       }
     }
@@ -4317,6 +4369,12 @@ void mark_closed_over_variables(VM *vm, Ptr it, Ptr env) {  prot_ptrs(it, env);
       mark_closed_over_variables(vm, var, env);
       mark_closed_over_variables(vm, expr, env);
       unprot_ptrs(var, expr);
+    } else if (is_sym && ptr_eq(KNOWN(with_special_binding), fst)) {
+      auto val = nth_or_nil(it, 2);                         prot_ptr(val);
+      auto expr = nth_or_nil(it, 3);                        prot_ptr(expr);
+      mark_closed_over_variables(vm, val, env);
+      mark_closed_over_variables(vm, expr, env);
+      unprot_ptrs(val, expr);
     } else {
       do_list(vm, it, [&](Ptr expr){
           mark_closed_over_variables(vm, expr, env);

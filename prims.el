@@ -256,6 +256,9 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim set-symbol-value SET_SYM_VAL ((a Symbol) (b any)) any
         "set_symbol_value(vm, objToPtr(a), b)")
+  (prim mark-symbol-as-special SET_SYM_SPECIAL ((a Symbol)) any
+        "mark_symbol_as_special(vm, objToPtr(a))")
+
   (prim gensym           GSYM        ()                   any  "make_symbol(vm, \"_gensym_\")")
   (prim intern           INTERN      ((a String))         any  "intern(vm, a)")
 

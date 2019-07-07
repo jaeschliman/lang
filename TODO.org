@@ -149,6 +149,8 @@ http://www.jezzamon.com/fourier/index.html
 * TODO mutex etc
 * DONE use bitmask for 'primitive' primOps (aka @send apply etc)
 * TODO generic maths
+* TODO a package system
+* TODO hash tables need to grow after threshold
 
 * notes
 maybe have a stack of compilers? can push/pop...

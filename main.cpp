@@ -862,7 +862,7 @@ Ptr make_symbol(VM *vm, const char* str) {
   return make_symbol(vm, str, strlen(str));
 }
 
-Ptr make_number(s64 value) { return to(Fixnum, value); }
+inline Ptr make_number(s64 value) { return to(Fixnum, value); }
 
 Ptr make_zf_array(VM *vm, u64 len) {
   auto array = alloc_pao(vm, Array, len); // alloc is zf
@@ -1064,6 +1064,7 @@ enum StructTag : s64 {
   StructTag_InputStream,
   StructTag_Continuation,
   StructTag_Thread,
+  StructTag_Semaphore,
   StructTag_End
 };
 
@@ -1086,17 +1087,22 @@ defstruct(cont, Continuation,
 defstruct(thread, Thread,
           continuation,
           status,
+          semaphore,
           wake_after,
           priority,
           local_bindings);
+defstruct(semaphore, Semaphore,
+          count);
 
 auto THREAD_STATUS_RUNNING  = FIXNUM(0);
 auto THREAD_STATUS_WAITING  = FIXNUM(1);
 auto THREAD_STATUS_DEAD     = FIXNUM(2);
 auto THREAD_STATUS_SLEEPING = FIXNUM(3);
+auto THREAD_STATUS_SEM_WAIT = FIXNUM(4);
 
 auto THREAD_PRIORITY_NORMAL  = FIXNUM(0);
 auto THREAD_PRIORITY_HIGHEST = FIXNUM(100);
+
 
 /* ---------------------------------------- */
 
@@ -1437,6 +1443,7 @@ void vm_debug_print_stack_top(VM *vm) {
 }
 
 void vm_debug_print_stackframe_args(VM *vm, StackFrameObject *fr) {
+  maybe_unused(vm);
   dbg(" printing stack frame args: arg=", fr->argc, " pac =", fr->preserved_argc);
     for (u64 i = 0; i < fr->argc; i++) {
       auto it = fr->argv[i + fr->pad_count];
@@ -3033,6 +3040,13 @@ Ptr vm_resume_stack_snapshot(VM *vm, Ptr cont, Ptr arg) {
   return arg;
 }
 
+Ptr signal_semaphore(Ptr a) {
+  assert(is(semaphore, a));
+  auto ct = as(Fixnum, semaphore_get_count(a));
+  semaphore_set_count(a, to(Fixnum, ct + 1));
+  return Nil;
+}
+
 // FIXME: doesn't yet respect thread priority
 Ptr _vm_maybe_get_next_available_thread(VM *vm) {
   if (vm->threads->front) {
@@ -3052,6 +3066,15 @@ Ptr _vm_maybe_get_next_available_thread(VM *vm) {
         // if (delta > 0) dbg("thread still sleeping for ", delta, " ms", thread);
         if (delta <= 0) {
           // dbg("waking sleeping thread");
+          ptrq_remove_next(vm->threads, p);
+          return thread;
+        }
+      } else if (status == THREAD_STATUS_SEM_WAIT) {
+        auto sem = thread_get_semaphore(thread);
+        auto count = as(Fixnum, semaphore_get_count(sem));
+        if (count > 0) {
+          // dbg("waking on semaphore, count was: ", count);
+          semaphore_set_count(sem, to(Fixnum, count - 1));
           ptrq_remove_next(vm->threads, p);
           return thread;
         }
@@ -3098,7 +3121,9 @@ bool vm_maybe_start_next_thread(VM *vm) {
 void vm_add_thread_to_background_set(VM *vm, Ptr thread){
   assert(is(thread, thread));
   if (!ptr_eq(thread_get_status(thread), THREAD_STATUS_SLEEPING) &&
-      !ptr_eq(thread_get_status(thread), THREAD_STATUS_WAITING) ) {
+      !ptr_eq(thread_get_status(thread), THREAD_STATUS_WAITING) &&
+      !ptr_eq(thread_get_status(thread), THREAD_STATUS_SEM_WAIT)
+      ) {
     dbg(" !!!! ensuring thread status !!!");
     thread_set_status(thread, THREAD_STATUS_WAITING);
   }
@@ -3128,6 +3153,19 @@ bool vm_sleep_current_thread(VM *vm, s64 ms) {
   return result;
 }
 
+bool vm_sem_wait_current_thread(VM *vm, Ptr semaphore) { prot_ptr(semaphore);
+  Ptr curr = _vm_thread_suspend(vm);
+  if (is(thread,curr)) {
+    thread_set_status(curr, THREAD_STATUS_SEM_WAIT);
+    thread_set_semaphore(curr, semaphore);
+    vm_add_thread_to_background_set(vm, curr);
+  }
+  // vm->globals->current_thread = Nil; // XXX careful!
+  auto result = vm_maybe_start_next_thread(vm);
+  unprot_ptr(semaphore);
+  return result;
+}
+
 bool vm_swap_threads(VM *vm) {
   auto next = _vm_maybe_get_next_available_thread(vm);
   if (is(thread, next)) { prot_ptr(next);
@@ -3144,7 +3182,11 @@ bool vm_swap_threads(VM *vm) {
 Ptr vm_schedule_cont(VM *vm, Ptr cont, Ptr priority, Ptr bindings) {
   assert(is(cont, cont));
   auto thread = make_thread(vm, cont,
-                            THREAD_STATUS_WAITING, FIXNUM(0), priority, bindings);
+                            THREAD_STATUS_WAITING,
+                            Nil,
+                            FIXNUM(0),
+                            priority,
+                            bindings);
   vm_add_thread_to_background_set(vm, thread);
   return Nil;
 }
@@ -3461,6 +3503,24 @@ void vm_interp(VM* vm, interp_params params) {
             return;
           } else {
             // do nothing, we have another thread ready to go
+          }
+          break;
+        } else if (idx == 3) { // SEM_WAIT
+          auto semaphore = vm_pop(vm);
+          vm_push(vm, Nil);
+          auto ct = as(Fixnum, semaphore_get_count(semaphore));
+          // dbg("in semaphore-wait, count is: ", ct);
+          if (ct > 0) {
+            semaphore_set_count(semaphore, to(Fixnum, ct - 1));
+          } else {
+            vm->pc++;
+            if (!vm_sem_wait_current_thread(vm, semaphore)) {
+              // if we failed to resume another thread, we are suspended
+              vm->suspended = true;
+              return;
+            } else {
+              // do nothing, we have another thread ready to go
+            }
           }
           break;
         }
@@ -4861,6 +4921,7 @@ VM *vm_create() {
 
   vm->globals->current_thread = make_thread(vm, Nil,
                                             THREAD_STATUS_RUNNING,
+                                            Nil,
                                             FIXNUM(0),
                                             THREAD_PRIORITY_NORMAL,
                                             Nil);
@@ -5046,6 +5107,7 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params param
   // not yet sure _exactly_ why we need a fresh TL thread for each event handler
   vm->globals->current_thread = make_thread(vm, Nil,
                                             THREAD_STATUS_RUNNING,
+                                            Nil,
                                             FIXNUM(0),
                                             THREAD_PRIORITY_NORMAL,
                                             Nil);

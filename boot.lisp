@@ -429,7 +429,9 @@
 (set-class-name Boolean      'Boolean)
 (define         Character    (class-of #\0))
 (set-class-name Character    'Character)
-(define         Class        (class-of Character))
+(define         Semaphore    (class-of (make-semaphore 0)))
+(set-class-name Semaphore    'Semaphore)
+(define         Class        (class-of (class-of 0)))
 (set-class-name Class        'Class)
 
 (define (isa? obj class) ;; since we don't support class inheritance yet, this will do

@@ -180,6 +180,8 @@ void initialize_primitive_functions(VM *vm) {
   (prim @send SEND unused any "unused") ;; N.B. this is handled specially in the VM
   ;; syntax is (@send method recvr ..args)
   (prim sleep-ms SLEEP_MS unused any "unused") ;; handled specially in VM
+  (prim semaphore-wait SEM_WAIT unused any "unused") ;; handled specially in VM
+
 
   (prim compile-to-closure CMPC ((expr any)) any "compile_to_closure(vm, expr)")
 
@@ -216,7 +218,8 @@ void initialize_primitive_functions(VM *vm) {
   (prim image?        ISIMAGE ((a any)) Bool "is(Image, a)")
   (prim point?        IS_PT   ((a any)) Bool "is(Point, a)")
   (prim continuation? IS_CONT ((a any)) Bool "is(cont, a)")
-  (prim string? STR_P ((a any)) Bool "is(String, a)")
+  (prim string?       STR_P   ((a any)) Bool "is(String, a)")
+  (prim semaphore?    IS_SEM  ((a any)) Bool "is(semaphore, a)")
 
   (prim +i    FIX_PLUS   ((a Fixnum) (b Fixnum)) Fixnum "a + b")
   (prim -i    FIX_MINUS  ((a Fixnum) (b Fixnum)) Fixnum "a - b")
@@ -325,6 +328,10 @@ void initialize_primitive_functions(VM *vm) {
   (prim resume-stack-snapshot RSTKSNAP ((s any) (arg any)) any "vm_resume_stack_snapshot(vm, s, arg)")
   (prim continuation-value CONT_VAL ((a any)) any "cont_get_value(a)")
   (prim fork-continuation FORK ((priority any) (a any)) any "vm_schedule_cont(vm, a, priority, Nil)")
+
+  (prim make-semaphore MK_SEM ((a Fixnum)) any "make_semaphore(vm, to(Fixnum, a))")
+  (prim signal-semaphore SEM_SIG ((a any)) any "signal_semaphore(a)")
+
 
   (prim slurp SLURP ((path String)) any "slurp(vm, path)")
 

@@ -147,6 +147,7 @@ http://www.jezzamon.com/fourier/index.html
   (thread-status thread)
   (kill-thread thread)
 * TODO semaphore, mutex
+* TODO use bitmask for 'primitive' primOps (aka @send apply etc)
 
 * notes
 maybe have a stack of compilers? can push/pop...

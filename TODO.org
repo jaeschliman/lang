@@ -133,7 +133,7 @@ http://www.jezzamon.com/fourier/index.html
 * DONE basic special variables
 * TODO wierd bug -- off-by-one error in vm->pc at termination of final thread
 * TODO work out threading issues with run_file
-* TODO clean up (new BCBuilder(vm)) callsites (ensure delete)
+* DONE clean up (new BCBuilder(vm)) callsites (ensure delete)
 * TODO CAS for object slots
 * TODO userspace print-object (requires output stream)
 * TODO a GUI
@@ -141,13 +141,14 @@ http://www.jezzamon.com/fourier/index.html
 * TODO an actor system
 * TODO a prolog
 * DONE fix special variable integration with continuations
-* TODO more thread manipulation functions
+* DONE more thread manipulation functions
   (current-thread)
-  (list-all-threads)
-  (thread-status thread)
   (kill-thread thread)
-* TODO semaphore, mutex
-* TODO use bitmask for 'primitive' primOps (aka @send apply etc)
+* TODO list-all-threads, thread-status
+* DONE semaphore
+* TODO mutex etc
+* DONE use bitmask for 'primitive' primOps (aka @send apply etc)
+* TODO generic maths
 
 * notes
 maybe have a stack of compilers? can push/pop...

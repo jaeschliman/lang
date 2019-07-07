@@ -1673,6 +1673,7 @@ void gc_update_stack(VM *vm) {
   ByteCodeObject **bytecode = &vm->bc;
   u64 count = 0;
   while (fr) {
+    gc_update_ptr(vm, &fr->special_variables);
     gc_update_ptr(vm, &fr->closed_over);
     gc_update_ptr(vm, &fr->mark);
     auto pad = fr->pad_count;

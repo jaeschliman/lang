@@ -262,6 +262,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim aset       ASET  ((a PtrArray) (idx Fixnum) (val any)) any "aset(a, idx, val)")
 
   (prim make-ht   MK_HT     ()                             any "ht(vm)")
+  (prim make-st   MK_ST     ()                             any "string_table(vm)")
   (prim ht-at     HT_AT     ((ht any) (key any))           any "ht_at(ht, key)")
   (prim ht-at-put HT_AT_PUT ((ht any) (key any) (val any)) any "ht_at_put(vm, ht, key, val)")
 

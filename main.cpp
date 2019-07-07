@@ -1089,7 +1089,7 @@ StructTag struct_get_tag(Ptr it) {
 /* ---------------------------------------- */
 
 defstruct(cons, Cons, car, cdr);
-defstruct(ht, HashTable, array);
+defstruct(ht, HashTable, array, dedupe_strings);
 defstruct(istream, InputStream, string, index);
 defstruct(cont, Continuation,
           stack_top,
@@ -2084,10 +2084,14 @@ u64 list_length(VM *vm, Ptr it) {
 /* ---------------------------------------- */
 
 Ptr ht(VM *vm) {
-  return make_ht(vm, make_xarray_with_capacity_and_used(vm, 64, 64));
+  return make_ht(vm, make_xarray_with_capacity_and_used(vm, 64, 64), False);
+}
+Ptr string_table(VM *vm) {
+  return make_ht(vm, make_xarray_with_capacity_and_used(vm, 64, 64), True);
 }
 
 Ptr ht_at(Ptr ht, Ptr key) {
+  auto strs  = ht_get_dedupe_strings(ht) == True && is(String, key); 
   auto array = ht_get_array(ht);
   auto used  = xarray_used(array);
   auto mem   = xarray_memory(array);
@@ -2096,16 +2100,28 @@ Ptr ht_at(Ptr ht, Ptr key) {
   assert(idx < used); //:P
   if (!mem[idx].value) return Nil;
   auto cons = mem[idx];
-  while (!isNil(cons)) {
-    auto pair = car(cons);
-    if (car(pair) == key ) return cdr(pair);
-    cons = cdr(cons);
+
+  if (strs) {
+    while (!isNil(cons)) {
+      auto pair = car(cons);
+      auto it = car(pair);
+      if (is(String, it) && hash_code(it) == hash) return cdr(pair);
+      else if (it == key) return cdr(pair);
+      cons = cdr(cons);
+    }
+  } else {
+    while (!isNil(cons)) {
+      auto pair = car(cons);
+      if (car(pair) == key) return cdr(pair);
+      cons = cdr(cons);
+    }
   }
   return Nil;
 }
 
 // TODO: grow table when it gets too full
 Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
+  auto strs  = ht_get_dedupe_strings(ht) == True && is(String, key); 
   auto array = ht_get_array(ht);                    prot_ptr(array);
   auto used  = xarray_used(array);
   auto mem   = xarray_memory(array);
@@ -2119,17 +2135,32 @@ Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
     unprot_ptrs(key, value, array);
     return Nil;
   }
+
   // collision
   auto entry = mem[idx];
-  while (!isNil(entry)) { // existing entries
-    auto pair = car(entry);
-    if (car(pair) == key) { // found
-      set_cdr(pair, value);
-      unprot_ptrs(key, value, array);
-      return Nil;
+  if (strs) {
+    while (!isNil(entry)) { // existing entries
+      auto pair = car(entry);
+      auto it = car(pair);
+      if ((is(String, it) && hash_code(it) == hash) || it == key) { // found 
+        set_cdr(pair, value);
+        unprot_ptrs(key, value, array);
+        return Nil;
+      }
+      entry = cdr(entry);
     }
-    entry = cdr(entry);
+  } else {
+    while (!isNil(entry)) { // existing entries
+      auto pair = car(entry);
+      if (car(pair) == key) { // found
+        set_cdr(pair, value);
+        unprot_ptrs(key, value, array);
+        return Nil;
+      }
+      entry = cdr(entry);
+    }
   }
+
   // not found
   auto list = cons(vm, cons(vm, key, value), mem[idx]);
   {

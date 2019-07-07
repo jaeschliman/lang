@@ -140,7 +140,13 @@ http://www.jezzamon.com/fourier/index.html
 * TODO a smalltalk-like
 * TODO an actor system
 * TODO a prolog
-* TODO fix special variable integration with continuations
+* DONE fix special variable integration with continuations
+* TODO more thread manipulation functions
+  (current-thread)
+  (list-all-threads)
+  (thread-status thread)
+  (kill-thread thread)
+* TODO semaphore, mutex
 
 * notes
 maybe have a stack of compilers? can push/pop...

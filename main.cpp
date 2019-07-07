@@ -1045,6 +1045,7 @@ u32 hash_code(Ptr it) {
 enum StructTag : s64 {
   StructTag_Cons,
   StructTag_Symbol,
+  StructTag_Package,
   StructTag_VarInfo,
   StructTag_CompilerEnv,
   StructTag_HashTable,
@@ -1064,6 +1065,7 @@ StructTag struct_get_tag(Ptr it) {
 
 defstruct(cons, Cons, car, cdr);
 defstruct(Symbol, Symbol, name, package);
+defstruct(package, Package, name, symtab, exports, use_list);
 defstruct(ht, HashTable, array, dedupe_strings);
 defstruct(istream, InputStream, string, index);
 defstruct(cont, Continuation,
@@ -1498,11 +1500,11 @@ struct Globals {
     StandardObject *builtins[127];
 
   } classes;
-  std::unordered_map<string, Ptr> *symtab;
   Ptr env; // the global environment (currently an alist)
+  Ptr root_package;
   Ptr call1;
   struct {
-    Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean, _quasiquote, _unquote, _unquote_splicing, _compiler, _set_bang, _exception, _run_string, _with_special_binding;
+    Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean, _quasiquote, _unquote, _unquote_splicing, _compiler, _set_bang, _exception, _run_string, _with_special_binding, _XpackageX;
   } known;
 
   Ptr current_thread;
@@ -1556,9 +1558,6 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
   };
   vm_map_stack_refs(vm, recurse);
   recurse(vm->globals->env);
-  for (auto pair : *vm->globals->symtab) {
-    recurse(pair.second);
-  }
   recurse(vm->globals->call1);
 
 #define handle_class(name) recurse(objToPtr(vm->globals->classes._##name));
@@ -1772,6 +1771,7 @@ void gc_update_base_class(VM *vm, StandardObject **it) {
 void gc_update_globals(VM *vm) {
   gc_update_ptr(vm, &vm->globals->call1);
   gc_update_ptr(vm, &vm->globals->env);
+  gc_update_ptr(vm, &vm->globals->root_package);
   gc_update_ptr(vm, &vm->globals->current_thread);
   gc_update_ptr(vm, &vm->globals->special_variables);
 
@@ -1786,23 +1786,13 @@ void gc_update_globals(VM *vm) {
   update_symbols(lambda, quote, let, if, fixnum, cons, string);
   update_symbols(array, character, boolean, quasiquote, unquote, unquote_splicing);
   update_symbols(compiler, set_bang, exception, run_string, with_special_binding);
+  update_symbols(XpackageX);
 
 }
 
 #undef update_sym
 #undef update_symbols
 #undef handle_class
-
-void gc_copy_symtab(VM *vm) {
-  auto old_symtab = vm->globals->symtab;
-  auto new_symtab = new std::unordered_map<string, Ptr>;
-  for (auto pair : *old_symtab) {
-    gc_update_ptr(vm, &pair.second);
-    new_symtab->insert(pair);
-  }
-  vm->globals->symtab = new_symtab;
-  delete old_symtab;
-}
 
 void gc_copy_threads(VM *vm) {
   auto n = vm->threads->front;
@@ -1908,10 +1898,8 @@ void gc(VM *vm) {
 
   // prepare_vm
   gc_prepare_vm(vm);
-  // copy symtab
-  gc_copy_symtab(vm);
 
-  // set start ptr (everything on heap should be symbols right now)
+  // set start ptr
   auto start = vm->heap_end;
 
   // update stack. (loop through stack and gc_copy_object on-stack and args etc.)
@@ -2168,15 +2156,17 @@ void initialize_struct_printers() {
 
 
 Ptr intern(VM *vm, const char* cstr, int len) {
-  string name = string(cstr, len);
-  auto tab = vm->globals->symtab;
-  if (tab->find(name) == tab->end()) {
-    auto sym = make_symbol(vm, cstr, len);
-    // NB: symtab may have changed if make_symbol triggered a gc
-    vm->globals->symtab->insert(make_pair(name, sym));
+  auto name = make_string_with_end(vm, cstr, cstr+len);
+  // @TODO lookup package in the environment
+  // @TODO lookup symbol name in exports of use_list also
+  auto tab = package_get_symtab(vm->globals->root_package); 
+  auto exist = ht_at(tab, name);
+  if (exist == Nil) {                                         prot_ptrs(tab, name);
+    exist = make_Symbol(vm, name, vm->globals->root_package); prot_ptr(exist);
+    ht_at_put(vm, tab, name, exist); 
+    unprot_ptrs(tab, name, exist);
   }
-  auto res = vm->globals->symtab->find(name)->second;
-  return res;
+  return exist;
 }
 
 Ptr intern(VM *vm, ByteArrayObject *str) {
@@ -2210,6 +2200,7 @@ void initialize_known_symbols(VM *vm) {
   globals->known._set_bang = intern(vm, "set!");
   globals->known._run_string = intern(vm, "run-string");
   globals->known._with_special_binding = intern(vm, "with-special-binding");
+  globals->known._XpackageX = intern(vm, "*package*");
 
 }
 #undef _init_sym
@@ -4972,10 +4963,15 @@ VM *vm_create() {
   vm->error = 0;
 
   vm->globals = (Globals *)calloc(sizeof(Globals), 1);
-  vm->globals->symtab = new std::unordered_map<string, Ptr>;
   vm->globals->env = Nil;
 
   vm->gc_disabled = true;
+
+  vm->globals->root_package = make_package(vm,
+                                           make_string(vm, "lang"),
+                                           string_table(vm),
+                                           ht(vm),
+                                           Nil);
 
   vm->globals->current_thread = make_thread(vm, Nil,
                                             THREAD_STATUS_RUNNING,

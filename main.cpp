@@ -3905,13 +3905,21 @@ public:
   }
 };
 
+ByteCodeObject *make_empty_bytecode(VM *vm){
+  auto builder = new BCBuilder(vm);
+  auto result = builder->build();
+  delete builder;
+  return result;
+}
+
+
 /* ---------------------------------------------------*/
 
 void vm_run_until_thread_completion(VM *vm) {
   // dbg("running remaining threads");
 
   // so we have a root frame
-  auto bc = (new BCBuilder(vm))->build();
+  auto bc = make_empty_bytecode(vm);
   vm_push_stack_frame(vm, 0, bc, Nil);
   vm->frame->mark = KNOWN(exception);
 
@@ -3927,7 +3935,7 @@ void vm_run_until_thread_completion(VM *vm) {
       //   dbg("returned normally with thread count: ", vm->threads->size());
       // }
       // re-add root frame
-      auto bc = (new BCBuilder(vm))->build();
+      auto bc = make_empty_bytecode(vm);
       vm_push_stack_frame(vm, 0, bc, Nil);
       vm->frame->mark = KNOWN(exception);
 
@@ -4934,7 +4942,7 @@ VM *vm_create() {
   vm->gc_disabled = false;
 
   // so we have a root frame
-  auto bc = (new BCBuilder(vm))->build();
+  auto bc = make_empty_bytecode(vm);
   vm_push_stack_frame(vm, 0, bc, Nil);
   vm->frame->mark = KNOWN(exception);
 

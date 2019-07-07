@@ -104,14 +104,6 @@ struct Ptr { u64 value; };
 
 struct ptrq_node { Ptr val;  ptrq_node *next;  };
 struct ptrq { ptrq_node *front, *back; ptrq_node *free_list; };
-void ptrq_push(ptrq *q, ptrq_node *n) {
-  if (!q->front) {
-    q->front = q->back = n;
-  } else {
-    q->back->next = n;
-    q->back = n;
-  }
-}
 ptrq_node *ptrq_get_node(ptrq *q) {
   if (q->free_list) {
     auto res = q->free_list;
@@ -119,6 +111,15 @@ ptrq_node *ptrq_get_node(ptrq *q) {
     return res;
   }
   return (ptrq_node *)calloc(sizeof(ptrq_node), 1);
+}
+void ptrq_push(ptrq *q, ptrq_node *n) {
+  n->next = 0;
+  if (!q->front) {
+    q->front = q->back = n;
+  } else {
+    q->back->next = n;
+    q->back = n;
+  }
 }
 void ptrq_push(ptrq *q, Ptr p) {
   auto n = ptrq_get_node(q);
@@ -144,19 +145,18 @@ void ptrq_remove_next(ptrq *q, ptrq_node *p) {
     if (n) {
       n->next = q->free_list;
       q->free_list = n;
+      n->val = Nil;
     }
     return;
   }
   auto n = p->next;
   assert(n);
-  if (n == q->back) {
-    q->back = p;
-    p->next = 0;
-  } else {
-    p->next = n->next;
-  }
+  if (n == q->back) q->back = p;
+  p->next = n->next;
+  
   n->next = q->free_list;
   q->free_list = n;
+  n->val = Nil;
 }
 
 void ptrq_remove_ptr(ptrq *q, Ptr ptr) {
@@ -3152,6 +3152,7 @@ bool vm_maybe_start_next_thread(VM *vm) {
 
 void vm_add_thread_to_background_set(VM *vm, Ptr thread){
   assert(is(thread, thread));
+  assert(!(thread == vm->globals->current_thread));
   if (!ptr_eq(thread_get_status(thread), THREAD_STATUS_SLEEPING) &&
       !ptr_eq(thread_get_status(thread), THREAD_STATUS_WAITING) &&
       !ptr_eq(thread_get_status(thread), THREAD_STATUS_SEM_WAIT)
@@ -3164,13 +3165,14 @@ void vm_add_thread_to_background_set(VM *vm, Ptr thread){
 
 void vm_suspend_current_thread(VM *vm) {
   Ptr curr = _vm_thread_suspend(vm);
+  vm->globals->current_thread = Nil; // XXX careful!
   if (is(thread,curr)) vm_add_thread_to_background_set(vm, curr);
-  // vm->globals->current_thread = Nil; // XXX careful!
   vm->suspended = true;
 }
 
 bool vm_sleep_current_thread(VM *vm, s64 ms) {
   Ptr curr = _vm_thread_suspend(vm);
+  vm->globals->current_thread = Nil; // XXX careful!
   if (is(thread,curr)) {
     // dbg("putting thread to sleep, count is now: ", vm->threads->size());
     thread_set_status(curr, THREAD_STATUS_SLEEPING);
@@ -3180,19 +3182,18 @@ bool vm_sleep_current_thread(VM *vm, s64 ms) {
     // dbg("put thread to sleep, count is now: ", vm->threads->size());
     // dbg("slept to thread: ", curr);
   }
-  // vm->globals->current_thread = Nil; // XXX careful!
   auto result = vm_maybe_start_next_thread(vm);
   return result;
 }
 
 bool vm_sem_wait_current_thread(VM *vm, Ptr semaphore) { prot_ptr(semaphore);
   Ptr curr = _vm_thread_suspend(vm);
+  vm->globals->current_thread = Nil; // XXX careful!
   if (is(thread,curr)) {
     thread_set_status(curr, THREAD_STATUS_SEM_WAIT);
     thread_set_semaphore(curr, semaphore);
     vm_add_thread_to_background_set(vm, curr);
   }
-  // vm->globals->current_thread = Nil; // XXX careful!
   auto result = vm_maybe_start_next_thread(vm);
   unprot_ptr(semaphore);
   return result;
@@ -3203,6 +3204,7 @@ bool vm_swap_threads(VM *vm) {
   if (is(thread, next)) { prot_ptr(next);
     assert(!ptr_eq(next, vm->globals->current_thread));
     Ptr curr = _vm_thread_suspend(vm);
+    vm->globals->current_thread = Nil; // XXX careful!
     if (is(thread, curr)) vm_add_thread_to_background_set(vm, curr);
     _vm_thread_resume(vm, next);
     unprot_ptr(next);

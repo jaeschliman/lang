@@ -68,7 +68,7 @@
            (y (aget box 1))
            (color (aget box 4))
            (a (make-point x y))
-           (b (point+ a 15@15)))
+           (b (point+ a 10@10)))
       (fill-rect back-buffer a b color)))
 
 (define (draw-boxes)
@@ -90,5 +90,5 @@
   (fork-with-priority 100 (forever (draw-frame) (sleep-ms 10))))
 
 (define (onmousedown p) (add-box p))
-(define (onmousedrag p) (add-box p))
+(define (onmousedrag p) (add-box p) (set 'mouse-position p))
 (define (onmousemove p) (set 'mouse-position p))

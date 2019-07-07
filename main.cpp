@@ -101,6 +101,66 @@ struct Ptr { u64 value; };
 #define Nil   ((Ptr){0b0001})
 #define FIXNUM(x) ((Ptr){ (x) << TAG_BITS })
 
+
+struct ptrq_node { Ptr val;  ptrq_node *next;  };
+struct ptrq { ptrq_node *front, *back; ptrq_node *free_list; };
+void ptrq_push(ptrq *q, ptrq_node *n) {
+  if (!q->front) {
+    q->front = q->back = n;
+  } else {
+    q->back->next = n;
+    q->back = n;
+  }
+}
+ptrq_node *ptrq_get_node(ptrq *q) {
+  if (q->free_list) {
+    auto res = q->free_list;
+    q->free_list = q->free_list->next;
+    return res;
+  }
+  return (ptrq_node *)calloc(sizeof(ptrq_node), 1);
+}
+void ptrq_push(ptrq *q, Ptr p) {
+  auto n = ptrq_get_node(q);
+  n->val = p;
+  ptrq_push(q, n);
+}
+ptrq_node *ptrq_pop(ptrq *q) {
+  if (q->front) {
+    auto res = q->front;
+    if (q->front == q->back) {
+      q->front = q->back = 0;
+    } else {
+      q->front = q->front->next;
+    }
+    return res;
+  }
+  return 0;
+}
+
+void ptrq_remove_next(ptrq *q, ptrq_node *p) {
+  if (!p) { // first item
+    auto n = ptrq_pop(q);
+    if (n) {
+      n->next = q->free_list;
+      q->free_list = n;
+    }
+    return;
+  }
+  auto n = p->next;
+  assert(n);
+  if (n == q->back) {
+    q->back = p;
+    p->next = 0;
+  } else {
+    p->next = n->next;
+  }
+  n->next = q->free_list;
+  q->free_list = n;
+}
+
+
+
 std::ostream &operator<<(std::ostream &os, Ptr p);
 
 inline bool operator == (Ptr a, Ptr b) {
@@ -284,7 +344,7 @@ struct VM {
   std::unordered_map<Ptr *, u64> *gc_protected_ptrs;
   std::unordered_map<Ptr *, u64> *gc_protected_ptr_vectors;
   blit_surface *surface;
-  std::vector<Ptr> *threads;
+  ptrq *threads;
   bool suspended;
 };
 
@@ -1745,14 +1805,11 @@ void gc_copy_symtab(VM *vm) {
 }
 
 void gc_copy_threads(VM *vm) {
-  auto old_threads = vm->threads;
-  auto new_threads = new std::vector<Ptr>;
-  for (auto ptr : *old_threads) {
-    gc_update_ptr(vm, &ptr);
-    new_threads->push_back(ptr);
+  auto n = vm->threads->front;
+  while(n) {
+    gc_update_ptr(vm, &n->val);
+    n = n->next;
   }
-  vm->threads = new_threads;
-  delete old_threads;
 }
 
 void gc_update_protected_references(VM *vm) {
@@ -2976,54 +3033,35 @@ Ptr vm_resume_stack_snapshot(VM *vm, Ptr cont, Ptr arg) {
   return arg;
 }
 
-// FIXME: doesn't yet respect priority (see break statements)
-//        will require a priority queue or some other structure better than
-//        just a vector to work efficiently
+// FIXME: doesn't yet respect thread priority
 Ptr _vm_maybe_get_next_available_thread(VM *vm) {
-  if (vm->threads->size() > 0) {
-    auto best_priority = -1000;
-    auto found_idx = -1;
+  if (vm->threads->front) {
     s64 now = current_time_ms();
-    int count = vm->threads->size();
-    for (auto i = 0; i < count; i++) {
-      auto thread = vm->threads->at(i);
+    ptrq_node *p = 0;
+    auto n = vm->threads->front;
+    while (n) {
+      auto thread = n->val;
       auto status = thread_get_status(thread);
-      auto priority = as(Fixnum, thread_get_priority(thread));
       if (status == THREAD_STATUS_WAITING) {
-        if (priority > best_priority) {
-          found_idx = i;
-          best_priority = priority;
-          break;
-        }
+        // dbg("found waiting thread");
+        ptrq_remove_next(vm->threads, p);
+        return thread;
       } else if (status == THREAD_STATUS_SLEEPING) {
         auto wake_after = thread_get_wake_after(thread);
         s64 delta = as(Fixnum, wake_after) - now;
         // if (delta > 0) dbg("thread still sleeping for ", delta, " ms", thread);
         if (delta <= 0) {
           // dbg("waking sleeping thread");
-          if (priority > best_priority) {
-            found_idx = i;
-            best_priority = priority;
-            break;
-          }
+          ptrq_remove_next(vm->threads, p);
+          return thread;
         }
       } else if (status == THREAD_STATUS_RUNNING) {
         // should not get here
         dbg("somehow wound up with running thread in scheduled?");
       }
+      p = n;
+      n = n->next;
     }
-    if (found_idx == -1) {
-      // dbg("no suitable thread found.");
-      // for (auto thread : *vm->threads) {
-      //   dbg("  status of thread: ", thread_get_status(thread));
-      // }
-      return Nil;
-    }
-    auto result = vm->threads->at(found_idx);
-    // dbg("thread count was: ", vm->threads->size());
-    vm->threads->erase(vm->threads->begin() + found_idx);
-    // dbg("thread count is now: ", vm->threads->size());
-    return result;
   }
   return Nil;
 }
@@ -3064,7 +3102,7 @@ void vm_add_thread_to_background_set(VM *vm, Ptr thread){
     dbg(" !!!! ensuring thread status !!!");
     thread_set_status(thread, THREAD_STATUS_WAITING);
   }
-  vm->threads->push_back(thread);
+  ptrq_push(vm->threads, thread);
 }
 
 void vm_suspend_current_thread(VM *vm) {
@@ -3817,7 +3855,7 @@ void vm_run_until_thread_completion(VM *vm) {
   vm_push_stack_frame(vm, 0, bc, Nil);
   vm->frame->mark = KNOWN(exception);
 
-  while (vm->threads->size() > 0) {
+  while (vm->threads->front) {
     auto success = vm_maybe_start_next_thread(vm);
     if (success) {
       // dbg("resuming with thread count: ", vm->threads->size());
@@ -4809,7 +4847,7 @@ VM *vm_create() {
 
   vm->in_gc = false;
 
-  vm->threads = new std::vector<Ptr>;
+  vm->threads = (ptrq *)calloc(sizeof(ptrq), 1);
   vm->suspended = false;
 
   vm->frame = 0;

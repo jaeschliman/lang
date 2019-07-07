@@ -36,6 +36,8 @@
         (set! dy (*i -1 dy)))
       (let ((mouseover (and (ordered? nx mx (+i 15 nx))
                             (ordered? ny my (+i 15 ny)))))
+        (when mouseover
+          (kill-thread (current-thread)))
         (if mouseover
             (aset box 4 0xff0000ff)
             (aset box 4 0xff00ffff))

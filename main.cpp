@@ -159,6 +159,19 @@ void ptrq_remove_next(ptrq *q, ptrq_node *p) {
   q->free_list = n;
 }
 
+void ptrq_remove_ptr(ptrq *q, Ptr ptr) {
+  ptrq_node *p = 0;
+  auto n = q->front;
+  while (n) {
+    if (n->val.value == ptr.value) {
+      ptrq_remove_next(q, p);
+      return;
+    }
+    p = n;
+    n = n->next;
+  }
+}
+
 
 
 std::ostream &operator<<(std::ostream &os, Ptr p);
@@ -3471,58 +3484,74 @@ void vm_interp(VM* vm, interp_params params) {
         // TODO: validate argc against prim op
         // auto argc = (v >> 16) & 0xFF;
         auto idx  = (v >> 32) & 0xFFFF;
+        auto is_builtin = !(idx & ~0b111);
 
-        // @speed it is horrible to have multiple checks here for every call.
-        //        perhaps we could have a bitmask for special functions
-        if (idx == 0) { // APPLY
-          // TODO: multi-arity apply
-          auto args = vm_pop(vm);
-          auto to_apply = vm_pop(vm);
-          if (!is(cons, args)) {
-            vm->error = "bad call to apply. args is not a list.";
-            break;
-          }
-          u32 count = 0;
-          do_list(vm, args, [&](Ptr arg){ vm_push(vm, arg); count++; });
-          vm_push(vm, to_apply);
-          argc = count;
-          goto reenter_call;
-        } else if (idx == 1) { // SEND
-          dbg("preparing to send... ", idx);
-          vm_interp_prepare_for_send(vm, argc);
-          argc--;
-          goto reenter_call;
-        } else if (idx == 2) { // SLEEP
-          auto ms = vm_pop(vm); 
-          vm_push(vm, Nil);
-          // dbg("sleeping for ", as(Fixnum, ms));
-          vm->pc++;
-          if (!vm_sleep_current_thread(vm, as(Fixnum, ms))) {
-            // if we failed to resume another thread, we are suspended
-            vm->suspended = true;
-            return;
-          } else {
-            // do nothing, we have another thread ready to go
-          }
-          break;
-        } else if (idx == 3) { // SEM_WAIT
-          auto semaphore = vm_pop(vm);
-          vm_push(vm, Nil);
-          auto ct = as(Fixnum, semaphore_get_count(semaphore));
-          // dbg("in semaphore-wait, count is: ", ct);
-          if (ct > 0) {
-            semaphore_set_count(semaphore, to(Fixnum, ct - 1));
-          } else {
+        if (is_builtin) {
+          if (idx == 0) { // APPLY
+            // TODO: multi-arity apply
+            auto args = vm_pop(vm);
+            auto to_apply = vm_pop(vm);
+            if (!is(cons, args)) {
+              vm->error = "bad call to apply. args is not a list.";
+              break;
+            }
+            u32 count = 0;
+            do_list(vm, args, [&](Ptr arg){ vm_push(vm, arg); count++; });
+            vm_push(vm, to_apply);
+            argc = count;
+            goto reenter_call;
+          } else if (idx == 1) { // SEND
+            dbg("preparing to send... ", idx);
+            vm_interp_prepare_for_send(vm, argc);
+            argc--;
+            goto reenter_call;
+          } else if (idx == 2) { // SLEEP
+            auto ms = vm_pop(vm); 
+            vm_push(vm, Nil);
+            // dbg("sleeping for ", as(Fixnum, ms));
             vm->pc++;
-            if (!vm_sem_wait_current_thread(vm, semaphore)) {
+            if (!vm_sleep_current_thread(vm, as(Fixnum, ms))) {
               // if we failed to resume another thread, we are suspended
               vm->suspended = true;
               return;
             } else {
               // do nothing, we have another thread ready to go
             }
+            break;
+          } else if (idx == 3) { // SEM_WAIT
+            auto semaphore = vm_pop(vm);
+            vm_push(vm, Nil);
+            auto ct = as(Fixnum, semaphore_get_count(semaphore));
+            // dbg("in semaphore-wait, count is: ", ct);
+            if (ct > 0) {
+              semaphore_set_count(semaphore, to(Fixnum, ct - 1));
+            } else {
+              vm->pc++;
+              if (!vm_sem_wait_current_thread(vm, semaphore)) {
+                // if we failed to resume another thread, we are suspended
+                vm->suspended = true;
+                return;
+              } else {
+                // do nothing, we have another thread ready to go
+              }
+            }
+            break;
+          } else if (idx == 4) { // KILL_THD
+            auto thread = vm_pop(vm);
+            vm_push(vm, Nil);
+            thread_set_status(thread, THREAD_STATUS_DEAD);
+            if (thread == vm->globals->current_thread) {
+              thread_set_status(thread, THREAD_STATUS_DEAD);
+              if (!vm_maybe_start_next_thread(vm)) {
+                vm->suspended = true;
+                vm->globals->current_thread = Nil;
+                return;
+              }
+            } else {
+              ptrq_remove_ptr(vm->threads, thread);
+            }
+            break;
           }
-          break;
         }
 
         // cerr << " calling prim at idx: " << idx << " arg count = " << argc << endl;

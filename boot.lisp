@@ -431,6 +431,8 @@
 (set-class-name Character    'Character)
 (define         Semaphore    (class-of (make-semaphore 0)))
 (set-class-name Semaphore    'Semaphore)
+(define         Thread       (class-of (current-thread)))
+(set-class-name Thread       'Thread)
 (define         Class        (class-of (class-of 0)))
 (set-class-name Class        'Class)
 

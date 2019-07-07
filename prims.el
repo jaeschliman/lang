@@ -177,11 +177,18 @@ void initialize_primitive_functions(VM *vm) {
 (progn
   (setf *prims* nil)
 
-  (prim @send SEND unused any "unused") ;; N.B. this is handled specially in the VM
-  ;; syntax is (@send method recvr ..args)
-  (prim sleep-ms SLEEP_MS unused any "unused") ;; handled specially in VM
-  (prim semaphore-wait SEM_WAIT unused any "unused") ;; handled specially in VM
+  ;; SPECIAL BUILTINS (handled specially in VM)
 
+  ;; apply ;; 0
+  (prim @send          SEND     unused any "unused") ;; 1
+  (prim sleep-ms       SLEEP_MS unused any "unused") ;; 2
+  (prim semaphore-wait SEM_WAIT unused any "unused") ;; 3
+  (prim kill-thread    KILL_THD unused any "unused") ;; 4
+  (prim -unused0       UNUS0    unused any "unused") ;; 5
+  (prim -unused1       UNUS1    unused any "unused") ;; 6
+  (prim -unused2       UNUS2    unused any "unused") ;; 7
+
+  ;; NORMAL BUILTINS
 
   (prim compile-to-closure CMPC ((expr any)) any "compile_to_closure(vm, expr)")
 
@@ -220,6 +227,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim continuation? IS_CONT ((a any)) Bool "is(cont, a)")
   (prim string?       STR_P   ((a any)) Bool "is(String, a)")
   (prim semaphore?    IS_SEM  ((a any)) Bool "is(semaphore, a)")
+  (prim thread?       IS_THD  ((a any)) Bool "is(thread, a)")
 
   (prim +i    FIX_PLUS   ((a Fixnum) (b Fixnum)) Fixnum "a + b")
   (prim -i    FIX_MINUS  ((a Fixnum) (b Fixnum)) Fixnum "a - b")
@@ -332,6 +340,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim make-semaphore MK_SEM ((a Fixnum)) any "make_semaphore(vm, to(Fixnum, a))")
   (prim signal-semaphore SEM_SIG ((a any)) any "signal_semaphore(a)")
 
+  (prim current-thread CURR_THD () any "vm->globals->current_thread")
 
   (prim slurp SLURP ((path String)) any "slurp(vm, path)")
 

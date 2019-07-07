@@ -196,7 +196,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim create-class MKCLASS
         ((name any) (ivars Fixnum)) any "make_user_class(vm, name, ivars)")
   (prim class-set-method SETMETHOD
-        ((a Standard) (sym Symbol) (fn any)) any "class_set_method(vm, a, sym, fn)")
+        ((a Standard) (sym any) (fn any)) any "class_set_method(vm, a, sym, fn)")
   (prim class-get-metadata CLSGETMETA
         ((a Standard) (key any)) any "class_get_metadata(a, key)")
   (prim class-set-metadata CLSSETMETA
@@ -266,10 +266,10 @@ void initialize_primitive_functions(VM *vm) {
   (prim ht-at     HT_AT     ((ht any) (key any))           any "ht_at(ht, key)")
   (prim ht-at-put HT_AT_PUT ((ht any) (key any) (val any)) any "ht_at_put(vm, ht, key, val)")
 
-  (prim set-symbol-value SET_SYM_VAL ((a Symbol) (b any)) any
-        "set_symbol_value(vm, objToPtr(a), b)")
-  (prim mark-symbol-as-special SET_SYM_SPECIAL ((a Symbol)) any
-        "mark_symbol_as_special(vm, objToPtr(a))")
+  (prim set-symbol-value SET_SYM_VAL ((a any) (b any)) any
+        "set_symbol_value(vm, a, b)")
+  (prim mark-symbol-as-special SET_SYM_SPECIAL ((a any)) any
+        "mark_symbol_as_special(vm, a)")
 
   (prim gensym           GSYM        ()                   any  "make_symbol(vm, \"_gensym_\")")
   (prim intern           INTERN      ((a String))         any  "intern(vm, a)")

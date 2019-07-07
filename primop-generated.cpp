@@ -190,7 +190,7 @@ Ptr PRIM_MKCLASS_impl(VM *vm, u32 argc) {
 Ptr PRIM_SETMETHOD_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("class-set-method",any,fn);
-   VM_ARG("class-set-method",Symbol,sym);
+   VM_ARG("class-set-method",any,sym);
    VM_ARG("class-set-method",Standard,a);
 
  return class_set_method(vm, a, sym, fn);
@@ -658,17 +658,17 @@ Ptr PRIM_HT_AT_PUT_impl(VM *vm, u32 argc) {
 Ptr PRIM_SET_SYM_VAL_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("set-symbol-value",any,b);
-   VM_ARG("set-symbol-value",Symbol,a);
+   VM_ARG("set-symbol-value",any,a);
 
- return set_symbol_value(vm, objToPtr(a), b);
+ return set_symbol_value(vm, a, b);
 }
 
 // Primitive 66
 Ptr PRIM_SET_SYM_SPECIAL_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
-   VM_ARG("mark-symbol-as-special",Symbol,a);
+   VM_ARG("mark-symbol-as-special",any,a);
 
- return mark_symbol_as_special(vm, objToPtr(a));
+ return mark_symbol_as_special(vm, a);
 }
 
 // Primitive 67
@@ -1333,7 +1333,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
 
   case 11: {
    VM_ARG("class-set-method",any,fn);
-   VM_ARG("class-set-method",Symbol,sym);
+   VM_ARG("class-set-method",any,sym);
    VM_ARG("class-set-method",Standard,a);
 
     vm_push(vm, class_set_method(vm, a, sym, fn));
@@ -1746,16 +1746,16 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
 
   case 66: {
    VM_ARG("set-symbol-value",any,b);
-   VM_ARG("set-symbol-value",Symbol,a);
+   VM_ARG("set-symbol-value",any,a);
 
-    vm_push(vm, set_symbol_value(vm, objToPtr(a), b));
+    vm_push(vm, set_symbol_value(vm, a, b));
     break;
   }
 
   case 67: {
-   VM_ARG("mark-symbol-as-special",Symbol,a);
+   VM_ARG("mark-symbol-as-special",any,a);
 
-    vm_push(vm, mark_symbol_as_special(vm, objToPtr(a)));
+    vm_push(vm, mark_symbol_as_special(vm, a));
     break;
   }
 

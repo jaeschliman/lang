@@ -235,7 +235,6 @@ bool object_has_custom_class(Object *obj) {
 #define set_obj_tag(obj,name) object_set_custom_class(obj, BuiltinClassIndex_##name)
 
 
-
 // TODO: rename this function
 inline Ptr objToPtr(Object *ref) {
   return (Ptr){ ((u64) ref) | 0b1 };
@@ -449,7 +448,6 @@ void report_memory_usage(VM *vm) {
 
 typedef enum {
   String,
-  Symbol,
   Image
 } BAOType;
 
@@ -661,15 +659,6 @@ ByteArrayObject *alloc_bao(VM *vm, BAOType ty, uint len) {
   return obj;
 }
 
-type_test(Symbol, it) {
-  if (!is(ByteArray, it)) return false;
-  auto bao = as(ByteArray, it);
-  return bao->bao_type == Symbol;
-}
-unwrap_ptr_for(Symbol, it) {
-  return as(ByteArray, it);
-}
-
 type_test(String, it) {
   if (!is(ByteArray, it)) return false;
   auto bao = as(ByteArray, it);
@@ -857,22 +846,6 @@ Ptr make_filled_string(VM *vm, s64 size, char ch) {
 
 s64 string_length(ByteArrayObject *str) {
   return str->length;
-}
-
-Ptr make_symbol(VM *vm, const char* str, u64 len) {
-  ByteArrayObject *obj = alloc_bao(vm, Symbol, len);
-  set_obj_tag(obj, Symbol);
-  const char *from = str;
-  char *to = &(obj->data[0]);
-  while(len--) {
-    *to = *from;
-    to++; from++;
-  }
-  return objToPtr(obj);
-}
-
-Ptr make_symbol(VM *vm, const char* str) {
-  return make_symbol(vm, str, strlen(str));
 }
 
 inline Ptr make_number(s64 value) { return to(Fixnum, value); }
@@ -1071,6 +1044,7 @@ u32 hash_code(Ptr it) {
 
 enum StructTag : s64 {
   StructTag_Cons,
+  StructTag_Symbol,
   StructTag_VarInfo,
   StructTag_CompilerEnv,
   StructTag_HashTable,
@@ -1089,6 +1063,7 @@ StructTag struct_get_tag(Ptr it) {
 /* ---------------------------------------- */
 
 defstruct(cons, Cons, car, cdr);
+defstruct(Symbol, Symbol, name, package);
 defstruct(ht, HashTable, array, dedupe_strings);
 defstruct(istream, InputStream, string, index);
 defstruct(cont, Continuation,
@@ -1118,6 +1093,16 @@ auto THREAD_PRIORITY_HIGHEST = FIXNUM(100);
 
 
 /* ---------------------------------------- */
+
+Ptr make_symbol(VM *vm, const char* str, u64 len) {
+  auto name = make_string_with_end(vm, str, str + len);
+  auto package = Nil;
+  return make_Symbol(vm, name, package);
+}
+
+Ptr make_symbol(VM *vm, const char* str) {
+  return make_symbol(vm, str, strlen(str));
+}
 
 Ptr make_closure(VM *vm, Ptr code, Ptr env) { prot_ptrs(code, env);
   assert(is(ByteCode, code));
@@ -1283,11 +1268,6 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
         os << vobj->data[i];
       }
       os << "\"";
-      return os;
-    case Symbol:
-      for (uint i = 0; i < vobj->length; i++) {
-        os << vobj->data[i];
-      }
       return os;
     case Image: {
       auto w = image_width(vobj); auto h = image_height(vobj);
@@ -2068,6 +2048,13 @@ void debug_print_list(std::ostream &os, Ptr p) {
   os << ")";
 }
 
+void debug_print_symbol(std::ostream &os, Ptr p) {
+  auto s = as(String, Symbol_get_name(p));
+  for (uint i = 0; i < s->length; i++) {
+    os << s->data[i];
+  }
+}
+
 void do_list(VM *vm, Ptr it, PtrFn cb) { prot_ptr(it);
   while (!isNil(it)) {
     cb(car(it));
@@ -2176,6 +2163,7 @@ Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
 
 void initialize_struct_printers() {
   StructPrintTable[StructTag_Cons] = &debug_print_list;
+  StructPrintTable[StructTag_Symbol] = &debug_print_symbol;
 }
 
 
@@ -3346,9 +3334,9 @@ inline void vm_interp_prepare_for_send(VM *vm, u32 argc) {
 }
 
 // @incomplete need to confirm that klass is actually a class.
-Ptr class_set_method(VM *vm, StandardObject *klass, ByteArrayObject* sym, Ptr callable) {
+Ptr class_set_method(VM *vm, StandardObject *klass, Ptr sym, Ptr callable) {
   auto dict = standard_object_get_ivar(klass, BaseClassMethodDict);
-  ht_at_put(vm, dict, objToPtr(sym), callable);
+  ht_at_put(vm, dict, sym, callable);
   return Nil;
 }
 

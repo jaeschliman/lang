@@ -3129,6 +3129,29 @@ Ptr signal_semaphore(Ptr a) {
   return Nil;
 }
 
+s64 _vm_threads_get_minimum_sleep_time(VM *vm) {
+  auto curr = vm->threads->front;
+  auto now = current_time_ms();
+  auto best = -1; // -1 signals we should terminate (nothing found)
+  while (curr) {
+    auto thread = curr->val;
+    auto status = thread_get_status(thread);
+    if (status == THREAD_STATUS_WAITING) return 0;
+    if (status == THREAD_STATUS_SLEEPING) {
+      auto wake_after = thread_get_wake_after(thread);
+      s64 delta = as(Fixnum, wake_after) - now;
+      if (delta > 0) {
+        if (best == -1) best = delta;
+        else best = best < delta ? best : delta;
+      } else {
+        return 0;
+      }
+    }
+    curr = curr->next;
+  }
+  return best;
+}
+
 // FIXME: doesn't yet respect thread priority
 Ptr _vm_maybe_get_next_available_thread(VM *vm) {
   if (vm->threads->front) {

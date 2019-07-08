@@ -6,20 +6,22 @@
 (defvar *prims* nil)
 (defvar *prim-current* nil)
 
-(defmacro prim (name prim-name arguments return-type body-expression)
+(defmacro prim (name prim-name arguments return-type body-expression &rest meta)
   "Defines a primitive.
 
   NAME is the symbol the primitive will be installed as.
   PRIM-NAME is a unique cpp-friendly name used in generating the prim enum.
   ARGUMENTS describe the argument names and types.
-  RETURN-TYPE specifies the primitive return type of the BODY-EXPRESSION."
+  RETURN-TYPE specifies the primitive return type of the BODY-EXPRESSION.
+  META is a freeform plist of additional data."
   `(push
     (list :name ,(symbol-name name)
           :prim-name ,(concat "PRIM_" (symbol-name prim-name))
           :args ',arguments
           :index (1+ (length *prims*))
           :return-type ',return-type
-          :body ,body-expression)
+          :body ,body-expression
+          ,@meta)
     *prims*))
 
 (defun flatten (list)

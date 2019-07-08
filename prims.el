@@ -228,6 +228,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim string?       STR_P   ((a any)) Bool "is(String, a)")
   (prim semaphore?    IS_SEM  ((a any)) Bool "is(semaphore, a)")
   (prim thread?       IS_THD  ((a any)) Bool "is(thread, a)")
+  (prim package?      IS_PKG  ((a any)) Bool "is(package, a)")
 
   (prim +i    FIX_PLUS   ((a Fixnum) (b Fixnum)) Fixnum "a + b")
   (prim -i    FIX_MINUS  ((a Fixnum) (b Fixnum)) Fixnum "a - b")
@@ -270,6 +271,10 @@ void initialize_primitive_functions(VM *vm) {
         "set_symbol_value(vm, a, b)")
   (prim mark-symbol-as-special SET_SYM_SPECIAL ((a any)) any
         "mark_symbol_as_special(vm, a)")
+  (prim package-extern-symbol PKG_EXT_SYM ((a any) (b any)) any
+        "package_extern_symbol(vm, a, b)")
+  (prim make-user-package MK_USR_PKG ((name any)) any
+        "make_user_package(vm, name)")
 
   (prim gensym GSYM   ()                     any "make_symbol(vm, \"_gensym_\")")
   (prim intern INTERN ((a String) (pkg any)) any "intern(vm, a, pkg)")

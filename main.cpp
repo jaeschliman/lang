@@ -2180,6 +2180,20 @@ inline Ptr get_current_package(VM *vm) {
   return get_symbol_value(vm, KNOWN(XpackageX));
 }
 
+Ptr package_extern_symbol(VM *vm, Ptr pkg, Ptr sym) {
+  ht_at_put(vm, package_get_exports(pkg), sym, sym);
+  return Nil;
+}
+
+Ptr make_user_package(VM *vm, Ptr name) {                   prot_ptr(name);
+  auto symtab = string_table(vm);                           prot_ptr(symtab);
+  auto exports = ht(vm);                                    prot_ptr(exports);
+  auto use_list = cons(vm, vm->globals->root_package, Nil); prot_ptr(use_list);
+  auto res = make_package(vm, name, symtab, exports, use_list);
+  unprot_ptrs(name, symtab, exports, use_list);
+  return res;
+}
+
 Ptr intern(VM *vm, const char* cstr, int len, Ptr pkg) {
   auto name = make_string_with_end(vm, cstr, cstr+len);
   if (pkg == Nil) return make_Symbol(vm, name, Nil);

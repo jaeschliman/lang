@@ -149,8 +149,18 @@ http://www.jezzamon.com/fourier/index.html
 * TODO mutex etc
 * DONE use bitmask for 'primitive' primOps (aka @send apply etc)
 * TODO generic maths
-* TODO a package system
+* DONE a package system
 * TODO hash tables need to grow after threshold
+* TODO think about package system syntax for symbols
+* TODO should packages be hierarchical?
+  want to avoid the problem of name collision for packages.
+  perhaps packages should be referred to by a variable binding and the name
+  is just for printing? could work better if package object has explicit name bindings
+  rather than vars
+* TODO start on a 'proper' test suite
+  don't want to slow down evolution, but some tests could be useful
+* TODO maybe get rid of globals alist
+  now we can add a value slot to symbols
 
 * notes
 maybe have a stack of compilers? can push/pop...

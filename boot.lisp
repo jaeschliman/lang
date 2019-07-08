@@ -282,7 +282,7 @@
                      (char-at-put str idx chr)
                      (+i 1 idx))
                    0 lst-of-chars)
-      (intern str)))
+      (intern str *package*)))
 
 (defmacro case (subj & tests)
   (let* ((name (gensym))

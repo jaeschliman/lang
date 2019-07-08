@@ -69,7 +69,7 @@ enum PrimitiveOperation : u64 {
   PRIM_SET_SYM_VAL = ((66ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_SET_SYM_SPECIAL = ((67ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_GSYM = ((68ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_INTERN = ((69ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_INTERN = ((69ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_PRINT_STACK = ((70ULL << 32) | (255ULL << 16) | PrimOp_Tag),
   PRIM_DBG_STACK = ((71ULL << 32) | (255ULL << 16) | PrimOp_Tag),
   PRIM_SETPXL = ((72ULL << 32) | (1ULL << 16) | PrimOp_Tag),
@@ -681,9 +681,10 @@ Ptr PRIM_GSYM_impl(VM *vm, u32 argc) {
 // Primitive 68
 Ptr PRIM_INTERN_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("intern",any,pkg);
    VM_ARG("intern",String,a);
 
- return intern(vm, a);
+ return intern(vm, a, pkg);
 }
 
 // Primitive 69
@@ -1766,9 +1767,10 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
   }
 
   case 69: {
+   VM_ARG("intern",any,pkg);
    VM_ARG("intern",String,a);
 
-    vm_push(vm, intern(vm, a));
+    vm_push(vm, intern(vm, a, pkg));
     break;
   }
 

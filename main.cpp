@@ -179,6 +179,10 @@ std::ostream &operator<<(std::ostream &os, Ptr p);
 inline bool operator == (Ptr a, Ptr b) {
   return a.value == b.value;
 }
+inline bool operator != (Ptr a, Ptr b) {
+  return a.value != b.value;
+}
+
 
 bool ptr_eq(Ptr a, Ptr b) {
   return a.value == b.value;
@@ -2149,18 +2153,38 @@ Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
 
 /* ---------------------------------------- */
 
+
 void initialize_struct_printers() {
   StructPrintTable[StructTag_Cons] = &debug_print_list;
   StructPrintTable[StructTag_Symbol] = &debug_print_symbol;
 }
 
+/* ---------------------------------------- */
+Ptr get_symbol_value(VM *vm, Ptr sym);
 
-Ptr intern(VM *vm, const char* cstr, int len) {
+Ptr package_lookup_string(Ptr pkg, Ptr str) {
+  auto exist = ht_at(package_get_symtab(pkg), str);
+  auto curr  = package_get_use_list(pkg);
+  while (exist == Nil && curr != Nil) {
+    auto pkg = car(curr);
+    auto found = ht_at(package_get_symtab(pkg), str);
+    if (found != Nil) {
+      exist = ht_at(package_get_exports(pkg), found);
+    }
+    curr = cdr(curr);
+  }
+  return exist;
+}
+
+inline Ptr get_current_package(VM *vm) {
+  return get_symbol_value(vm, KNOWN(XpackageX));
+}
+
+Ptr intern(VM *vm, const char* cstr, int len, Ptr pkg) {
   auto name = make_string_with_end(vm, cstr, cstr+len);
-  // @TODO lookup package in the environment
-  // @TODO lookup symbol name in exports of use_list also
-  auto tab = package_get_symtab(vm->globals->root_package); 
-  auto exist = ht_at(tab, name);
+  if (pkg == Nil) return make_Symbol(vm, name, Nil);
+  auto tab = package_get_symtab(pkg); 
+  auto exist = package_lookup_string(pkg, name);
   if (exist == Nil) {                                         prot_ptrs(tab, name);
     exist = make_Symbol(vm, name, vm->globals->root_package); prot_ptr(exist);
     ht_at_put(vm, tab, name, exist); 
@@ -2169,13 +2193,17 @@ Ptr intern(VM *vm, const char* cstr, int len) {
   return exist;
 }
 
-Ptr intern(VM *vm, ByteArrayObject *str) {
-  return intern(vm, str->data, str->length);
+Ptr intern(VM *vm, ByteArrayObject *str, Ptr pkg) {
+  return intern(vm, str->data, str->length, pkg);
 }
 
-Ptr intern(VM *vm, string name) {
+Ptr intern(VM *vm, string name, Ptr pkg) {
   auto str = name.c_str();
-  return intern(vm, str, strlen(str));
+  return intern(vm, str, strlen(str), pkg);
+}
+
+Ptr root_intern(VM *vm, string name) {
+  return intern(vm, name, vm->globals->root_package);
 }
 
 bool is_special_symbol(VM *vm, Ptr sym) {
@@ -2189,18 +2217,18 @@ Ptr mark_symbol_as_special(VM *vm, Ptr sym) {
 }
 
 // @unsafe
-#define _init_sym(n) globals->known._##n = intern(vm, #n);
+#define _init_sym(n) globals->known._##n = root_intern(vm, #n);
 #define _init_symbols(...) MAP(_init_sym, __VA_ARGS__)
 
 void initialize_known_symbols(VM *vm) {
 
   auto globals = vm->globals;
   _init_symbols(lambda, quote, let, if, fixnum, cons, string, array, character, boolean, quasiquote, unquote, compiler, exception);
-  globals->known._unquote_splicing = intern(vm, "unquote-splicing");
-  globals->known._set_bang = intern(vm, "set!");
-  globals->known._run_string = intern(vm, "run-string");
-  globals->known._with_special_binding = intern(vm, "with-special-binding");
-  globals->known._XpackageX = intern(vm, "*package*");
+  globals->known._unquote_splicing = root_intern(vm, "unquote-splicing");
+  globals->known._set_bang = root_intern(vm, "set!");
+  globals->known._run_string = root_intern(vm, "run-string");
+  globals->known._with_special_binding = root_intern(vm, "with-special-binding");
+  globals->known._XpackageX = root_intern(vm, "*package*");
 
 }
 #undef _init_sym
@@ -2297,15 +2325,19 @@ Ptr set_global(VM *vm, Ptr sym, Ptr value) { prot_ptr(sym);
 }
 
 Ptr set_global(VM *vm, const char* name, Ptr value) { prot_ptr(value);
-  auto result = set_global(vm, intern(vm, name), value);
+  auto result = set_global(vm, root_intern(vm, name), value);
   unprot_ptr(value);
   return result;
 }
 
-Ptr get_global(VM *vm,  const char*name) {
-  auto pair = assoc(intern(vm, name), vm->globals->env);
+Ptr get_global(VM *vm,  Ptr sym) {
+  auto pair = assoc(sym, vm->globals->env);
   if (isNil(pair)) return pair;
   return cdr(pair);
+}
+
+Ptr get_global(VM *vm,  const char*name) {
+  return get_global(vm, root_intern(vm, name));
 }
 
 inline Ptr get_special_binding(VM *vm, Ptr sym) {
@@ -2337,6 +2369,12 @@ Ptr set_symbol_value(VM *vm, Ptr sym, Ptr value) {
   else return set_global(vm, sym, value);
 }
 
+Ptr get_symbol_value(VM *vm, Ptr sym) {
+  assert(is(Symbol, sym));
+  if (is_special_symbol(vm, sym)) return get_special(vm, sym); 
+  else return get_global(vm, sym);
+}
+
 inline void _thread_local_binding_push(VM *vm, Ptr sym, Ptr val) {
   auto assoc = cons(vm, sym, val);
   auto exist = vm->frame->special_variables;
@@ -2350,6 +2388,12 @@ inline void _thread_local_binding_pop(VM *vm) {
   vm->frame->special_variables = update;
 }
 
+/* -------------------------------------------------- */
+
+void initialize_global_variables(VM *vm) {
+  set_symbol_value(vm, KNOWN(XpackageX), vm->globals->root_package);
+  mark_symbol_as_special(vm, KNOWN(XpackageX));
+}
 
 /* -------------------------------------------------- */
 
@@ -2601,6 +2645,7 @@ Ptr read_string(VM *vm, const char **remaining, const char *end, Ptr done) {
 
 Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
   const char *input = *remaining;
+  auto pkg = get_current_package(vm);
   while (input < end) {
     eat_ws(&input, end);
     if (input >= end) break;
@@ -2631,7 +2676,7 @@ Ptr read(VM *vm, const char **remaining, const char *end, Ptr done) {
       while(input < end && is_symbodychar(*(++input))) {
        len++;
       }
-      auto result = intern(vm, start, len);
+      auto result = intern(vm, start, len, pkg);
       *remaining = input;
       return result;
     } else if (*input == '\'') {
@@ -4984,6 +5029,7 @@ VM *vm_create() {
   initialize_known_symbols(vm);
   initialize_classes(vm);
   initialize_primitive_functions(vm);
+  initialize_global_variables(vm);
 
   vm->gc_disabled = false;
 
@@ -5222,7 +5268,7 @@ void start_up_and_run_event_loop(const char *path) {
     SDL_FillRect(window_surface, NULL, SDL_MapRGBA(fmt, 255, 255, 255, 255));
     auto W = to(Fixnum, w);
     auto H = to(Fixnum, h);
-    vm_call_global(vm, intern(vm, "onshow"), 2, (Ptr[]){W, H}, INTERP_PARAMS_EVENT_HANDLER);
+    vm_call_global(vm, root_intern(vm, "onshow"), 2, (Ptr[]){W, H}, INTERP_PARAMS_EVENT_HANDLER);
     SDL_UpdateWindowSurface(window);
   }
 
@@ -5270,11 +5316,11 @@ void start_up_and_run_event_loop(const char *path) {
   bool running = true;
   SDL_Event event;
 
-  auto onkey       = intern(vm, "onkey");       prot_ptr(onkey);
-  auto onmousedrag = intern(vm, "onmousedrag"); prot_ptr(onmousedrag);
-  auto onmousemove = intern(vm, "onmousemove"); prot_ptr(onmousemove);
-  auto onmousedown = intern(vm, "onmousedown"); prot_ptr(onmousedown);
-  auto onframe     = intern(vm, "onframe");     prot_ptr(onframe);
+  auto onkey       = root_intern(vm, "onkey");       prot_ptr(onkey);
+  auto onmousedrag = root_intern(vm, "onmousedrag"); prot_ptr(onmousedrag);
+  auto onmousemove = root_intern(vm, "onmousemove"); prot_ptr(onmousemove);
+  auto onmousedown = root_intern(vm, "onmousedown"); prot_ptr(onmousedown);
+  auto onframe     = root_intern(vm, "onframe");     prot_ptr(onframe);
 
   auto as_main = INTERP_PARAMS_MAIN_EXECUTION;
   auto as_event = INTERP_PARAMS_EVENT_HANDLER;

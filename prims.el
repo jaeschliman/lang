@@ -271,8 +271,8 @@ void initialize_primitive_functions(VM *vm) {
   (prim mark-symbol-as-special SET_SYM_SPECIAL ((a any)) any
         "mark_symbol_as_special(vm, a)")
 
-  (prim gensym           GSYM        ()                   any  "make_symbol(vm, \"_gensym_\")")
-  (prim intern           INTERN      ((a String))         any  "intern(vm, a)")
+  (prim gensym GSYM   ()                     any "make_symbol(vm, \"_gensym_\")")
+  (prim intern INTERN ((a String) (pkg any)) any "intern(vm, a, pkg)")
 
   (prim print-stacktrace PRINT_STACK () any "vm_print_stack_trace(vm)")
   (prim debug-stacktrace DBG_STACK   () any "vm_print_debug_stack_trace(vm)")

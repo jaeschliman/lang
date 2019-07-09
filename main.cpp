@@ -4071,9 +4071,10 @@ void vm_run_until_thread_completion(VM *vm) {
       vm->frame->mark = KNOWN(exception);
 
     } else {
-      // XXX HACKY
-      auto seconds = 0.001;
-      usleep(seconds * 1000000);
+      // TODO: some kind of event loop will be more appropriate in the long run
+      auto ms = _vm_threads_get_minimum_sleep_time(vm);
+      if (ms < 0) return;
+      usleep(ms * 1000);
     }
   }
   // dbg("all threads finished: ", vm->threads->size());

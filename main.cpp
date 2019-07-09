@@ -5399,9 +5399,8 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
   {
     auto fmt = window_surface->format;
     SDL_FillRect(window_surface, NULL, SDL_MapRGBA(fmt, 255, 255, 255, 255));
-    auto W = to(Fixnum, w);
-    auto H = to(Fixnum, h);
-    vm_poke_event(vm, poke, root_intern(vm, "onshow"), 2, (Ptr[]){W, H}, INTERP_PARAMS_EVENT_HANDLER);
+    auto param = to(Point, ((point){(s32)w, (s32)h}));
+    vm_poke_event(vm, poke, root_intern(vm, "onshow"), 1, (Ptr[]){param}, INTERP_PARAMS_EVENT_HANDLER);
     SDL_UpdateWindowSurface(window);
   }
 

@@ -368,7 +368,7 @@
 
 (define (ignore1 _))
 (define (ignore2 a b))
-(define onshow ignore2)
+(define onshow ignore1)
 (define onmousedown ignore1)
 (define onmousedrag ignore1)
 (define onmousemove ignore1)
@@ -462,9 +462,10 @@
     (let ((name (car e))
           (data (cdr e)))
       (case name
+        (onmousemove (onmousemove data))
         (onmousedown (onmousedown data))
         (onmousedrag (onmousedrag data))
-        (onmousemove (onmousemove data)))))
+        (onshow      (onshow      data)))))
 
 (define (poll-for-pending-events)
     (semaphore-wait got-event)

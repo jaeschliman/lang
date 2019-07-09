@@ -56,7 +56,7 @@
       (aset box 4  0xff00ffff)
       (set 'boxes (cons box boxes))
       (fork-with-priority 0 (forever
-                             (sleep-ms 10)
+                             (sleep-ms 16)
                              (move-box box)))))
 
 (define (clear-screen)
@@ -91,6 +91,32 @@
   (set 'back-buffer (make-image w h))
   (fork-with-priority 100 (forever (draw-frame) (sleep-ms 10))))
 
-(define (onmousedown p) (add-box p))
-(define (onmousedrag p) (add-box p) (set 'mouse-position p))
-(define (onmousemove p) (set 'mouse-position p))
+(define got-event (make-semaphore 0))
+
+(define (handle-event e)
+    (let ((name (car e))
+          (data (cdr e)))
+      (case name
+        (onmousedown (add-box data))
+        (onmousedrag (add-box data) (set 'mouse-position data))
+        (onmousemove (set 'mouse-position data)))))
+
+(define pending-events '())
+
+(define (poll-for-pending-events)
+    (semaphore-wait got-event)
+  ;; (print `(got event!))
+  (let ((found pending-events)) ;; clearly not thread safe ; )
+    (when (not (nil? found))
+      (set 'pending-events '()) 
+      (mapcar handle-event (reverse-list found)))))
+
+(fork (forever (poll-for-pending-events)))
+
+(define (add-event name data)
+    (set 'pending-events (cons (cons name data) pending-events))
+  (signal-semaphore got-event))
+
+(define (onmousedown p) (add-event 'onmousedown p))
+(define (onmousedrag p) (add-event 'onmousedrag p))
+(define (onmousemove p) (add-event 'onmousemove p))

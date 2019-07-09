@@ -38,6 +38,8 @@ using std::string;
 
 #define GC_DEBUG 0
 #define PRIM_USE_GIANT_SWITCH 1
+#define INCLUDE_REPL 0
+#define NEW_EVENT_DRIVER 1
 // with it on:  216533389 / 15 / 60 = ~240,600 instr / frame
 //              187983512 / 13.048 / 60 = ~240,117
 // with it off: 220863576 / 16.57 / 60 = ~222,150 instr / frame
@@ -360,6 +362,7 @@ struct VM {
   std::unordered_map<Ptr *, u64> *gc_protected_ptrs;
   std::unordered_map<Ptr *, u64> *gc_protected_ptr_vectors;
   blit_surface *surface;
+  bool screen_dirty;
   ptrq *threads;
   bool suspended;
 };
@@ -3221,6 +3224,8 @@ void _vm_thread_resume(VM *vm, Ptr thread) {
   thread_set_status(thread, THREAD_STATUS_RUNNING);
 }
 
+// N.B. when used outside the interpreter loop, you must
+//      manually advance the PC before entering vm_interp
 bool vm_maybe_start_next_thread(VM *vm) {
   auto next = _vm_maybe_get_next_available_thread(vm);
   if (is(thread, next)) {
@@ -3460,6 +3465,7 @@ void vm_interp(VM* vm, interp_params params) {
     ctx_switch_budget--;
     code = instr_code(instr);
     data = instr_data(instr);
+
     switch (code){
     case STACK_RESERVE: {
       u64 count = vm_adv_instr(vm);
@@ -3688,7 +3694,9 @@ void vm_interp(VM* vm, interp_params params) {
         auto env = closure_env(fn);
         vm_push_stack_frame(vm, argc, bc, env);
       }
+
       vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
+      // PC is now -1
 
       // we choose the end of a CALL as our safe point for ctx switching
       if (params.total_execution_instr_budget &&
@@ -3707,13 +3715,13 @@ void vm_interp(VM* vm, interp_params params) {
         }
         ctx_switch_budget = params.thread_switch_instr_budget;
       }
+
       break;
     }
     case RET: {
       auto it = vm_pop(vm);
       vm_pop_stack_frame(vm);
       vm_push(vm, it);
-      // cout << "returning: " << it << endl;
       break;
     }
     case LOAD_ARG: {
@@ -3746,6 +3754,8 @@ void vm_interp(VM* vm, interp_params params) {
       dbg("bc = ", vm->bc);
       dbg("mk = ", vm->frame->mark);
       vm->error = "unexpected BC";
+      print_stacktrace();
+      exit(1);
       return;
     }
 
@@ -3756,9 +3766,16 @@ void vm_interp(VM* vm, interp_params params) {
       vm_handle_error(vm);
 
     };
+
     ++vm->pc;
   }
 
+  #if NEW_EVENT_DRIVER
+  // if exclusive
+  if (!params.thread_switch_instr_budget && !params.total_execution_instr_budget) {
+    return;
+  }
+  #endif
 
   bool restarting = vm_maybe_start_next_thread(vm);
   if (restarting) {
@@ -4058,6 +4075,7 @@ void vm_run_until_thread_completion(VM *vm) {
     auto success = vm_maybe_start_next_thread(vm);
     if (success) {
       // dbg("resuming with thread count: ", vm->threads->size());
+      vm->pc++;
       vm_interp(vm, INTERP_PARAMS_MAIN_EXECUTION);
 
       // if (vm->suspended) {
@@ -4660,6 +4678,7 @@ Ptr gfx_set_pixel(VM *vm, point p) { // assumes 4 bytes pp
     u32 pixel = 0;
     u8 *target_pixel = surface->mem + p.y * surface->pitch + p.x * 4;
     *(u32 *)target_pixel = pixel;
+    vm->screen_dirty = true;
   }
   return Nil;
 }
@@ -4699,7 +4718,10 @@ void _gfx_fill_rect(blit_surface *dst, point a, point b, s64 color) {
 }
 
 Ptr gfx_screen_fill_rect(VM *vm, point a, point b, s64 color) {
-  if (vm->surface) { _gfx_fill_rect(vm->surface, a, b, color); }
+  if (vm->surface) {
+    _gfx_fill_rect(vm->surface, a, b, color);
+    vm->screen_dirty = true;
+  }
   return Nil;
 }
 Ptr gfx_fill_rect(ByteArrayObject *dst_image, point a, point b, s64 color) {
@@ -4938,6 +4960,7 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
   if (!is(Image, objToPtr(img))) die("gfx_blit_image: not an image");
   auto src  = image_blit_surface(img);
   auto dst = vm->surface;
+  vm->screen_dirty = true;
 
   auto from = (rect){ 0, 0, src.width, src.height };
   return gfx_blit_image(&src, dst, &from, p, scale100/100.0f, deg_rot * 1.0f);
@@ -5286,6 +5309,26 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params param
   return result;
 }
 
+void vm_poke_event(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params params){
+  maybe_unused(params);
+
+  #if !NEW_EVENT_DRIVER
+  vm_call_global(vm, symbol, argc, argv, params);
+  #else
+
+  // TODO: we could cons into a var directly and signal a semaphore here
+  //       manually instead of building and executing a call.
+  ByteCodeObject *bc = build_call(vm, symbol, argc, argv);
+
+  vm_push_stack_frame(vm, 0, bc, Nil);
+  vm->frame->mark = KNOWN(exception);
+
+  vm_interp(vm, INTERP_PARAMS_EXCLUSIVE);
+  assert(!vm->suspended);
+  vm_pop_stack_frame(vm);
+
+  #endif
+}
 
 void start_up_and_run_event_loop(const char *path) {
   auto vm = vm_create();
@@ -5317,6 +5360,7 @@ void start_up_and_run_event_loop(const char *path) {
 
   vm->surface = &window_context;
   if (!vm->surface) die("could not create surface");
+  vm->screen_dirty = false;
 
   {
     //Initialize PNG loading
@@ -5331,12 +5375,14 @@ void start_up_and_run_event_loop(const char *path) {
     SDL_FillRect(window_surface, NULL, SDL_MapRGBA(fmt, 255, 255, 255, 255));
     auto W = to(Fixnum, w);
     auto H = to(Fixnum, h);
-    vm_call_global(vm, root_intern(vm, "onshow"), 2, (Ptr[]){W, H}, INTERP_PARAMS_EVENT_HANDLER);
+    vm_poke_event(vm, root_intern(vm, "onshow"), 2, (Ptr[]){W, H}, INTERP_PARAMS_EVENT_HANDLER);
     SDL_UpdateWindowSurface(window);
   }
 
-#define PORT 8080
-#define BUF_SIZE 5120
+  #if INCLUDE_REPL
+
+  #define PORT 8080
+  #define BUF_SIZE 5120
 
   int server_fd, new_socket; 
   struct sockaddr_in address; 
@@ -5375,6 +5421,7 @@ void start_up_and_run_event_loop(const char *path) {
     new_socket = 0;
   }
   
+  #endif
 
   bool running = true;
   SDL_Event event;
@@ -5393,9 +5440,15 @@ void start_up_and_run_event_loop(const char *path) {
 
   auto msec_s = current_time_ms();
 
+  #if INCLUDE_REPL
   char *buffer = (char *)calloc(BUF_SIZE, 1);
+  #endif
+
+  auto wait_timeout_ms = 0;
 
   while (running) {
+
+    #if INCLUDE_REPL
     if (new_socket <= 0) {
       new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen);
       if (new_socket > 0) {
@@ -5412,13 +5465,15 @@ void start_up_and_run_event_loop(const char *path) {
         bzero(buffer, BUF_SIZE);
       }
     }
-    while (SDL_PollEvent(&event)) { // or if(SDL_WaitEvent(&event)) for reactive
+    #endif
+
+    while (SDL_WaitEventTimeout(&event, wait_timeout_ms)) { // or if(SDL_WaitEvent(&event)) for reactive
       switch (event.type) {
       case SDL_QUIT: running = false; break;
       case SDL_KEYDOWN : {
         auto key = event.key.keysym.scancode;
         Ptr num = to(Fixnum, key);
-        vm_call_global(vm, onkey, 1, (Ptr[]){num}, as_event);
+        vm_poke_event(vm, onkey, 1, (Ptr[]){num}, as_event);
         break;
       }
       case SDL_MOUSEMOTION: {
@@ -5427,9 +5482,9 @@ void start_up_and_run_event_loop(const char *path) {
         auto p = (point){x, y};
         auto pt = to(Point, p);
         if (event.motion.state & SDL_BUTTON_LMASK) {
-          vm_call_global(vm, onmousedrag, 1, (Ptr[]){pt}, as_event);
+          vm_poke_event(vm, onmousedrag, 1, (Ptr[]){pt}, as_event);
         } else {
-          vm_call_global(vm, onmousemove, 1, (Ptr[]){pt}, as_event);
+          vm_poke_event(vm, onmousemove, 1, (Ptr[]){pt}, as_event);
         }
         SDL_FlushEvent(SDL_MOUSEMOTION);
         break;
@@ -5439,7 +5494,7 @@ void start_up_and_run_event_loop(const char *path) {
         auto y = event.button.y;
         auto p = (point){x, y};
         auto pt = to(Point, p);
-        vm_call_global(vm, onmousedown, 1, (Ptr[]){pt}, as_event);
+        vm_poke_event(vm, onmousedown, 1, (Ptr[]){pt}, as_event);
         break;
       }
       }
@@ -5447,8 +5502,30 @@ void start_up_and_run_event_loop(const char *path) {
         dbg(vm->error); // TODO: vm_handle_error
         break;
       }
+      wait_timeout_ms = 0;
     }
 
+    #if NEW_EVENT_DRIVER
+    {
+
+      auto can_run = vm_maybe_start_next_thread(vm);
+      if (can_run) {
+        // thread resumption usually happens in the interpreter loop,
+        // which means the pc is advanced. here we have to do it manually.
+        // TODO: audit other thread resumption callsites.
+        vm->pc++;
+        vm_interp(vm, as_main_event);
+        if (vm->screen_dirty) SDL_UpdateWindowSurface(window);
+        vm->screen_dirty = false;
+      }
+      auto sleep_time = _vm_threads_get_minimum_sleep_time(vm);
+      if (sleep_time == -1) {
+        running = false;
+        break;
+      }
+      wait_timeout_ms = sleep_time;
+    }
+    #else
     {
       auto msec_e0 = current_time_ms();
       auto delta1 = msec_e0 - msec_s;
@@ -5461,10 +5538,11 @@ void start_up_and_run_event_loop(const char *path) {
       auto frame_ns = frame_length_ms;
       auto delay = frame_ns - (delta2 % frame_ns);
       msec_s = current_time_ms() - (delta2 - delta1);
-      SDL_Delay(delay);
-    }
 
-    SDL_UpdateWindowSurface(window);
+      SDL_Delay(delay);
+      SDL_UpdateWindowSurface(window);
+    }
+    #endif
   }
 
   unprot_ptrs(onkey, onmousedrag, onmousemove, onmousedown, onframe);

@@ -8,7 +8,8 @@ INCLUDE=/Users/jsn/Library/Frameworks
 mkdir -p build
 rm -rf build
 mkdir -p build
-g++ main.cpp -Werror -O0 -std=c++14 -I$INCLUDE -F$INCLUDE -framework Cocoa -framework SDL2 -framework SDL2_image -o build/run-file -v
+g++ main.cpp -Werror -Ofast -std=c++14 -mllvm -unroll-count=4 -I$INCLUDE -F$INCLUDE -framework Cocoa -framework SDL2 -framework SDL2_image -o build/run-file -v
+#g++ main.cpp -Werror -O0 -std=c++14 -I$INCLUDE -F$INCLUDE -framework Cocoa -framework SDL2 -framework SDL2_image -o build/run-file -v
 cd build
 ln run-file amber
 ln run-file soak

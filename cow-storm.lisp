@@ -1,5 +1,8 @@
-(set-symbol-value 'set set-symbol-value)
-(set 'ignore1 (lambda (_)))
+(define screen-width 1280)
+(define screen-height 720)
+(define screen-size (make-point screen-width screen-height))
+(define curr-point (make-point (/i screen-width 2)
+                               (/i screen-height 2)))
 
 (set 'cow (load-image "./res/cow.png"))
 
@@ -10,11 +13,9 @@
                           (let ((amt (scale s half-img-width)))
                             (point- p (make-point amt amt))))))
 
-;; TODO: replace with an extendable array
-;; (set 'ctx (list (cons 0@0 0)))
 (set 'ctx-idx 0)
 (set 'ctx (make-array 255))
-(aset ctx 0 0@0)
+(aset ctx 0 curr-point)
 (aset ctx 1 0.0)
 
 (set 'push-t-r (lambda (p r)
@@ -49,12 +50,8 @@
                (draw-cows (scale s 40))
                (pop-t-r))))))
 
-(set 'screen-size #f)
-
 (set 'cow-mania (lambda (s)
                   (draw-cows s)))
-
-(define curr-point #f)
 
 (define (draw-frame dt)
     (screen-fill-rect 0@0 screen-size 0xffffffff)
@@ -77,16 +74,10 @@
        (set 'curr-point p)
        (aset ctx 0 p)))
 
-;;;;;;; register event handlers
-
-(set 'onshow (lambda (w h)
-               (set 'screen-size (make-point w h))
-               (let ((mid (make-point (/i w 2) (/i h 2))))
-                 (set 'curr-point mid)
-                 (aset ctx 0 mid))))
-
 (set 'onmousemove mouse-handler)
 (set 'onmousedown mouse-handler)
 (set 'onmousedrag mouse-handler)
-(set 'onkey ignore1)
-(set 'onframe (lambda (dt) (draw-frame dt)))
+
+(fork-with-priority 100 (forever (draw-frame (/f 1.0 60.0)) (sleep-ms 10)))
+
+(request-display screen-width screen-height)

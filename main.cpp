@@ -2962,7 +2962,7 @@ Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
     // dbg("have new frame:");
     // vm_debug_print_stackframe_args(vm, nf);
 
-    if (!isNil(prev_fr)) {
+    if (prev_fr != Nil) {
       auto pf = as(StackFrame, prev_fr);
       pf->prev_frame = nf; 
     }
@@ -2976,11 +2976,12 @@ Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
     }
 
     prev_fr = objToPtr(nf);
-    if (isNil(top_fr)) top_fr = prev_fr;
+    if (top_fr == Nil) top_fr = prev_fr;
     fr = fr->prev_frame;
   }
+
   // mark the end of the frame list
-  if (!isNil(prev_fr)) {
+  if (prev_fr != Nil) {
     // dbg("cutting tail of final frame.");
     auto pf = as(StackFrame, prev_fr);
     pf->prev_frame = 0;
@@ -3192,6 +3193,13 @@ Ptr _vm_maybe_get_next_available_thread(VM *vm) {
     }
   }
   return Nil;
+}
+
+void _vm_unwind_to_root_frame(VM *vm) {
+  auto predicate = [&](StackFrameObject *fr){
+    return fr->prev_frame == 0;
+  };
+  vm_unwind_to_predicate(vm, predicate);
 }
 
 Ptr _vm_thread_suspend(VM *vm) {
@@ -5103,7 +5111,12 @@ Ptr eval(VM *vm, Ptr expr, interp_params params) { // N.B. should /not/ be expos
   vm_interp(vm, params);
   Ptr result = vm_pop(vm);
 
-  vm_pop_stack_frame(vm);
+  if (vm->suspended) {
+    // do nothing
+    // dbg("in eval, vm was suspended..."); 
+  } else {
+    vm_pop_stack_frame(vm);
+  }
 
   if (vm->error) {
     std::cerr << "VM ERROR: " << vm->error << std::endl;
@@ -5140,8 +5153,20 @@ void start_up_and_run_string(const char* str, bool soak) {
     auto istream = make_istream_from_string(vm, str); prot_ptr(istream);
 
     while (!istream_at_end(istream)) {
+      // so we have a root frame
+      auto bc = make_empty_bytecode(vm);
+      vm_push_stack_frame(vm, 0, bc, Nil);
+      vm->frame->mark = KNOWN(exception);
+
+      vm->globals->current_thread = make_thread(vm, Nil,
+                                                THREAD_STATUS_RUNNING,
+                                                Nil,
+                                                FIXNUM(0),
+                                                THREAD_PRIORITY_NORMAL,
+                                                Nil);
       auto read = read_from_istream(vm, istream);
       eval(vm, read, INTERP_PARAMS_MAIN_EXECUTION);
+      _vm_unwind_to_root_frame(vm);
     }
 
     unprot_ptrs(istream);

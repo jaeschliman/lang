@@ -5201,42 +5201,6 @@ Ptr run_string_with_hooks(VM *vm, const char *str, interp_params params) {
   }
 }
 
-void start_up_and_run_string(const char* str, bool soak) {
-  VM *vm = vm_create();
-
-  do {
-
-    auto istream = make_istream_from_string(vm, str); prot_ptr(istream);
-
-    while (!istream_at_end(istream)) {
-      // so we have a root frame
-      auto bc = make_empty_bytecode(vm);
-      vm_push_stack_frame(vm, 0, bc, Nil);
-      vm->frame->mark = KNOWN(exception);
-
-      auto read = read_from_istream(vm, istream);
-      eval(vm, read, INTERP_PARAMS_EVAL);
-      _vm_unwind_to_root_frame(vm);
-    }
-
-    unprot_ptrs(istream);
-
-    vm_run_until_completion(vm);
-
-    if (soak) {
-      vm_count_objects_on_heap(vm);
-      vm_count_reachable_refs(vm);
-      std::cerr << " executed " << vm->instruction_count << " instructions." << std::endl;
-      std::cerr << " gc count: " << vm->gc_count;
-      report_memory_usage(vm);
-      // this_thread::sleep_for(chrono::milliseconds(10));
-      // this_thread::sleep_for(chrono::milliseconds(100));
-    }
-
-  } while(soak);
-
-  // TODO: clean up
-}
 
 void start_up_and_run_repl() {
   VM *vm = vm_create();
@@ -5247,12 +5211,6 @@ void start_up_and_run_repl() {
     auto result = run_string(vm, input.c_str(), INTERP_PARAMS_MAIN_EXECUTION);
     std::cout << result << std::endl;
   }
-}
-
-auto run_file(string path, bool soak_test) {
-  auto contents = read_file_contents(path);
-  start_up_and_run_string(contents, soak_test);
-  // TODO: free contents
 }
 
 void load_file(VM *vm, const char *path, interp_params params) {
@@ -5335,8 +5293,9 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params param
   return result;
 }
 
-void vm_poke_event(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params params){
-  maybe_unused(params);
+void vm_poke_event(VM *vm, Ptr poke, Ptr symbol, u64 argc, Ptr argv[],
+                   interp_params params) {
+  maybe_unused(params); maybe_unused(poke);
 
   #if !NEW_EVENT_DRIVER
   vm_call_global(vm, symbol, argc, argv, params);
@@ -5344,28 +5303,69 @@ void vm_poke_event(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params param
 
   // TODO: we could cons into a var directly and signal a semaphore here
   //       manually instead of building and executing a call.
-  ByteCodeObject *bc = build_call(vm, symbol, argc, argv);
+  {
+    ByteCodeObject *bc = build_call(vm, poke, 2, (Ptr[]){symbol, argv[0]});
 
-  vm_push_stack_frame(vm, 0, bc, Nil);
-  vm->frame->mark = KNOWN(exception);
+    vm_push_stack_frame(vm, 0, bc, Nil);
+    vm->frame->mark = KNOWN(exception);
 
-  vm_interp(vm, INTERP_PARAMS_EXCLUSIVE);
-  assert(!vm->suspended);
-  vm_pop_stack_frame(vm);
-
+    vm_interp(vm, INTERP_PARAMS_EXCLUSIVE);
+    assert(!vm->suspended);
+    vm_pop_stack_frame(vm);
+  }
   #endif
 }
 
-void start_up_and_run_event_loop(const char *path) {
-  auto vm = vm_create();
-  load_file(vm, path, INTERP_PARAMS_EVAL);
+void start_up_and_run_string(const char* str, bool soak) {
+  VM *vm = vm_create();
 
+  do {
+
+    auto istream = make_istream_from_string(vm, str); prot_ptr(istream);
+
+    while (!istream_at_end(istream)) {
+      // so we have a root frame
+      auto bc = make_empty_bytecode(vm);
+      vm_push_stack_frame(vm, 0, bc, Nil);
+      vm->frame->mark = KNOWN(exception);
+
+      auto read = read_from_istream(vm, istream);
+      eval(vm, read, INTERP_PARAMS_EVAL);
+      _vm_unwind_to_root_frame(vm);
+    }
+
+    unprot_ptrs(istream);
+
+    vm_run_until_completion(vm);
+
+    if (soak) {
+      vm_count_objects_on_heap(vm);
+      vm_count_reachable_refs(vm);
+      std::cerr << " executed " << vm->instruction_count << " instructions." << std::endl;
+      std::cerr << " gc count: " << vm->gc_count;
+      report_memory_usage(vm);
+      // this_thread::sleep_for(chrono::milliseconds(10));
+      // this_thread::sleep_for(chrono::milliseconds(100));
+    }
+
+  } while(soak);
+
+  // TODO: clean up
+}
+
+auto run_file(string path, bool soak_test) {
+  auto contents = read_file_contents(path);
+  start_up_and_run_string(contents, soak_test);
+  // TODO: free contents
+}
+
+void run_event_loop_with_display(VM *vm, int w, int h) {
   SDL_Window *window;
+
+  auto poke = root_intern(vm, "poke-event");  prot_ptr(poke);
 
   auto x     = SDL_WINDOWPOS_CENTERED;
   auto y     = SDL_WINDOWPOS_CENTERED;
-  auto w     = 1280;
-  auto h     = 800; // To acct for title bar
   auto title = "my window";
 
   // allow highdpi not actually working on my macbook...
@@ -5401,7 +5401,7 @@ void start_up_and_run_event_loop(const char *path) {
     SDL_FillRect(window_surface, NULL, SDL_MapRGBA(fmt, 255, 255, 255, 255));
     auto W = to(Fixnum, w);
     auto H = to(Fixnum, h);
-    vm_poke_event(vm, root_intern(vm, "onshow"), 2, (Ptr[]){W, H}, INTERP_PARAMS_EVENT_HANDLER);
+    vm_poke_event(vm, poke, root_intern(vm, "onshow"), 2, (Ptr[]){W, H}, INTERP_PARAMS_EVENT_HANDLER);
     SDL_UpdateWindowSurface(window);
   }
 
@@ -5499,7 +5499,7 @@ void start_up_and_run_event_loop(const char *path) {
       case SDL_KEYDOWN : {
         auto key = event.key.keysym.scancode;
         Ptr num = to(Fixnum, key);
-        vm_poke_event(vm, onkey, 1, (Ptr[]){num}, as_event);
+        vm_poke_event(vm, poke, onkey, 1, (Ptr[]){num}, as_event);
         break;
       }
       case SDL_MOUSEMOTION: {
@@ -5508,9 +5508,9 @@ void start_up_and_run_event_loop(const char *path) {
         auto p = (point){x, y};
         auto pt = to(Point, p);
         if (event.motion.state & SDL_BUTTON_LMASK) {
-          vm_poke_event(vm, onmousedrag, 1, (Ptr[]){pt}, as_event);
+          vm_poke_event(vm, poke, onmousedrag, 1, (Ptr[]){pt}, as_event);
         } else {
-          vm_poke_event(vm, onmousemove, 1, (Ptr[]){pt}, as_event);
+          vm_poke_event(vm, poke, onmousemove, 1, (Ptr[]){pt}, as_event);
         }
         SDL_FlushEvent(SDL_MOUSEMOTION);
         break;
@@ -5520,7 +5520,7 @@ void start_up_and_run_event_loop(const char *path) {
         auto y = event.button.y;
         auto p = (point){x, y};
         auto pt = to(Point, p);
-        vm_poke_event(vm, onmousedown, 1, (Ptr[]){pt}, as_event);
+        vm_poke_event(vm, poke, onmousedown, 1, (Ptr[]){pt}, as_event);
         break;
       }
       }
@@ -5580,6 +5580,38 @@ void start_up_and_run_event_loop(const char *path) {
   SDL_Quit();
 }
 
+void start_up_and_run_event_loop(const char *path) {
+  auto vm = vm_create();
+  load_file(vm, path, INTERP_PARAMS_EVAL);
+  run_event_loop_with_display(vm, 1280, 800);
+}
+
+void run_file_with_optional_display(const char * path) {
+  VM *vm = vm_create();
+  auto str = read_file_contents(path);
+  auto istream = make_istream_from_string(vm, str); prot_ptr(istream);
+
+  while (!istream_at_end(istream)) {
+    // so we have a root frame
+    auto bc = make_empty_bytecode(vm);
+    vm_push_stack_frame(vm, 0, bc, Nil);
+    vm->frame->mark = KNOWN(exception);
+
+    auto read = read_from_istream(vm, istream);
+    eval(vm, read, INTERP_PARAMS_EVAL);
+    _vm_unwind_to_root_frame(vm);
+  }
+
+  unprot_ptrs(istream);
+  auto wants_display = get_global(vm, root_intern(vm, "wants-display"));
+  if (is(Point, wants_display)) {
+    auto p = as(Point, wants_display);
+    run_event_loop_with_display(vm, p.x, p.y);
+  } else {
+    vm_run_until_completion(vm);
+  }
+}
+
 /* ---------------------------------------- */
 
 const char *require_argv_file(int argc, const char** argv) {
@@ -5605,7 +5637,10 @@ int main(int argc, const char** argv) {
   }
 
   // pretty hacky way of avoiding checking flags, I'll admit...
-  if (strcmp(invoked, "run-file") == 0) {
+  if (strcmp(invoked, "amber") == 0) {
+    auto file = require_argv_file(argc, argv);
+    run_file_with_optional_display(file);
+  } else if (strcmp(invoked, "run-file") == 0) {
     auto file = require_argv_file(argc, argv);
     run_file(file, false);
   } else if (strcmp(invoked, "soak") == 0){

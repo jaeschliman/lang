@@ -1,12 +1,9 @@
-(defmacro forever (& forms)
-  `(let ((loop #f))
-     (set! loop (lambda () ,@forms (loop)))
-     (loop)))
-
 (define mouse-position 0@0)
 (define boxes '())
-(define screen-size #f)
-(define back-buffer #f)
+(define screen-width 500)
+(define screen-height 500)
+(define screen-size (make-point screen-width screen-height))
+(define back-buffer (make-image screen-width screen-height))
 
 (define (ordered? a b c)
     (and (<i a b) (<i b c)))
@@ -86,37 +83,10 @@
   (draw-boxes)
   (flip-buffer))
 
-(define (onshow w h)
-    (set 'screen-size (make-point w h))
-  (set 'back-buffer (make-image w h))
-  (fork-with-priority 100 (forever (draw-frame) (sleep-ms 10))))
+(define (onmousedown p) (add-box p))
+(define (onmousedrag p) (add-box p) (set 'mouse-position p))
+(define (onmousemove p) (set 'mouse-position p))
 
-(define got-event (make-semaphore 0))
+(fork-with-priority 100 (forever (draw-frame) (sleep-ms 10)))
 
-(define (handle-event e)
-    (let ((name (car e))
-          (data (cdr e)))
-      (case name
-        (onmousedown (add-box data))
-        (onmousedrag (add-box data) (set 'mouse-position data))
-        (onmousemove (set 'mouse-position data)))))
-
-(define pending-events '())
-
-(define (poll-for-pending-events)
-    (semaphore-wait got-event)
-  ;; (print `(got event!))
-  (let ((found pending-events)) ;; clearly not thread safe ; )
-    (when (not (nil? found))
-      (set 'pending-events '()) 
-      (mapcar handle-event (reverse-list found)))))
-
-(fork (forever (poll-for-pending-events)))
-
-(define (add-event name data)
-    (set 'pending-events (cons (cons name data) pending-events))
-  (signal-semaphore got-event))
-
-(define (onmousedown p) (add-event 'onmousedown p))
-(define (onmousedrag p) (add-event 'onmousedrag p))
-(define (onmousemove p) (add-event 'onmousemove p))
+(request-display screen-width screen-height)

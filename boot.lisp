@@ -439,4 +439,50 @@
 (define (isa? obj class) ;; since we don't support class inheritance yet, this will do
     (eq (class-of obj) class))
 
+;;  interaction support -----------------------------------------------------------
+
+(defmacro forever (& forms)
+  `(let ((loop #f))
+     (set! loop (lambda () ,@forms (loop)))
+     (loop)))
+
+(define wants-display #f)
+
+(define got-event (make-semaphore 0))
+(define pending-events '())
+
+(define (add-event name data)
+    (set 'pending-events (cons (cons name data) pending-events))
+  (signal-semaphore got-event))
+
+(define (poke-event name data)
+    (add-event name data))
+
+(define (handle-event e)
+    (let ((name (car e))
+          (data (cdr e)))
+      (case name
+        (onmousedown (onmousedown data))
+        (onmousedrag (onmousedrag data))
+        (onmousemove (onmousemove data)))))
+
+(define (poll-for-pending-events)
+    (semaphore-wait got-event)
+  (let ((found pending-events)) ;; clearly not thread safe ; )
+    (when (not (nil? found))
+      (set 'pending-events '()) 
+      (mapcar handle-event (reverse-list found)))))
+
+(let ((started-event-loop #f))
+  (define (start-event-loop)
+      (unless started-event-loop
+        (fork (forever (poll-for-pending-events))))
+    (set! started-event-loop #t)))
+
+(define (request-display w h)
+      (set 'wants-display (make-point w h))
+      (start-event-loop))
+
+;;  the end -----------------------------------------------------------------------
+
 'done

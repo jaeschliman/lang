@@ -1,3 +1,4 @@
+;; TODO: this would be a good one to stress-test shift/reset
 (define (call-with-tag tag body handler)
     (set-stack-mark tag)
   (let* ((invoke body)
@@ -5,7 +6,6 @@
     (set! invoke #f)
     (if (continuation? snapshot)
         (let* ((resume (lambda (v)
-                         ;; not sure about this... but needed...
                          (set-stack-mark tag)
                          ;; FIXME: appears to be necc. to avoid TCO when resuming
                          (let ((r (resume-stack-snapshot snapshot v)))
@@ -34,7 +34,7 @@
                              r))
                      continue)))
 
-(defmacro forever (& body)
+(defmacro coop-forever (& body)
   (let ((loop (gensym)))
     `(let ((running #t)
            (,loop #f))
@@ -50,13 +50,15 @@
 
 (define (my-counter-body start)
     (let ((curr start))
-      (forever
+      (coop-forever
        (set! curr (+i 1 curr))
        (print curr))))
 
 (define count-up (make-coroutine my-counter-body))
 
-(define screen-size #f)
+(define screen-width 1280)
+(define screen-height 720)
+(define screen-size (make-point screen-width screen-height))
 
 (define spawn #f)
 (define pending '())
@@ -78,7 +80,7 @@
           (alpha 128)
           (spawn-age (f->i (*f (i->f max-age) 0.35))) 
           (child-age (f->i (*f (i->f max-age) 0.75))))
-      (forever
+      (coop-forever
        (when (>i alpha 0)
          (let* ((W (f->i w)) (H (f->i h))
                 (center (make-point x y))
@@ -152,10 +154,9 @@
   (set-symbol-value 'pending '()))
 
 (define (clear-screen)
-    (screen-fill-rect 0@0 screen-size 0xffffffff)
-    )
+    (screen-fill-rect 0@0 screen-size 0xffffffff))
 
-(define (update dt)
+(define (update)
     (clear-screen)
     (step!))
 
@@ -185,12 +186,10 @@
     (set-last-point p)
   (add-point p))
 
-(define (ignore1 _) '())
-(define (ignore2 _ __) '())
-
-(define (onshow w h) (set-symbol-value 'screen-size (make-point w h)))
-(define onkey ignore1)
 (define onmousemove set-last-point)
 (define onmousedown add-point)
 (define onmousedrag go-bananas)
-(define onframe update)
+
+(fork-with-priority 100 (forever (update) (sleep-ms 10)))
+
+(request-display screen-width screen-height)

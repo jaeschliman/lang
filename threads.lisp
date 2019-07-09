@@ -13,6 +13,10 @@
 (defmacro repeat-slowly (delay count & forms)
   `(repeat ,count ,@forms (sleep-ms ,delay)))
 
+
+(print '(one moment please))
+(sleep-ms 1000)
+
 (define (say-bye)
     (repeat-slowly 500 200 (print '(world)))
   (print 'the-end))

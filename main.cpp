@@ -3438,6 +3438,7 @@ void vm_handle_error(VM *vm);
 
 typedef struct {
   s64 thread_switch_instr_budget, total_execution_instr_budget;
+  bool block_for_initial_thread;
 } interp_params;
 
 //absurdly low for testing
@@ -3445,12 +3446,14 @@ typedef struct {
 #define RUN_QUICK 10000
 #define RUN_AWHILE 1000000
 #define RUN_INDEFINITELY 0
-auto INTERP_PARAMS_EVENT_HANDLER = (interp_params){0,RUN_QUICK};
-auto INTERP_PARAMS_MAIN_EXECUTION = (interp_params){CTX_SWITCH,RUN_INDEFINITELY};
-auto INTERP_PARAMS_MAIN_EVENT_HANDLER = (interp_params){CTX_SWITCH,RUN_AWHILE};
-auto INTERP_PARAMS_EXCLUSIVE = (interp_params){0,RUN_INDEFINITELY};
+auto INTERP_PARAMS_EVENT_HANDLER = (interp_params){0,RUN_QUICK,false};
+auto INTERP_PARAMS_MAIN_EXECUTION = (interp_params){CTX_SWITCH,RUN_INDEFINITELY, false};
+auto INTERP_PARAMS_MAIN_EVENT_HANDLER = (interp_params){CTX_SWITCH,RUN_AWHILE, false};
+auto INTERP_PARAMS_EXCLUSIVE = (interp_params){0,RUN_INDEFINITELY,false};
+auto INTERP_PARAMS_EVAL = (interp_params){CTX_SWITCH,0,true};
 
 void vm_interp(VM* vm, interp_params params) {
+  auto init_thread = vm->globals->current_thread; prot_ptr(init_thread);
   u64 instr; u8 code; u32 data;
   s64 ctx_switch_budget, spent_instructions;
   ctx_switch_budget = params.thread_switch_instr_budget;
@@ -3621,7 +3624,7 @@ void vm_interp(VM* vm, interp_params params) {
             if (!vm_sleep_current_thread(vm, as(Fixnum, ms))) {
               // if we failed to resume another thread, we are suspended
               vm->suspended = true;
-              return;
+              goto exit;
             } else {
               // do nothing, we have another thread ready to go
             }
@@ -3638,7 +3641,7 @@ void vm_interp(VM* vm, interp_params params) {
               if (!vm_sem_wait_current_thread(vm, semaphore)) {
                 // if we failed to resume another thread, we are suspended
                 vm->suspended = true;
-                return;
+                goto exit;
               } else {
                 // do nothing, we have another thread ready to go
               }
@@ -3653,7 +3656,7 @@ void vm_interp(VM* vm, interp_params params) {
               if (!vm_maybe_start_next_thread(vm)) {
                 vm->suspended = true;
                 vm->globals->current_thread = Nil;
-                return;
+                goto exit;
               }
             } else {
               ptrq_remove_ptr(vm->threads, thread);
@@ -3769,6 +3772,32 @@ void vm_interp(VM* vm, interp_params params) {
 
     ++vm->pc;
   }
+ exit:
+
+
+  // should ONLY be used by our EVAL, (not userspace one)
+  // which we want to block in the strange case
+  // that somone sleeps at the toplevel...
+  if (params.block_for_initial_thread) {
+    if(!vm->suspended &&
+       init_thread == vm->globals->current_thread) {
+      unprot_ptr(init_thread);
+      return;
+    } else {
+      bool restarting = vm_maybe_start_next_thread(vm);
+      if (restarting) {
+        // dbg("restarting interpreter loop, remaining other threads: ", vm->threads->size());
+        ctx_switch_budget = params.thread_switch_instr_budget;
+        ++vm->pc;
+      } else {
+        auto ms = _vm_threads_get_minimum_sleep_time(vm);
+        if (ms < 0) return;
+        usleep(ms * 1000);
+      }
+      goto restart_interp;
+    }
+  }
+  if (vm->suspended) return;
 
   #if NEW_EVENT_DRIVER
   // if exclusive
@@ -3784,6 +3813,8 @@ void vm_interp(VM* vm, interp_params params) {
     ++vm->pc;
     goto restart_interp;
   }
+
+  unprot_ptr(init_thread);
 }
 #undef vm_curr_instr
 #undef vm_adv_instr
@@ -4063,7 +4094,7 @@ ByteCodeObject *make_empty_bytecode(VM *vm){
 
 /* ---------------------------------------------------*/
 
-void vm_run_until_thread_completion(VM *vm) {
+void vm_run_until_completion(VM *vm) {
   // dbg("running remaining threads");
 
   // so we have a root frame
@@ -5108,7 +5139,7 @@ VM *vm_create() {
   vm->frame->mark = KNOWN(exception);
 
   // load the stdlib
-  load_file(vm, "./boot.lisp", INTERP_PARAMS_EXCLUSIVE);
+  load_file(vm, "./boot.lisp", INTERP_PARAMS_EVAL);
   return vm;
 }
 
@@ -5133,12 +5164,13 @@ Ptr eval(VM *vm, Ptr expr, interp_params params) { // N.B. should /not/ be expos
   vm_push_stack_frame(vm, 0, bc, env);
 
   vm_interp(vm, params);
-  Ptr result = vm_pop(vm);
+  Ptr result = Nil;
 
   if (vm->suspended) {
     // do nothing
     // dbg("in eval, vm was suspended..."); 
   } else {
+    result = vm_pop(vm);
     vm_pop_stack_frame(vm);
   }
 
@@ -5182,20 +5214,14 @@ void start_up_and_run_string(const char* str, bool soak) {
       vm_push_stack_frame(vm, 0, bc, Nil);
       vm->frame->mark = KNOWN(exception);
 
-      vm->globals->current_thread = make_thread(vm, Nil,
-                                                THREAD_STATUS_RUNNING,
-                                                Nil,
-                                                FIXNUM(0),
-                                                THREAD_PRIORITY_NORMAL,
-                                                Nil);
       auto read = read_from_istream(vm, istream);
-      eval(vm, read, INTERP_PARAMS_MAIN_EXECUTION);
+      eval(vm, read, INTERP_PARAMS_EVAL);
       _vm_unwind_to_root_frame(vm);
     }
 
     unprot_ptrs(istream);
 
-    vm_run_until_thread_completion(vm);
+    vm_run_until_completion(vm);
 
     if (soak) {
       vm_count_objects_on_heap(vm);
@@ -5332,7 +5358,7 @@ void vm_poke_event(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params param
 
 void start_up_and_run_event_loop(const char *path) {
   auto vm = vm_create();
-  load_file(vm, path, INTERP_PARAMS_MAIN_EXECUTION);
+  load_file(vm, path, INTERP_PARAMS_EVAL);
 
   SDL_Window *window;
 

@@ -5067,7 +5067,7 @@ Ptr slurp(VM *vm, ByteArrayObject* path) {
 
 /* -------------------------------------------------- */
 
-void load_file(VM *vm, const char* path, interp_params params);
+void load_file(VM *vm, const char* path);
 
 VM *vm_create() {
   VM *vm;
@@ -5139,7 +5139,7 @@ VM *vm_create() {
   vm->frame->mark = KNOWN(exception);
 
   // load the stdlib
-  load_file(vm, "./boot.lisp", INTERP_PARAMS_EVAL);
+  load_file(vm, "./boot.lisp");
   return vm;
 }
 
@@ -5155,7 +5155,7 @@ Ptr compile_toplevel_expression_with_hooks(VM *vm, Ptr expr) {
   }
 }
 
-Ptr eval(VM *vm, Ptr expr, interp_params params) { // N.B. should /not/ be exposed
+Ptr eval(VM *vm, Ptr expr) { // N.B. should /not/ be exposed to userspace
   auto closure = compile_toplevel_expression_with_hooks(vm, expr);
 
   auto bc = closure_code(closure);
@@ -5163,7 +5163,7 @@ Ptr eval(VM *vm, Ptr expr, interp_params params) { // N.B. should /not/ be expos
 
   vm_push_stack_frame(vm, 0, bc, env);
 
-  vm_interp(vm, params);
+  vm_interp(vm, INTERP_PARAMS_EVAL);
   Ptr result = Nil;
 
   if (vm->suspended) {
@@ -5181,12 +5181,12 @@ Ptr eval(VM *vm, Ptr expr, interp_params params) { // N.B. should /not/ be expos
   return result;
 }
 
-Ptr run_string(VM *vm, const char *str, interp_params params) {
+Ptr run_string(VM *vm, const char *str) {
   Ptr result = Nil;                                 prot_ptr(result);
   auto istream = make_istream_from_string(vm, str); prot_ptr(istream);
   while (!istream_at_end(istream)) {
     auto read = read_from_istream(vm, istream);
-    result = eval(vm, read, params);
+    result = eval(vm, read);
   }
   unprot_ptrs(result, istream);
   return result;
@@ -5197,7 +5197,7 @@ Ptr run_string_with_hooks(VM *vm, const char *str, interp_params params) {
     auto string = make_string(vm, str);
     return vm_call_global(vm, KNOWN(run_string), 1, (Ptr[]){string}, params);
   } else {
-    return run_string(vm, str, params);
+    return run_string(vm, str);
   }
 }
 
@@ -5208,13 +5208,13 @@ void start_up_and_run_repl() {
     std::cout << "lang>";
     string input;
     getline(std::cin, input);
-    auto result = run_string(vm, input.c_str(), INTERP_PARAMS_MAIN_EXECUTION);
+    auto result = run_string(vm, input.c_str());
     std::cout << result << std::endl;
   }
 }
 
-void load_file(VM *vm, const char *path, interp_params params) {
-  run_string(vm, read_file_contents(path), params);
+void load_file(VM *vm, const char *path) {
+  run_string(vm, read_file_contents(path));
 }
 
 ByteCodeObject *build_call(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
@@ -5295,7 +5295,7 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params param
 
 void vm_poke_event(VM *vm, Ptr poke, Ptr symbol, u64 argc, Ptr argv[],
                    interp_params params) {
-  maybe_unused(params); maybe_unused(poke);
+  maybe_unused(params); maybe_unused(poke); maybe_unused(argc);
 
   #if !NEW_EVENT_DRIVER
   vm_call_global(vm, symbol, argc, argv, params);
@@ -5330,7 +5330,7 @@ void start_up_and_run_string(const char* str, bool soak) {
       vm->frame->mark = KNOWN(exception);
 
       auto read = read_from_istream(vm, istream);
-      eval(vm, read, INTERP_PARAMS_EVAL);
+      eval(vm, read);
       _vm_unwind_to_root_frame(vm);
     }
 
@@ -5466,6 +5466,8 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
 
   auto msec_s = current_time_ms();
 
+  maybe_unused(as_main); maybe_unused(frame_length_ms); maybe_unused(msec_s);
+
   #if INCLUDE_REPL
   char *buffer = (char *)calloc(BUF_SIZE, 1);
   #endif
@@ -5582,7 +5584,7 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
 
 void start_up_and_run_event_loop(const char *path) {
   auto vm = vm_create();
-  load_file(vm, path, INTERP_PARAMS_EVAL);
+  load_file(vm, path);
   run_event_loop_with_display(vm, 1280, 800);
 }
 
@@ -5598,7 +5600,7 @@ void run_file_with_optional_display(const char * path) {
     vm->frame->mark = KNOWN(exception);
 
     auto read = read_from_istream(vm, istream);
-    eval(vm, read, INTERP_PARAMS_EVAL);
+    eval(vm, read);
     _vm_unwind_to_root_frame(vm);
   }
 

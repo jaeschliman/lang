@@ -39,7 +39,6 @@ using std::string;
 #define GC_DEBUG 0
 #define PRIM_USE_GIANT_SWITCH 1
 #define INCLUDE_REPL 0
-#define NEW_EVENT_DRIVER 1
 // with it on:  216533389 / 15 / 60 = ~240,600 instr / frame
 //              187983512 / 13.048 / 60 = ~240,117
 // with it off: 220863576 / 16.57 / 60 = ~222,150 instr / frame
@@ -3799,12 +3798,10 @@ void vm_interp(VM* vm, interp_params params) {
   }
   if (vm->suspended) return;
 
-  #if NEW_EVENT_DRIVER
   // if exclusive
   if (!params.thread_switch_instr_budget && !params.total_execution_instr_budget) {
     return;
   }
-  #endif
 
   bool restarting = vm_maybe_start_next_thread(vm);
   if (restarting) {
@@ -5297,10 +5294,6 @@ void vm_poke_event(VM *vm, Ptr poke, Ptr symbol, u64 argc, Ptr argv[],
                    interp_params params) {
   maybe_unused(params); maybe_unused(poke); maybe_unused(argc);
 
-  #if !NEW_EVENT_DRIVER
-  vm_call_global(vm, symbol, argc, argv, params);
-  #else
-
   // TODO: we could cons into a var directly and signal a semaphore here
   //       manually instead of building and executing a call.
   {
@@ -5313,7 +5306,6 @@ void vm_poke_event(VM *vm, Ptr poke, Ptr symbol, u64 argc, Ptr argv[],
     assert(!vm->suspended);
     vm_pop_stack_frame(vm);
   }
-  #endif
 }
 
 void start_up_and_run_string(const char* str, bool soak) {
@@ -5457,15 +5449,8 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
   auto onmousedown = root_intern(vm, "onmousedown"); prot_ptr(onmousedown);
   auto onframe     = root_intern(vm, "onframe");     prot_ptr(onframe);
 
-  auto as_main = INTERP_PARAMS_MAIN_EXECUTION;
   auto as_event = INTERP_PARAMS_EVENT_HANDLER;
   auto as_main_event = INTERP_PARAMS_MAIN_EVENT_HANDLER;
-
-  auto frame_length_ms = 1000 / 60;
-
-  auto msec_s = current_time_ms();
-
-  maybe_unused(as_main); maybe_unused(frame_length_ms); maybe_unused(msec_s);
 
   #if INCLUDE_REPL
   char *buffer = (char *)calloc(BUF_SIZE, 1);
@@ -5532,14 +5517,11 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
       wait_timeout_ms = 0;
     }
 
-    #if NEW_EVENT_DRIVER
     {
-
       auto can_run = vm_maybe_start_next_thread(vm);
       if (can_run) {
         // thread resumption usually happens in the interpreter loop,
         // which means the pc is advanced. here we have to do it manually.
-        // TODO: audit other thread resumption callsites.
         vm->pc++;
         vm_interp(vm, as_main_event);
         if (vm->screen_dirty) SDL_UpdateWindowSurface(window);
@@ -5552,24 +5534,6 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
       }
       wait_timeout_ms = sleep_time;
     }
-    #else
-    {
-      auto msec_e0 = current_time_ms();
-      auto delta1 = msec_e0 - msec_s;
-      auto frame_len = delta1 / 1000.0;
-      auto elapsed = to(Float, frame_len);
-      vm_call_global(vm, onframe, 1, (Ptr[]){elapsed}, as_main_event);
-
-      auto msec_e1 = current_time_ms();
-      auto delta2 = msec_e1 - msec_s;
-      auto frame_ns = frame_length_ms;
-      auto delay = frame_ns - (delta2 % frame_ns);
-      msec_s = current_time_ms() - (delta2 - delta1);
-
-      SDL_Delay(delay);
-      SDL_UpdateWindowSurface(window);
-    }
-    #endif
   }
 
   unprot_ptrs(onkey, onmousedrag, onmousemove, onmousedown, onframe);

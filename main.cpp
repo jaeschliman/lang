@@ -3137,10 +3137,14 @@ Ptr signal_semaphore(Ptr a) {
   return Nil;
 }
 
+/* returns time in ms, or -1 or -2 */
+/* -1 = no threads found */
+/* -2 = all threads in sem_wait */
 s64 _vm_threads_get_minimum_sleep_time(VM *vm) {
   auto curr = vm->threads->front;
+  if (!curr) return -1; // -1 signals we should terminate -- no threads
   auto now = current_time_ms();
-  auto best = -1; // -1 signals we should terminate (nothing found)
+  auto best = -2; // -2 signals we are waiting for a signal (or deadlocked)
   while (curr) {
     auto thread = curr->val;
     auto status = thread_get_status(thread);
@@ -3149,7 +3153,7 @@ s64 _vm_threads_get_minimum_sleep_time(VM *vm) {
       auto wake_after = thread_get_wake_after(thread);
       s64 delta = as(Fixnum, wake_after) - now;
       if (delta > 0) {
-        if (best == -1) best = delta;
+        if (best < 0) best = delta;
         else best = best < delta ? best : delta;
       } else {
         return 0;
@@ -5522,6 +5526,8 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
       if (sleep_time == -1) {
         running = false;
         break;
+      } else if (sleep_time == -2) {
+        sleep_time = 1000;
       }
       wait_timeout_ms = sleep_time;
     }

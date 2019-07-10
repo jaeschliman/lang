@@ -1,8 +1,3 @@
-(defmacro forever (& forms)
-  `(let ((loop #f))
-     (set! loop (lambda () ,@forms (loop)))
-     (loop)))
-
 (defmacro repeat (count & forms)
   `(let ((loop #f))
      (set! loop (lambda (c) ,@forms
@@ -13,15 +8,20 @@
 (defmacro repeat-slowly (delay count & forms)
   `(repeat ,count ,@forms (sleep-ms ,delay)))
 
-
 (print '(one moment please))
-(sleep-ms 1000)
+(let ()
+  (sleep-ms 500)
+  (print "zzzz"))
+(define (snooze) (sleep-ms 500))
+;; (sleep-ms 1000)
+(snooze)
+(print '(after sleeping))
 
 (define (say-bye)
-    (repeat-slowly 500 200 (print '(world)))
+    (repeat-slowly 100 10 (print '(world)))
   (print 'the-end))
-(fork (repeat-slowly 300 200 (print '(!!!!!))))
+(fork (repeat-slowly 100 10 (print '(!!!!!))))
 (fork (say-bye))
-(fork (repeat-slowly 200 200 (print '(hello))))
+(fork (repeat-slowly 100 10 (print '(hello))))
 (print 'goodbye)
 'done

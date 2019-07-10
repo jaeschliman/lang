@@ -135,6 +135,7 @@ ptrq_node *ptrq_pop(ptrq *q) {
     } else {
       q->front = q->front->next;
     }
+    res->next = 0;
     return res;
   }
   return 0;
@@ -3256,6 +3257,7 @@ void vm_add_thread_to_background_set(VM *vm, Ptr thread){
     dbg(" !!!! ensuring thread status !!!");
     thread_set_status(thread, THREAD_STATUS_WAITING);
   }
+  // dbg("adding background thread");
   ptrq_push(vm->threads, thread);
 }
 
@@ -3467,9 +3469,10 @@ void vm_interp(VM* vm, interp_params params) {
   ctx_switch_budget = params.thread_switch_instr_budget;
   spent_instructions = 0;
 
+ restart_interp:
+
   vm->suspended = false;
 
- restart_interp:
   while ((instr = vm_curr_instr(vm))) {
     vm->instruction_count++;
     spent_instructions++;
@@ -3628,7 +3631,6 @@ void vm_interp(VM* vm, interp_params params) {
             auto ms = vm_pop(vm); 
             vm_push(vm, Nil);
             // dbg("sleeping for ", as(Fixnum, ms));
-            vm->pc++;
             if (!vm_sleep_current_thread(vm, as(Fixnum, ms))) {
               // if we failed to resume another thread, we are suspended
               vm->suspended = true;
@@ -3792,23 +3794,39 @@ void vm_interp(VM* vm, interp_params params) {
       unprot_ptr(init_thread);
       return;
     } else {
+    retry_starting_next_thread:
       bool restarting = vm_maybe_start_next_thread(vm);
       if (restarting) {
         // dbg("restarting interpreter loop, remaining other threads: ", vm->threads->size());
         ctx_switch_budget = params.thread_switch_instr_budget;
         ++vm->pc;
+        goto restart_interp;
       } else {
         auto ms = _vm_threads_get_minimum_sleep_time(vm);
-        if (ms < 0) return;
+        if (ms < 0) {
+          // dbg("giving up with ret code ", ms);
+          unprot_ptr(init_thread);
+          return;
+        } else {
+          // dbg("waiting for ", ms, " ms");
+        }
         usleep(ms * 1000);
+        // dbg("will retry starting next thread...");
+        // dbg("init_thread status = ", thread_get_status(init_thread));
+        goto retry_starting_next_thread;
       }
       goto restart_interp;
     }
   }
-  if (vm->suspended) return;
+
+  if (vm->suspended) {
+    unprot_ptr(init_thread);
+    return;
+  }
 
   // if exclusive
   if (!params.thread_switch_instr_budget && !params.total_execution_instr_budget) {
+    unprot_ptr(init_thread);
     return;
   }
 
@@ -4125,11 +4143,14 @@ void vm_run_until_completion(VM *vm) {
     } else {
       // TODO: some kind of event loop will be more appropriate in the long run
       auto ms = _vm_threads_get_minimum_sleep_time(vm);
-      if (ms < 0) return;
+      if (ms < 0) {
+        // dbg("run completed, return code was", ms);
+        return;
+      }
       usleep(ms * 1000);
     }
   }
-  // dbg("all threads finished: ", vm->threads->size());
+  // dbg("all threads finished: ", (bool)(vm->threads->front == 0));
 }
 
 
@@ -5031,9 +5052,8 @@ Ptr gfx_blit_from_screen(VM *vm, ByteArrayObject *dest_image,
 /* -------------------------------------------------- */
 
 Ptr compile_to_closure(VM *vm, Ptr expr) {
-  auto bc = objToPtr(_compile_toplevel_expression(vm, expr, true)); prot_ptr(bc);
+  auto bc = objToPtr(_compile_toplevel_expression(vm, expr, true));
   auto closure = make_closure(vm, bc, Nil);
-  unprot_ptrs(bc);
   return closure;
 }
 
@@ -5193,10 +5213,10 @@ Ptr run_string(VM *vm, const char *str) {
   return result;
 }
 
-Ptr run_string_with_hooks(VM *vm, const char *str, interp_params params) {
+Ptr run_string_with_hooks(VM *vm, const char *str) {
   if (boundp(vm, KNOWN(run_string))) {
     auto string = make_string(vm, str);
-    return vm_call_global(vm, KNOWN(run_string), 1, (Ptr[]){string}, params);
+    return vm_call_global(vm, KNOWN(run_string), 1, (Ptr[]){string}, INTERP_PARAMS_EVAL);
   } else {
     return run_string(vm, str);
   }
@@ -5421,7 +5441,7 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
       if (valread > 0) {
         dbg("read ", valread);
         puts(buffer);
-        run_string_with_hooks(vm, buffer, as_main);
+        run_string_with_hooks(vm, buffer);
         bzero(buffer, BUF_SIZE);
       }
     }

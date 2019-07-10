@@ -635,6 +635,11 @@
   (match-map eval 'meta-main input)
   (pop-meta-context))
 
-(meta1-runfile "./threads.lisp")
+(print "sleeping first")
+(sleep-ms 500)
+(print "slept")
+(let ()
+  (meta1-runfile "./threads.lisp")
+  (print "ran the file in this expression"))
 (print "ran the file")
 'done

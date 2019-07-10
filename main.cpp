@@ -482,7 +482,8 @@ struct StandardObject : Object { // really more of a structure object
 // IS Ptr it of this type Ptr -> bool
 #define is(type, it) _type_test_name(type)(it)
 // AS this type (like a primitive cast, or conversion) Ptr -> raw type
-#define as(type, it) _ptr_conversion_name(type)(it)
+#define as(type, it)   _ptr_conversion_name(type)(it)
+#define from(type, it) _ptr_conversion_name(type)(it)
 // TO the Ptr representing this type raw type -> Ptr
 #define to(type, it) _ptr_creation_name(type)(it)
 
@@ -1070,7 +1071,7 @@ StructTag struct_get_tag(Ptr it) {
 /* ---------------------------------------- */
 
 defstruct(cons, Cons, car, cdr);
-defstruct(Symbol, Symbol, name, package);
+defstruct(Symbol, Symbol, name, package, value, flags, meta);
 defstruct(package, Package, name, symtab, exports, use_list);
 defstruct(ht, HashTable, array, dedupe_strings);
 defstruct(istream, InputStream, string, index);
@@ -1102,10 +1103,12 @@ auto THREAD_PRIORITY_HIGHEST = FIXNUM(100);
 
 /* ---------------------------------------- */
 
+auto SYMBOL_FLAG_BOUNDP = 0b1;
+
 Ptr make_symbol(VM *vm, const char* str, u64 len) {
   auto name = make_string_with_end(vm, str, str + len);
   auto package = Nil;
-  return make_Symbol(vm, name, package);
+  return make_Symbol(vm, name, package, Nil, FIXNUM(0), Nil);
 }
 
 Ptr make_symbol(VM *vm, const char* str) {
@@ -1506,7 +1509,6 @@ struct Globals {
     StandardObject *builtins[127];
 
   } classes;
-  Ptr env; // the global environment (currently an alist)
   Ptr root_package;
   Ptr call1;
   struct {
@@ -1563,7 +1565,7 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
     map_refs(vm, it, recurse);
   };
   vm_map_stack_refs(vm, recurse);
-  recurse(vm->globals->env);
+  recurse(vm->globals->root_package);
   recurse(vm->globals->call1);
 
 #define handle_class(name) recurse(objToPtr(vm->globals->classes._##name));
@@ -1776,7 +1778,6 @@ void gc_update_base_class(VM *vm, StandardObject **it) {
 
 void gc_update_globals(VM *vm) {
   gc_update_ptr(vm, &vm->globals->call1);
-  gc_update_ptr(vm, &vm->globals->env);
   gc_update_ptr(vm, &vm->globals->root_package);
   gc_update_ptr(vm, &vm->globals->current_thread);
   gc_update_ptr(vm, &vm->globals->special_variables);
@@ -2198,11 +2199,13 @@ Ptr make_user_package(VM *vm, Ptr name) {                   prot_ptr(name);
 
 Ptr intern(VM *vm, const char* cstr, int len, Ptr pkg) {
   auto name = make_string_with_end(vm, cstr, cstr+len);
-  if (pkg == Nil) return make_Symbol(vm, name, Nil);
+  if (pkg == Nil) return make_Symbol(vm, name, Nil, Nil, FIXNUM(0), Nil);
   auto tab = package_get_symtab(pkg); 
   auto exist = package_lookup_string(pkg, name);
   if (exist == Nil) {                                         prot_ptrs(tab, name);
-    exist = make_Symbol(vm, name, vm->globals->root_package); prot_ptr(exist);
+    exist = make_Symbol(vm, name, vm->globals->root_package,
+                        Nil, FIXNUM(0), Nil);
+    prot_ptr(exist);
     ht_at_put(vm, tab, name, exist); 
     unprot_ptrs(tab, name, exist);
   }
@@ -2333,10 +2336,12 @@ Ptr class_set_metadata(VM *vm, StandardObject *klass, Ptr key, Ptr value) {
   return Nil;
 }
 
-Ptr set_global(VM *vm, Ptr sym, Ptr value) { prot_ptr(sym);
+Ptr set_global(VM *vm, Ptr sym, Ptr value) {
+  maybe_unused(vm);
   assert(is(Symbol, sym));
-  set_assoc(vm, &vm->globals->env, sym, value); 
-  unprot_ptr(sym);
+  Symbol_set_value(sym, value);
+  auto flags = from(Fixnum, Symbol_get_flags(sym)) | SYMBOL_FLAG_BOUNDP;
+  Symbol_set_flags(sym, to(Fixnum, flags));
   return sym;
 }
 
@@ -2346,10 +2351,15 @@ Ptr set_global(VM *vm, const char* name, Ptr value) { prot_ptr(value);
   return result;
 }
 
+bool boundp(VM *vm, Ptr sym) {
+  maybe_unused(vm);
+  return as(Fixnum, Symbol_get_flags(sym)) & SYMBOL_FLAG_BOUNDP;
+}
+
 Ptr get_global(VM *vm,  Ptr sym) {
-  auto pair = assoc(sym, vm->globals->env);
-  if (isNil(pair)) return pair;
-  return cdr(pair);
+  if (boundp(vm, sym)) return Symbol_get_value(sym);
+  vm->error = "symbol is unbound";
+  return Nil;
 }
 
 Ptr get_global(VM *vm,  const char*name) {
@@ -2357,26 +2367,20 @@ Ptr get_global(VM *vm,  const char*name) {
 }
 
 inline Ptr get_special_binding(VM *vm, Ptr sym) {
-  auto pair = assoc(sym, vm->frame->special_variables);
-  if (pair == Nil) pair = assoc(sym, vm->globals->env);
-  return pair;
+  return assoc(sym, vm->frame->special_variables);
 }
 
 Ptr set_special(VM *vm, Ptr sym, Ptr value) {
   auto pair = get_special_binding(vm, sym);
-  if (!consp(pair)) {
-    die("special ", sym, "is unbound");
-  }
-  set_cdr(pair, value);
+  if (pair == Nil) set_global(vm, sym, value);
+  else set_cdr(pair, value);
   return sym;
 }
 
 Ptr get_special(VM *vm, Ptr sym) {
   auto pair = get_special_binding(vm, sym);
-  if (!consp(pair)) {
-    die("special ", sym, "is unbound");
-  }
-  return cdr(pair);
+  if (pair == Nil) return get_global(vm, sym);
+  else return cdr(pair);
 }
 
 Ptr set_symbol_value(VM *vm, Ptr sym, Ptr value) {
@@ -3497,8 +3501,8 @@ void vm_interp(VM* vm, interp_params params) {
       break;
     }
     case LOAD_GLOBAL: {
-      // assumes it comes after a pushlit of a cell in the env alist.
-      *vm->stack = cdr(*vm->stack);
+      // assumes it comes after a pushlit of a symbol
+      *vm->stack = get_global(vm, *vm->stack);
       break;
     }
     case LOAD_CLOSURE: {
@@ -4025,11 +4029,11 @@ public:
     if (!is(Symbol, sym)) {
       die(sym, " is not a symbol");
     }
-    auto pair = assoc(sym, vm->globals->env);
-    if (!consp(pair)) {
+    // TODO: this may be a little harsh, but it helps catch typos...
+    if (!boundp(vm, sym)) { 
       die(sym, " is not defined in the global environment.");
     }
-    pushLit(pair);
+    pushLit(sym);
     pushOp(LOAD_GLOBAL);
     return this;
   }
@@ -5105,7 +5109,6 @@ VM *vm_create() {
   vm->error = 0;
 
   vm->globals = (Globals *)calloc(sizeof(Globals), 1);
-  vm->globals->env = Nil;
 
   vm->gc_disabled = true;
 
@@ -5141,7 +5144,6 @@ VM *vm_create() {
 }
 
 Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params params);
-bool boundp(VM*, Ptr);
 
 Ptr compile_toplevel_expression_with_hooks(VM *vm, Ptr expr) {
   if (boundp(vm, KNOWN(compiler))) {
@@ -5228,20 +5230,14 @@ ByteCodeObject *build_call(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
   return result;
 }
 
-bool boundp(VM *vm, Ptr sym) {
-  auto pair = assoc(sym, vm->globals->env);
-  return consp(pair);
-}
-
 // use with care. assumes bc is laid out properly for patching.
 void patch_bytecode_for_call(VM *vm, ByteCodeObject *bc, Ptr symbol, u64 argc, Ptr argv[]) {
     auto lits = objToPtr(bc->literals);
     for (u64 i = 0; i < argc; i++) {
       array_set(lits, i, argv[i]);
     }
-    auto pair = assoc(symbol, vm->globals->env);
-    if (isNil(pair)) { die("bad vm_call_global"); }
-    array_set(lits, argc, pair);
+    if (!boundp(vm, symbol)) { die("bad vm_call_global"); }
+    array_set(lits, argc, symbol);
 }
 
 
@@ -5444,7 +5440,6 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
   auto onmousedown = root_intern(vm, "onmousedown"); prot_ptr(onmousedown);
   auto onframe     = root_intern(vm, "onframe");     prot_ptr(onframe);
 
-  auto as_event = INTERP_PARAMS_EVENT_HANDLER;
   auto as_main_event = INTERP_PARAMS_MAIN_EVENT_HANDLER;
 
   #if INCLUDE_REPL

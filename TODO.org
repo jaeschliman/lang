@@ -131,7 +131,7 @@ http://www.jezzamon.com/fourier/index.html
 * TODO CFFI
 * DONE basic green threading
 * DONE basic special variables
-* TODO wierd bug -- off-by-one error in vm->pc at termination of final thread
+* DONE wierd bug -- off-by-one error in vm->pc at termination of final thread
 * TODO work out threading issues with run_file
 * DONE clean up (new BCBuilder(vm)) callsites (ensure delete)
 * TODO CAS for object slots

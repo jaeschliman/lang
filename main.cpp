@@ -4079,9 +4079,6 @@ public:
     pushOp(POP_CLOSURE_ENV);
   }
   ByteCodeObject *build() {
-    // FIXME: somewhere there's an off-by-one
-    //        occurs when final thread terminates
-    pushOp(END);
     pushOp(END);
     fixupJumpLocations();
     finalizeByteCode();

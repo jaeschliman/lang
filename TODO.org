@@ -167,6 +167,9 @@ http://www.jezzamon.com/fourier/index.html
   and vm 'just' runs until all threads complete?
 * TODO integrate uncaught exceptions with threading
 * DONE try to get rid of INTERP_MODE_EXCLUSIVE
+* TODO `fill-pattern` blit operation (and with mask)
+* TODO add names to threads
+* TODO print debug info on receiving a signal
 
 * notes
 maybe have a stack of compilers? can push/pop...

@@ -165,6 +165,8 @@ http://www.jezzamon.com/fourier/index.html
   maybe handlers just poke events, there is an event-handling thread,
   and we need a drawing (onframe) thread to be user spawned
   and vm 'just' runs until all threads complete?
+* TODO integrate uncaught exceptions with threading
+* DONE try to get rid of INTERP_MODE_EXCLUSIVE
 
 * notes
 maybe have a stack of compilers? can push/pop...

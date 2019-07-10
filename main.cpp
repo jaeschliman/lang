@@ -3454,11 +3454,9 @@ typedef struct {
 #define RUN_QUICK 10000
 #define RUN_AWHILE 1000000
 #define RUN_INDEFINITELY 0
-auto INTERP_PARAMS_EVENT_HANDLER = (interp_params){0,RUN_QUICK,false};
 auto INTERP_PARAMS_MAIN_EXECUTION = (interp_params){CTX_SWITCH,RUN_INDEFINITELY, false};
 auto INTERP_PARAMS_MAIN_EVENT_HANDLER = (interp_params){CTX_SWITCH,RUN_AWHILE, false};
-auto INTERP_PARAMS_EXCLUSIVE = (interp_params){0,RUN_INDEFINITELY,false};
-auto INTERP_PARAMS_EVAL = (interp_params){CTX_SWITCH,0,true};
+auto INTERP_PARAMS_EVAL = (interp_params){CTX_SWITCH,RUN_INDEFINITELY,true};
 
 void vm_interp(VM* vm, interp_params params) {
   auto init_thread = vm->globals->current_thread; prot_ptr(init_thread);
@@ -5152,7 +5150,7 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params param
 
 Ptr compile_toplevel_expression_with_hooks(VM *vm, Ptr expr) {
   if (boundp(vm, KNOWN(compiler))) {
-    Ptr new_expr = vm_call_global(vm, KNOWN(compiler), 1, (Ptr[]){expr}, INTERP_PARAMS_EXCLUSIVE);
+    Ptr new_expr = vm_call_global(vm, KNOWN(compiler), 1, (Ptr[]){expr}, INTERP_PARAMS_EVAL);
     return make_closure(vm, objToPtr(compile_toplevel_expression(vm, new_expr)), Nil);
   } else {
     return make_closure(vm, objToPtr(compile_toplevel_expression(vm, expr)), Nil);

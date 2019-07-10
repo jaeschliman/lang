@@ -170,6 +170,15 @@ http://www.jezzamon.com/fourier/index.html
 * TODO `fill-pattern` blit operation (and with mask)
 * TODO add names to threads
 * TODO print debug info on receiving a signal
+* TODO compiler arity checks
+  where to keep the arity info? on the lambdas?
+* TODO optional args, rest args, kwargs
+  this will likely be done in userspace
+* TODO replace `lambda` with `%nlambda`
+  lambda with a name, that can be included in stack traces
+* TODO have make-semaphore take a boolean or fixnum param
+ when bool, it becomes a binary semaphore
+* TODO fix meta1.compiled-reader.lisp RE: threading
 
 * notes
 maybe have a stack of compilers? can push/pop...

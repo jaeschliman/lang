@@ -1104,6 +1104,7 @@ auto THREAD_PRIORITY_HIGHEST = FIXNUM(100);
 /* ---------------------------------------- */
 
 auto SYMBOL_FLAG_BOUNDP = 0b1;
+auto SYMBOL_FLAG_SPECIAL = 0b10;
 
 Ptr make_symbol(VM *vm, const char* str, u64 len) {
   auto name = make_string_with_end(vm, str, str + len);
@@ -2226,12 +2227,12 @@ Ptr root_intern(VM *vm, string name) {
 }
 
 bool is_special_symbol(VM *vm, Ptr sym) {
-  return !(ht_at(vm->globals->special_variables, sym) == Nil);
+  return from(Fixnum, Symbol_get_flags(sym)) & SYMBOL_FLAG_SPECIAL;
 }
 
 Ptr mark_symbol_as_special(VM *vm, Ptr sym) {
-  assert(is(Symbol, sym));
-  ht_at_put(vm, vm->globals->special_variables, sym, sym);
+  auto flags = from(Fixnum, Symbol_get_flags(sym)) | SYMBOL_FLAG_SPECIAL;
+  Symbol_set_flags(sym, to(Fixnum, flags));
   return Nil;
 }
 

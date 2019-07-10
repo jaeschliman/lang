@@ -1,5 +1,8 @@
-(set-symbol-value 'set set-symbol-value)
-(set 'ignore1 (lambda (_)))
+(define screen-width 500)
+(define screen-height 500)
+(define screen-size (make-point screen-width screen-height))
+
+(request-display screen-width screen-height)
 
 (set 'colors
      '(0xffff0000
@@ -46,7 +49,7 @@
              (draw-boxes (+i top size) size (cdr colors))))))
 
 
-(set 'color-well-size #f)
+(set 'color-well-size (/i screen-height 9))
 
 (set 'selected-color (car colors))
 
@@ -76,13 +79,8 @@
 
 ;;;;;;; register event handlers
 
-(set 'onshow (lambda (w h)
-               (set 'screen-size (make-point w h))
-               (set 'color-well-size (/i h 9))
+(set 'onshow (lambda (sz)
                (draw-boxes 0 color-well-size colors)))
 
-(set 'onmousemove ignore1)
 (set 'onmousedown mouse-handler)
 (set 'onmousedrag mouse-handler)
-(set 'onkey ignore1)
-(set 'onframe ignore1)

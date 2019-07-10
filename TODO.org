@@ -159,9 +159,9 @@ http://www.jezzamon.com/fourier/index.html
   rather than vars
 * TODO start on a 'proper' test suite
   don't want to slow down evolution, but some tests could be useful
-* TODO maybe get rid of globals alist
+* DONE maybe get rid of globals alist
   now we can add a value slot to symbols
-* TODO rethink how the `events` executable should work given threading support
+* DONE rethink how the `events` executable should work given threading support
   maybe handlers just poke events, there is an event-handling thread,
   and we need a drawing (onframe) thread to be user spawned
   and vm 'just' runs until all threads complete?

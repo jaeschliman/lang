@@ -2227,10 +2227,12 @@ Ptr root_intern(VM *vm, string name) {
 }
 
 bool is_special_symbol(VM *vm, Ptr sym) {
+  maybe_unused(vm);
   return from(Fixnum, Symbol_get_flags(sym)) & SYMBOL_FLAG_SPECIAL;
 }
 
 Ptr mark_symbol_as_special(VM *vm, Ptr sym) {
+  maybe_unused(vm);
   auto flags = from(Fixnum, Symbol_get_flags(sym)) | SYMBOL_FLAG_SPECIAL;
   Symbol_set_flags(sym, to(Fixnum, flags));
   return Nil;
@@ -5297,50 +5299,6 @@ void vm_poke_event(VM *vm, Ptr event_list_name, Ptr semaphore_name, Ptr event_na
   unprot_ptrs(semaphore_name, event_list_name);
 }
 
-
-void start_up_and_run_string(const char* str, bool soak) {
-  VM *vm = vm_create();
-
-  do {
-
-    auto istream = make_istream_from_string(vm, str); prot_ptr(istream);
-
-    while (!istream_at_end(istream)) {
-      // so we have a root frame
-      auto bc = make_empty_bytecode(vm);
-      vm_push_stack_frame(vm, 0, bc, Nil);
-      vm->frame->mark = KNOWN(exception);
-
-      auto read = read_from_istream(vm, istream);
-      eval(vm, read);
-      _vm_unwind_to_root_frame(vm);
-    }
-
-    unprot_ptrs(istream);
-
-    vm_run_until_completion(vm);
-
-    if (soak) {
-      vm_count_objects_on_heap(vm);
-      vm_count_reachable_refs(vm);
-      std::cerr << " executed " << vm->instruction_count << " instructions." << std::endl;
-      std::cerr << " gc count: " << vm->gc_count;
-      report_memory_usage(vm);
-      // this_thread::sleep_for(chrono::milliseconds(10));
-      // this_thread::sleep_for(chrono::milliseconds(100));
-    }
-
-  } while(soak);
-
-  // TODO: clean up
-}
-
-auto run_file(string path, bool soak_test) {
-  auto contents = read_file_contents(path);
-  start_up_and_run_string(contents, soak_test);
-  // TODO: free contents
-}
-
 void run_event_loop_with_display(VM *vm, int w, int h) {
   SDL_Window *window;
 
@@ -5351,7 +5309,7 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
 
   auto x     = SDL_WINDOWPOS_CENTERED;
   auto y     = SDL_WINDOWPOS_CENTERED;
-  auto title = "my window";
+  auto title = "amber";
 
   // allow highdpi not actually working on my macbook...
   // SDL_WINDOW_FULLSCREEN has insane results (but they /are/ hi dpi)
@@ -5540,12 +5498,6 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
   SDL_Quit();
 }
 
-void start_up_and_run_event_loop(const char *path) {
-  auto vm = vm_create();
-  load_file(vm, path);
-  run_event_loop_with_display(vm, 1280, 800);
-}
-
 void run_file_with_optional_display(const char * path) {
   VM *vm = vm_create();
   auto str = read_file_contents(path);
@@ -5600,17 +5552,8 @@ int main(int argc, const char** argv) {
   if (strcmp(invoked, "amber") == 0) {
     auto file = require_argv_file(argc, argv);
     run_file_with_optional_display(file);
-  } else if (strcmp(invoked, "run-file") == 0) {
-    auto file = require_argv_file(argc, argv);
-    run_file(file, false);
-  } else if (strcmp(invoked, "soak") == 0){
-    auto file = require_argv_file(argc, argv);
-    run_file(file, true);
   } else if (strcmp(invoked, "repl") == 0){
     start_up_and_run_repl();
-  } else if (strcmp(invoked, "events") == 0){
-    auto file = require_argv_file(argc, argv);
-    start_up_and_run_event_loop(file);
   } else {
     std::cerr << " unrecognized invocation: " << invoked << std::endl;
     return 2;

@@ -8,13 +8,10 @@ INCLUDE=/Users/jsn/Library/Frameworks
 mkdir -p build
 rm -rf build
 mkdir -p build
-g++ main.cpp -Werror -Ofast -std=c++14 -mllvm -unroll-count=4 -I$INCLUDE -F$INCLUDE -framework Cocoa -framework SDL2 -framework SDL2_image -o build/run-file -v
-#g++ main.cpp -Werror -O0 -std=c++14 -I$INCLUDE -F$INCLUDE -framework Cocoa -framework SDL2 -framework SDL2_image -o build/run-file -v
+g++ main.cpp -Wall -Werror -Ofast -std=c++14 -mllvm -unroll-count=4 -I$INCLUDE -F$INCLUDE -framework Cocoa -framework SDL2 -framework SDL2_image -o build/amber -v
+#g++ main.cpp -Werror -O0 -std=c++14 -I$INCLUDE -F$INCLUDE -framework Cocoa -framework SDL2 -framework SDL2_image -o build/amber -v
 cd build
-ln run-file amber
-ln run-file soak
-ln run-file repl
-ln run-file events
+ln amber repl
 
 # alternatively:
 # https://stackoverflow.com/questions/20277477/how-do-you-include-files-in-c-from-the-library-framework-folder-in-mac

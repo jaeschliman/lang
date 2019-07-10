@@ -3899,10 +3899,12 @@ private:
     return this;
   }
   void fixupJumpLocations() {
+    auto skip_stack = *temp_count == 0;
+    auto offset = skip_stack ? -2 : 0;
     for (branch_entry it : *branchLocations) {
       auto loc = std::get<0>(it);
       auto lbl = std::get<1>(it);
-      auto tgt = (*labelsMap)[lbl];
+      auto tgt = (*labelsMap)[lbl] + offset;
       *loc = tgt;
     }
   }
@@ -3919,13 +3921,17 @@ private:
       literals = 0;
     }
 
+    auto skip_stack = *temp_count == 0;
+    auto count = bc_index + (skip_stack ? -1 : 1);
+
     gc_protect(array);
-    bc = as(ByteCode, make_bytecode(vm, bc_index + 1));
+    bc = as(ByteCode, make_bytecode(vm, count));
     gc_unprotect(array);
 
+    auto start_index = skip_stack ? 2 : 0;
     bc->literals = array;
-    for (u64 i = 0; i < bc_index; i++) {
-      bc->code->data[i] = bc_mem[i];
+    for (u64 i = start_index; i < bc_index; i++) {
+      bc->code->data[i - start_index] = bc_mem[i];
     }
   }
 public:

@@ -5290,23 +5290,14 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params param
   return result;
 }
 
-void vm_poke_event(VM *vm, Ptr poke, Ptr symbol, u64 argc, Ptr argv[],
-                   interp_params params) {
-  maybe_unused(params); maybe_unused(poke); maybe_unused(argc);
-
-  // TODO: we could cons into a var directly and signal a semaphore here
-  //       manually instead of building and executing a call.
-  {
-    ByteCodeObject *bc = build_call(vm, poke, 2, (Ptr[]){symbol, argv[0]});
-
-    vm_push_stack_frame(vm, 0, bc, Nil);
-    vm->frame->mark = KNOWN(exception);
-
-    vm_interp(vm, INTERP_PARAMS_EXCLUSIVE);
-    assert(!vm->suspended);
-    vm_pop_stack_frame(vm);
-  }
+void vm_poke_event(VM *vm, Ptr event_list_name, Ptr semaphore_name, Ptr event_name, Ptr event_data) {
+  prot_ptrs(semaphore_name, event_list_name);
+  auto event = cons(vm, event_name, event_data);
+  set_global(vm, event_list_name, cons(vm, event, get_global(vm, event_list_name)));
+  signal_semaphore(get_global(vm, semaphore_name));
+  unprot_ptrs(semaphore_name, event_list_name);
 }
+
 
 void start_up_and_run_string(const char* str, bool soak) {
   VM *vm = vm_create();
@@ -5354,7 +5345,10 @@ auto run_file(string path, bool soak_test) {
 void run_event_loop_with_display(VM *vm, int w, int h) {
   SDL_Window *window;
 
-  auto poke = root_intern(vm, "poke-event");  prot_ptr(poke);
+  auto onshow = root_intern(vm, "onshow"); prot_ptr(onshow);
+  auto event_ready_semaphore = root_intern(vm, "event-ready-semaphore");
+  prot_ptr(event_ready_semaphore);
+  auto pending_events = root_intern(vm, "pending-events"); prot_ptr(pending_events);
 
   auto x     = SDL_WINDOWPOS_CENTERED;
   auto y     = SDL_WINDOWPOS_CENTERED;
@@ -5392,7 +5386,8 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
     auto fmt = window_surface->format;
     SDL_FillRect(window_surface, NULL, SDL_MapRGBA(fmt, 255, 255, 255, 255));
     auto param = to(Point, ((point){(s32)w, (s32)h}));
-    vm_poke_event(vm, poke, root_intern(vm, "onshow"), 1, (Ptr[]){param}, INTERP_PARAMS_EVENT_HANDLER);
+    vm_poke_event(vm, pending_events, event_ready_semaphore,
+                  onshow, param);
     SDL_UpdateWindowSurface(window);
   }
 
@@ -5485,7 +5480,7 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
       case SDL_KEYDOWN : {
         auto key = event.key.keysym.scancode;
         Ptr num = to(Fixnum, key);
-        vm_poke_event(vm, poke, onkey, 1, (Ptr[]){num}, as_event);
+        vm_poke_event(vm, pending_events, event_ready_semaphore, onkey, num);
         break;
       }
       case SDL_MOUSEMOTION: {
@@ -5494,9 +5489,9 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
         auto p = (point){x, y};
         auto pt = to(Point, p);
         if (event.motion.state & SDL_BUTTON_LMASK) {
-          vm_poke_event(vm, poke, onmousedrag, 1, (Ptr[]){pt}, as_event);
+          vm_poke_event(vm, pending_events, event_ready_semaphore, onmousedrag, pt);
         } else {
-          vm_poke_event(vm, poke, onmousemove, 1, (Ptr[]){pt}, as_event);
+          vm_poke_event(vm, pending_events, event_ready_semaphore, onmousemove, pt);
         }
         SDL_FlushEvent(SDL_MOUSEMOTION);
         break;
@@ -5506,7 +5501,7 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
         auto y = event.button.y;
         auto p = (point){x, y};
         auto pt = to(Point, p);
-        vm_poke_event(vm, poke, onmousedown, 1, (Ptr[]){pt}, as_event);
+        vm_poke_event(vm, pending_events, event_ready_semaphore, onmousedown, pt);
         break;
       }
       }

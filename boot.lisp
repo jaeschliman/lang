@@ -448,15 +448,8 @@
 
 (define wants-display #f)
 
-(define got-event (make-semaphore 0))
+(define event-ready-semaphore (make-semaphore 0))
 (define pending-events '())
-
-(define (add-event name data)
-    (set 'pending-events (cons (cons name data) pending-events))
-  (signal-semaphore got-event))
-
-(define (poke-event name data)
-    (add-event name data))
 
 (define (handle-event e)
     (let ((name (car e))
@@ -468,9 +461,9 @@
         (onshow      (onshow      data)))))
 
 (define (poll-for-pending-events)
-    (semaphore-wait got-event)
+    (semaphore-wait event-ready-semaphore)
   (let ((found pending-events)) ;; clearly not thread safe ; )
-    (when (not (nil? found))
+    (unless (nil? found)
       (set 'pending-events '()) 
       (mapcar handle-event (reverse-list found)))))
 

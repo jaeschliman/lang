@@ -3037,16 +3037,18 @@ Ptr vm_abort_to_mark(VM *vm, Ptr mark, Ptr value) { prot_ptrs(mark, value);
   return cont;
 }
 
-void vm_handle_error(VM *vm) {
+bool vm_handle_error(VM *vm) {
   Ptr ex = make_string(vm, vm->error); // TODO: signal better errors than just strings
   vm->error = 0;
   vm_unwind_to_mark(vm, KNOWN(exception));
   vm_push(vm, ex);
-  // TODO: better uncaught exception handling than a hard exit would be nice.
   if (!vm->frame->prev_frame) {
-    dbg("Uncaught exception at top level: ", ex);
-    exit(1);
+    vm_pop(vm);
+    dbg("killing thread: ", vm->globals->current_thread, " due to uncaught exception ", ex);
+    thread_set_status(vm->globals->current_thread, THREAD_STATUS_DEAD);
+    return false;
   }
+  return true;
 }
 
 void _vm_copy_stack_snapshot_args_to_stack(VM *vm, StackFrameObject *fr) {
@@ -3441,7 +3443,7 @@ Ptr class_set_method(VM *vm, StandardObject *klass, Ptr sym, Ptr callable) {
 }
 
 inline Ptr giant_switch(VM *vm, u32 argc, u32 idx);
-void vm_handle_error(VM *vm);
+bool vm_handle_error(VM *vm);
 
 // @speed would be nice to have less indirection here,
 //        but need to integrate with stack push/pop and gc both
@@ -3773,12 +3775,12 @@ void vm_interp(VM* vm, interp_params params) {
     }
 
     if (vm->error) {
-      // dbg("ERROR:", vm->error);
-      // vm_print_debug_stack_trace(vm);
-      // return;
-      vm_handle_error(vm);
-
-    };
+      if (!vm_handle_error(vm)) {
+        vm->suspended = true;
+        // vm->globals->current_thread = Nil;
+        goto exit;
+      }
+    }
 
     ++vm->pc;
   }
@@ -3791,9 +3793,16 @@ void vm_interp(VM* vm, interp_params params) {
   if (params.block_for_initial_thread) {
     if(!vm->suspended &&
        init_thread == vm->globals->current_thread) {
+      // the initial thread ran its course
+      unprot_ptr(init_thread);
+      return;
+    } else if (vm->suspended &&
+               thread_get_status(init_thread) == THREAD_STATUS_DEAD) {
+      // the initial thread was killed
       unprot_ptr(init_thread);
       return;
     } else {
+
     retry_starting_next_thread:
       bool restarting = vm_maybe_start_next_thread(vm);
       if (restarting) {
@@ -5527,14 +5536,13 @@ void run_file_with_optional_display(const char * path) {
   auto istream = make_istream_from_string(vm, str); prot_ptr(istream);
 
   while (!istream_at_end(istream)) {
-    // so we have a root frame
-    auto bc = make_empty_bytecode(vm);
-    vm_push_stack_frame(vm, 0, bc, Nil);
-    vm->frame->mark = KNOWN(exception);
-
     auto read = read_from_istream(vm, istream);
     eval(vm, read);
-    _vm_unwind_to_root_frame(vm);
+    if (vm->globals->current_thread != Nil &&
+        thread_get_status(vm->globals->current_thread) == THREAD_STATUS_DEAD) {
+      vm->globals->current_thread = Nil;
+      break;
+    }
   }
 
   unprot_ptrs(istream);

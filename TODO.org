@@ -132,7 +132,7 @@ http://www.jezzamon.com/fourier/index.html
 * DONE basic green threading
 * DONE basic special variables
 * DONE wierd bug -- off-by-one error in vm->pc at termination of final thread
-* TODO work out threading issues with run_file
+* DONE work out threading issues with run_file
 * DONE clean up (new BCBuilder(vm)) callsites (ensure delete)
 * TODO CAS for object slots
 * TODO userspace print-object (requires output stream)
@@ -178,7 +178,16 @@ http://www.jezzamon.com/fourier/index.html
   lambda with a name, that can be included in stack traces
 * TODO have make-semaphore take a boolean or fixnum param
  when bool, it becomes a binary semaphore
-* TODO fix meta1.compiled-reader.lisp RE: threading
+* DONE fix meta1.compiled-reader.lisp RE: threading
+* TODO start running user files in a fresh package
+* TODO fix issue with resuming continuation over fresh special variables bindings
+  need to re-situate special bindings over the new dynamic environment
+  where the continuation is executed.
+e.g.
+ bar = *bar*
+ x = (snapshot (binding *foo* 1 (bar)))
+ y = (binding *bar* 2 (resume x))
+ y should return 2
 
 * notes
 maybe have a stack of compilers? can push/pop...

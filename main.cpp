@@ -3230,6 +3230,7 @@ Ptr _vm_thread_suspend(VM *vm) {
 }
 
 void _vm_thread_resume(VM *vm, Ptr thread) {
+  // FIXME: we should be able to unwind to root here, but it breaks things at the moment
   auto cont = thread_get_continuation(thread);
   vm_restore_stack_snapshot(vm, cont);
   vm->globals->current_thread = thread;
@@ -3664,9 +3665,11 @@ void vm_interp(VM* vm, interp_params params) {
             thread_set_status(thread, THREAD_STATUS_DEAD);
             if (thread == vm->globals->current_thread) {
               thread_set_status(thread, THREAD_STATUS_DEAD);
-              if (!vm_maybe_start_next_thread(vm)) {
+              auto exclusive = params.block_for_initial_thread;
+              // FIXME: the check here should not be needed
+              if (!exclusive) _vm_unwind_to_root_frame(vm);
+              if (exclusive || !vm_maybe_start_next_thread(vm)) {
                 vm->suspended = true;
-                vm->globals->current_thread = Nil;
                 goto exit;
               }
             } else {
@@ -3783,8 +3786,8 @@ void vm_interp(VM* vm, interp_params params) {
 
     ++vm->pc;
   }
- exit:
 
+ exit:
 
   // should ONLY be used by our EVAL, (not userspace one)
   // which we want to block in the strange case

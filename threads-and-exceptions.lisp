@@ -10,6 +10,6 @@
 
 (fork (repeat-slowly 200 10 (print 'background)))
 ;; (+f 1.0 3) ;; kills main thread now
-;; (throw 'goodbye!) ;; errors out
+;; (throw 'goodbye!) ;; kills main thread now
 ;; (kill-thread (current-thread)) ;; no result
 (print `(should never see this))

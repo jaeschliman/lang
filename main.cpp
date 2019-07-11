@@ -2832,7 +2832,6 @@ Ptr read_from_istream(VM *vm, Ptr s) { prot_ptr(s);
 Ptr vm_pop(VM *vm);
 void vm_push(VM *vm, Ptr it);
 
-
 void vm_pop_stack_frame(VM* vm) {
   auto fr = vm->frame;
   if (!fr->prev_frame) {
@@ -4112,6 +4111,7 @@ public:
     pushOp(POP_CLOSURE_ENV);
   }
   ByteCodeObject *build() {
+    pushOp(END); // XXX off by one again
     pushOp(END);
     fixupJumpLocations();
     finalizeByteCode();
@@ -5207,12 +5207,34 @@ Ptr eval(VM *vm, Ptr expr) { // N.B. should /not/ be exposed to userspace
     // dbg("in eval, vm was suspended..."); 
   } else {
     result = vm_pop(vm);
-    vm_pop_stack_frame(vm);
+    if (vm->frame->prev_frame) {
+      vm_pop_stack_frame(vm);
+    } else {
+      // we got here via some sort of error, like a throw
+      // XXX
+      // this is really hacky... it will become less important
+      // once more execution is handled by the meta runner
+      // but depends on internals of the shift/reset implementation
+      // of try/catch way too closely
+      if (is(cont, result)) {
+        result = cont_get_value(result);
+        if (is(Closure, result)) {
+          result = array_get(closure_env(result), 1);
+          dbg("Uncaught Exception: ", result);
+        } else {
+          dbg("failed to unwrap exception: ", result);
+          exit(1);
+        }
+      }
+      // TODO: should be a repr of the result
+      vm->error = "uncaught at top level";
+      vm_handle_error(vm);
+    }
   }
 
   if (vm->error) {
-    std::cerr << "VM ERROR: " << vm->error << std::endl;
-    exit(3);
+    dbg("VM ERROR", vm->error);
+    exit(1);
   }
   return result;
 }

@@ -82,7 +82,7 @@
 )
 
 
-(set-symbol-value 'print-arg-2 (lambda (x y) (print-stacktrace) (print y) ))
+(set-symbol-value 'print-arg-2 (lambda (x y) (print y)))
 (set-symbol-value 'call-2 (lambda (f x y) (f x y)))
 
 (print '(should print 22))
@@ -144,9 +144,6 @@
 
 (print (ret1-0))
 (print (ret1-1))
-
-((lambda () (print-stacktrace)))
-((lambda (x) (debug-stacktrace)) 42)
 
 (print (eq 't 't))
 (print (eq 't 'f))

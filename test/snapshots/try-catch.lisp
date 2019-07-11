@@ -1,0 +1,35 @@
+(try-catch (lambda ()
+             (print 'hello)
+             (print 'world))
+           (lambda (ex)
+             (print `(caught ,ex))))
+
+(try-catch (lambda ()
+             (print 'hello)
+             (throw 'world)
+             (print 'whoops))
+           (lambda (ex)
+             (print ex)))
+
+(try-catch (lambda ()
+             (print 'hello)
+             (try-catch (lambda ()
+                          (throw 'world)
+                          (print 'whoops))
+                        (lambda (ex)
+                          (print `(rethrowing ,ex))
+                          (throw ex)
+                          (print 'whoops)))
+             (print 'whoops))
+           (lambda (ex)
+             (print ex)))
+
+(try-catch (lambda ()
+             (print 'hello)
+             (*f 1.0 1) ;; catch a type error
+             (print 'whoops))
+           (lambda (ex)
+             (print `(caught ,ex))
+             (print 'world)))
+
+'done

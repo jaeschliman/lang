@@ -1,5 +1,3 @@
-(set-symbol-value 'set set-symbol-value)
-
 (set 'print-2 (lambda (a b) (print (list a b))))
 (set 'print-2-reversed (lambda (a b) (print (list b a))))
 (set 'list-2 (lambda (a b) (list a b)))

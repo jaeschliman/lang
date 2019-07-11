@@ -1,0 +1,33 @@
+(expecting 10)
+10
+(expecting 10)
+10
+(expecting 20)
+20
+(expecting 10 done)
+10
+done
+(expecting 20 done)
+20
+done
+(expecting 10 done)
+10
+done
+(expecting 20 30 40 10 done)
+20
+30
+40
+10
+done
+(expecting 10 done)
+10
+done
+(expecting 10)
+10
+(expecting 10)
+10
+(expecting 20 30 40 10)
+20
+30
+40
+10

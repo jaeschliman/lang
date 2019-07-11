@@ -1,15 +1,7 @@
-(define tests-passed 0)
-(define tests-failed 0)
 (define (expect a b)
     (if (deep-eq? a b)
-        (set 'tests-passed (+i 1 tests-passed))
-        (let ()
-          (print `(expected ,a ,b))
-          (set 'tests-failed (+i 1 tests-failed)))))
-(define (test-report)
-  (print `(,tests-passed tests passed))
-  (print `(,tests-failed tests failed))
-  (print `(,(+i tests-passed tests-failed) tests total)))
+        (print `(PASS ,a = ,b))
+        (print `(FAIL expected ,a = ,b))))
 
 (expect '(2 3 4) (mapcar (lambda (x) (+i 1 x)) '(1 2 3)))
 
@@ -247,7 +239,6 @@
 (expect #t (deep-eq? '(a b c) '(a b c)))
 (expect #f (deep-eq? '(a c b) '(a b c)))
 
-(test-report)
 ;; maybe should support & in define as well?
 ;; (define (show-more a & more) (print more))
 ;; (show-more 0 1 2 3)

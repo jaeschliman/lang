@@ -1,0 +1,63 @@
+(hello world)
+42
+it-was-true-1
+it-was-false-2
+(expecting tt tf ft ff)
+tt
+tf
+ft
+ff
+(#\h #\e #\l #\l #\o)
+(#\Space)
+#\)
+(if #t #f #t)
+10
+11
+(* < > >= @)
+hello
+10
+11
+22
+12
+23
+before-closure
+closure
+after-closure
+x-value
+y-value
+z-value
+(should print 22)
+22
+(hello again world)
+10
+11
+(hello again world)
+10
+11
+12
+10
+11
+42
+42
+11
+22
+12
+23
+2
+2
+1
+1
+#t
+#f
+42@43
+-42
+(-42 -1234 -5@5 4@-456 15 255 65535 12632256)
+(1 2 3)
+(1 2)
+(1)
+nil
+(1.00000 0.500000 1.30000)
+1.00000
+1
+"good night sweet prince"
+(so long and thanks for all the fish)

@@ -1,0 +1,10 @@
+hello
+world
+hello
+world
+hello
+(rethrowing world)
+world
+hello
+(caught "in: *f argument b is not a Float")
+world

@@ -150,7 +150,7 @@ http://www.jezzamon.com/fourier/index.html
 * DONE use bitmask for 'primitive' primOps (aka @send apply etc)
 * TODO generic maths
 * DONE a package system
-* TODO hash tables need to grow after threshold
+* DONE hash tables need to grow after threshold
 * TODO think about package system syntax for symbols
 * TODO should packages be hierarchical?
   want to avoid the problem of name collision for packages.

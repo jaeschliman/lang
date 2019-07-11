@@ -1074,7 +1074,7 @@ StructTag struct_get_tag(Ptr it) {
 defstruct(cons, Cons, car, cdr);
 defstruct(Symbol, Symbol, name, package, value, flags, meta);
 defstruct(package, Package, name, symtab, exports, use_list);
-defstruct(ht, HashTable, array, dedupe_strings);
+defstruct(ht, HashTable, array, dedupe_strings, count);
 defstruct(istream, InputStream, string, index);
 defstruct(cont, Continuation,
           stack_top,
@@ -2068,10 +2068,10 @@ u64 list_length(VM *vm, Ptr it) {
 /* ---------------------------------------- */
 
 Ptr ht(VM *vm) {
-  return make_ht(vm, make_xarray_with_capacity_and_used(vm, 64, 64), False);
+  return make_ht(vm, make_xarray_with_capacity_and_used(vm, 64, 64), False, FIXNUM(0));
 }
 Ptr string_table(VM *vm) {
-  return make_ht(vm, make_xarray_with_capacity_and_used(vm, 64, 64), True);
+  return make_ht(vm, make_xarray_with_capacity_and_used(vm, 64, 64), True, FIXNUM(0));
 }
 
 Ptr ht_at(Ptr ht, Ptr key) {
@@ -2103,20 +2103,65 @@ Ptr ht_at(Ptr ht, Ptr key) {
   return Nil;
 }
 
+Ptr ht_listed_entries(VM *vm, Ptr ht) { prot_ptr(ht);
+  auto result = Nil;
+  auto array = ht_get_array(ht);        prot_ptr(array); 
+  auto count = xarray_used(array);
+  for (auto i = 0; i < count; i++) {
+    auto it = xarray_at(array, i);
+    if (it.value) {
+      result = cons(vm, it, result);
+    }
+  }
+  unprot_ptrs(ht, array);
+  return result;
+}
+
+Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value);
+
+void ht_grow(VM *vm, Ptr ht) { prot_ptr(ht);
+  auto entries = ht_listed_entries(vm, ht); prot_ptr(entries);
+  auto array = ht_get_array(ht); 
+  auto new_size = xarray_capacity(array) * 2;
+  auto new_storage = make_xarray_with_capacity_and_used(vm, new_size, new_size);
+  ht_set_array(ht, new_storage);
+  do_list(vm, entries, [&](Ptr assoc_list) {
+      do_list(vm, assoc_list, [&](Ptr pair) {
+          ht_at_put(vm, ht, car(pair), cdr(pair));
+        });
+    });
+  unprot_ptrs(ht, entries);
+}
+
 // TODO: grow table when it gets too full
 Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
+  auto count = from(Fixnum, ht_get_count(ht));
   auto strs  = ht_get_dedupe_strings(ht) == True && is(String, key); 
-  auto array = ht_get_array(ht);                    prot_ptr(array);
+  auto array = ht_get_array(ht); 
+  auto load_factor = 0.8; // just a guess, can be tweaked
+
+  u64 new_size = count + 1;
+  if (new_size >= xarray_capacity(array) * load_factor) {
+    prot_ptrs(ht, key, value);
+    ht_grow(vm, ht);
+    unprot_ptrs(ht, key, value);
+    return ht_at_put(vm, ht, key, value);
+  }
+
+  prot_ptr(array);
+
   auto used  = xarray_used(array);
   auto mem   = xarray_memory(array);
   auto hash  = hash_code(key);
   auto idx   = hash % used;
+
   assert(idx < used); //:P
   if (!mem[idx].value) { // no entry
     auto list = cons(vm, cons(vm, key, value), Nil);
     auto mem  = xarray_memory(array); // mem may have moved
     mem[idx] = list;
     unprot_ptrs(key, value, array);
+    ht_set_count(ht, to(Fixnum, count + 1));
     return Nil;
   }
 
@@ -2152,6 +2197,7 @@ Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
     mem[idx] = list;
   }
   unprot_ptrs(key, value, array);
+  ht_set_count(ht, to(Fixnum, count + 1));
   return Nil;
 }
 

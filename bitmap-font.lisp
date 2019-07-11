@@ -1,61 +1,66 @@
-(set-symbol-value 'set set-symbol-value)
-(set 'ignore1 (lambda (_) '()))
+(define screen-width 300)
+(define screen-height 200)
+(define screen-size (make-point screen-width screen-height))
+(request-display screen-width screen-height)
 
-(set 'font (load-image "./res/charmap-futuristic_white.png"))
-(set 'font-start 32)
-(set 'font-chars-per-row 18)
-(set 'font-char-width 7)
-(set 'font-char-height 9)
-(set 'font-char-size (make-point font-char-width font-char-height))
+(define font (load-image "./res/charmap-futuristic_white.png"))
+(define font-start 32)
+(define font-chars-per-row 18)
+(define font-char-width 7)
+(define font-char-height 9)
+(define font-char-size (make-point font-char-width font-char-height))
 
-(set 'output (make-image 500 500))
+(define output (make-image 500 500))
 ;; (fill-rect output 0@0 500@500 0xff00ff00)
 
-(set 'blit-charcode-at
-     (lambda (raw-code point scale)
-       (let ((code (-i raw-code font-start)))
-         (let ((col (%i code font-chars-per-row))
-               (row (/i code font-chars-per-row)))
-           (let ((origin (make-point (*i col font-char-width )
-                                     (*i row font-char-height))))
-             (blit
-              font output point
-              origin (point+ origin font-char-size)
-              scale 13.0))))))
+(define (blit-charcode-at raw-code point scale rotation)
+  (let ((code (-i raw-code font-start)))
+    (let ((col (%i code font-chars-per-row))
+          (row (/i code font-chars-per-row)))
+      (let ((origin (make-point (*i col font-char-width )
+                                (*i row font-char-height))))
+        (blit
+         font output point
+         origin (point+ origin font-char-size)
+         scale rotation)))))
 
-(set 'screen-size #f)
+(define strloop #f)
+(define strloop (lambda (str fn idx len)
+                  (if (<i idx len)
+                      (let ()
+                        (fn (char-code-at str idx) idx)
+                        (strloop str fn (+i 1 idx) len)))))
 
-(set 'strloop #f)
-(set 'strloop (lambda (str fn idx len)
-                (if (<i idx len)
-                    (let ()
-                      (fn (char-code-at str idx) idx)
-                      (strloop str fn (+i 1 idx) len)))))
+(define (map-charcodes-with-index  str fn)
+    (strloop str fn 0 (string-length str)))
 
-(set 'map-charcodes-with-index (lambda (str fn)
-                                 (strloop str fn 0 (string-length str))))
+(define (display-string at scale rotation str)
+    (map-charcodes-with-index
+     str
+     (lambda (char idx)
+       (let ((left (f->i
+                    (*f (*f (i->f idx)
+                            (i->f font-char-width))
+                        scale))))
+         (blit-charcode-at
+          char (point+ at (make-point left 0)) scale rotation))))
+  (blit-to-screen output 0@0 100 0))
 
-(set 'display-string (lambda (at scale str)
-                       (map-charcodes-with-index
-                        str
-                        (lambda (char idx)
-                          (let ((left (f->i
-                                       (*f (*f (i->f idx)
-                                               (i->f font-char-width))
-                                           scale))))
-                            (blit-charcode-at
-                             char (point+ at (make-point left 0)) scale))))
-                       (blit-to-screen output 0@0 100 0)))
+(define (clear-screen)
+    (screen-fill-rect 0@0 screen-size 0xffffffff))
 
-;;;;;;; register event handlers
+(define rot 0.0)
+(define (step-rot!)
+    (set-symbol-value 'rot (%f (+f 1.0 rot) 360.0)))
 
-(set 'onshow (lambda (w h)
-               (set 'screen-size (make-point w h))
-               (display-string 0@0 3.3 "hello, world!")
-               (display-string 0@30 1.3 "(lambda (x) x) [ ^ self ].")))
+(define (step!)
+    (step-rot!)
+  (display-string 0@0 3.3 rot "hello, world!")
+  (step-rot!)
+  (display-string 0@30 1.3 rot "(lambda (x) x) [ ^ self ]."))
 
-(set 'onmousemove ignore1)
-(set 'onmousedown ignore1)
-(set 'onmousedrag ignore1)
-(set 'onkey ignore1)
-(set 'onframe ignore1)
+(define (update)
+    (clear-screen)
+    (step!))
+
+(fork (forever (update) (sleep-ms 10)))

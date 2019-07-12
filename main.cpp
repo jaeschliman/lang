@@ -652,11 +652,6 @@ ByteCodeObject *alloc_bytecode(VM *vm) {
   return obj;
 }
 
-ByteCodeObject *toBytecode(Ptr it) {
-  assert(is(ByteCode, it));
-  return (ByteCodeObject *)as(Object, it);
-}
-
 ByteArrayObject *alloc_bao(VM *vm, BAOType ty, uint len) {
   auto byte_count = sizeof(ByteArrayObject) + len;
   ByteArrayObject* obj = (ByteArrayObject *)vm_alloc(vm, byte_count);
@@ -2141,7 +2136,7 @@ Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
 
   u64 new_size = count + 1;
   if (new_size >= xarray_capacity(array) * load_factor) {
-    prot_ptrs(ht, key, value);
+    prot_ptr(ht);
     ht_grow(vm, ht);
     unprot_ptrs(ht, key, value);
     return ht_at_put(vm, ht, key, value);
@@ -2156,10 +2151,11 @@ Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
 
   assert(idx < used); //:P
   if (!mem[idx].value) { // no entry
+    prot_ptr(ht);
     auto list = cons(vm, cons(vm, key, value), Nil);
     auto mem  = xarray_memory(array); // mem may have moved
     mem[idx] = list;
-    unprot_ptrs(key, value, array);
+    unprot_ptrs(ht, key, value, array);
     ht_set_count(ht, to(Fixnum, count + 1));
     return Nil;
   }
@@ -2190,12 +2186,13 @@ Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
   }
 
   // not found
+  prot_ptr(ht);
   auto list = cons(vm, cons(vm, key, value), mem[idx]);
   {
     auto mem = xarray_memory(array); // mem may have moved
     mem[idx] = list;
   }
-  unprot_ptrs(key, value, array);
+  unprot_ptrs(ht, key, value, array);
   ht_set_count(ht, to(Fixnum, count + 1));
   return Nil;
 }
@@ -2360,7 +2357,7 @@ bool is_class(Ptr obj) {
 
 Ptr make_user_class(VM *vm, Ptr name, s64 ivar) { prot_ptrs(name);
   auto ivar_ct = to(Fixnum, ivar);
-  auto method_dict = ht(vm); prot_ptr(method_dict);
+  auto method_dict = ht(vm);                      prot_ptr(method_dict);
   auto metadata = ht(vm);
   auto superclass = vm->globals->classes.builtins[BuiltinClassIndex_Base];
   Ptr slots[] = {name, ivar_ct, method_dict, metadata};
@@ -3091,12 +3088,12 @@ bool vm_handle_error(VM *vm) {
 
 Ptr rebase_alist(VM *vm, Ptr lst, Ptr root, s64 count) {
   if (!count) return root;
-  prot_ptr(lst);
+  prot_ptrs(lst, root);
   auto pair = car(lst);
   auto copy = cons(vm, car(pair), cdr(pair));
   auto prev = rebase_alist(vm, cdr(lst), root, count - 1);
   auto result = cons(vm, copy, prev);
-  unprot_ptr(lst);
+  unprot_ptrs(lst, root);
   return result;
 }
 
@@ -3118,11 +3115,8 @@ void _vm_restore_special_variables_snapshot(VM *vm, StackFrameObject *base_frame
 }
 
 void _vm_copy_stack_snapshot_args_to_stack(VM *vm, StackFrameObject *fr) {
-  // dbg("restoring items to stack");
-  // for (u64 i = 0; i < fr->argc; i++) {
   for (s64 i = fr->argc - 1; i >= 0; i--) {
     auto it = fr->argv[i + fr->pad_count];
-    // dbg("  item = ", it);
     vm_push(vm, it);
   }
 }
@@ -3153,11 +3147,10 @@ void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
 
   // hook in the tail frame
   if (!new_frame->prev_frame) {
-    // dbg("restoring tail frame");
     new_frame->prev_fn = vm->bc;
     new_frame->prev_pc = vm->pc;
   } else {
-    // dbg("restoring upper frame", objToPtr(new_frame->prev_frame));
+    // do nothing
   }
 
   new_frame->prev_frame = vm->frame;
@@ -3171,9 +3164,9 @@ void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
 
 void vm_restore_stack_snapshot(VM *vm, Ptr cont) {
   Ptr extra_args = cont_get_stack_top(cont);
-  Ptr frame = cont_get_stack(cont);
-  Ptr pc = cont_get_program_counter(cont);
-  Ptr bc = cont_get_bytecode(cont);
+  Ptr frame      = cont_get_stack(cont);
+  Ptr pc         = cont_get_program_counter(cont);
+  Ptr bc         = cont_get_bytecode(cont);
 
   auto base_frame = vm->frame;
 
@@ -3182,10 +3175,9 @@ void vm_restore_stack_snapshot(VM *vm, Ptr cont) {
 
   // retore stack top
   auto args = as(PtrArray, extra_args);
-  // dbg("extra args: ", extra_args);
+
   if (args->length > 0) {
     for (s64 i = args->length - 1; i >= 0; i--) {
-      // dbg(" restoring final stack top: ", args->data[i]);
       vm_push(vm, args->data[i]);
     }
   }
@@ -3198,9 +3190,9 @@ void vm_restore_stack_snapshot(VM *vm, Ptr cont) {
   _vm_restore_special_variables_snapshot(vm, base_frame);
 }
 
-Ptr vm_resume_stack_snapshot(VM *vm, Ptr cont, Ptr arg) {
+Ptr vm_resume_stack_snapshot(VM *vm, Ptr cont, Ptr arg) { prot_ptr(arg);
   vm_restore_stack_snapshot(vm, cont);
-  // vm_debug_print_stack_top(vm);
+  unprot_ptr(arg);
   return arg;
 }
 
@@ -3299,12 +3291,13 @@ Ptr _vm_thread_suspend(VM *vm) {
   return vm->globals->current_thread;
 }
 
-void _vm_thread_resume(VM *vm, Ptr thread) {
+void _vm_thread_resume(VM *vm, Ptr thread) { prot_ptr(thread);
   // FIXME: we should be able to unwind to root here, but it breaks things at the moment
   auto cont = thread_get_continuation(thread);
   vm_restore_stack_snapshot(vm, cont);
   vm->globals->current_thread = thread;
   thread_set_status(thread, THREAD_STATUS_RUNNING);
+  unprot_ptr(thread);
 }
 
 // N.B. when used outside the interpreter loop, you must
@@ -5253,11 +5246,11 @@ VM *vm_create() {
   return vm;
 }
 
-Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params params);
+Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]);
 
 Ptr compile_toplevel_expression_with_hooks(VM *vm, Ptr expr) {
   if (boundp(vm, KNOWN(compiler))) {
-    Ptr new_expr = vm_call_global(vm, KNOWN(compiler), 1, (Ptr[]){expr}, INTERP_PARAMS_EVAL);
+    Ptr new_expr = vm_call_global(vm, KNOWN(compiler), 1, (Ptr[]){expr});
     return make_closure(vm, objToPtr(compile_toplevel_expression(vm, new_expr)), Nil);
   } else {
     return make_closure(vm, objToPtr(compile_toplevel_expression(vm, expr)), Nil);
@@ -5326,7 +5319,7 @@ Ptr run_string(VM *vm, const char *str) {
 Ptr run_string_with_hooks(VM *vm, const char *str) {
   if (boundp(vm, KNOWN(run_string))) {
     auto string = make_string(vm, str);
-    return vm_call_global(vm, KNOWN(run_string), 1, (Ptr[]){string}, INTERP_PARAMS_EVAL);
+    return vm_call_global(vm, KNOWN(run_string), 1, (Ptr[]){string});
   } else {
     return run_string(vm, str);
   }
@@ -5375,38 +5368,14 @@ void patch_bytecode_for_call(VM *vm, ByteCodeObject *bc, Ptr symbol, u64 argc, P
 
 /* should only be used as an 'entry' into the VM */
 /* IOW, we don't want two of these on the stack, they will interfere */
-Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params params) {
-  prot_ptr(symbol); protect_ptr_vector(argv, argc);
-
-  ByteCodeObject *bc;
-
-  // TODO: bc patches for more arities
-  //       NB: will require special method for reserving room for literals,
-  //           as they are now de-duplicated
-
-  if (0 && argc == 1) { // can't reuse global frame yet due to suspension
-    if (!is(ByteCode, vm->globals->call1)) {
-      bc = build_call(vm, symbol, argc, argv);
-      vm->globals->call1 = objToPtr(bc);
-    } else {
-      bc = as(ByteCode, vm->globals->call1);
-    }
-    patch_bytecode_for_call(vm, bc, symbol, argc, argv);
-  } else {
-    bc = build_call(vm, symbol, argc, argv);
-  }
+Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
+  auto bc = build_call(vm, symbol, argc, argv);
 
   vm_push_stack_frame(vm, 0, bc, Nil);
   vm->frame->mark = KNOWN(exception);
-  // would be nice if there was a way to cut down on allocations here...
-  // not yet sure _exactly_ why we need a fresh TL thread for each event handler
-  vm->globals->current_thread = make_thread(vm, Nil,
-                                            THREAD_STATUS_RUNNING,
-                                            Nil,
-                                            FIXNUM(0),
-                                            THREAD_PRIORITY_NORMAL,
-                                            Nil);
-  vm_interp(vm, params);
+
+  vm_interp(vm, INTERP_PARAMS_EVAL);
+
   auto result = Nil;
   if (vm->suspended) {
     // do nothing
@@ -5414,7 +5383,6 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[], interp_params param
     result = vm_pop(vm);
     vm_pop_stack_frame(vm);
   }
-  unprot_ptr(symbol); unprotect_ptr_vector(argv);
   return result;
 }
 
@@ -5551,13 +5519,15 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
       if (valread > 0) {
         dbg("read ", valread);
         puts(buffer);
+        // TODO: rather than running string directly, poke an event
+        //       (want to minimize use of vm_call_global, which this calls)
         run_string_with_hooks(vm, buffer);
         bzero(buffer, BUF_SIZE);
       }
     }
     #endif
 
-    while (SDL_WaitEventTimeout(&event, wait_timeout_ms)) { // or if(SDL_WaitEvent(&event)) for reactive
+    while (SDL_WaitEventTimeout(&event, wait_timeout_ms)) { 
       switch (event.type) {
       case SDL_QUIT: running = false; break;
       case SDL_KEYDOWN : {

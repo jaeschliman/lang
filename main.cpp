@@ -376,10 +376,8 @@ extern PrimitiveFunction PrimLookupTable[];
 inline void *align_pointer(void *mem) {
   static_assert(sizeof(u64) == sizeof(void *), "right pointer size");
   auto bytes = (u64)mem;
-  auto rounded = ((bytes >> 4) << 4);
-  auto bump = rounded == bytes ? rounded : rounded + 16;
-  assert(((u64)bump & 0b1111) == 0);
-  return (void *)bump;
+  if (! (bytes & 0b1111)) return (void *)bytes;
+  return (void *)((bytes & (~0b1111)) + 16);
 }
 
 inline void *align_pointer_with_offset(void* mem, u64 bytes) {

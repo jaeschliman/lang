@@ -189,6 +189,8 @@ e.g.
  y = (binding *bar* 2 (resume x))
  y should return 2
 * TODO weak refs, weak hash tables
+* TODO there's no reason for hash tables to use xarray
+* TODO use a lookup table on tag bits for class_of
 
 * notes
 maybe have a stack of compilers? can push/pop...

@@ -2934,15 +2934,6 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   set_obj_tag(new_frame, StackFrame);
   new_frame->pad_count = padding;
 
-  // cout << "pushing stack frame from: " << vm->stack << endl;
-  // cout << "  argc = " << argc << endl;
-  // cout << "  offset = " << offset << endl;
-  // cout << "  top = " << top << endl;
-  // cout << "  &ps = " << &new_frame->prev_stack << endl;
-  // cout << "  &ps = " << &new_frame->prev_fn << endl;
-  // cout << "  &ps = " << &new_frame->prev_pc << endl;
-  // cout << "  &ps = " << &new_frame->argc << endl;
-
   new_frame->closed_over = closed_over;
   new_frame->mark = Nil;
   new_frame->prev_stack = vm->stack;
@@ -3113,13 +3104,18 @@ Ptr rebase_alist(VM *vm, Ptr lst, Ptr root, s64 count) {
 
 void _vm_restore_special_variables_snapshot(VM *vm, StackFrameObject *base_frame) {
   if (!base_frame || !base_frame->prev_frame) return;
+  std::vector<StackFrameObject *> frames;
   auto fr = vm->frame;
   while (fr && fr != base_frame) {
+    frames.push_back(fr);
+    fr = fr->prev_frame;
+  }
+  for (s64 i = frames.size() - 1; i >= 0; i--) {
+    auto fr = frames.at(i);
     fr->special_variables = rebase_alist(vm,
                                          fr->special_variables,
-                                         base_frame->special_variables,
+                                         fr->prev_frame->special_variables,
                                          fr->special_count);
-    fr = fr->prev_frame;
   }
 }
 

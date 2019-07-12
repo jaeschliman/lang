@@ -2,12 +2,14 @@
 
 (define *my-var* 10)
 (define *my-other-var* 20)
+(define *my-third-var* 30)
 
 (print `(expecting 10))
 (print *my-var*)
 
 (mark-symbol-as-special '*my-var*)
 (mark-symbol-as-special '*my-other-var*)
+(mark-symbol-as-special '*my-third-var*)
 
 (print `(expecting 10))
 (print *my-var*)
@@ -72,10 +74,28 @@
                             *my-var* 'my-var
                             (let ()
                               (shift-tag 't k k)
-                              (list *my-var* *my-other-var*)))))
+                              (list *my-var* *my-other-var* *my-third-var*)))))
 
-(print `(expecting my-var 20))
+(print `(expecting my-var 20 30))
 (print (call))
 
-(print `(expecting my-var my-other-var))
+(print `(expecting my-var my-other-var 30))
 (print (with-special-binding *my-other-var* 'my-other-var (call)))
+
+(define call2 (reset-tag 't (with-special-binding
+                                *my-var* 'should-not-see
+                                (let ()
+                                  (shift-tag 't k k)
+                                  (call)))))
+
+(print `(expecting my-var 20 30))
+(print (call2))
+
+(print `(expecting my-var my-other-var 30))
+(print (with-special-binding *my-other-var* 'my-other-var (call2)))
+
+(define (call3) (with-special-binding *my-other-var* 'my-other-var (call2)))
+(define (call4) (with-special-binding *my-third-var* 'my-third-var (call3)))
+
+(print `(expecting my-var my-other-var my-third-var))
+(print (call4))

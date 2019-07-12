@@ -1,11 +1,13 @@
 ;; smoke test built-ins for special variable support. needs tests for multiple threads.
 
 (define *my-var* 10)
+(define *my-other-var* 20)
 
 (print `(expecting 10))
 (print *my-var*)
 
 (mark-symbol-as-special '*my-var*)
+(mark-symbol-as-special '*my-other-var*)
 
 (print `(expecting 10))
 (print *my-var*)
@@ -63,3 +65,17 @@
                  (lambda (ex)
                    (show-my-var))))
   (show-my-var))
+
+
+
+(define call (reset-tag 't (with-special-binding
+                            *my-var* 'my-var
+                            (let ()
+                              (shift-tag 't k k)
+                              (list *my-var* *my-other-var*)))))
+
+(print `(expecting my-var 20))
+(print (call))
+
+(print `(expecting my-var my-other-var))
+(print (with-special-binding *my-other-var* 'my-other-var (call)))

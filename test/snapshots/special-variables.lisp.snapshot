@@ -31,3 +31,7 @@ done
 30
 40
 10
+(expecting my-var 20)
+(my-var 20)
+(expecting my-var my-other-var)
+(my-var my-other-var)

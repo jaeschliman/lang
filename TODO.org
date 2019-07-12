@@ -180,7 +180,7 @@ http://www.jezzamon.com/fourier/index.html
  when bool, it becomes a binary semaphore
 * DONE fix meta1.compiled-reader.lisp RE: threading
 * TODO start running user files in a fresh package
-* TODO fix issue with resuming continuation over fresh special variables bindings
+* DONE fix issue with resuming continuation over fresh special variables bindings
   need to re-situate special bindings over the new dynamic environment
   where the continuation is executed.
 e.g.

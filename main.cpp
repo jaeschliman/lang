@@ -313,6 +313,7 @@ struct StackFrameObject : Object {
   u64 prev_pc;
   Ptr closed_over;
   Ptr special_variables;
+  u64 special_count;
   Ptr mark;
   u64 preserved_argc; // used for snapshots;
   u64 argc;
@@ -2119,7 +2120,7 @@ Ptr ht_listed_entries(VM *vm, Ptr ht) { prot_ptr(ht);
 
 Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value);
 
-void ht_grow(VM *vm, Ptr ht) { prot_ptr(ht);
+void ht_grow(VM *vm, Ptr ht) {              prot_ptr(ht);
   auto entries = ht_listed_entries(vm, ht); prot_ptr(entries);
   auto array = ht_get_array(ht); 
   auto new_size = xarray_capacity(array) * 2;
@@ -2450,12 +2451,14 @@ inline void _thread_local_binding_push(VM *vm, Ptr sym, Ptr val) {
   auto exist = vm->frame->special_variables;
   auto update = cons(vm, assoc, exist);
   vm->frame->special_variables = update;
+  vm->frame->special_count++;
 }
 
 inline void _thread_local_binding_pop(VM *vm) {
   auto exist = vm->frame->special_variables;
   auto update = cdr(exist);
   vm->frame->special_variables = update;
+  vm->frame->special_count--;
 }
 
 /* -------------------------------------------------- */
@@ -2952,6 +2955,7 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   } else {
     new_frame->special_variables = thread_get_local_bindings(vm->globals->current_thread);
   }
+  new_frame->special_count = 0;
   vm->stack = (Ptr*)(void *)new_frame; // - 100; // STACK_PADDING
   vm->frame = new_frame;
   vm->bc = fn;
@@ -3096,6 +3100,29 @@ bool vm_handle_error(VM *vm) {
   return true;
 }
 
+Ptr rebase_alist(VM *vm, Ptr lst, Ptr root, s64 count) {
+  if (!count) return root;
+  prot_ptr(lst);
+  auto pair = car(lst);
+  auto copy = cons(vm, car(pair), cdr(pair));
+  auto prev = rebase_alist(vm, cdr(lst), root, count - 1);
+  auto result = cons(vm, copy, prev);
+  unprot_ptr(lst);
+  return result;
+}
+
+void _vm_restore_special_variables_snapshot(VM *vm, StackFrameObject *base_frame) {
+  if (!base_frame || !base_frame->prev_frame) return;
+  auto fr = vm->frame;
+  while (fr && fr != base_frame) {
+    fr->special_variables = rebase_alist(vm,
+                                         fr->special_variables,
+                                         base_frame->special_variables,
+                                         fr->special_count);
+    fr = fr->prev_frame;
+  }
+}
+
 void _vm_copy_stack_snapshot_args_to_stack(VM *vm, StackFrameObject *fr) {
   // dbg("restoring items to stack");
   // for (u64 i = 0; i < fr->argc; i++) {
@@ -3110,7 +3137,7 @@ void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
   if (!fr) return;
   // first restore previous frame
   _vm_restore_stack_snapshot(vm, fr->prev_frame);
-  // dbg("restoring frame.");
+
   //restore previous frame stack top
   _vm_copy_stack_snapshot_args_to_stack(vm, fr);
 
@@ -3128,7 +3155,6 @@ void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
 
   new_frame->prev_stack = vm->stack;
   new_frame->pad_count = was_aligned ? 0 : 1;
-  // dbg("restored frame with argc = ", new_frame->argc, " pac: ", new_frame->preserved_argc);
   new_frame->argc = new_frame->preserved_argc;
 
   // hook in the tail frame
@@ -3146,7 +3172,7 @@ void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
   vm->stack = (Ptr *)(void *)new_frame;
   vm->frame = new_frame;
   vm->stack_depth++;
-  // vm_dump_args(vm);
+
 }
 
 void vm_restore_stack_snapshot(VM *vm, Ptr cont) {
@@ -3154,6 +3180,8 @@ void vm_restore_stack_snapshot(VM *vm, Ptr cont) {
   Ptr frame = cont_get_stack(cont);
   Ptr pc = cont_get_program_counter(cont);
   Ptr bc = cont_get_bytecode(cont);
+
+  auto base_frame = vm->frame;
 
   // restore frames
   _vm_restore_stack_snapshot(vm, as(StackFrame, frame));
@@ -3172,6 +3200,8 @@ void vm_restore_stack_snapshot(VM *vm, Ptr cont) {
   vm->bc = as(ByteCode, bc);
   vm->pc = as(Fixnum, pc);
 
+  // restore special variables (must go last as it may cons)
+  _vm_restore_special_variables_snapshot(vm, base_frame);
 }
 
 Ptr vm_resume_stack_snapshot(VM *vm, Ptr cont, Ptr arg) {

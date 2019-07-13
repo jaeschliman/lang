@@ -1181,7 +1181,7 @@ auto size_of(Ptr it) {
     dbg("broken heart in size_of, ", it);
     dbg("forwarding to: ", objToPtr(ref));
   }
-  die("unexpected object type in size_of");
+  die("unexpected object type in size_of: ", (as(Object, it))->header.object_type);
 }
 /* ---------------------------------------- */
 // bang on object references
@@ -3084,12 +3084,10 @@ s64 vm_stack_frame_additional_item_count(StackFrameObject *fr) {
 typedef std::function<bool(StackFrameObject*)> StackPred;
 
 void _debug_validate_stack_frame(StackFrameObject *fr){
-  auto depth = 0;
   while (fr) {
     auto f = objToPtr(fr);
     if (!is(StackFrame, f)) die("expecting stack frame got: ", f);
     fr = fr->prev_frame;
-    depth++;
   }
 }
 
@@ -3105,6 +3103,30 @@ void _debug_validate_thread(Ptr thread) {
   auto stack = cont_get_stack(cont);
   assert(is(StackFrame, stack));
   _debug_validate_stack_frame(as(StackFrame, stack));
+}
+
+void _assert_ptr_in_heap(void *start, void *end, Ptr it) {
+  if (it == Nil || ! is(Object, it)) return;
+  auto addr = as(Object, it);
+  assert(addr >= start && addr < end);
+}
+
+void _debug_validate_thread_in_heap(void *start, void *end, Ptr thread){
+  _assert_ptr_in_heap(start, end, thread);
+  assert(is(thread, thread));
+  auto cont = thread_get_continuation(thread);
+  assert(is(cont, cont));
+  _assert_ptr_in_heap(start, end, cont);
+  auto stack = cont_get_stack(cont);
+  assert(is(StackFrame, stack));
+  _assert_ptr_in_heap(start, end, stack);
+  auto fr = as(StackFrame, stack);
+  auto depth = 0;
+  while (fr) {
+    assert(fr >= start && fr < end);
+    fr = fr->prev_frame;
+    depth++;
+  }
 }
 
 Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
@@ -3581,21 +3603,27 @@ void im_move_heap(VM *vm) {
   //   - initialize built-in classes
   // unwind stack and resume current thread 
 
-  // suspend the current thread and store it in the system dictionary
-  _debug_validate_stack(vm);
-  auto main = _vm_thread_suspend(vm); prot_ptr(main);
-  ht_at_put(vm, vm->system_dictionary, SYSTEM_CURRENT_THREAD_KEY, main);
-  _debug_validate_thread(main);
-
-  // allocate new heap
-  auto new_heap = calloc(vm->heap_size_in_bytes, 1);
-
   // copy the waiting threads into the system dictionary 
+
   auto threads = _background_threads_as_list(vm);
   ht_at_put(vm, vm->system_dictionary, SYSTEM_OTHER_THREADS_KEY, threads);
 
+  // suspend the current thread and store it in the system dictionary
+  auto main = _vm_thread_suspend(vm); prot_ptr(main);
+  ht_at_put(vm, vm->system_dictionary, SYSTEM_CURRENT_THREAD_KEY, main);
+
   gc(vm);
-  _debug_validate_thread(main);
+  {
+    scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it) {
+        if (is(thread, it)) {
+          _debug_validate_thread_in_heap(vm->heap_mem, vm->heap_end, it);
+        }
+      });
+  }
+
+
+  // allocate new heap
+  auto new_heap = calloc(vm->heap_size_in_bytes, 1);
 
   // copy in the old heap
   auto new_heap_end = new_heap;
@@ -3608,6 +3636,15 @@ void im_move_heap(VM *vm) {
            ((u64)vm->heap_end - (u64)vm->heap_mem));
   }
 
+  {
+    auto old_count = 0;
+    auto new_count = 0;
+    scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it) { old_count++; });
+    scan_heap(new_heap,     new_heap_end, [&](Ptr it) { new_count++; });
+    assert(old_count == new_count);
+    dbg("scanned ", new_count, " references");
+  }
+
   // scan new heap updating ptrs with delta from old to new heap
   {
     auto prev = (u64)vm->heap_mem;
@@ -3617,14 +3654,26 @@ void im_move_heap(VM *vm) {
     auto count = 0;
     bang_heap(new_heap, new_heap_end, [&](Ptr it) {
         count++;
-        return im_offset_ptr(it, delta);
+        auto res = im_offset_ptr(it, delta);
+        if (res != Nil && is(Object, res)) {
+          auto addr = as(Object, res);
+          assert(addr >= new_heap && addr < new_heap_end);
+        }
+        return res;
       });
     dbg("banged ", count, " refs in scan");
 
     // need to update all the protected pointers as well.
     im_offset_protected_references(vm, delta);
   }
-  _debug_validate_thread(main);
+
+  {
+    scan_heap(new_heap, new_heap_end, [&](Ptr it) {
+        if (is(thread, it)) {
+          _debug_validate_thread_in_heap(new_heap, new_heap_end, it);
+        }
+      });
+  }
 
   // swap in the new heap and new heap_end
   // free the old heap
@@ -5480,6 +5529,8 @@ void vm_init_from_heap_snapshot(VM *vm) {
   vm->globals->current_thread = ht_at(vm->system_dictionary, SYSTEM_CURRENT_THREAD_KEY);
   assert(is(thread, vm->globals->current_thread));
   _debug_assert_in_heap(vm, vm->globals->current_thread);
+  _debug_validate_thread_in_heap(vm->heap_mem, vm->heap_end,
+                                 vm->globals->current_thread);
   _debug_validate_thread(vm->globals->current_thread);
 
   // clear out old threads, add new threads

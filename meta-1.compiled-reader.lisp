@@ -106,12 +106,14 @@
 
 (ht-at-put meta-by-name 'Base (make-meta '()))
 
-(define meta-context (list 'Base))
+;; it is a list so we can push/pop on it, but only the first element
+;; is used to look things up.
+(defparameter *meta-context* (list 'Base))
 
 (define (push-meta-context meta)
-    (set-symbol-value 'meta-context (cons meta meta-context)))
+    (set-symbol-value '*meta-context* (cons meta *meta-context*)))
 (define (pop-meta-context)
-    (set-symbol-value 'meta-context (cdr meta-context)))
+    (set-symbol-value '*meta-context* (cdr *meta-context*)))
 
 (define (meta-lookup rulename)
     (let ((lookup #f))
@@ -121,10 +123,10 @@
                            (let ((exist (ht-at (second Meta) rulename)))
                              (if (nil? exist) (lookup (first Meta))
                                  exist))))))
-      (lookup (first meta-context))))
+      (lookup (first *meta-context*))))
 
 (define (get-rule x) (meta-lookup x))
-(define (set-rule x fn) (ht-at-put (second (find-meta (first meta-context))) x fn))
+(define (set-rule x fn) (ht-at-put (second (find-meta (first *meta-context*))) x fn))
 
 (define fail '(fail fail fail))
 (define (failure? state) (eq state fail))
@@ -226,9 +228,8 @@
     (let ((meta (first args))
           (rule (second args)))
       `(let ((_result_ '()))
-         (push-meta-context ',meta)
-         (set! _result_ ,(compile-rule rule state 'id))
-         (pop-meta-context)
+         (binding ((*meta-context* (list ',meta)))
+                  (set! _result_ ,(compile-rule rule state 'id)))
          (if (failure? _result_) fail (,next _result_)))))
 
 (define-compile (? state args next)
@@ -592,9 +593,8 @@
     ws #\}
     (return `(let ()
                (ht-at-put meta-by-name ',-n (make-meta 'Base))
-               (push-meta-context ',-n)
-               ,@-rs
-               (pop-meta-context))))
+               (binding ((*meta-context* (list ',-n)))
+                        ,@-rs))))
 
 (define-rule meta-main
     (set! -it (or meta-block (extern Lisp expr)))
@@ -617,17 +617,15 @@
 
 (define (meta1-runfile path)
     (let ((input (slurp path)))
-      (push-meta-context 'Meta)
-      (match-map eval 'meta-main input)
-      (pop-meta-context)))
+      (binding ((*meta-context* (list 'Meta)))
+               (match-map eval 'meta-main input))))
 
 (meta1-runfile "./meta-1.testfile0.lisp")
 
-(push-meta-context 'testfile)
-(match-map print 'main "
+(binding ((*meta-context* (list 'testfile)))
+         (match-map print 'main "
 123 456 a 789 hello how are you foo foofoo
-")
-(pop-meta-context)
+"))
 
 ;; use as default reader for the repl
 (define (run-string input)
@@ -635,11 +633,11 @@
   (match-map eval 'meta-main input)
   (pop-meta-context))
 
-(print "sleeping first")
-(sleep-ms 500)
-(print "slept")
-(let ()
-  (meta1-runfile "./threads.lisp")
-  (print "ran the file in this expression"))
-(print "ran the file")
+;; (print "sleeping first")
+;; (sleep-ms 500)
+;; (print "slept")
+;; (let ()
+;;   (meta1-runfile "./threads.lisp")
+;;   (print "ran the file in this expression"))
+;; (print "ran the file")
 'done

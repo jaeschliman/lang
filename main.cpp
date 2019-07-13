@@ -204,6 +204,7 @@ bool ptr_eq(Ptr a, Ptr b) {
 }
 
 enum ObjectType : u8 {
+  Broken_ObjectType = 0,
   ByteCode_ObjectType,
   ByteArray_ObjectType,
   U64Array_ObjectType,
@@ -1327,6 +1328,9 @@ bool is_object_class(StandardObject *obj);
 std::ostream &operator<<(std::ostream &os, Object *obj) {
   auto otype = obj->header.object_type;
   switch (otype) {
+  case Broken_ObjectType: {
+    return os << "#<Broken Object Header>";
+  }
   case ByteArray_ObjectType: {
     ByteArrayObject *vobj = (ByteArrayObject*)(obj);
     switch(vobj->bao_type) {
@@ -1889,9 +1893,15 @@ void gc_update_protected_references(VM *vm) {
 
 Ptr im_offset_ptr(Ptr it, s64 delta) {
   if (it == Nil || !is(Object, it)) return it;
-  u64 ref = (u64)(void *)as(Object, it);
-  auto update = ref + delta;
-  auto result = objToPtr((Object *)(void *)update);
+  auto result_value = (it.value & EXTRACT_PTR_MASK) + delta;
+  auto result = (Ptr){result_value | Object_Tag};
+  assert((result.value & EXTRACT_PTR_MASK) - delta == (it.value & EXTRACT_PTR_MASK));
+  if (is(U64Array, it))   assert(is(U64Array, result));
+  if (is(ByteArray, it))  assert(is(ByteArray,result));
+  if (is(ByteCode, it))   assert(is(ByteCode, result));
+  if (is(PtrArray, it))   assert(is(PtrArray, result));
+  if (is(Standard, it))   assert(is(Standard, result));
+  if (is(StackFrame, it)) assert(is(StackFrame, result));
   return result;
 }
 
@@ -2033,6 +2043,8 @@ void gc(VM *vm) {
     dbg(frame_count, " stack frames in the heap after GC");
   }
 
+
+  memset(vm->alt_heap_mem, 0, vm->heap_size_in_bytes);
   // cerr << " protected Object count : " << vm->gc_protected->size() << endl;
   // cerr << " protected ptr    count : " << vm->gc_protected_ptrs->size() << endl;
 
@@ -3072,14 +3084,12 @@ s64 vm_stack_frame_additional_item_count(StackFrameObject *fr) {
 typedef std::function<bool(StackFrameObject*)> StackPred;
 
 void _debug_validate_stack_frame(StackFrameObject *fr){
+  auto depth = 0;
   while (fr) {
-    {
-     auto f = objToPtr(fr);
-     if (!is(StackFrame, f))  {
-       die("expecting stack frame got: ", f);
-     }
-    }
+    auto f = objToPtr(fr);
+    if (!is(StackFrame, f)) die("expecting stack frame got: ", f);
     fr = fr->prev_frame;
+    depth++;
   }
 }
 
@@ -3119,10 +3129,12 @@ Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
   Ptr prev_fr = Nil;                               prot_ptr(prev_fr);
 
   while (fr && !fn(fr)) {
+    #if DEBUG_IMAGE_SNAPSHOTS
     {
      auto f = objToPtr(fr);
      assert(is(StackFrame, f));
     }
+    #endif
     auto is_root_frame = fr->prev_frame && fn(fr->prev_frame);
 
     auto added = vm_stack_frame_additional_item_count(fr);
@@ -3149,7 +3161,6 @@ Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
     }
 
     prev_fr = objToPtr(nf);
-    assert(is(StackFrame, prev_fr));
     if (top_fr == Nil) top_fr = prev_fr;
     fr = fr->prev_frame;
   }
@@ -3551,7 +3562,8 @@ ByteCodeObject *make_empty_bytecode(VM *vm);
 
 // stress test to ensure the save/restore functionality works
 void im_move_heap(VM *vm) {
-  dbg("moving heap");
+  dbg("moving heap: stack depth =", vm->stack_depth);
+
   // suspend the current thread and store it in the system dictionary
   // allocate new heap
   // copy the waiting threads into the system dictionary 
@@ -3582,12 +3594,18 @@ void im_move_heap(VM *vm) {
   auto threads = _background_threads_as_list(vm);
   ht_at_put(vm, vm->system_dictionary, SYSTEM_OTHER_THREADS_KEY, threads);
 
+  gc(vm);
+  _debug_validate_thread(main);
+
   // copy in the old heap
   auto new_heap_end = new_heap;
   {
     auto used = vm_heap_used(vm);
-    memcpy(new_heap, vm->heap_mem, used);
+    // could be used, but is something missing?
+    memcpy(new_heap, vm->heap_mem, vm->heap_size_in_bytes);
     new_heap_end = (u8*)new_heap + used;
+    assert(((u64)new_heap_end - (u64)new_heap) ==
+           ((u64)vm->heap_end - (u64)vm->heap_mem));
   }
 
   // scan new heap updating ptrs with delta from old to new heap
@@ -3596,9 +3614,12 @@ void im_move_heap(VM *vm) {
     auto next = (u64)new_heap;
     s64 delta = next - prev;
     assert(prev + delta == next);
+    auto count = 0;
     bang_heap(new_heap, new_heap_end, [&](Ptr it) {
+        count++;
         return im_offset_ptr(it, delta);
       });
+    dbg("banged ", count, " refs in scan");
 
     // need to update all the protected pointers as well.
     im_offset_protected_references(vm, delta);
@@ -3610,7 +3631,6 @@ void im_move_heap(VM *vm) {
   {
     auto used = vm_heap_used(vm); 
     memset(vm->heap_mem, 0, used);
-    // _debug_validate_thread(main);
     free(vm->heap_mem);
     vm->heap_mem = new_heap;
     vm->heap_end = new_heap_end;

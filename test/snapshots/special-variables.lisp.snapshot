@@ -41,3 +41,7 @@ done
 (my-var my-other-var 30)
 (expecting my-var my-other-var my-third-var)
 (my-var my-other-var my-third-var)
+(expecting 80)
+80
+(expecting (90 100))
+(90 100)

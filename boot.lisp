@@ -364,18 +364,15 @@
 (define (throw ex)
     (escape-to-tag 'exception ex))
 
-;;---------------------------------------- default event handlers
+;;  special vaiable support -------------------------------------------------------
 
-(define (ignore1 _))
-(define (ignore2 a b))
-(define onshow ignore1)
-(define onmousedown ignore1)
-(define onmousedrag ignore1)
-(define onmousemove ignore1)
-(define onkey ignore1)
-(define onframe ignore1)
+(defmacro binding (vars & body)
+  (if (nil? vars)
+      `(let () ,@body)
+      (let ((it (car vars)))
+        `(with-special-binding ,(car it) ,(cadr it) (binding ,(cdr vars) ,@body)))))
 
-;;---------------------------------------- basic threading support
+;;  basic threading support -------------------------------------------------------
 
 (define (lambda->continuation fn)
     (set-stack-mark 'helper)
@@ -392,7 +389,7 @@
 (defmacro fork (& forms)
   `(fork-continuation 1 (lambda->continuation (lambda () (let ((r (let () ,@forms))) r)))))
 
-;;---------------------------------------- built-in classes
+;;  built in classes --------------------------------------------------------------
 
 (define (set-class-name class name)
     (if (class? class)
@@ -440,6 +437,14 @@
     (eq (class-of obj) class))
 
 ;;  interaction support -----------------------------------------------------------
+
+(define (ignore1 _))
+(define onshow ignore1)
+(define onmousedown ignore1)
+(define onmousedrag ignore1)
+(define onmousemove ignore1)
+(define onkey ignore1)
+(define onframe ignore1)
 
 (defmacro forever (& forms)
   `(let ((loop #f))

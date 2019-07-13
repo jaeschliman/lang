@@ -99,3 +99,12 @@
 
 (print `(expecting my-var my-other-var my-third-var))
 (print (call4))
+
+(print `(expecting 80))
+(binding ((*my-var* 80))
+         (print *my-var*))
+
+(print `(expecting (90 100)))
+(binding ((*my-var* 90)
+          (*my-other-var* 100))
+         (print (list *my-var* *my-other-var*)))

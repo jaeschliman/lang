@@ -1169,12 +1169,59 @@ auto size_of(Ptr it) {
   }
   die("unexpected object type in size_of");
 }
+/* ---------------------------------------- */
+// bang on object references
+// NB. not gc safe. not anything safe.
+
+typedef std::function<Ptr(Ptr)> BangPtrFn;
+typedef std::function<void(Ptr)> PtrFn;
+
+void bang_refs(StackFrameObject *it, BangPtrFn fn) {
+  for (u64 i = 0; i < it->argc; i++) {
+     it->argv[it->pad_count + i] = fn(it->argv[it->pad_count + i]);
+  }
+  it->special_variables = fn(it->special_variables);
+  it->closed_over = fn(it->closed_over);
+  it->mark = fn(it->mark);
+  if (it->prev_fn) it->prev_fn = as(ByteCode, fn(objToPtr(it->prev_fn)));
+  if (it->prev_frame) it->prev_frame = as(StackFrame, objToPtr(it->prev_frame));
+}
+
+void bang_refs(ByteCodeObject *it, BangPtrFn fn) {
+  it->code = as(U64Array, fn(objToPtr(it->code)));
+  it->literals = as(PtrArray, fn(objToPtr(it->literals)));
+}
+void bang_refs(PtrArrayObject *it, BangPtrFn fn) {
+  for (u64 i = 0; i < it->length; i++) {
+    it->data[i] = fn(it->data[i]);
+  }
+}
+
+void bang_refs(StandardObject *it, BangPtrFn fn) {
+  it->klass = as(Standard, fn(objToPtr(it->klass)));
+  for (u64 i = 0; i < it->ivar_count; i++) {
+    it->ivars[i] = fn(it->ivars[i]);
+  }
+}
+
+void scan_heap(void *start, void *end, PtrFn fn);
+
+void bang_heap(void *start, void *end, BangPtrFn fn) {
+  scan_heap(start, end, [&](Ptr it) {
+      if (isNil(it) || !is(Object, it)) return;
+      if (is(U64Array, it))   return; // no refs
+      if (is(ByteArray, it))  return; // no refs
+      if (is(ByteCode, it))   return bang_refs(as(ByteCode, it),   fn);
+      if (is(PtrArray, it))   return bang_refs(as(PtrArray, it),   fn);
+      if (is(Standard, it))   return bang_refs(as(Standard, it),   fn);
+      if (is(StackFrame, it)) return bang_refs(as(StackFrame, it), fn);
+      die("unkown object type in bang heap ", it);
+    });
+}
 
 /* ---------------------------------------- */
 // walk object references
 // NB. not gc safe
-
-typedef std::function<void(Ptr)> PtrFn;
 
 // NB: cannot track items currently on the stack from this function
 //     unless we do a full stack scan.
@@ -1604,6 +1651,30 @@ void vm_count_objects_on_heap(VM *vm) {
   std::cout << " counted " << count << " objects on heap. " << std::endl;
   std::cout << " allocation count is : " << vm->allocation_count << std::endl;
 }
+
+/* ---------------------------------------- */
+/*        image save / restore support      */
+
+// stress test to ensure the save/restore functionality works
+void im_move_heap(VM *vm) {
+  maybe_unused(vm);
+  // allocate new heap
+  // suspend the current thread and store it in the system dictionary
+  // copy the waiting threads into the system dictionary 
+  // scan heap copying objects to new heap
+  // scan new heap updating ptrs with delta from old to new heap
+  // swap in the new heap and new heap end
+  // free the old heap
+  // re-initialize vm from heap
+  //   - set system dictionary
+  //   - set root package
+  //   - set background thread set
+  //   - set current thread
+  //   - initialize known symbols
+  //   - initialize built-in classes
+  // unwind stack and resume current thread 
+}
+
 
 /* ---------------------------------------- */
 /*             -- gc support --             */

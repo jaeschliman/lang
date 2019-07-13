@@ -338,6 +338,7 @@ struct blit_surface {
 };
 
 struct VM {
+  Ptr system_dictionary;
   Ptr *stack;
   Ptr *stack_end;
   s64 stack_depth;
@@ -1583,14 +1584,14 @@ void vm_count_reachable_refs(VM *vm) {
 }
 
 // @unsafe
-void scan_heap(void *start, void*end, PtrFn fn) {
+void scan_heap(void *start, void *end, PtrFn fn) {
   while(start < end) {
     assert(pointer_is_aligned(start));
+    // we know it is an object because primitive values are stored inline in fields
     auto it = objToPtr((Object *)start);
     auto offset = size_of(it);
     if (offset == 0) {
-      std::cout << " error while scanning heap." << std::endl;
-      return;
+      die("error while scanning heap");
     }
     fn(it);
     start = align_pointer_with_offset(start, offset);
@@ -1608,6 +1609,7 @@ void vm_count_objects_on_heap(VM *vm) {
 /*             -- gc support --             */
 
 void gc_prepare_vm(VM *vm) {
+  // swap the heaps
   auto start = vm->heap_mem;
   auto end = vm->heap_end;
   vm->heap_mem = vm->alt_heap_mem;
@@ -1904,6 +1906,9 @@ void gc(VM *vm) {
 
   // set start ptr
   auto start = vm->heap_end;
+
+  // system dictionary should always be first item on the heap
+  gc_update_ptr(vm, &vm->system_dictionary);
 
   // update stack. (loop through stack and gc_copy_object on-stack and args etc.)
   gc_update_stack(vm);
@@ -5171,6 +5176,8 @@ Ptr slurp(VM *vm, ByteArrayObject* path) {
 
 void load_file(VM *vm, const char* path);
 
+#define SYSTEM_ROOT_PACKAGE_KEY FIXNUM(0)
+
 VM *vm_create() {
   VM *vm;
   vm = (VM *)calloc(sizeof(VM), 1);
@@ -5213,6 +5220,8 @@ VM *vm_create() {
 
   vm->gc_disabled = true;
 
+  vm->system_dictionary = ht(vm); // should be the first allocation
+
   vm->globals->root_package = make_package(vm,
                                            make_string(vm, "lang"),
                                            string_table(vm),
@@ -5226,6 +5235,9 @@ VM *vm_create() {
                                             THREAD_PRIORITY_NORMAL,
                                             Nil);
   vm->globals->special_variables = ht(vm);
+
+  ht_at_put(vm, vm->system_dictionary,
+            SYSTEM_ROOT_PACKAGE_KEY, vm->globals->root_package);
 
   initialize_known_symbols(vm);
   initialize_classes(vm);

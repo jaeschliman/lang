@@ -1198,7 +1198,7 @@ void bang_refs(StackFrameObject *it, BangPtrFn fn) {
   it->closed_over = fn(it->closed_over);
   it->mark = fn(it->mark);
   if (it->prev_fn) it->prev_fn = as(ByteCode, fn(objToPtr(it->prev_fn)));
-  if (it->prev_frame) it->prev_frame = as(StackFrame, objToPtr(it->prev_frame));
+  if (it->prev_frame) it->prev_frame = as(StackFrame, fn(objToPtr(it->prev_frame)));
 }
 
 void bang_refs(ByteCodeObject *it, BangPtrFn fn) {

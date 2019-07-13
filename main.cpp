@@ -70,6 +70,7 @@ typedef double f64;
 #define SYSTEM_ROOT_PACKAGE_KEY FIXNUM(0)
 #define SYSTEM_CURRENT_THREAD_KEY FIXNUM(1)
 #define SYSTEM_OTHER_THREADS_KEY FIXNUM(2)
+#define SYSTEM_BUILTIN_CLASSES_KEY FIXNUM(3)
 
 s64 current_time_ms() {
   auto now = std::chrono::system_clock::now();
@@ -2456,6 +2457,41 @@ void initialize_classes(VM *vm)
 
 }
 
+// TODO: won't handle changes in number of builtins
+Ptr _built_in_classes_as_array(VM *vm) {
+  auto result = make_xarray(vm);
+  for (auto i = 0; i < BuiltinClassIndexEnd; i++) {
+    auto it = objToPtr(vm->globals->classes.builtins[i]); 
+    xarray_push(vm, result, it);
+  }
+#define save_class(name) xarray_push(vm, result, objToPtr(builtin(name)));
+#define builtin(name) vm->globals->classes._##name
+#define X(...) MAP(save_class, __VA_ARGS__)
+#include "./primitive-classes.include"
+#undef X
+#undef builtin
+#undef save_class
+  return result;
+}
+
+void _built_in_classes_restore_from_xarray(VM *vm, Ptr it) {
+  for (auto i = 0; i < BuiltinClassIndexEnd; i++) {
+    vm->globals->classes.builtins[i] = as(Standard, xarray_at(it, i));
+  }
+  int idx = BuiltinClassIndexEnd;
+#define save_class(name) { builtin(name) = as(Standard, xarray_at(it, idx)); idx++;}
+#define builtin(name) vm->globals->classes._##name
+#define X(...) MAP(save_class, __VA_ARGS__)
+#include "./primitive-classes.include"
+#undef X
+#undef builtin
+#undef save_class
+}
+
+
+
+
+
 bool is_class(Ptr obj) {
   if (is(Standard, obj)) return is_object_class(as(Standard, obj));
   return false;
@@ -3611,6 +3647,9 @@ void im_move_heap(VM *vm) {
   // suspend the current thread and store it in the system dictionary
   auto main = _vm_thread_suspend(vm); prot_ptr(main);
   ht_at_put(vm, vm->system_dictionary, SYSTEM_CURRENT_THREAD_KEY, main);
+
+  auto classes = _built_in_classes_as_array(vm);
+  ht_at_put(vm, vm->system_dictionary, SYSTEM_BUILTIN_CLASSES_KEY, classes);
 
   gc(vm);
   {
@@ -5527,6 +5566,12 @@ void vm_init_from_heap_snapshot(VM *vm) {
 
   // set main thread
   vm->globals->current_thread = ht_at(vm->system_dictionary, SYSTEM_CURRENT_THREAD_KEY);
+  // set built in classes
+  {
+    auto xarray = ht_at(vm->system_dictionary, SYSTEM_BUILTIN_CLASSES_KEY);
+    _built_in_classes_restore_from_xarray(vm, xarray);
+  }
+
   assert(is(thread, vm->globals->current_thread));
   _debug_assert_in_heap(vm, vm->globals->current_thread);
   _debug_validate_thread_in_heap(vm->heap_mem, vm->heap_end,

@@ -39,6 +39,7 @@ using std::string;
 #define GC_DEBUG 0
 #define PRIM_USE_GIANT_SWITCH 1
 #define INCLUDE_REPL 0
+#define DEBUG_IMAGE_SNAPSHOTS 1
 // with it on:  216533389 / 15 / 60 = ~240,600 instr / frame
 //              187983512 / 13.048 / 60 = ~240,117
 // with it off: 220863576 / 16.57 / 60 = ~222,150 instr / frame
@@ -65,6 +66,10 @@ typedef uint8_t u8;
 typedef int8_t s8;
 typedef float f32;
 typedef double f64;
+
+#define SYSTEM_ROOT_PACKAGE_KEY FIXNUM(0)
+#define SYSTEM_CURRENT_THREAD_KEY FIXNUM(1)
+#define SYSTEM_OTHER_THREADS_KEY FIXNUM(2)
 
 s64 current_time_ms() {
   auto now = std::chrono::system_clock::now();
@@ -139,6 +144,14 @@ ptrq_node *ptrq_pop(ptrq *q) {
     return res;
   }
   return 0;
+}
+
+void ptrq_remove_all(ptrq *q) {
+  while (auto n = ptrq_pop(q)) {
+    n->next = q->free_list;
+    q->free_list = n;
+    n->val = Nil;
+  }
 }
 
 void ptrq_remove_next(ptrq *q, ptrq_node *p) {
@@ -1560,7 +1573,6 @@ struct Globals {
   } known;
 
   Ptr current_thread;
-  Ptr special_variables; //ht
 };
 
 /* ---------------------------------------- */
@@ -1650,29 +1662,6 @@ void vm_count_objects_on_heap(VM *vm) {
   scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it){ unused(it); count++; });
   std::cout << " counted " << count << " objects on heap. " << std::endl;
   std::cout << " allocation count is : " << vm->allocation_count << std::endl;
-}
-
-/* ---------------------------------------- */
-/*        image save / restore support      */
-
-// stress test to ensure the save/restore functionality works
-void im_move_heap(VM *vm) {
-  maybe_unused(vm);
-  // allocate new heap
-  // suspend the current thread and store it in the system dictionary
-  // copy the waiting threads into the system dictionary 
-  // scan heap copying objects to new heap
-  // scan new heap updating ptrs with delta from old to new heap
-  // swap in the new heap and new heap end
-  // free the old heap
-  // re-initialize vm from heap
-  //   - set system dictionary
-  //   - set root package
-  //   - set background thread set
-  //   - set current thread
-  //   - initialize known symbols
-  //   - initialize built-in classes
-  // unwind stack and resume current thread 
 }
 
 
@@ -1849,7 +1838,6 @@ void gc_update_globals(VM *vm) {
   gc_update_ptr(vm, &vm->globals->call1);
   gc_update_ptr(vm, &vm->globals->root_package);
   gc_update_ptr(vm, &vm->globals->current_thread);
-  gc_update_ptr(vm, &vm->globals->special_variables);
 
 #define X(...) MAP(handle_class, __VA_ARGS__)
 #include "./primitive-classes.include"
@@ -1895,6 +1883,32 @@ void gc_update_protected_references(VM *vm) {
     s64  count = pair.second;
     for (s64 i = 0; i < count; i++) {
       gc_update_ptr(vm, start + i);
+    }
+  }
+}
+
+Ptr im_offset_ptr(Ptr it, s64 delta) {
+  if (it == Nil || !is(Object, it)) return it;
+  u64 ref = (u64)(void *)as(Object, it);
+  return objToPtr((Object *)(void *)(ref + delta));
+}
+
+void im_offset_protected_references(VM *vm, s64 delta) {
+  for (auto pair : *vm->gc_protected) {
+    Object **ref = pair.first;
+    auto obj = *ref;
+    auto ptr = im_offset_ptr(objToPtr(obj), delta);
+    auto new_obj = as(Object, ptr);
+    *ref = new_obj;
+  }
+  for (auto pair : *vm->gc_protected_ptrs) {
+    *pair.first = im_offset_ptr(*pair.first, delta);
+  }
+  for (auto pair : *vm->gc_protected_ptr_vectors) {
+    auto start = pair.first;
+    s64  count = pair.second;
+    for (s64 i = 0; i < count; i++) {
+      start[i] = im_offset_ptr(start[i], delta);
     }
   }
 }
@@ -1960,6 +1974,8 @@ inline void gc_unprotect_ptr_vector(VM *vm, Ptr *ref){
   vm->gc_protected_ptr_vectors->erase(ref);
 }
 
+void im_move_heap(VM *vm);
+
 void gc(VM *vm) {
   vm->in_gc = true;
   vm->gc_count++;
@@ -2019,6 +2035,15 @@ void gc(VM *vm) {
   // cerr << " protected ptr    count : " << vm->gc_protected_ptrs->size() << endl;
 
   vm->in_gc = false;
+
+
+  #if DEBUG_IMAGE_SNAPSHOTS
+  if (vm->gc_count % 3 == 0)  {
+    dbg("moving heap!");
+    im_move_heap(vm);
+  }
+  #endif
+
 }
 
 
@@ -3348,6 +3373,31 @@ Ptr _vm_maybe_get_next_available_thread(VM *vm) {
   return Nil;
 }
 
+Ptr _list_rev(Ptr lst) {
+  if (lst == Nil) return Nil;
+  auto prev = lst;
+  auto curr = cdr(lst);
+  set_cdr(prev, Nil);
+  while (curr != Nil) {
+    auto next = cdr(curr);
+    set_cdr(curr, prev);
+    prev = curr;
+    curr = next;
+  }
+  return prev;
+}
+
+Ptr _background_threads_as_list(VM *vm) {
+  auto result = Nil; prot_ptr(result);
+  auto n = vm->threads->front;
+  while (n) {
+    result = cons(vm, n->val, result);
+    n = n->next;
+  }
+  unprot_ptr(result);
+  return _list_rev(result);
+}
+
 void _vm_unwind_to_root_frame(VM *vm) {
   auto predicate = [&](StackFrameObject *fr){
     return fr->prev_frame == 0;
@@ -3463,6 +3513,86 @@ Ptr vm_schedule_cont(VM *vm, Ptr cont, Ptr priority, Ptr bindings) {
   vm_add_thread_to_background_set(vm, thread);
   return Nil;
 }
+
+/* ---------------------------------------- */
+/*        image save / restore support      */
+
+void vm_init_from_heap_snapshot(VM *vm);
+
+// stress test to ensure the save/restore functionality works
+void im_move_heap(VM *vm) {
+  // suspend the current thread and store it in the system dictionary
+  // allocate new heap
+  // copy the waiting threads into the system dictionary 
+  // copy the built-in classes into the system dictionary TODO
+  // scan heap copying objects to new heap
+  // scan new heap updating ptrs with delta from old to new heap
+  // swap in the new heap and new heap end
+  // free the old heap
+  // re-initialize vm from heap
+  //   - set system dictionary
+  //   - set root package
+  //   - set background thread set
+  //   - set current thread
+  //   - initialize known symbols
+  //   - initialize built-in classes
+  // unwind stack and resume current thread 
+
+  // suspend the current thread and store it in the system dictionary
+  auto main = _vm_thread_suspend(vm); prot_ptr(main);
+  ht_at_put(vm, vm->system_dictionary, SYSTEM_CURRENT_THREAD_KEY, main);
+  unprot_ptr(main);
+
+  // allocate new heap
+  auto new_heap = calloc(vm->heap_size_in_bytes, 1);
+
+  // copy the waiting threads into the system dictionary 
+  auto threads = _background_threads_as_list(vm);
+  ht_at_put(vm, vm->system_dictionary, SYSTEM_OTHER_THREADS_KEY, threads);
+
+  // scan heap copying objects to new heap
+  auto new_heap_end = new_heap;
+  {
+    auto cursor = align_pointer(new_heap);
+    scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it) {
+        auto byte_count = size_of(it);
+        if (byte_count > 0) {
+          memcpy(cursor, as(Object, it), byte_count); 
+          auto update = (void *)((u8*)cursor + byte_count);
+          cursor = align_pointer(update);
+        }
+      });
+    new_heap_end = cursor;
+  }
+
+  // scan new heap updating ptrs with delta from old to new heap
+  {
+    auto prev = (u64)align_pointer(vm->heap_mem);
+    auto next = (u64)align_pointer(new_heap);
+    s64 delta = prev < next ? next - prev : (prev - next) * -1 ;
+    dbg("delta is: ", delta);
+    bang_heap(new_heap, new_heap_end, [&](Ptr it) {
+        return im_offset_ptr(it, delta);
+      });
+
+    // need to update all the protected pointers as well.
+    im_offset_protected_references(vm, delta);
+  }
+
+  // swap in the new heap and new heap end
+  // free the old heap
+  free(vm->heap_mem);
+  vm->heap_mem = new_heap;
+  vm->heap_end = new_heap_end;
+
+  // re-initialize vm from heap
+  vm_init_from_heap_snapshot(vm);
+
+  // resume main thread
+  _vm_unwind_to_root_frame(vm);
+  _vm_thread_resume(vm, vm->globals->current_thread);
+}
+
 
 typedef Ptr (*CCallFunction)(VM*);
 
@@ -5247,7 +5377,29 @@ Ptr slurp(VM *vm, ByteArrayObject* path) {
 
 void load_file(VM *vm, const char* path);
 
-#define SYSTEM_ROOT_PACKAGE_KEY FIXNUM(0)
+void vm_init_from_heap_snapshot(VM *vm) {
+  // set system dictionary
+  vm->system_dictionary = objToPtr((Object *)align_pointer(vm->heap_mem));
+  // set root package
+  vm->globals->root_package = ht_at(vm->system_dictionary, SYSTEM_ROOT_PACKAGE_KEY);
+  // set main thread
+  vm->globals->current_thread = ht_at(vm->system_dictionary, SYSTEM_CURRENT_THREAD_KEY);
+  // clear out old threads, add new threads
+  ptrq_remove_all(vm->threads);
+  assert(vm->threads->front == vm->threads->back);
+  assert(!vm->threads->front);
+  auto thread_list = ht_at(vm->system_dictionary, SYSTEM_OTHER_THREADS_KEY);
+  do_list(vm, thread_list, [&](Ptr thread) {
+      dbg("restoring thread");
+      ptrq_push(vm->threads, thread);
+    });
+
+  // re-init known symbols
+  initialize_known_symbols(vm);
+
+  // TODO:
+  // find built in classes
+}
 
 VM *vm_create() {
   VM *vm;
@@ -5305,7 +5457,6 @@ VM *vm_create() {
                                             FIXNUM(0),
                                             THREAD_PRIORITY_NORMAL,
                                             Nil);
-  vm->globals->special_variables = ht(vm);
 
   ht_at_put(vm, vm->system_dictionary,
             SYSTEM_ROOT_PACKAGE_KEY, vm->globals->root_package);

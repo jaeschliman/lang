@@ -1,18 +1,15 @@
 ;; smoke test built-ins for special variable support. needs tests for multiple threads.
 
 (define *my-var* 10)
-(define *my-other-var* 20)
-(define *my-third-var* 30)
-
 (print `(expecting 10))
 (print *my-var*)
 
 (mark-symbol-as-special '*my-var*)
-(mark-symbol-as-special '*my-other-var*)
-(mark-symbol-as-special '*my-third-var*)
-
 (print `(expecting 10))
 (print *my-var*)
+
+(defparameter *my-other-var* 20)
+(defparameter *my-third-var* 30)
 
 (print `(expecting 20))
 (print (with-special-binding *my-var* 20 *my-var*))

@@ -372,6 +372,12 @@
       (let ((it (car vars)))
         `(with-special-binding ,(car it) ,(cadr it) (binding ,(cdr vars) ,@body)))))
 
+(defmacro defparameter (var value)
+  `(let ()
+     (set-symbol-value ',var ,value)
+     (mark-symbol-as-special ',var)
+     ',var))
+
 ;;  basic threading support -------------------------------------------------------
 
 (define (lambda->continuation fn)

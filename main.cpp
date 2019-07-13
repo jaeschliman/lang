@@ -3620,27 +3620,8 @@ ByteCodeObject *make_empty_bytecode(VM *vm);
 
 // stress test to ensure the save/restore functionality works
 void im_move_heap(VM *vm) {
-  dbg("moving heap: stack depth =", vm->stack_depth);
-
-  // suspend the current thread and store it in the system dictionary
-  // allocate new heap
-  // copy the waiting threads into the system dictionary 
-  // copy the built-in classes into the system dictionary TODO
-  // scan heap copying objects to new heap
-  // scan new heap updating ptrs with delta from old to new heap
-  // swap in the new heap and new heap end
-  // free the old heap
-  // re-initialize vm from heap
-  //   - set system dictionary
-  //   - set root package
-  //   - set background thread set
-  //   - set current thread
-  //   - initialize known symbols
-  //   - initialize built-in classes
-  // unwind stack and resume current thread 
 
   // copy the waiting threads into the system dictionary 
-
   auto threads = _background_threads_as_list(vm);
   ht_at_put(vm, vm->system_dictionary, SYSTEM_OTHER_THREADS_KEY, threads);
 
@@ -3651,6 +3632,7 @@ void im_move_heap(VM *vm) {
   auto classes = _built_in_classes_as_array(vm);
   ht_at_put(vm, vm->system_dictionary, SYSTEM_BUILTIN_CLASSES_KEY, classes);
 
+  #if DEBUG_IMAGE_SNAPSHOTS
   gc(vm);
   {
     scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it) {
@@ -3659,7 +3641,7 @@ void im_move_heap(VM *vm) {
         }
       });
   }
-
+  #endif
 
   // allocate new heap
   auto new_heap = calloc(vm->heap_size_in_bytes, 1);
@@ -3675,6 +3657,7 @@ void im_move_heap(VM *vm) {
            ((u64)vm->heap_end - (u64)vm->heap_mem));
   }
 
+  #if DEBUG_IMAGE_SNAPSHOTS
   {
     auto old_count = 0;
     auto new_count = 0;
@@ -3683,6 +3666,7 @@ void im_move_heap(VM *vm) {
     assert(old_count == new_count);
     dbg("scanned ", new_count, " references");
   }
+  #endif
 
   // scan new heap updating ptrs with delta from old to new heap
   {
@@ -3690,22 +3674,22 @@ void im_move_heap(VM *vm) {
     auto next = (u64)new_heap;
     s64 delta = next - prev;
     assert(prev + delta == next);
-    auto count = 0;
     bang_heap(new_heap, new_heap_end, [&](Ptr it) {
-        count++;
         auto res = im_offset_ptr(it, delta);
+        #if DEBUG_IMAGE_SNAPSHOTS
         if (res != Nil && is(Object, res)) {
           auto addr = as(Object, res);
           assert(addr >= new_heap && addr < new_heap_end);
         }
+        #endif
         return res;
       });
-    dbg("banged ", count, " refs in scan");
 
     // need to update all the protected pointers as well.
     im_offset_protected_references(vm, delta);
   }
 
+  #if DEBUG_IMAGE_SNAPSHOTS
   {
     scan_heap(new_heap, new_heap_end, [&](Ptr it) {
         if (is(thread, it)) {
@@ -3713,6 +3697,7 @@ void im_move_heap(VM *vm) {
         }
       });
   }
+  #endif
 
   // swap in the new heap and new heap_end
   // free the old heap
@@ -3726,6 +3711,8 @@ void im_move_heap(VM *vm) {
 
   // re-initialize vm from heap
   vm_init_from_heap_snapshot(vm);
+
+  #if DEBUG_IMAGE_SNAPSHOTS
   {
 
     auto found = ht_at(vm->system_dictionary, SYSTEM_CURRENT_THREAD_KEY);
@@ -3734,11 +3721,11 @@ void im_move_heap(VM *vm) {
   }
   _debug_validate_thread(main);
   _debug_validate_thread(vm->globals->current_thread);
+  #endif
 
-  _vm_unwind_to_root_frame(vm);
-  dbg("resetting stack frome");
-  _vm_reset_stack_from_root_frame(vm);
   // resume main thread
+  _vm_unwind_to_root_frame(vm);
+  _vm_reset_stack_from_root_frame(vm);
   // so we have a root frame
   auto bc = make_empty_bytecode(vm);
   vm_push_stack_frame(vm, 0, bc, Nil);
@@ -3747,12 +3734,7 @@ void im_move_heap(VM *vm) {
 
   vm->error = 0;
   vm->suspended = false;
-  {
-    Ptr it = objToPtr(vm->frame);
-    assert(is(StackFrame, it));
-  }
   _vm_thread_resume(vm, vm->globals->current_thread);
-  _debug_validate_stack(vm);
 
   unprot_ptr(main);
 }
@@ -5594,11 +5576,46 @@ void vm_init_from_heap_snapshot(VM *vm) {
   // re-init known symbols
   initialize_known_symbols(vm);
 
-  // TODO:
-  // find built in classes
 }
 
-VM *vm_create() {
+void vm_init_for_blank_startup(VM *vm) {
+  vm->gc_disabled = true;
+
+  vm->system_dictionary = ht(vm); // should be the first allocation
+
+  vm->globals->root_package = make_package(vm,
+                                           make_string(vm, "lang"),
+                                           string_table(vm),
+                                           ht(vm),
+                                           Nil);
+
+  vm->globals->current_thread = make_thread(vm, Nil,
+                                            THREAD_STATUS_RUNNING,
+                                            Nil,
+                                            FIXNUM(0),
+                                            THREAD_PRIORITY_NORMAL,
+                                            Nil);
+
+  ht_at_put(vm, vm->system_dictionary,
+            SYSTEM_ROOT_PACKAGE_KEY, vm->globals->root_package);
+
+  initialize_known_symbols(vm);
+  initialize_classes(vm);
+  initialize_primitive_functions(vm);
+  initialize_global_variables(vm);
+
+  vm->gc_disabled = false;
+
+  // so we have a root frame
+  auto bc = make_empty_bytecode(vm);
+  vm_push_stack_frame(vm, 0, bc, Nil);
+  vm->frame->mark = KNOWN(exception);
+
+  // load the stdlib
+  load_file(vm, "./boot.lisp");
+}
+
+VM *_vm_create() {
   VM *vm;
   vm = (VM *)calloc(sizeof(VM), 1);
 
@@ -5638,40 +5655,12 @@ VM *vm_create() {
 
   vm->globals = (Globals *)calloc(sizeof(Globals), 1);
 
-  vm->gc_disabled = true;
+  return vm;
+}
 
-  vm->system_dictionary = ht(vm); // should be the first allocation
-
-  vm->globals->root_package = make_package(vm,
-                                           make_string(vm, "lang"),
-                                           string_table(vm),
-                                           ht(vm),
-                                           Nil);
-
-  vm->globals->current_thread = make_thread(vm, Nil,
-                                            THREAD_STATUS_RUNNING,
-                                            Nil,
-                                            FIXNUM(0),
-                                            THREAD_PRIORITY_NORMAL,
-                                            Nil);
-
-  ht_at_put(vm, vm->system_dictionary,
-            SYSTEM_ROOT_PACKAGE_KEY, vm->globals->root_package);
-
-  initialize_known_symbols(vm);
-  initialize_classes(vm);
-  initialize_primitive_functions(vm);
-  initialize_global_variables(vm);
-
-  vm->gc_disabled = false;
-
-  // so we have a root frame
-  auto bc = make_empty_bytecode(vm);
-  vm_push_stack_frame(vm, 0, bc, Nil);
-  vm->frame->mark = KNOWN(exception);
-
-  // load the stdlib
-  load_file(vm, "./boot.lisp");
+VM *vm_create() {
+  VM *vm = _vm_create();
+  vm_init_for_blank_startup(vm);
   return vm;
 }
 

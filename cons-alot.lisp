@@ -3,3 +3,6 @@
 (define (cons-alot) (cons-more) (cons-more) (cons-more) (cons-more) (cons-more) (cons-more) (cons-more))
 (fork (forever (cons-alot)))
 (fork (forever (cons-alot)))
+(fork (forever
+       (sleep-ms 500)
+       (print `(hello there))))

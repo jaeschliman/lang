@@ -39,7 +39,7 @@ using std::string;
 #define GC_DEBUG 0
 #define PRIM_USE_GIANT_SWITCH 1
 #define INCLUDE_REPL 0
-#define DEBUG_IMAGE_SNAPSHOTS 1
+#define DEBUG_IMAGE_SNAPSHOTS 0
 // with it on:  216533389 / 15 / 60 = ~240,600 instr / frame
 //              187983512 / 13.048 / 60 = ~240,117
 // with it off: 220863576 / 16.57 / 60 = ~222,150 instr / frame
@@ -411,7 +411,7 @@ inline u64 vm_heap_used(VM *vm) {
 #define die(...) do {                                         \
     print_stacktrace(stderr, 128);                            \
     std::cerr MAP(_ostream_prefix, __VA_ARGS__) << std::endl; \
-    exit(1);                                                  \
+    assert(false);                                            \
   } while(0)
 
 #define dbg(...) std::cerr MAP(_ostream_prefix, __VA_ARGS__) << std::endl
@@ -1890,7 +1890,9 @@ void gc_update_protected_references(VM *vm) {
 Ptr im_offset_ptr(Ptr it, s64 delta) {
   if (it == Nil || !is(Object, it)) return it;
   u64 ref = (u64)(void *)as(Object, it);
-  return objToPtr((Object *)(void *)(ref + delta));
+  auto update = ref + delta;
+  auto result = objToPtr((Object *)(void *)update);
+  return result;
 }
 
 void im_offset_protected_references(VM *vm, s64 delta) {
@@ -2035,14 +2037,6 @@ void gc(VM *vm) {
   // cerr << " protected ptr    count : " << vm->gc_protected_ptrs->size() << endl;
 
   vm->in_gc = false;
-
-
-  #if DEBUG_IMAGE_SNAPSHOTS
-  if (vm->gc_count % 3 == 0)  {
-    dbg("moving heap!");
-    im_move_heap(vm);
-  }
-  #endif
 
 }
 
@@ -2994,6 +2988,15 @@ void vm_pop_stack_frame(VM* vm) {
 
 }
 
+void _vm_reset_stack_from_root_frame(VM *vm) {
+  auto fr = vm->frame;
+  vm->bc = 0;
+  vm->pc = 0;
+  vm->stack = fr->prev_stack + fr->argc;
+  vm->frame = 0;
+  vm->stack_depth--;
+}
+
 void vm_prepare_for_tail_call(VM *vm, s64 argc) {
   // argc + 1 to account for the function, which is also on the stack.
   Ptr args[argc + 1];
@@ -3068,6 +3071,32 @@ s64 vm_stack_frame_additional_item_count(StackFrameObject *fr) {
 
 typedef std::function<bool(StackFrameObject*)> StackPred;
 
+void _debug_validate_stack_frame(StackFrameObject *fr){
+  while (fr) {
+    {
+     auto f = objToPtr(fr);
+     if (!is(StackFrame, f))  {
+       die("expecting stack frame got: ", f);
+     }
+    }
+    fr = fr->prev_frame;
+  }
+}
+
+void _debug_validate_stack(VM *vm) {
+  StackFrameObject *fr = vm->frame;
+  _debug_validate_stack_frame(fr);
+}
+
+void _debug_validate_thread(Ptr thread) {
+  assert(is(thread, thread));
+  auto cont = thread_get_continuation(thread);
+  assert(is(cont, cont));
+  auto stack = cont_get_stack(cont);
+  assert(is(StackFrame, stack));
+  _debug_validate_stack_frame(as(StackFrame, stack));
+}
+
 Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
   StackFrameObject *fr = vm->frame;
   Ptr result  = Nil;                               prot_ptr(result);
@@ -3090,52 +3119,40 @@ Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
   Ptr prev_fr = Nil;                               prot_ptr(prev_fr);
 
   while (fr && !fn(fr)) {
+    {
+     auto f = objToPtr(fr);
+     assert(is(StackFrame, f));
+    }
     auto is_root_frame = fr->prev_frame && fn(fr->prev_frame);
 
     auto added = vm_stack_frame_additional_item_count(fr);
     if (is_root_frame) added = 0; // we don't need the additional previous stack
     auto byte_count = obj_size(fr) + added * 8;
-    // dbg("snapshotting frame + ", added);
-    // vm_debug_print_stackframe_args(vm, fr);
 
     auto nf = (StackFrameObject *)vm_alloc(vm, byte_count);
     memcpy(nf, fr, byte_count);
+
     // this is a bit of a hack...
     nf->argc = fr->argc + added;
     nf->preserved_argc = fr->argc;
     nf->prev_stack = 0;
     nf->prev_frame = 0;
-    // dbg("have new frame:");
-    // vm_debug_print_stackframe_args(vm, nf);
 
+    if (is_root_frame) {
+      nf->prev_fn = 0;
+    }
+
+    // if there was a frame above us, point it at us
     if (prev_fr != Nil) {
       auto pf = as(StackFrame, prev_fr);
       pf->prev_frame = nf; 
     }
 
-    if (is_root_frame) {
-      nf->prev_fn = 0;
-      nf->prev_frame = 0;
-      nf->prev_stack = 0;
-      // dbg("tail frame closing over: ", nf->closed_over);
-      // nf->closed_over = Nil;
-    }
-
     prev_fr = objToPtr(nf);
+    assert(is(StackFrame, prev_fr));
     if (top_fr == Nil) top_fr = prev_fr;
     fr = fr->prev_frame;
   }
-
-  // mark the end of the frame list
-  if (prev_fr != Nil) {
-    // dbg("cutting tail of final frame.");
-    auto pf = as(StackFrame, prev_fr);
-    pf->prev_frame = 0;
-  } else {
-    // dbg("no frame!??");
-  }
-  // dbg("args of top_fr: ");
-  // vm_debug_print_stackframe_args(vm, as(StackFrame, top_fr));
 
   cont_set_stack(result, top_fr);
   unprot_ptrs(result, top_fr, prev_fr);
@@ -3164,8 +3181,6 @@ void vm_unwind_to_predicate(VM *vm, StackPred fn) {
 }
 
 Ptr vm_abort_to_mark(VM *vm, Ptr mark, Ptr value) { prot_ptrs(mark, value);
-  // dbg("will abort...");
-  // vm_debug_print_stack_top(vm);
   Ptr cont = vm_snapshot_stack_to_mark(vm, mark);
   cont_set_value(cont, value);
   vm_unwind_to_mark(vm, mark);
@@ -3224,6 +3239,13 @@ void _vm_copy_stack_snapshot_args_to_stack(VM *vm, StackFrameObject *fr) {
 
 void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
   if (!fr) return;
+  #if DEBUG_IMAGE_SNAPSHOTS
+  {
+    Ptr it = objToPtr(fr);
+    assert(is(StackFrame, it));
+  }
+  #endif
+
   // first restore previous frame
   _vm_restore_stack_snapshot(vm, fr->prev_frame);
 
@@ -3253,6 +3275,13 @@ void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
   } else {
     // do nothing
   }
+
+  #if DEBUG_IMAGE_SNAPSHOTS
+  {
+    Ptr it = objToPtr(vm->frame);
+    assert(is(StackFrame, it));
+  }
+  #endif
 
   new_frame->prev_frame = vm->frame;
 
@@ -3518,9 +3547,11 @@ Ptr vm_schedule_cont(VM *vm, Ptr cont, Ptr priority, Ptr bindings) {
 /*        image save / restore support      */
 
 void vm_init_from_heap_snapshot(VM *vm);
+ByteCodeObject *make_empty_bytecode(VM *vm);
 
 // stress test to ensure the save/restore functionality works
 void im_move_heap(VM *vm) {
+  dbg("moving heap");
   // suspend the current thread and store it in the system dictionary
   // allocate new heap
   // copy the waiting threads into the system dictionary 
@@ -3539,9 +3570,10 @@ void im_move_heap(VM *vm) {
   // unwind stack and resume current thread 
 
   // suspend the current thread and store it in the system dictionary
+  _debug_validate_stack(vm);
   auto main = _vm_thread_suspend(vm); prot_ptr(main);
   ht_at_put(vm, vm->system_dictionary, SYSTEM_CURRENT_THREAD_KEY, main);
-  unprot_ptr(main);
+  _debug_validate_thread(main);
 
   // allocate new heap
   auto new_heap = calloc(vm->heap_size_in_bytes, 1);
@@ -3550,27 +3582,20 @@ void im_move_heap(VM *vm) {
   auto threads = _background_threads_as_list(vm);
   ht_at_put(vm, vm->system_dictionary, SYSTEM_OTHER_THREADS_KEY, threads);
 
-  // scan heap copying objects to new heap
+  // copy in the old heap
   auto new_heap_end = new_heap;
   {
-    auto cursor = align_pointer(new_heap);
-    scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it) {
-        auto byte_count = size_of(it);
-        if (byte_count > 0) {
-          memcpy(cursor, as(Object, it), byte_count); 
-          auto update = (void *)((u8*)cursor + byte_count);
-          cursor = align_pointer(update);
-        }
-      });
-    new_heap_end = cursor;
+    auto used = vm_heap_used(vm);
+    memcpy(new_heap, vm->heap_mem, used);
+    new_heap_end = (u8*)new_heap + used;
   }
 
   // scan new heap updating ptrs with delta from old to new heap
   {
-    auto prev = (u64)align_pointer(vm->heap_mem);
-    auto next = (u64)align_pointer(new_heap);
-    s64 delta = prev < next ? next - prev : (prev - next) * -1 ;
-    dbg("delta is: ", delta);
+    auto prev = (u64)vm->heap_mem;
+    auto next = (u64)new_heap;
+    s64 delta = next - prev;
+    assert(prev + delta == next);
     bang_heap(new_heap, new_heap_end, [&](Ptr it) {
         return im_offset_ptr(it, delta);
       });
@@ -3578,19 +3603,50 @@ void im_move_heap(VM *vm) {
     // need to update all the protected pointers as well.
     im_offset_protected_references(vm, delta);
   }
+  _debug_validate_thread(main);
 
-  // swap in the new heap and new heap end
+  // swap in the new heap and new heap_end
   // free the old heap
-  free(vm->heap_mem);
-  vm->heap_mem = new_heap;
-  vm->heap_end = new_heap_end;
+  {
+    auto used = vm_heap_used(vm); 
+    memset(vm->heap_mem, 0, used);
+    // _debug_validate_thread(main);
+    free(vm->heap_mem);
+    vm->heap_mem = new_heap;
+    vm->heap_end = new_heap_end;
+  }
 
   // re-initialize vm from heap
   vm_init_from_heap_snapshot(vm);
+  {
 
-  // resume main thread
+    auto found = ht_at(vm->system_dictionary, SYSTEM_CURRENT_THREAD_KEY);
+    assert(found == main);
+    assert(main == vm->globals->current_thread);
+  }
+  _debug_validate_thread(main);
+  _debug_validate_thread(vm->globals->current_thread);
+
   _vm_unwind_to_root_frame(vm);
+  dbg("resetting stack frome");
+  _vm_reset_stack_from_root_frame(vm);
+  // resume main thread
+  // so we have a root frame
+  auto bc = make_empty_bytecode(vm);
+  vm_push_stack_frame(vm, 0, bc, Nil);
+  vm->frame->mark = KNOWN(exception);
+  _debug_validate_stack(vm);
+
+  vm->error = 0;
+  vm->suspended = false;
+  {
+    Ptr it = objToPtr(vm->frame);
+    assert(is(StackFrame, it));
+  }
   _vm_thread_resume(vm, vm->globals->current_thread);
+  _debug_validate_stack(vm);
+
+  unprot_ptr(main);
 }
 
 
@@ -3734,6 +3790,7 @@ auto INTERP_PARAMS_MAIN_EVENT_HANDLER = (interp_params){CTX_SWITCH,RUN_AWHILE, f
 auto INTERP_PARAMS_EVAL = (interp_params){CTX_SWITCH,RUN_INDEFINITELY,true};
 
 void vm_interp(VM* vm, interp_params params) {
+  auto counter = 0;
   auto init_thread = vm->globals->current_thread; prot_ptr(init_thread);
   u64 instr; u8 code; u32 data;
   s64 ctx_switch_budget, spent_instructions;
@@ -3996,6 +4053,12 @@ void vm_interp(VM* vm, interp_params params) {
       if (params.thread_switch_instr_budget && ctx_switch_budget <= 0) {
         if (vm_swap_threads(vm)) {
           // dbg("swapped threads.");
+          #if DEBUG_IMAGE_SNAPSHOTS
+          if (vm->gc_count > 1 && counter % 30 == 0) {
+           im_move_heap(vm);
+          }
+          #endif
+          counter++;
         } else {
           // dbg("did not swap threads. ", vm->threads->size());
         }
@@ -5376,23 +5439,41 @@ Ptr slurp(VM *vm, ByteArrayObject* path) {
 /* -------------------------------------------------- */
 
 void load_file(VM *vm, const char* path);
+void _debug_assert_in_heap(VM *vm, Ptr p) {
+  if (p == Nil || ! is(Object, p)) return;
+  auto it = as(Object, p);
+  assert(it >= vm->heap_mem && it < vm->heap_end);
+}
 
 void vm_init_from_heap_snapshot(VM *vm) {
   // set system dictionary
   vm->system_dictionary = objToPtr((Object *)align_pointer(vm->heap_mem));
+  _debug_assert_in_heap(vm, vm->system_dictionary);
+  assert(is(ht, vm->system_dictionary));
+
   // set root package
   vm->globals->root_package = ht_at(vm->system_dictionary, SYSTEM_ROOT_PACKAGE_KEY);
+  _debug_assert_in_heap(vm, vm->globals->root_package);
+  assert(is(package, vm->globals->root_package));
+
   // set main thread
   vm->globals->current_thread = ht_at(vm->system_dictionary, SYSTEM_CURRENT_THREAD_KEY);
+  assert(is(thread, vm->globals->current_thread));
+  _debug_assert_in_heap(vm, vm->globals->current_thread);
+  _debug_validate_thread(vm->globals->current_thread);
+
   // clear out old threads, add new threads
   ptrq_remove_all(vm->threads);
   assert(vm->threads->front == vm->threads->back);
   assert(!vm->threads->front);
+
   auto thread_list = ht_at(vm->system_dictionary, SYSTEM_OTHER_THREADS_KEY);
+  auto count = 0;
   do_list(vm, thread_list, [&](Ptr thread) {
-      dbg("restoring thread");
       ptrq_push(vm->threads, thread);
+      count++;
     });
+  dbg("restored ", count, " threads + main = ", vm->globals->current_thread);
 
   // re-init known symbols
   initialize_known_symbols(vm);

@@ -526,7 +526,8 @@
          (#\r #\Return)
          (#\t #\Tab)
          (#\\ #\\)
-         (#\] #\])))
+         (#\] #\])
+         (#\- #\-)))
 
 (define-rule bracket-body-char
     (set! x any) (where (not (or (eq x #\])
@@ -536,9 +537,20 @@
 (define-rule bracket-escaped-char
     #\\ (set! x any) (return (bracket-escaped-char-character x)))
 
+(define-rule bracket-char
+    (or bracket-body-char bracket-escaped-char))
+
+(define-rule bracket-char-range
+    (set! a bracket-char) #\- (set! b bracket-char)
+    (return
+      (let ((var (gensym)))
+        `(seq (set! ,var any)
+              (where (char-between ,var ,a ,b))
+              (return ,var)))))
+
 ;; TODO: A-Za-z syntax
 (define-rule bracket-lit
-    "[" (set! chs (+ (or bracket-body-char bracket-escaped-char))) "]"
+    "[" (set! chs (+ (or bracket-char-range bracket-char))) "]"
     (return (cons 'or chs)))
 
 (define-rule meta-lit
@@ -624,7 +636,7 @@
 
 (binding ((*meta-context* (list 'testfile)))
          (match-map print 'main "
-123 456 a 789 hello how are you foo foofoo
+123 456 a 789 hello how are you foo with-dashes foofoo
 "))
 
 ;; use as default reader for the repl

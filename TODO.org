@@ -199,6 +199,7 @@ e.g.
   may be simplest to make it a smalltalk with lisp escape hatch
   that compiles down to lisp
 * TODO disassembler
+* TODO macrolet
 
 * notes
 maybe have a stack of compilers? can push/pop...

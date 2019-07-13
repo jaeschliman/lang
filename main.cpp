@@ -4542,11 +4542,9 @@ void emit_set_bang(VM *vm, BCBuilder *builder, Ptr it, Ptr env) { prot_ptrs(it, 
   auto closure_index  = varinfo_get_closure_index(info);
 
   if (scope == VariableScope_Global) {
-    die("set! to global NYS ");
-    // builder->loadGlobal(it);
+    die(sym, " set! to global NYS ");
   } else if (scope == VariableScope_Argument) {
-    die("set! to argument NYS");
-    // builder->loadArg(as(Fixnum, argument_index));
+    die(sym, " set! to argument NYS");
   } else if (scope == VariableScope_Closure) {
     auto index = as(Fixnum, closure_index);
     auto depth = binding.binding_depth;

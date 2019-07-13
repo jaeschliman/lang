@@ -1,6 +1,7 @@
 (defmacro trace (form)
   `(let ((_res ,form))
-     (print (list ',form '= _res))))
+     (print (list ',form '= _res))
+     _res))
 
 (define (id x) x)
 (define (safe-cdr it) (if (pair? it) (cdr it) it))
@@ -644,7 +645,7 @@
 
 (binding ((*meta-context* (list 'testfile)))
          (match-map print 'main "
-123 456 a 789 hello how are you foo with-dashes foofoo
+123 456 a 789 hello how are you with-dashes foo foofoo
 "))
 
 ;; use as default reader for the repl

@@ -65,6 +65,14 @@
       (cons (car xf)
             (list (cons (car r) (cdr xf))))))
 
+(define (xf-transform-set! r)
+    (let* ((var (second r))
+           (body (third r))
+           (xf  (xf-rule body))
+           (vars (cons var (xf-vars xf)))
+           (new-body (first (cdr xf))))
+      (cons vars (list `(set! ,var ,new-body)))))
+
 (define (xf-ignore r)
     (cons '() (list r)))
 
@@ -72,7 +80,7 @@
     (if (pair? r)
         (case (car r)
           (or     (cons '() (list (cons 'or (mapcar xf-tl (cdr r))))))
-          (set!   (cons (list (second r)) (list r)))
+          (set!   (xf-transform-set! r))
           (seq    (xf-pass-thru r))
           (*      (xf-pass-thru r))
           (+      (xf-pass-thru r))

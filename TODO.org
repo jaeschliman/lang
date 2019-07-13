@@ -191,6 +191,14 @@ e.g.
 * TODO weak refs, weak hash tables
 * TODO there's no reason for hash tables to use xarray
 * TODO use a lookup table on tag bits for class_of
+* TODO correct rebase specials alist for initial thread bindings
+* TODO process abstraction
+  have threads be implicitly owned by a process,
+  killing the process kills the threads
+* TODO some kind of lisp/smalltalk hybrid for bootstrapping
+  may be simplest to make it a smalltalk with lisp escape hatch
+  that compiles down to lisp
+* TODO disassembler
 
 * notes
 maybe have a stack of compilers? can push/pop...

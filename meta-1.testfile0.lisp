@@ -3,10 +3,10 @@
 meta testfile {
   ws      = [ \n\r]*
   idchar  = [a-zA-Z\-]
-  digit   = any:ch ?(digit-char? ch) -> (char-to-digit ch)
-  int     = ws digit+:ds ws          -> (make-integer ds)
-  ident   = ws idchar+:chs ws        -> (implode chs)
-  foo     = ws "foo"+:fs ws          -> `(foo-count ,(list-length fs))
+  digit   = [0-9]:ch          -> (char-to-digit ch)
+  int     = ws digit+:ds ws   -> (make-integer ds)
+  ident   = ws idchar+:chs ws -> (implode chs)
+  foo     = ws "foo"+:fs ws   -> `(foo-count ,(list-length fs))
   main    = int | foo | ident
 }
 

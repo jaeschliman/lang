@@ -201,6 +201,12 @@ e.g.
 * TODO disassembler
 * TODO macrolet
 * TODO remove useless 'vm' args from functions
+* TODO thread scheduling needs to be made relative to image startup
+  so should walk sleeping threads, subtract now from wait time on save,
+  and on restore walk again and add now back in.
+* TODO recover from image snapshot call
+* TODO snapshot support for graphics sessions
+* TODO window resizing
 
 * notes
 maybe have a stack of compilers? can push/pop...

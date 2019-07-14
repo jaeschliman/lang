@@ -111,6 +111,7 @@ enum PrimitiveOperation : u64 {
   PRIM_SEM_SIG = ((108ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_CURR_THD = ((109ULL << 32) | (255ULL << 16) | PrimOp_Tag),
   PRIM_SLURP = ((110ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_IM_SAV = ((111ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -1066,6 +1067,14 @@ Ptr PRIM_SLURP_impl(VM *vm, u32 argc) {
  return slurp(vm, path);
 }
 
+// Primitive 110
+Ptr PRIM_IM_SAV_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("save-snapshot",String,path);
+
+ return im_snapshot_to_path(vm, path);
+}
+
 
 PrimitiveFunction PrimLookupTable[] = {
   (PrimitiveFunction)(void *)0, // apply
@@ -1179,6 +1188,7 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_SEM_SIG_impl,
   &PRIM_CURR_THD_impl,
   &PRIM_SLURP_impl,
+  &PRIM_IM_SAV_impl,
 
   (PrimitiveFunction)(void *)0
 };
@@ -1296,6 +1306,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "signal-semaphore", to(PrimOp, PRIM_SEM_SIG));
   set_global(vm, "current-thread", to(PrimOp, PRIM_CURR_THD));
   set_global(vm, "slurp", to(PrimOp, PRIM_SLURP));
+  set_global(vm, "save-snapshot", to(PrimOp, PRIM_IM_SAV));
 
 }
 
@@ -2140,6 +2151,13 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("slurp",String,path);
 
     vm_push(vm, slurp(vm, path));
+    break;
+  }
+
+  case 111: {
+   VM_ARG("save-snapshot",String,path);
+
+    vm_push(vm, im_snapshot_to_path(vm, path));
     break;
   }
 

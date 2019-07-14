@@ -511,6 +511,10 @@ struct StandardObject : Object { // really more of a structure object
     return (it.value & TAG_MASK) == type##_Tag; \
   }
 
+unwrap_ptr_for(void, self) {
+  return (void *)(self.value & EXTRACT_PTR_MASK);
+}
+
 unwrap_ptr_for(Object, self) {
   return (Object *)(self.value & EXTRACT_PTR_MASK);
 }
@@ -1198,13 +1202,17 @@ void bang_refs(StackFrameObject *it, BangPtrFn fn) {
   it->special_variables = fn(it->special_variables);
   it->closed_over = fn(it->closed_over);
   it->mark = fn(it->mark);
-  if (it->prev_fn) it->prev_fn = as(ByteCode, fn(objToPtr(it->prev_fn)));
-  if (it->prev_frame) it->prev_frame = as(StackFrame, fn(objToPtr(it->prev_frame)));
+  if (it->prev_fn) {
+    it->prev_fn = (ByteCodeObject *)as(void, fn(objToPtr(it->prev_fn)));  
+  }
+  if (it->prev_frame) {
+    it->prev_frame = (StackFrameObject *)as(void, fn(objToPtr(it->prev_frame)));
+  }
 }
 
 void bang_refs(ByteCodeObject *it, BangPtrFn fn) {
-  it->code = as(U64Array, fn(objToPtr(it->code)));
-  it->literals = as(PtrArray, fn(objToPtr(it->literals)));
+  it->code = (U64ArrayObject *)as(void, fn(objToPtr(it->code)));
+  it->literals = (PtrArrayObject *)as(void, fn(objToPtr(it->literals)));
 }
 void bang_refs(PtrArrayObject *it, BangPtrFn fn) {
   for (u64 i = 0; i < it->length; i++) {
@@ -1213,7 +1221,7 @@ void bang_refs(PtrArrayObject *it, BangPtrFn fn) {
 }
 
 void bang_refs(StandardObject *it, BangPtrFn fn) {
-  it->klass = as(Standard, fn(objToPtr(it->klass)));
+  it->klass = (StandardObject *)as(void, fn(objToPtr(it->klass)));
   for (u64 i = 0; i < it->ivar_count; i++) {
     it->ivars[i] = fn(it->ivars[i]);
   }
@@ -1896,6 +1904,7 @@ Ptr im_offset_ptr(Ptr it, s64 delta) {
   if (it == Nil || !is(Object, it)) return it;
   auto result_value = (it.value & EXTRACT_PTR_MASK) + delta;
   auto result = (Ptr){result_value | Object_Tag};
+  #if 0
   assert((result.value & EXTRACT_PTR_MASK) - delta == (it.value & EXTRACT_PTR_MASK));
   if (is(U64Array, it))   assert(is(U64Array, result));
   if (is(ByteArray, it))  assert(is(ByteArray,result));
@@ -1903,6 +1912,7 @@ Ptr im_offset_ptr(Ptr it, s64 delta) {
   if (is(PtrArray, it))   assert(is(PtrArray, result));
   if (is(Standard, it))   assert(is(Standard, result));
   if (is(StackFrame, it)) assert(is(StackFrame, result));
+  #endif
   return result;
 }
 
@@ -3618,15 +3628,13 @@ Ptr vm_schedule_cont(VM *vm, Ptr cont, Ptr priority, Ptr bindings) {
 void vm_init_from_heap_snapshot(VM *vm);
 ByteCodeObject *make_empty_bytecode(VM *vm);
 
-// stress test to ensure the save/restore functionality works
-void im_move_heap(VM *vm) {
-
+void _im_prepare_vm_for_snapshot(VM *vm) {
   // copy the waiting threads into the system dictionary 
   auto threads = _background_threads_as_list(vm);
   ht_at_put(vm, vm->system_dictionary, SYSTEM_OTHER_THREADS_KEY, threads);
 
   // suspend the current thread and store it in the system dictionary
-  auto main = _vm_thread_suspend(vm); prot_ptr(main);
+  auto main = _vm_thread_suspend(vm);
   ht_at_put(vm, vm->system_dictionary, SYSTEM_CURRENT_THREAD_KEY, main);
 
   auto classes = _built_in_classes_as_array(vm);
@@ -3642,6 +3650,12 @@ void im_move_heap(VM *vm) {
       });
   }
   #endif
+}
+
+// stress test to ensure the save/restore functionality works
+void im_move_heap(VM *vm) {
+
+  _im_prepare_vm_for_snapshot(vm);
 
   // allocate new heap
   auto new_heap = calloc(vm->heap_size_in_bytes, 1);
@@ -3735,8 +3749,68 @@ void im_move_heap(VM *vm) {
   vm->error = 0;
   vm->suspended = false;
   _vm_thread_resume(vm, vm->globals->current_thread);
+}
 
-  unprot_ptr(main);
+Ptr im_snapshot_to_path(VM *vm, const char *path){
+  _im_prepare_vm_for_snapshot(vm);
+
+  // allocate new heap
+  auto new_heap = calloc(vm->heap_size_in_bytes, 1);
+
+  // copy in the old heap
+  auto new_heap_end = new_heap;
+  {
+    auto used = vm_heap_used(vm);
+    // could be used, but is something missing?
+    memcpy(new_heap, vm->heap_mem, vm->heap_size_in_bytes);
+    new_heap_end = (u8*)new_heap + used;
+    assert(((u64)new_heap_end - (u64)new_heap) ==
+           ((u64)vm->heap_end - (u64)vm->heap_mem));
+  }
+
+  dbg("moving references");
+  // move all references down to start at zero
+  {
+    s64 delta = (u64)new_heap * -1;
+    bang_heap(new_heap, new_heap_end, [&](Ptr it) {
+        return im_offset_ptr(it, delta);
+      });
+  }
+
+  dbg("writing file...");
+  // write it out
+  {
+    auto size = (u64)new_heap_end - (u64)new_heap;
+    FILE *out = fopen(path, "wb");
+    if(out != NULL) {
+      auto data = (char*)new_heap;
+      s64 to_go = size;
+      while(to_go > 0) {
+        const size_t wrote = fwrite(data, 1, to_go, out);
+        if(wrote == 0) break;
+        to_go -= wrote;
+        data += wrote;
+        dbg("to go bytes: ", to_go, " wrote: ", wrote);
+      }
+      fclose(out);
+    }
+  }
+  dbg("file written");
+
+  free(new_heap);
+
+  // TODO: resume main thread here
+
+  return True;
+}
+
+const char *bao_to_c_string(ByteArrayObject *bao);
+
+Ptr im_snapshot_to_path(VM *vm, ByteArrayObject* path) {
+  auto c_path = bao_to_c_string(path);
+  auto result = im_snapshot_to_path(vm, c_path);
+  free((char *)c_path);
+  return result;
 }
 
 

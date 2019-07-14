@@ -352,6 +352,8 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim slurp SLURP ((path String)) any "slurp(vm, path)")
 
+  (prim save-snapshot IM_SAV ((path String)) any "im_snapshot_to_path(vm, path)")
+
   (setf *prims* (reverse *prims*))
   (write-prims))
 

@@ -1,0 +1,5 @@
+(print '(hello world))
+(fork (sleep-ms 1000)
+      (print "so long!"))
+(save-snapshot "./0.amb")
+(print '(hello again world!))

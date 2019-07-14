@@ -200,6 +200,7 @@ e.g.
   that compiles down to lisp
 * TODO disassembler
 * TODO macrolet
+* TODO remove useless 'vm' args from functions
 
 * notes
 maybe have a stack of compilers? can push/pop...

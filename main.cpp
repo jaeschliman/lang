@@ -68,6 +68,10 @@ typedef int8_t s8;
 typedef float f32;
 typedef double f64;
 
+// the address object references in images begin at.
+// we can't reduce them down to 0 as they would be indistinguishable from Nil
+#define SYSTEM_HEAP_IMAGE_OFFSET 512;
+
 #define SYSTEM_ROOT_PACKAGE_KEY FIXNUM(0)
 #define SYSTEM_CURRENT_THREAD_KEY FIXNUM(1)
 #define SYSTEM_OTHER_THREADS_KEY FIXNUM(2)
@@ -1249,8 +1253,7 @@ void bang_heap(void *start, void *end, BangPtrFn fn) {
 
 // NB: cannot track items currently on the stack from this function
 //     unless we do a full stack scan.
-void obj_refs(VM *vm, StackFrameObject *it, PtrFn fn) {
-  unused(vm);
+void obj_refs(StackFrameObject *it, PtrFn fn) {
   for (u64 i = 0; i < it->argc; i++) {
     fn(it->argv[it->pad_count + i]);
   }
@@ -1261,34 +1264,31 @@ void obj_refs(VM *vm, StackFrameObject *it, PtrFn fn) {
   if (it->prev_frame) fn(objToPtr(it->prev_frame));
 }
 
-void obj_refs(VM *vm, ByteCodeObject *it, PtrFn fn) {
-  unused(vm);
+void obj_refs(ByteCodeObject *it, PtrFn fn) {
   fn(objToPtr(it->code));
   fn(objToPtr(it->literals));
 }
-void obj_refs(VM *vm, PtrArrayObject *it, PtrFn fn) {
-  unused(vm);
+void obj_refs(PtrArrayObject *it, PtrFn fn) {
   for (u64 i = 0; i < it->length; i++) {
     fn(it->data[i]);
   }
 }
 
-void obj_refs(VM *vm, StandardObject *it, PtrFn fn) {
-  unused(vm);
+void obj_refs(StandardObject *it, PtrFn fn) {
   fn(objToPtr(it->klass));
   for (u64 i = 0; i < it->ivar_count; i++) {
     fn(it->ivars[i]);
   }
 }
 
-void map_refs(VM *vm, Ptr it, PtrFn fn) {
+void map_refs(Ptr it, PtrFn fn) {
   if (isNil(it) || !is(Object, it)) return;
   if (is(U64Array, it))   return; // no refs
   if (is(ByteArray, it))  return; // no refs
-  if (is(ByteCode, it))   return obj_refs(vm, as(ByteCode, it),   fn);
-  if (is(PtrArray, it))   return obj_refs(vm, as(PtrArray, it),   fn);
-  if (is(Standard, it))   return obj_refs(vm, as(Standard, it),   fn);
-  if (is(StackFrame, it)) return obj_refs(vm, as(StackFrame, it), fn);
+  if (is(ByteCode, it))   return obj_refs(as(ByteCode, it),   fn);
+  if (is(PtrArray, it))   return obj_refs(as(PtrArray, it),   fn);
+  if (is(Standard, it))   return obj_refs(as(Standard, it),   fn);
+  if (is(StackFrame, it)) return obj_refs(as(StackFrame, it), fn);
 #if GC_DEBUG
   if (is(BrokenHeart, it)) {
     dbg("broken heart in map_refs");
@@ -1442,7 +1442,7 @@ void vm_dump_args(VM *vm) {
 }
 
 void _debug_walk(VM *vm, Ptr it, std::set<u64>*seen) {
-  map_refs(vm, it, [&](Ptr p){
+  map_refs(it, [&](Ptr p){
       if (seen->find(p.value) != seen->end()) return;
       seen->insert(p.value);
       std::cout << "    " << p << std::endl;
@@ -1623,6 +1623,29 @@ Ptr class_of(VM *vm, Ptr it) {
 }
 
 /* ---------------------------------------- */
+auto _debug_heap_walk_refs(void * start, void *end, PtrFn fn) {
+  scan_heap(start, end, [&](Ptr it) {
+      return map_refs(it, fn);
+    });
+}
+
+auto _debug_heap_report(void *start, void *end, s64 delta = 0) {
+  auto count = 0;
+  auto ref_count = 0;
+  auto fn = [&](Ptr it) {
+    if (it == Nil || !is(Object, it)) return;
+    auto ptr = as(Object, it);
+    auto ptr_val = (u64)ptr;
+    auto where = ptr_val + delta;
+    ref_count++;
+    assert((void*)where >= start && (void*)where < end);
+  };
+  scan_heap(start, end, [&](Ptr it) {
+      count++;
+      return map_refs(it, fn);
+    });
+  dbg(count, " objects on heap, ", ref_count, " in-heap references ");
+}
 
 // @unsafe
 auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
@@ -1632,7 +1655,7 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
     if (seen.find(it.value) != seen.end()) return;
     seen.insert(it.value);
     fn(it);
-    map_refs(vm, it, recurse);
+    map_refs(it, recurse);
   };
   vm_map_stack_refs(vm, recurse);
   recurse(vm->globals->root_package);
@@ -3778,10 +3801,14 @@ Ptr im_snapshot_to_path(VM *vm, const char *path){
   dbg("moving references");
   // move all references down to start at zero
   {
-    s64 delta = (u64)new_heap * -1;
+    s64 delta = (u64)vm->heap_mem * -1 + SYSTEM_HEAP_IMAGE_OFFSET;
     bang_heap(new_heap, new_heap_end, [&](Ptr it) {
         return im_offset_ptr(it, delta);
       });
+
+    // FIXME: not-quite-getting the delta right for validation yet
+    // s64 validation_delta = delta + (u64)new_heap;
+    // _debug_heap_report(new_heap, new_heap_end, validation_delta);
   }
 
   dbg("writing file...");
@@ -5767,11 +5794,13 @@ VM *vm_create_from_image(const char *path) {
 
   // fixup the pointers
   {
-    s64 delta = (u64)vm->heap_mem;
+    s64 delta = (u64)vm->heap_mem - SYSTEM_HEAP_IMAGE_OFFSET;
     bang_heap(vm->heap_mem, vm->heap_end, [&](Ptr it) {
         return im_offset_ptr(it, delta);
       });
   }
+
+  _debug_heap_report(vm->heap_mem, vm->heap_end);
 
   {
     scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it) {
@@ -5782,6 +5811,20 @@ VM *vm_create_from_image(const char *path) {
   }
 
   vm_init_from_heap_snapshot(vm);
+
+  // resume main thread
+
+  // so we have a root frame
+  auto bc = make_empty_bytecode(vm);
+  vm_push_stack_frame(vm, 0, bc, Nil);
+  vm->frame->mark = KNOWN(exception);
+  _debug_validate_stack(vm);
+
+  vm->error = 0;
+  vm->suspended = false;
+
+  _vm_thread_resume(vm, vm->globals->current_thread);
+
   return vm;
 }
 

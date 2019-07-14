@@ -10,6 +10,7 @@
 
 #include <SDL2/SDL.h>
 #include <SDL2_image/SDL_image.h>
+#include <sys/stat.h>
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -3629,6 +3630,11 @@ void vm_init_from_heap_snapshot(VM *vm);
 ByteCodeObject *make_empty_bytecode(VM *vm);
 
 void _im_prepare_vm_for_snapshot(VM *vm) {
+
+  // write the root package
+  ht_at_put(vm, vm->system_dictionary,
+            SYSTEM_ROOT_PACKAGE_KEY, vm->globals->root_package);
+
   // copy the waiting threads into the system dictionary 
   auto threads = _background_threads_as_list(vm);
   ht_at_put(vm, vm->system_dictionary, SYSTEM_OTHER_THREADS_KEY, threads);
@@ -3640,8 +3646,9 @@ void _im_prepare_vm_for_snapshot(VM *vm) {
   auto classes = _built_in_classes_as_array(vm);
   ht_at_put(vm, vm->system_dictionary, SYSTEM_BUILTIN_CLASSES_KEY, classes);
 
-  #if DEBUG_IMAGE_SNAPSHOTS
   gc(vm);
+
+  #if DEBUG_IMAGE_SNAPSHOTS
   {
     scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it) {
         if (is(thread, it)) {
@@ -3803,6 +3810,7 @@ Ptr im_snapshot_to_path(VM *vm, const char *path){
 
   return True;
 }
+
 
 const char *bao_to_c_string(ByteArrayObject *bao);
 
@@ -5611,8 +5619,9 @@ void _debug_assert_in_heap(VM *vm, Ptr p) {
 
 void vm_init_from_heap_snapshot(VM *vm) {
   // set system dictionary
-  vm->system_dictionary = objToPtr((Object *)align_pointer(vm->heap_mem));
+  vm->system_dictionary = objToPtr((Object *)(vm->heap_mem));
   _debug_assert_in_heap(vm, vm->system_dictionary);
+  dbg("loaded system dictionary: ", vm->system_dictionary);
   assert(is(ht, vm->system_dictionary));
 
   // set root package
@@ -5735,6 +5744,44 @@ VM *_vm_create() {
 VM *vm_create() {
   VM *vm = _vm_create();
   vm_init_for_blank_startup(vm);
+  return vm;
+}
+
+VM *vm_create_from_image(const char *path) {
+  VM *vm = _vm_create();
+
+  // read the image into heap memory
+  {
+    struct stat info;
+    stat(path, &info);
+    auto size = info.st_size;
+    FILE *in = fopen(path, "rb");
+    assert(in != NULL);
+    auto data = (char*)vm->heap_mem;
+    auto amt_read = fread(data, 1, size, in);
+    assert(amt_read == size);
+    fclose(in);
+    vm->heap_end = (void *)((u64)vm->heap_mem + size);
+    dbg("read size: ", (1.0 * size) / (1024 * 1024));
+  }
+
+  // fixup the pointers
+  {
+    s64 delta = (u64)vm->heap_mem;
+    bang_heap(vm->heap_mem, vm->heap_end, [&](Ptr it) {
+        return im_offset_ptr(it, delta);
+      });
+  }
+
+  {
+    scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it) {
+        if (it == Nil || !is(Object, it)) return;
+        auto where = as(Object, it);
+        assert(vm->heap_mem <= where && vm->heap_end > where);
+      });
+  }
+
+  vm_init_from_heap_snapshot(vm);
   return vm;
 }
 
@@ -6112,6 +6159,13 @@ void run_file_with_optional_display(const char * path) {
   }
 }
 
+void start_up_and_run_image(const char* path) {
+  VM *vm = vm_create_from_image(path);
+  vm->pc++;
+  vm_interp(vm, INTERP_PARAMS_EVAL);
+  vm_run_until_completion(vm);
+}
+
 /* ---------------------------------------- */
 
 const char *require_argv_file(int argc, const char** argv) {
@@ -6140,6 +6194,9 @@ int main(int argc, const char** argv) {
   if (strcmp(invoked, "amber") == 0) {
     auto file = require_argv_file(argc, argv);
     run_file_with_optional_display(file);
+  } else if (strcmp(invoked, "img") == 0){
+    auto file = require_argv_file(argc, argv);
+    start_up_and_run_image(file);
   } else if (strcmp(invoked, "repl") == 0){
     start_up_and_run_repl();
   } else {

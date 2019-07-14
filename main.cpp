@@ -5987,7 +5987,7 @@ void vm_poke_event(VM *vm, Ptr event_list_name, Ptr semaphore_name, Ptr event_na
   unprot_ptrs(semaphore_name, event_list_name);
 }
 
-void run_event_loop_with_display(VM *vm, int w, int h) {
+void run_event_loop_with_display(VM *vm, int w, int h, bool from_image = false) {
   SDL_Window *window;
 
   auto onshow = root_intern(vm, "onshow"); prot_ptr(onshow);
@@ -6027,7 +6027,7 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
     }
   }
 
-  {
+  if(!from_image) {
     auto fmt = window_surface->format;
     SDL_FillRect(window_surface, NULL, SDL_MapRGBA(fmt, 255, 255, 255, 255));
     auto param = to(Point, ((point){(s32)w, (s32)h}));
@@ -6120,6 +6120,8 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
     }
     #endif
 
+    auto has_run_first_cycle = false;
+
     while (SDL_WaitEventTimeout(&event, wait_timeout_ms)) { 
       switch (event.type) {
       case SDL_QUIT: running = false; break;
@@ -6159,15 +6161,21 @@ void run_event_loop_with_display(VM *vm, int w, int h) {
     }
 
     {
-      auto can_run = vm_maybe_start_next_thread(vm);
-      if (can_run) {
-        // thread resumption usually happens in the interpreter loop,
-        // which means the pc is advanced. here we have to do it manually.
-        vm->pc++;
+      if (from_image && !has_run_first_cycle) {
+        has_run_first_cycle = true;
+        //just resume the main thread
         vm_interp(vm, as_main_event);
-        if (vm->screen_dirty) SDL_UpdateWindowSurface(window);
-        vm->screen_dirty = false;
+      } else {
+        auto can_run = vm_maybe_start_next_thread(vm);
+        if (can_run) {
+          // thread resumption usually happens in the interpreter loop,
+          // which means the pc is advanced. here we have to do it manually.
+          vm->pc++;
+          vm_interp(vm, as_main_event);
+        }
       }
+      if (vm->screen_dirty) SDL_UpdateWindowSurface(window);
+      vm->screen_dirty = false;
       auto sleep_time = _vm_threads_get_minimum_sleep_time(vm);
       if (sleep_time == -1) {
         running = false;
@@ -6215,9 +6223,18 @@ void run_file_with_optional_display(const char * path) {
 
 void start_up_and_run_image(const char* path) {
   VM *vm = vm_create_from_image(path);
+
   vm->pc++;
-  vm_interp(vm, INTERP_PARAMS_EVAL);
-  vm_run_until_completion(vm);
+
+  auto wants_display = get_global(vm, root_intern(vm, "wants-display"));
+  if (is(Point, wants_display)) {
+    auto p = as(Point, wants_display);
+    run_event_loop_with_display(vm, p.x, p.y, true);
+  } else {
+    vm_interp(vm, INTERP_PARAMS_EVAL);
+    vm_run_until_completion(vm);
+  }
+
 }
 
 /* ---------------------------------------- */

@@ -469,6 +469,7 @@
         (onmousemove (onmousemove data))
         (onmousedown (onmousedown data))
         (onmousedrag (onmousedrag data))
+        (onkey       (onkey       data))
         (onshow      (onshow      data)))))
 
 (define (poll-for-pending-events)

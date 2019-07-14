@@ -189,6 +189,9 @@
 (define onmousemove set-last-point)
 (define onmousedown add-point)
 (define onmousedrag go-bananas)
+(define (onkey data)
+    (print "saving snapshot")
+  (save-snapshot "./bouncers.amb"))
 
 (fork-with-priority 100 (forever (update) (sleep-ms 10)))
 

@@ -3833,7 +3833,18 @@ Ptr im_snapshot_to_path(VM *vm, const char *path){
 
   free(new_heap);
 
-  // TODO: resume main thread here
+  // resume main thread
+  _vm_unwind_to_root_frame(vm);
+  _vm_reset_stack_from_root_frame(vm);
+  // so we have a root frame
+  auto bc = make_empty_bytecode(vm);
+  vm_push_stack_frame(vm, 0, bc, Nil);
+  vm->frame->mark = KNOWN(exception);
+  _debug_validate_stack(vm);
+
+  vm->error = 0;
+  vm->suspended = false;
+  _vm_thread_resume(vm, vm->globals->current_thread);
 
   return True;
 }

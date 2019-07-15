@@ -5980,7 +5980,7 @@ void socket_connection_init(socket_connection *conn) {
 
   conn->server_fd = server_fd;
   conn->client_fd = 0;
-  conn->string    = (char *)calloc(BUF_SIZE, 0);
+  conn->string    = (char *)calloc(BUF_SIZE, 1);
   conn->address   = address;
 
 }
@@ -5995,7 +5995,7 @@ char *socket_connection_read(socket_connection *conn) {
   if (new_socket <= 0) {
     new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen);
     if (new_socket > 0) {
-      dbg("socket connected");
+      // dbg("socket connected");
       conn->client_fd = new_socket;
     } 
   }
@@ -6004,10 +6004,6 @@ char *socket_connection_read(socket_connection *conn) {
     // TODO: proper communication protocol here
     int valread = read(new_socket, buffer, BUF_SIZE - 1);
     if (valread > 0) {
-      dbg("read ", valread);
-      puts(buffer);
-      // TODO: rather than running string directly, poke an event
-      //       (want to minimize use of vm_call_global, which this calls)
       conn->string = (char *)calloc(BUF_SIZE, 1);
       return buffer;
     }
@@ -6023,13 +6019,44 @@ char *socket_connection_read(socket_connection *conn) {
 
 void start_up_and_run_repl() {
   VM *vm = vm_create();
+
+  // set stdin to nonblocking
+  int flags = fcntl(0, F_GETFL, 0);
+  fcntl(0, F_SETFL, flags | O_NONBLOCK);
+
+  // start listening for connections from emacs
+  socket_connection conn;
+  socket_connection_init(&conn);
+
+  std::cout << "lang>";
   while (true) {
-    std::cout << "lang>";
+    bool got_input = false;
+
     string input;
     getline(std::cin, input);
-    auto result = run_string(vm, input.c_str());
-    std::cout << result << std::endl;
+    if (input.size() > 0) {
+      got_input = true;
+      auto result = run_string_with_hooks(vm, input.c_str());
+      std::cout << result << std::endl;
+    }
+    std::cin.clear();
+
+    auto remote_input = socket_connection_read(&conn);
+    if (remote_input) {
+      got_input = true;
+      std::cout << std::endl;
+      auto result = run_string_with_hooks(vm, remote_input);
+      std::cout << result << std::endl;
+      free(remote_input);
+    }
+
+    if (!got_input) {
+      sleep(1); // TODO: read from stdin/socket connection with timeout instead
+      continue;
+    }
+    std::cout << "lang>";
   }
+
 }
 
 void load_file(VM *vm, const char *path) {

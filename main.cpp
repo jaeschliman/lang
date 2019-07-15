@@ -1314,7 +1314,8 @@ enum {
   BaseClassIvarCount  = 1,
   BaseClassMethodDict = 2,
   BaseClassMetadata   = 3,
-  BaseClassEnd        = 4
+  BaseClassApplicator = 4,
+  BaseClassEnd        = 5
 };
 
 typedef void(*DebugPrintFunction)(std::ostream &os, Ptr p);
@@ -2461,10 +2462,9 @@ Ptr mark_object_as_class(StandardObject *obj) {
   return Nil;
 }
 
-
 // @unsafe
 auto make_base_class(VM *vm, const char* name) {
-  Ptr slots[] = {make_string(vm,name), make_number(0), ht(vm), ht(vm)};
+  Ptr slots[] = {make_string(vm,name), make_number(0), ht(vm), ht(vm), Nil};
   auto base = vm->globals->classes.builtins[BuiltinClassIndex_Base];
   auto result = make_standard_object(vm, base, slots);
   mark_object_as_class(result);
@@ -2480,6 +2480,7 @@ void initialize_classes(VM *vm)
   standard_object_set_ivar(Base, BaseClassIvarCount, make_number(BaseClassEnd));
   standard_object_set_ivar(Base, BaseClassMethodDict, ht(vm));
   standard_object_set_ivar(Base, BaseClassMetadata, ht(vm));
+  standard_object_set_ivar(Base, BaseClassApplicator, Nil);
   mark_object_as_class(Base);
   vm->globals->classes.builtins[BuiltinClassIndex_Base] = Base;
 
@@ -2546,7 +2547,7 @@ Ptr make_user_class(VM *vm, Ptr name, s64 ivar) { prot_ptrs(name);
   auto method_dict = ht(vm);                      prot_ptr(method_dict);
   auto metadata = ht(vm);
   auto superclass = vm->globals->classes.builtins[BuiltinClassIndex_Base];
-  Ptr slots[] = {name, ivar_ct, method_dict, metadata};
+  Ptr slots[] = {name, ivar_ct, method_dict, metadata, Nil};
   auto result = make_standard_object(vm, superclass, slots);
   unprot_ptrs(name, method_dict);
   mark_object_as_class(result);
@@ -2565,6 +2566,11 @@ Ptr class_get_metadata(StandardObject *klass, Ptr key) {
 Ptr class_set_metadata(VM *vm, StandardObject *klass, Ptr key, Ptr value) {
   auto meta = standard_object_get_ivar(klass, BaseClassMetadata);
   ht_at_put(vm, meta, key, value);
+  return Nil;
+}
+
+Ptr class_set_applicator(StandardObject *klass, Ptr fn) {
+  standard_object_set_ivar(klass, BaseClassApplicator, fn);
   return Nil;
 }
 
@@ -3967,6 +3973,11 @@ inline u64 build_instr(u8 op, u32 data) {
   return res;
 }
 
+Ptr applicator_for_object(VM *vm, Ptr it) {
+  auto klass = class_of(vm, it);
+  return standard_object_get_ivar(as(Standard, klass), BaseClassApplicator);
+}
+
 // @speed this will be hideously slow. need bytecode level support
 inline void vm_interp_prepare_for_send(VM *vm, u32 argc) {
   // TODO: arity check and errors
@@ -4235,7 +4246,22 @@ void vm_interp(VM* vm, interp_params params) {
         break;
       }
       if (!is(Closure, fn)) {
-        vm->error = "value is not a closure";
+        if (fn == Nil) {
+          vm->error = "value is not a closure";
+        } else {
+          {
+            // rotate fn into first position
+            vm_push(vm, fn);
+            for (auto n = 0; n < argc; n++) {
+              vm->stack[n] = vm->stack[n+1];
+            }
+            vm->stack[argc] = fn;
+          }
+          argc++;
+          vm_push(vm, applicator_for_object(vm, fn));
+          goto reenter_call;
+        }
+
 #if GC_DEBUG
         if (is(BrokenHeart, fn)) {
           auto other = objToPtr(gc_forwarding_address(as(Object, fn)));

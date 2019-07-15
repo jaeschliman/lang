@@ -203,6 +203,8 @@ void initialize_primitive_functions(VM *vm) {
         ((a Standard) (key any)) any "class_get_metadata(a, key)")
   (prim class-set-metadata CLSSETMETA
         ((a Standard) (key any) (val any)) any "class_set_metadata(vm, a, key, val)")
+  (prim class-set-applicator CLSSETAPP
+        ((a Standard) (fn any)) any "class_set_applicator(a, fn)")
   (prim instantiate-class MKINST
         ((klass Standard)) any "instantiate_user_class(vm, klass)")
   (prim instance-get-ivar IVAR_GET

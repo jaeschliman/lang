@@ -39,7 +39,7 @@ using std::string;
 
 #define GC_DEBUG 0
 #define PRIM_USE_GIANT_SWITCH 1
-#define INCLUDE_REPL 0
+#define INCLUDE_REPL 1
 #define DEBUG_IMAGE_SNAPSHOTS 0
 // with it on:  216533389 / 15 / 60 = ~240,600 instr / frame
 //              187983512 / 13.048 / 60 = ~240,117
@@ -113,9 +113,12 @@ struct Ptr { u64 value; };
 #define Nil   ((Ptr){0b0001})
 #define FIXNUM(x) ((Ptr){ (x) << TAG_BITS })
 
+// ----------------------------------------
+// queue for threads
 
 struct ptrq_node { Ptr val;  ptrq_node *next;  };
 struct ptrq { ptrq_node *front, *back; ptrq_node *free_list; };
+
 ptrq_node *ptrq_get_node(ptrq *q) {
   if (q->free_list) {
     auto res = q->free_list;
@@ -124,6 +127,7 @@ ptrq_node *ptrq_get_node(ptrq *q) {
   }
   return (ptrq_node *)calloc(sizeof(ptrq_node), 1);
 }
+
 void ptrq_push(ptrq *q, ptrq_node *n) {
   n->next = 0;
   if (!q->front) {
@@ -133,11 +137,13 @@ void ptrq_push(ptrq *q, ptrq_node *n) {
     q->back = n;
   }
 }
+
 void ptrq_push(ptrq *q, Ptr p) {
   auto n = ptrq_get_node(q);
   n->val = p;
   ptrq_push(q, n);
 }
+
 ptrq_node *ptrq_pop(ptrq *q) {
   if (q->front) {
     auto res = q->front;
@@ -193,7 +199,7 @@ void ptrq_remove_ptr(ptrq *q, Ptr ptr) {
   }
 }
 
-
+// ----------------------------------------
 
 std::ostream &operator<<(std::ostream &os, Ptr p);
 
@@ -205,9 +211,12 @@ inline bool operator != (Ptr a, Ptr b) {
 }
 
 
+// TODO: delete this
 bool ptr_eq(Ptr a, Ptr b) {
   return a.value == b.value;
 }
+
+// ----------------------------------------
 
 enum ObjectType : u8 {
   Broken_ObjectType = 0,
@@ -5918,6 +5927,99 @@ Ptr run_string_with_hooks(VM *vm, const char *str) {
   }
 }
 
+// ----------------------------------------
+// simple socket support
+
+struct socket_connection {
+  int server_fd, client_fd;
+  char *string;
+  sockaddr_in *address;
+};
+
+void socket_connection_init(socket_connection *conn) {
+  #define PORT 8080
+  #define BUF_SIZE 5120
+
+  int server_fd, new_socket; 
+  int addrlen = sizeof(struct sockaddr_in); 
+  struct sockaddr_in *address = (struct sockaddr_in *)calloc(addrlen, 1);; 
+  int opt = 1; 
+
+  {
+    // Creating socket file descriptor 
+    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) { 
+      perror("socket failed"); 
+      exit(EXIT_FAILURE); 
+    } 
+    // Make socket nonblocking
+    if(fcntl(server_fd, F_SETFL, fcntl(server_fd, F_GETFL, 0) | O_NONBLOCK) == -1) {
+      perror("calling fcntl");
+      exit(EXIT_FAILURE);
+    } 
+
+    // Forcefully attaching socket to the port
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) { 
+      perror("setsockopt"); 
+      exit(EXIT_FAILURE); 
+    } 
+    address->sin_family = AF_INET; 
+    address->sin_addr.s_addr = INADDR_ANY; 
+    address->sin_port = htons(PORT); 
+        
+    // Forcefully attaching socket to the port 
+    if (bind(server_fd, (const struct sockaddr*)address, (socklen_t)addrlen) < 0) { 
+      perror("bind failed"); 
+      exit(EXIT_FAILURE); 
+    } 
+    if (listen(server_fd, 3) < 0) { 
+      perror("listen"); 
+      exit(EXIT_FAILURE); 
+    } 
+    new_socket = 0;
+  }
+
+  conn->server_fd = server_fd;
+  conn->client_fd = 0;
+  conn->string    = (char *)calloc(BUF_SIZE, 0);
+  conn->address   = address;
+
+}
+
+char *socket_connection_read(socket_connection *conn) {
+  int new_socket = conn->client_fd;
+  int server_fd  = conn->server_fd;
+  char *buffer   = conn->string;
+  auto address = conn->address;
+  int addrlen = sizeof(struct sockaddr_in); 
+
+  if (new_socket <= 0) {
+    new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen);
+    if (new_socket > 0) {
+      dbg("socket connected");
+      conn->client_fd = new_socket;
+    } 
+  }
+
+  if (new_socket > 0) {
+    // TODO: proper communication protocol here
+    int valread = read(new_socket, buffer, BUF_SIZE - 1);
+    if (valread > 0) {
+      dbg("read ", valread);
+      puts(buffer);
+      // TODO: rather than running string directly, poke an event
+      //       (want to minimize use of vm_call_global, which this calls)
+      conn->string = (char *)calloc(BUF_SIZE, 1);
+      return buffer;
+    }
+  }
+
+  return 0;
+}
+
+#undef PORT
+#undef BUF_SIZE
+
+// ----------------------------------------
 
 void start_up_and_run_repl() {
   VM *vm = vm_create();
@@ -6036,50 +6138,6 @@ void run_event_loop_with_display(VM *vm, int w, int h, bool from_image = false) 
     SDL_UpdateWindowSurface(window);
   }
 
-  #if INCLUDE_REPL
-
-  #define PORT 8080
-  #define BUF_SIZE 5120
-
-  int server_fd, new_socket; 
-  struct sockaddr_in address; 
-  int opt = 1; 
-  int addrlen = sizeof(address); 
-  {
-    // Creating socket file descriptor 
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) { 
-      perror("socket failed"); 
-      exit(EXIT_FAILURE); 
-    } 
-    // Make socket nonblocking
-    if(fcntl(server_fd, F_SETFL, fcntl(server_fd, F_GETFL, 0) | O_NONBLOCK) == -1) {
-      perror("calling fcntl");
-      exit(EXIT_FAILURE);
-    } 
-
-    // Forcefully attaching socket to the port
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) { 
-      perror("setsockopt"); 
-      exit(EXIT_FAILURE); 
-    } 
-    address.sin_family = AF_INET; 
-    address.sin_addr.s_addr = INADDR_ANY; 
-    address.sin_port = htons( PORT ); 
-        
-    // Forcefully attaching socket to the port 
-    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) { 
-      perror("bind failed"); 
-      exit(EXIT_FAILURE); 
-    } 
-    if (listen(server_fd, 3) < 0) { 
-      perror("listen"); 
-      exit(EXIT_FAILURE); 
-    } 
-    new_socket = 0;
-  }
-  
-  #endif
-
   bool running = true;
   SDL_Event event;
 
@@ -6092,7 +6150,8 @@ void run_event_loop_with_display(VM *vm, int w, int h, bool from_image = false) 
   auto as_main_event = INTERP_PARAMS_MAIN_EVENT_HANDLER;
 
   #if INCLUDE_REPL
-  char *buffer = (char *)calloc(BUF_SIZE, 1);
+  socket_connection conn;
+  socket_connection_init(&conn);
   #endif
 
   auto wait_timeout_ms = 0;
@@ -6100,22 +6159,11 @@ void run_event_loop_with_display(VM *vm, int w, int h, bool from_image = false) 
   while (running) {
 
     #if INCLUDE_REPL
-    if (new_socket <= 0) {
-      new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen);
-      if (new_socket > 0) {
-        dbg("socket connected");
-      } 
-    }
-    if (new_socket > 0) {
-      // TODO: proper communication protocol here
-      int valread = read(new_socket, buffer, BUF_SIZE - 1);
-      if (valread > 0) {
-        dbg("read ", valread);
-        puts(buffer);
-        // TODO: rather than running string directly, poke an event
-        //       (want to minimize use of vm_call_global, which this calls)
-        run_string_with_hooks(vm, buffer);
-        bzero(buffer, BUF_SIZE);
+    {
+      char *content = socket_connection_read(&conn);
+      if (content) {
+        run_string_with_hooks(vm, content);
+        free(content);
       }
     }
     #endif

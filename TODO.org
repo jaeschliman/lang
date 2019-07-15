@@ -103,12 +103,12 @@ https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
 * TODO ? basic per-file modules ?
 * TODO add counters to gensym
 * TODO sexpr dot-reader
-* TODO audit uses of *_mem functions for GC safety
+* DONE audit uses of *_mem functions for GC safety
 * DONE apparently we are leaking like crazy somewhere...
 * TODO make the lisp programs objects that respond to messages
 * TODO ability to load files at the repl
 * TODO basic debugger (not that we save debug info, but...)
-* TODO some WEIRD bug around hashing -- was seeing the same object change hash codes
+* DONE some WEIRD bug around hashing -- was seeing the same object change hash codes
   may need to confirm that hash persists across GCs
   by all means it should
 * TODO idea: _subclassable_ generic functions
@@ -212,6 +212,7 @@ e.g.
 * TODO BC level support for messaging
 * TODO think whether we should have inheritance
   I like the idea of object delegation a bit more, it seems more flexible
+* TODO `proper` macroexpander that understands lexical scope
 
 * notes
 maybe have a stack of compilers? can push/pop...

@@ -23,10 +23,6 @@
 (generic-function-1-add-method length Cons list-length)
 (generic-function-1-add-method length Null (lambda (_) 0))
 
-(print (length '(1 2 3)))
-(print (length "hello there"))
-(print (length '()))
-
 (define GenericFunction2 (create-class 'GenericFunction2 1))
 
 (define (make-generic-function2)
@@ -96,21 +92,5 @@
   ((Float Float) /f)
   ((Fixnum Float) (lambda (a b) (/f (i->f a) b)))
   ((Float Fixnum) (lambda (a b) (/f a (i->f b)))))
-
-(print (* 1 2 3))
-(print (* 1.0 2.0 3.0))
-(print (* 1 2.0 3))
-
-(print (+ 1 2 3))
-(print (+ 1.0 2.0 3.0))
-(print (+ 1 2.0 3))
-
-(print (- 1 2 3))
-(print (- 1.0 2.0 3.0))
-(print (- 1 2.0 3))
-
-(print (/ 1 2 3))
-(print (/ 1.0 2.0 3.0))
-(print (/ 1 2.0 3))
 
 'done

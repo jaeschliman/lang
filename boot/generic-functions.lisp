@@ -1,4 +1,5 @@
 (define GenericFunction1 (create-class 'GenericFunction1 1))
+(define GenericFunction2 (create-class 'GenericFunction2 1))
 
 (define (gf-lookup-1 ht class)
   (let ((r (ht-at ht class)))
@@ -15,10 +16,14 @@
             (set! nxt (ht-at ht (car classes))))
           (gf-store nxt (cdr classes) method))))
 
-(define (make-generic-function1)
-    (let ((result (instantiate-class GenericFunction1)))
-      (instance-set-ivar result 0 (make-ht))
-      result))
+(define (make-generic-function arity)
+    (let ((class (case arity
+                   (1 GenericFunction1)
+                   (2 GenericFunction2))))
+      (when (nil? class) (throw `(unsupported gf arity ,arity)))
+      (let ((result (instantiate-class class)))
+        (instance-set-ivar result 0 (make-ht))
+        result)))
 
 (define (generic-function-add-method fn classlist method)
     ;; TODO: check classlist against arity
@@ -33,13 +38,6 @@
 
 (class-set-applicator GenericFunction1 generic-function-1-invoke)
 
-(define GenericFunction2 (create-class 'GenericFunction2 1))
-
-(define (make-generic-function2)
-    (let ((result (instantiate-class GenericFunction2)))
-      (instance-set-ivar result 0 (make-ht))
-      result))
-
 (define (generic-function-2-invoke fn arg1 arg2)
     (let* ((ht (instance-get-ivar fn 0))
            (ht2 (ht-at ht (class-of arg1)))
@@ -47,6 +45,7 @@
       (method arg1 arg2)))
 
 (class-set-applicator GenericFunction2 generic-function-2-invoke)
+
 
 (define ArithmeticOp (create-class 'ArithmeticOp 1))
 
@@ -61,7 +60,7 @@
   (let ((combine (gensym))
         (it (gensym)))
     `(let ((,it (instantiate-class ArithmeticOp))
-           (,combine (make-generic-function2)))
+           (,combine (make-generic-function 2)))
        (instance-set-ivar ,it 0 ,combine)
        ,@(mapcar
           (lambda (clause)
@@ -94,7 +93,7 @@
   ((Fixnum Float) (lambda (a b) (/f (i->f a) b)))
   ((Float Fixnum) (lambda (a b) (/f a (i->f b)))))
 
-(define length (make-generic-function1))
+(define length (make-generic-function 1))
 (generic-function-add-method length (list String) string-length)
 (generic-function-add-method length (list Cons)   list-length)
 (generic-function-add-method length (list Null)   (lambda (_) 0))

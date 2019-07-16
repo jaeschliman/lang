@@ -8,6 +8,7 @@
 
 // #define NDEBUG
 
+#include <locale.h>
 #include <SDL2/SDL.h>
 #include <SDL2_image/SDL_image.h>
 #include <sys/stat.h>
@@ -569,16 +570,17 @@ inline u8 character_byte_at(character c, u8 idx) {
 }
 
 inline s64 utf8_byte_width_for_char(u8 byte) {
-  if (!(byte & 0b10000000)) return 1;
-  if (!(byte & 0b00100000)) return 2;
-  if (!(byte & 0b00010000)) return 3;
-  if (!(byte & 0b00001000)) return 4;
+  if ((byte & 0b10000000) == 0) return 1;
+  if ((byte & 0b00100000) == 0) return 2;
+  if ((byte & 0b00010000) == 0) return 3;
+  if ((byte & 0b00001000) == 0) return 4;
   return -1;
 }
 
 s64 character_byte_width(character c) {
   auto byte = character_byte_at(c, 0);
-  return utf8_byte_width_for_char(byte);
+  auto result = utf8_byte_width_for_char(byte);
+  return result;
 }
 
 inline bool character_eq(character a, character b) {
@@ -606,9 +608,12 @@ inline bool character_gt(character a, character b) {
   return character_to_u32(a) > character_to_u32(b);
 }
 
-char *character_as_c_string(character c) {
-  auto result = (char*)calloc(character_byte_width(c) + 1, 1);
-  ((u32 *)result)[0] = c.code_point; // this may not actually work
+char *character_as_c_string(character c, char*result) {
+  auto count = character_byte_width(c);
+  for (auto i = 0; i < count; i++) {
+    result[i] = character_byte_at(c, i);
+  }
+  // ((u32 *)result)[0] = c.code_point; // this may not actually work
   return result;
 }
 
@@ -916,8 +921,9 @@ character string_char_at(VM *vm, ByteArrayObject *str, s64 index) {
     return (character){0};
   }
   u32 code_point = 0;
-  char *data = str->data + index;
-  switch(utf8_byte_width_for_char(*data)) {
+  u8 *data = (u8 *)str->data + index;
+  auto width = utf8_byte_width_for_char(*data);
+  switch(width) {
   case 1: {
     code_point |= *data << 24;
     break;
@@ -1530,9 +1536,9 @@ std::ostream &operator<<(std::ostream &os, Ptr it) {
       auto byte = character_byte_at(ch, 0);
       return os << "#\\" << character_names_by_code[byte];
     } else {
-      auto str = character_as_c_string(ch);
+      char buf[5] = {0};
+      auto str = character_as_c_string(ch, (char *)&buf);
       os << "#\\" << str;
-      free(str); // yuck that we have to do this. should define a struct if possible
       return os;
     }
   }
@@ -6456,6 +6462,7 @@ const char *require_argv_file(int argc, const char** argv) {
 }
 
 int main(int argc, const char** argv) {
+  setlocale(LC_ALL, "en_US.utf8");
 
   initialize_struct_printers();
   initialize_character_names();

@@ -1,4 +1,6 @@
-(define str " abcdef")
+(define str " abcde😍")
+
+(print str)
 
 (print (char-code-at str 0))
 (print (char-at str 0))

@@ -13,3 +13,35 @@
 0
 0.166667
 0.166667
+(expecting #t)
+#t
+(expecting #t)
+#t
+(expecting #t)
+#t
+(expecting #t)
+#t
+(expecting #t)
+#t
+(expecting #t)
+#t
+(expecting #t)
+#t
+(expecting #t)
+#t
+(expecting #f)
+#f
+(expecting #f)
+#f
+(expecting #f)
+#f
+(expecting #f)
+#f
+(expecting #f)
+#f
+(expecting #f)
+#f
+(expecting #f)
+#f
+(expecting #f)
+#f

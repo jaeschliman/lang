@@ -565,11 +565,11 @@ unwrap_ptr_for(Fixnum, it) {
 prim_type(Char)
 create_ptr_for(Char, char ch) {
   // TODO wide char support? (there's room in the Ptr)
-  auto val = ((u64)ch << TAG_BITS)|Char_Tag;
+  auto val = ((u64)ch << 32)|Char_Tag;
   return (Ptr){val};
 }
 unwrap_ptr_for(Char, it) {
-  return (char)(it.value >> TAG_BITS);
+  return (char)(it.value >> 32);
 }
 
 prim_type(Bool)

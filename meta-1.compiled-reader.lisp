@@ -173,8 +173,8 @@
 
 (define (make-stream str) (cons 0 str))
 (define (stream-read s) (char-at (cdr s) (car s)))
-(define (stream-next s) (cons (+i 1 (car s)) (cdr s)))
-(define (stream-end? s) (>i (+i 1 (car s)) (string-length (cdr s))))
+(define (stream-advance s char-width) (cons (+i char-width (car s)) (cdr s)))
+(define (stream-end? s) (>i (+i 1 (car s)) (string-byte-length (cdr s))))
 
 (define (state-position st) (car (car st)))
 
@@ -206,8 +206,9 @@
                  (let ((s (state-stream st)))
                    (if (stream-end? s)
                        fail
-                       (state+stream (state+result st (stream-read s))
-                                     (stream-next s))))))
+                       (let ((ch (stream-read s)))
+                         (state+stream (state+result st ch)
+                                       (stream-advance s (char-width ch))))))))
 (set-rule 'nothing (lambda (st)
                      (let ((s (state-stream st)))
                        (if (stream-end? s)
@@ -645,7 +646,7 @@
 
 (binding ((*meta-context* (list 'testfile)))
          (match-map print 'main "
-123 456 a 789 hello how are you with-dashes foo foofoo
+123 456 a 789 hello how are you with-dashes foo foofoo '😍😍😍'
 "))
 
 ;; use as default reader for the repl

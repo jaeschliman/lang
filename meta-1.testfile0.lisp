@@ -3,11 +3,13 @@
 meta testfile {
   ws      = [ \n\r]*
   idchar  = [a-zA-Z\-]
-  digit   = [0-9]:ch          -> (char-to-digit ch)
-  int     = ws digit+:ds ws   -> (make-integer ds)
-  ident   = ws idchar+:chs ws -> (implode chs)
-  foo     = ws "foo"+:fs ws   -> `(foo-count ,(list-length fs))
-  main    = int | foo | ident
+  digit   = [0-9]:ch                  -> (char-to-digit ch)
+  int     = ws digit+:ds ws           -> (make-integer ds)
+  ident   = ws idchar+:chs ws         -> (implode chs)
+  foo     = ws "foo"+:fs ws           -> `(foo-count ,(list-length fs))
+  notq    = any:ch ?(not (eq #\' ch)) -> ch
+  stringy = ws "'" notq+:chs "'" ws   -> chs
+  main    = int | foo | ident | stringy
 }
 
 ;; test comment

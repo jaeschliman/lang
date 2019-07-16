@@ -5768,7 +5768,7 @@ void vm_init_for_blank_startup(VM *vm) {
   vm->frame->mark = KNOWN(exception);
 
   // load the stdlib
-  load_file(vm, "./boot.lisp");
+  load_file(vm, "./boot/0.lisp");
 }
 
 VM *_vm_create() {

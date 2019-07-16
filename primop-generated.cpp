@@ -938,7 +938,7 @@ Ptr PRIM_CC_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("char-code",Char,ch);
 
-  return to(Fixnum,((s64)ch));
+  return to(Fixnum,(character_to_s64(ch)));
 }
 
 // Primitive 95
@@ -966,7 +966,7 @@ Ptr PRIM_CH_LT_impl(VM *vm, u32 argc) {
    VM_ARG("char-<",Char,b);
    VM_ARG("char-<",Char,a);
 
-  return to(Bool,(a < b));
+  return to(Bool,(character_lt(a,b)));
 }
 
 // Primitive 98
@@ -975,7 +975,7 @@ Ptr PRIM_CH_GT_impl(VM *vm, u32 argc) {
    VM_ARG("char->",Char,b);
    VM_ARG("char->",Char,a);
 
-  return to(Bool,(a > b));
+  return to(Bool,(character_gt(a,b)));
 }
 
 // Primitive 99
@@ -2050,7 +2050,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
   case 95: {
    VM_ARG("char-code",Char,ch);
 
-     vm_push(vm, to(Fixnum,((s64)ch)));
+     vm_push(vm, to(Fixnum,(character_to_s64(ch))));
     break;
   }
 
@@ -2075,7 +2075,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("char-<",Char,b);
    VM_ARG("char-<",Char,a);
 
-     vm_push(vm, to(Bool,(a < b)));
+     vm_push(vm, to(Bool,(character_lt(a,b))));
     break;
   }
 
@@ -2083,7 +2083,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("char->",Char,b);
    VM_ARG("char->",Char,a);
 
-     vm_push(vm, to(Bool,(a > b)));
+     vm_push(vm, to(Bool,(character_gt(a,b))));
     break;
   }
 

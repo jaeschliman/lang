@@ -562,14 +562,67 @@ unwrap_ptr_for(Fixnum, it) {
   return (s64)(((s64)it.value) >> TAG_BITS);
 }
 
+struct character { u32 code_point; };
+
+inline u8 character_byte_at(character c, u8 idx) {
+  return (u8)(c.code_point >> ((3 - idx) * 8));
+}
+
+inline s64 utf8_byte_width_for_char(u8 byte) {
+  if (!(byte & 0b10000000)) return 1;
+  if (!(byte & 0b00100000)) return 2;
+  if (!(byte & 0b00010000)) return 3;
+  if (!(byte & 0b00001000)) return 4;
+  return -1;
+}
+
+s64 character_byte_width(character c) {
+  auto byte = character_byte_at(c, 0);
+  return utf8_byte_width_for_char(byte);
+}
+
+inline bool character_eq(character a, character b) {
+  return a.code_point == b.code_point;
+}
+
+inline u32 character_to_u32(character a) {
+  return character_byte_at(a, 0) |
+    (character_byte_at(a, 1) << 8) |
+    (character_byte_at(a, 2) << 16) |
+    (character_byte_at(a, 3) << 24);
+}
+
+inline s64 character_to_s64(character a) {
+  s64 result = character_to_u32(a);
+  return result;
+}
+
+// FIXME is this the proper ordering?
+inline bool character_lt(character a, character b) {
+  return character_to_u32(a) < character_to_u32(b);
+}
+// FIXME is this the proper ordering?
+inline bool character_gt(character a, character b) {
+  return character_to_u32(a) > character_to_u32(b);
+}
+
+char *character_as_c_string(character c) {
+  auto result = (char*)calloc(character_byte_width(c) + 1, 1);
+  ((u32 *)result)[0] = c.code_point; // this may not actually work
+  return result;
+}
+
 prim_type(Char)
 create_ptr_for(Char, char ch) {
-  // TODO wide char support? (there's room in the Ptr)
-  auto val = ((u64)ch << 32)|Char_Tag;
+  auto val = ((u64)ch << 56) | Char_Tag;
+  return (Ptr){val};
+}
+create_ptr_for(Char, character ch) {
+  auto val = ((u64)ch.code_point << 32) | Char_Tag;
   return (Ptr){val};
 }
 unwrap_ptr_for(Char, it) {
-  return (char)(it.value >> 32);
+  return (character){(u32)(it.value >> 32 )};
 }
 
 prim_type(Bool)
@@ -849,15 +902,7 @@ Ptr make_string_with_end(VM *vm, const char* str, const char* end) {
   return objToPtr(obj);
 }
 
-s64 string_char_code_at(VM *vm, ByteArrayObject *str, s64 index) {
-  if (index >= str->length) {
-    vm->error = "string index out of range";
-    return -1;
-  }
-  return str->data[index];
-}
-
-char string_char_at(VM *vm, ByteArrayObject *str, s64 index) {
+char string_byte_at(VM *vm, ByteArrayObject *str, s64 index) {
   if (index >= str->length) {
     vm->error = "string index out of range";
     return -1;
@@ -865,18 +910,66 @@ char string_char_at(VM *vm, ByteArrayObject *str, s64 index) {
   return (char)(str->data[index]);
 }
 
-Ptr string_set_char_at(VM *vm, ByteArrayObject *str, s64 index, char ch) {
+character string_char_at(VM *vm, ByteArrayObject *str, s64 index) {
   if (index >= str->length) {
     vm->error = "string index out of range";
+    return (character){0};
+  }
+  u32 code_point = 0;
+  char *data = str->data + index;
+  switch(utf8_byte_width_for_char(*data)) {
+  case 1: {
+    code_point |= *data << 24;
+    break;
+  }
+  case 2: {
+    code_point |= *data << 24; data++;
+    code_point |= *data << 16;
+    break;
+  }
+  case 3: {
+    code_point |= *data << 24; data++;
+    code_point |= *data << 16; data++;
+    code_point |= *data << 8;
+    break;
+  }
+  case 4: {
+    code_point |= *data << 24; data++;
+    code_point |= *data << 16; data++;
+    code_point |= *data << 8; data++;
+    code_point |= *data;
+    break;
+  }
+  }
+  return (character){code_point};
+}
+
+s64 string_char_code_at(VM *vm, ByteArrayObject *str, s64 index) {
+  auto ch = string_char_at(vm, str, index);
+  return character_to_s64(ch);
+}
+
+Ptr string_set_char_at(VM *vm, ByteArrayObject *str, s64 index, character ch) {
+  auto width = character_byte_width(ch);
+  if (index > str->length + width) {
+    vm->error = "string index out of range";
   } else {
-    str->data[index] = ch;
+    for (auto i = 0; i < width; i++) {
+      str->data[index + i] = character_byte_at(ch, i);
+    }
   }
   return Nil;
 }
 
-Ptr make_filled_string(VM *vm, s64 size, char ch) {
+Ptr make_filled_string(VM *vm, s64 count, character ch) {
+  auto width = character_byte_width(ch);
+  auto size = count * width;
   auto s = alloc_bao(vm, String, size);
-  memset(s->data, ch, size);
+  // memset(s->data, ch, size);
+  // TODO this is slow
+  for (auto i = 0; i < size; i+=width) {
+    string_set_char_at(vm, s, i, ch);
+  }
   return objToPtr(s);
 }
 
@@ -1431,7 +1524,18 @@ std::ostream &operator<<(std::ostream &os, Ptr it) {
     if (isNil(it)) return os << "nil";
     return os << as(Object, it);
   }
-  case Char_Tag  : return os << "#\\" << character_names_by_code[as(Char, it)];
+  case Char_Tag  : {
+    auto ch = as(Char, it);
+    if (character_byte_width(ch) == 1) {
+      auto byte = character_byte_at(ch, 0);
+      return os << "#\\" << character_names_by_code[byte];
+    } else {
+      auto str = character_as_c_string(ch);
+      os << "#\\" << str;
+      free(str); // yuck that we have to do this. should define a struct if possible
+      return os;
+    }
+  }
   case Bool_Tag  : return os << (as(Bool, it) ? "#t" : "#f");
   case PrimOp_Tag: return os << "#<PrimOp " << (it.value >> 32) << ">";
   case Point_Tag : {

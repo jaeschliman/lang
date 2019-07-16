@@ -1,4 +1,4 @@
-(define str " abcde😍")
+(define str " abcde😍😍😍fghijklmno😍")
 
 (print str)
 
@@ -10,3 +10,6 @@
 (print (char-at str 4))
 (print (char-at str 5))
 (print (char-at str 6))
+
+(string-do-chars (ch str)
+ (print ch))

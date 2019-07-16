@@ -100,19 +100,20 @@ enum PrimitiveOperation : u64 {
   PRIM_CH_ATP = ((97ULL << 32) | (3ULL << 16) | PrimOp_Tag),
   PRIM_CH_LT = ((98ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_CH_GT = ((99ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_CHNM = ((100ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_MKSTR = ((101ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_STRLEN = ((102ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_SSTKMARK = ((103ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PSTKMARK = ((104ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_RSTKSNAP = ((105ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_CONT_VAL = ((106ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_FORK = ((107ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_MK_SEM = ((108ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_SEM_SIG = ((109ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_CURR_THD = ((110ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_SLURP = ((111ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_IM_SAV = ((112ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_CH_W = ((100ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_CHNM = ((101ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_MKSTR = ((102ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_STRLEN = ((103ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_SSTKMARK = ((104ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PSTKMARK = ((105ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_RSTKSNAP = ((106ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_CONT_VAL = ((107ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_FORK = ((108ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_MK_SEM = ((109ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_SEM_SIG = ((110ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_CURR_THD = ((111ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_SLURP = ((112ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_IM_SAV = ((113ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -979,6 +980,14 @@ Ptr PRIM_CH_GT_impl(VM *vm, u32 argc) {
 }
 
 // Primitive 99
+Ptr PRIM_CH_W_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("char-width",Char,a);
+
+  return to(Fixnum,(character_byte_width(a)));
+}
+
+// Primitive 100
 Ptr PRIM_CHNM_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("char-by-name",String,name);
@@ -986,7 +995,7 @@ Ptr PRIM_CHNM_impl(VM *vm, u32 argc) {
  return character_by_name(name);
 }
 
-// Primitive 100
+// Primitive 101
 Ptr PRIM_MKSTR_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("make-string",Char,ch);
@@ -995,7 +1004,7 @@ Ptr PRIM_MKSTR_impl(VM *vm, u32 argc) {
  return make_filled_string(vm, len, ch);
 }
 
-// Primitive 101
+// Primitive 102
 Ptr PRIM_STRLEN_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("string-length",String,str);
@@ -1003,7 +1012,7 @@ Ptr PRIM_STRLEN_impl(VM *vm, u32 argc) {
   return to(Fixnum,(string_length(str)));
 }
 
-// Primitive 102
+// Primitive 103
 Ptr PRIM_SSTKMARK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("set-stack-mark",any,m);
@@ -1011,7 +1020,7 @@ Ptr PRIM_SSTKMARK_impl(VM *vm, u32 argc) {
  return vm_set_stack_mark(vm, m);
 }
 
-// Primitive 103
+// Primitive 104
 Ptr PRIM_PSTKMARK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("snapshot-to-stack-mark",any,v);
@@ -1020,7 +1029,7 @@ Ptr PRIM_PSTKMARK_impl(VM *vm, u32 argc) {
  return vm_abort_to_mark(vm, m, v);
 }
 
-// Primitive 104
+// Primitive 105
 Ptr PRIM_RSTKSNAP_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("resume-stack-snapshot",any,arg);
@@ -1029,7 +1038,7 @@ Ptr PRIM_RSTKSNAP_impl(VM *vm, u32 argc) {
  return vm_resume_stack_snapshot(vm, s, arg);
 }
 
-// Primitive 105
+// Primitive 106
 Ptr PRIM_CONT_VAL_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("continuation-value",any,a);
@@ -1037,7 +1046,7 @@ Ptr PRIM_CONT_VAL_impl(VM *vm, u32 argc) {
  return cont_get_value(a);
 }
 
-// Primitive 106
+// Primitive 107
 Ptr PRIM_FORK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("fork-continuation",any,a);
@@ -1046,7 +1055,7 @@ Ptr PRIM_FORK_impl(VM *vm, u32 argc) {
  return vm_schedule_cont(vm, a, priority, Nil);
 }
 
-// Primitive 107
+// Primitive 108
 Ptr PRIM_MK_SEM_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("make-semaphore",Fixnum,a);
@@ -1054,7 +1063,7 @@ Ptr PRIM_MK_SEM_impl(VM *vm, u32 argc) {
  return make_semaphore(vm, to(Fixnum, a));
 }
 
-// Primitive 108
+// Primitive 109
 Ptr PRIM_SEM_SIG_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("signal-semaphore",any,a);
@@ -1062,14 +1071,14 @@ Ptr PRIM_SEM_SIG_impl(VM *vm, u32 argc) {
  return signal_semaphore(a);
 }
 
-// Primitive 109
+// Primitive 110
 Ptr PRIM_CURR_THD_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
  return vm->globals->current_thread;
 }
 
-// Primitive 110
+// Primitive 111
 Ptr PRIM_SLURP_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("slurp",String,path);
@@ -1077,7 +1086,7 @@ Ptr PRIM_SLURP_impl(VM *vm, u32 argc) {
  return slurp(vm, path);
 }
 
-// Primitive 111
+// Primitive 112
 Ptr PRIM_IM_SAV_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("save-snapshot",String,path);
@@ -1187,6 +1196,7 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_CH_ATP_impl,
   &PRIM_CH_LT_impl,
   &PRIM_CH_GT_impl,
+  &PRIM_CH_W_impl,
   &PRIM_CHNM_impl,
   &PRIM_MKSTR_impl,
   &PRIM_STRLEN_impl,
@@ -1306,6 +1316,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "char-at-put", to(PrimOp, PRIM_CH_ATP));
   set_global(vm, "char-<", to(PrimOp, PRIM_CH_LT));
   set_global(vm, "char->", to(PrimOp, PRIM_CH_GT));
+  set_global(vm, "char-width", to(PrimOp, PRIM_CH_W));
   set_global(vm, "char-by-name", to(PrimOp, PRIM_CHNM));
   set_global(vm, "make-string", to(PrimOp, PRIM_MKSTR));
   set_global(vm, "string-length", to(PrimOp, PRIM_STRLEN));
@@ -2088,13 +2099,20 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
   }
 
   case 100: {
+   VM_ARG("char-width",Char,a);
+
+     vm_push(vm, to(Fixnum,(character_byte_width(a))));
+    break;
+  }
+
+  case 101: {
    VM_ARG("char-by-name",String,name);
 
     vm_push(vm, character_by_name(name));
     break;
   }
 
-  case 101: {
+  case 102: {
    VM_ARG("make-string",Char,ch);
    VM_ARG("make-string",Fixnum,len);
 
@@ -2102,21 +2120,21 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 102: {
+  case 103: {
    VM_ARG("string-length",String,str);
 
      vm_push(vm, to(Fixnum,(string_length(str))));
     break;
   }
 
-  case 103: {
+  case 104: {
    VM_ARG("set-stack-mark",any,m);
 
     vm_push(vm, vm_set_stack_mark(vm, m));
     break;
   }
 
-  case 104: {
+  case 105: {
    VM_ARG("snapshot-to-stack-mark",any,v);
    VM_ARG("snapshot-to-stack-mark",any,m);
 
@@ -2124,7 +2142,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 105: {
+  case 106: {
    VM_ARG("resume-stack-snapshot",any,arg);
    VM_ARG("resume-stack-snapshot",any,s);
 
@@ -2132,14 +2150,14 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 106: {
+  case 107: {
    VM_ARG("continuation-value",any,a);
 
     vm_push(vm, cont_get_value(a));
     break;
   }
 
-  case 107: {
+  case 108: {
    VM_ARG("fork-continuation",any,a);
    VM_ARG("fork-continuation",any,priority);
 
@@ -2147,34 +2165,34 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 108: {
+  case 109: {
    VM_ARG("make-semaphore",Fixnum,a);
 
     vm_push(vm, make_semaphore(vm, to(Fixnum, a)));
     break;
   }
 
-  case 109: {
+  case 110: {
    VM_ARG("signal-semaphore",any,a);
 
     vm_push(vm, signal_semaphore(a));
     break;
   }
 
-  case 110: {
+  case 111: {
 
     vm_push(vm, vm->globals->current_thread);
     break;
   }
 
-  case 111: {
+  case 112: {
    VM_ARG("slurp",String,path);
 
     vm_push(vm, slurp(vm, path));
     break;
   }
 
-  case 112: {
+  case 113: {
    VM_ARG("save-snapshot",String,path);
 
     vm_push(vm, im_snapshot_to_path(vm, path));

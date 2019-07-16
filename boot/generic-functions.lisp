@@ -1,5 +1,5 @@
-(define GenericFunction1 (create-class 'GenericFunction1 1))
-(define GenericFunction2 (create-class 'GenericFunction2 1))
+(define GenericFunction1 (create-class 'GenericFunction1 2))
+(define GenericFunction2 (create-class 'GenericFunction2 2))
 
 (define (gf-lookup-1 ht class)
   (let ((r (ht-at ht class)))
@@ -23,10 +23,12 @@
       (when (nil? class) (throw `(unsupported gf arity ,arity)))
       (let ((result (instantiate-class class)))
         (instance-set-ivar result 0 (make-ht))
+        (instance-set-ivar result 1 arity)
         result)))
 
 (define (generic-function-add-method fn classlist method)
-    ;; TODO: check classlist against arity
+    (when (not (eq (instance-get-ivar fn 1) (list-length classlist)))
+      (throw `(generic-function-add-method wrong arity)))
     (let ((ht (instance-get-ivar fn 0)))
       (gf-store ht classlist method)
       '()))

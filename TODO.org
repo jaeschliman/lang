@@ -213,6 +213,8 @@ e.g.
 * TODO think whether we should have inheritance
   I like the idea of object delegation a bit more, it seems more flexible
 * TODO `proper` macroexpander that understands lexical scope
+* TODO support for command line args in image and boot
+* TODO call onshow when booting image as well
 
 * notes
 maybe have a stack of compilers? can push/pop...

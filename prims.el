@@ -213,7 +213,7 @@ void initialize_primitive_functions(VM *vm) {
         ((obj Standard) (idx Fixnum) (val any)) any
         "standard_object_set_ivar(obj, idx, val)")
 
-
+  ;; not convinced we need this block anymore. we can implement in userspace
   (prim class?        IS_CLSS ((a any)) Bool "is_class(a)")
   (prim bool?         IS_BOOL ((a any)) Bool "is(Bool, a)")
   (prim closure?      IS_CLS  ((a any)) Bool "is(Closure, a)")

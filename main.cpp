@@ -758,6 +758,9 @@ type_test(String, it) {
   auto bao = as(ByteArray, it);
   return bao->bao_type == String;
 }
+create_ptr_for(String, ByteArrayObject *it) {
+  return objToPtr(it);
+}
 unwrap_ptr_for(String, it) {
   return as(ByteArray, it);
 }
@@ -841,8 +844,11 @@ PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
 type_test(Array, it) {
   return is(PtrArray, it) && (as(PtrArray, it))->pao_type == Array;
 }
+create_ptr_for(Array, PtrArrayObject *it) {
+  return objToPtr(it);
+}
 unwrap_ptr_for(Array, it) {
-  return as(ByteArray, it);
+  return as(PtrArray, it);
 }
 
 type_test(Struct, it) {
@@ -1002,6 +1008,7 @@ Ptr make_zf_array(VM *vm, u64 len) {
   return objToPtr(array);
 }
 
+
 Ptr make_zf_struct(VM *vm, u64 len, Ptr tag) { prot_ptr(tag);
   auto array = alloc_pao(vm, Struct, len + 1); // alloc is zf
   array->data[0] = tag;
@@ -1036,6 +1043,47 @@ u64 array_capacity(Ptr array) {
   auto a = as(PtrArray, array);
   return a->length;
 }
+
+PtrArrayObject *array_from_string(VM *vm, ByteArrayObject *str) { gc_protect(str);
+  auto len = string_char_count(str); 
+  auto result = make_zf_array(vm, len);
+  u64 read = 0;
+  auto write = 0;
+  while (write < len) {
+    auto ch = string_char_at(vm, str, read);
+    array_set(result, write, to(Char, ch));
+    read += character_byte_width(ch);
+    write++;
+  }
+  gc_unprotect(str);
+  return as(PtrArray, result);
+}
+
+ByteArrayObject *string_from_array(VM *vm, PtrArrayObject *chars) { gc_protect(chars);
+  auto size = 0;
+  {
+    auto i = 0;
+    while (i < chars->length) {
+      size += character_byte_width(from(Char, chars->data[i]));
+      i++;
+    }
+  }
+  auto result = alloc_bao(vm, String, size);
+  {
+    auto array = objToPtr(chars);
+    auto write = 0;
+    auto read = 0;
+    while (read < chars->length) {
+      auto ch = from(Char, array_get(array, read));
+      string_set_char_at(vm, result, write, ch);
+      write += character_byte_width(ch);
+      read++;
+    }
+  }
+  gc_unprotect(chars);
+  return result;
+}
+
 
 // using a 2 element array to hold count and buffer for now -- could be a defstruct
 Ptr make_xarray_with_capacity_and_used(VM *vm, u64 cap, u64 used) {

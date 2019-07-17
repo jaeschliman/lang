@@ -13,3 +13,7 @@
 
 (string-do-chars (ch str)
  (print ch))
+
+
+(print (string->char-array str))
+(print (char-array->string (string->char-array str)))

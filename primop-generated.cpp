@@ -105,16 +105,18 @@ enum PrimitiveOperation : u64 {
   PRIM_MKSTR = ((102ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_STRBLEN = ((103ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_STRCHCNT = ((104ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_SSTKMARK = ((105ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PSTKMARK = ((106ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_RSTKSNAP = ((107ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_CONT_VAL = ((108ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_FORK = ((109ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_MK_SEM = ((110ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_SEM_SIG = ((111ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_CURR_THD = ((112ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_SLURP = ((113ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_IM_SAV = ((114ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_STR_CHARY = ((105ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_CHARY_STR = ((106ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_SSTKMARK = ((107ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PSTKMARK = ((108ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_RSTKSNAP = ((109ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_CONT_VAL = ((110ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_FORK = ((111ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_MK_SEM = ((112ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_SEM_SIG = ((113ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_CURR_THD = ((114ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_SLURP = ((115ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_IM_SAV = ((116ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -1022,6 +1024,22 @@ Ptr PRIM_STRCHCNT_impl(VM *vm, u32 argc) {
 }
 
 // Primitive 104
+Ptr PRIM_STR_CHARY_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("string->char-array",String,str);
+
+  return to(Array,(array_from_string(vm, str)));
+}
+
+// Primitive 105
+Ptr PRIM_CHARY_STR_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("char-array->string",Array,arr);
+
+  return to(String,(string_from_array(vm, arr)));
+}
+
+// Primitive 106
 Ptr PRIM_SSTKMARK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("set-stack-mark",any,m);
@@ -1029,7 +1047,7 @@ Ptr PRIM_SSTKMARK_impl(VM *vm, u32 argc) {
  return vm_set_stack_mark(vm, m);
 }
 
-// Primitive 105
+// Primitive 107
 Ptr PRIM_PSTKMARK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("snapshot-to-stack-mark",any,v);
@@ -1038,7 +1056,7 @@ Ptr PRIM_PSTKMARK_impl(VM *vm, u32 argc) {
  return vm_abort_to_mark(vm, m, v);
 }
 
-// Primitive 106
+// Primitive 108
 Ptr PRIM_RSTKSNAP_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("resume-stack-snapshot",any,arg);
@@ -1047,7 +1065,7 @@ Ptr PRIM_RSTKSNAP_impl(VM *vm, u32 argc) {
  return vm_resume_stack_snapshot(vm, s, arg);
 }
 
-// Primitive 107
+// Primitive 109
 Ptr PRIM_CONT_VAL_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("continuation-value",any,a);
@@ -1055,7 +1073,7 @@ Ptr PRIM_CONT_VAL_impl(VM *vm, u32 argc) {
  return cont_get_value(a);
 }
 
-// Primitive 108
+// Primitive 110
 Ptr PRIM_FORK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("fork-continuation",any,a);
@@ -1064,7 +1082,7 @@ Ptr PRIM_FORK_impl(VM *vm, u32 argc) {
  return vm_schedule_cont(vm, a, priority, Nil);
 }
 
-// Primitive 109
+// Primitive 111
 Ptr PRIM_MK_SEM_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("make-semaphore",Fixnum,a);
@@ -1072,7 +1090,7 @@ Ptr PRIM_MK_SEM_impl(VM *vm, u32 argc) {
  return make_semaphore(vm, to(Fixnum, a));
 }
 
-// Primitive 110
+// Primitive 112
 Ptr PRIM_SEM_SIG_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("signal-semaphore",any,a);
@@ -1080,14 +1098,14 @@ Ptr PRIM_SEM_SIG_impl(VM *vm, u32 argc) {
  return signal_semaphore(a);
 }
 
-// Primitive 111
+// Primitive 113
 Ptr PRIM_CURR_THD_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
  return vm->globals->current_thread;
 }
 
-// Primitive 112
+// Primitive 114
 Ptr PRIM_SLURP_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("slurp",String,path);
@@ -1095,7 +1113,7 @@ Ptr PRIM_SLURP_impl(VM *vm, u32 argc) {
  return slurp(vm, path);
 }
 
-// Primitive 113
+// Primitive 115
 Ptr PRIM_IM_SAV_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("save-snapshot",String,path);
@@ -1210,6 +1228,8 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_MKSTR_impl,
   &PRIM_STRBLEN_impl,
   &PRIM_STRCHCNT_impl,
+  &PRIM_STR_CHARY_impl,
+  &PRIM_CHARY_STR_impl,
   &PRIM_SSTKMARK_impl,
   &PRIM_PSTKMARK_impl,
   &PRIM_RSTKSNAP_impl,
@@ -1331,6 +1351,8 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "make-string", to(PrimOp, PRIM_MKSTR));
   set_global(vm, "string-byte-length", to(PrimOp, PRIM_STRBLEN));
   set_global(vm, "string-char-count", to(PrimOp, PRIM_STRCHCNT));
+  set_global(vm, "string->char-array", to(PrimOp, PRIM_STR_CHARY));
+  set_global(vm, "char-array->string", to(PrimOp, PRIM_CHARY_STR));
   set_global(vm, "set-stack-mark", to(PrimOp, PRIM_SSTKMARK));
   set_global(vm, "snapshot-to-stack-mark", to(PrimOp, PRIM_PSTKMARK));
   set_global(vm, "resume-stack-snapshot", to(PrimOp, PRIM_RSTKSNAP));
@@ -2146,13 +2168,27 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
   }
 
   case 105: {
+   VM_ARG("string->char-array",String,str);
+
+     vm_push(vm, to(Array,(array_from_string(vm, str))));
+    break;
+  }
+
+  case 106: {
+   VM_ARG("char-array->string",Array,arr);
+
+     vm_push(vm, to(String,(string_from_array(vm, arr))));
+    break;
+  }
+
+  case 107: {
    VM_ARG("set-stack-mark",any,m);
 
     vm_push(vm, vm_set_stack_mark(vm, m));
     break;
   }
 
-  case 106: {
+  case 108: {
    VM_ARG("snapshot-to-stack-mark",any,v);
    VM_ARG("snapshot-to-stack-mark",any,m);
 
@@ -2160,7 +2196,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 107: {
+  case 109: {
    VM_ARG("resume-stack-snapshot",any,arg);
    VM_ARG("resume-stack-snapshot",any,s);
 
@@ -2168,14 +2204,14 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 108: {
+  case 110: {
    VM_ARG("continuation-value",any,a);
 
     vm_push(vm, cont_get_value(a));
     break;
   }
 
-  case 109: {
+  case 111: {
    VM_ARG("fork-continuation",any,a);
    VM_ARG("fork-continuation",any,priority);
 
@@ -2183,34 +2219,34 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 110: {
+  case 112: {
    VM_ARG("make-semaphore",Fixnum,a);
 
     vm_push(vm, make_semaphore(vm, to(Fixnum, a)));
     break;
   }
 
-  case 111: {
+  case 113: {
    VM_ARG("signal-semaphore",any,a);
 
     vm_push(vm, signal_semaphore(a));
     break;
   }
 
-  case 112: {
+  case 114: {
 
     vm_push(vm, vm->globals->current_thread);
     break;
   }
 
-  case 113: {
+  case 115: {
    VM_ARG("slurp",String,path);
 
     vm_push(vm, slurp(vm, path));
     break;
   }
 
-  case 114: {
+  case 116: {
    VM_ARG("save-snapshot",String,path);
 
     vm_push(vm, im_snapshot_to_path(vm, path));

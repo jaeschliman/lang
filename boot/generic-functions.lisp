@@ -159,7 +159,7 @@
   ((Float Fixnum)  %>=))
 
 (define length (make-generic-function 1))
-(generic-function-add-method length (list String) string-length)
+(generic-function-add-method length (list String) string-byte-length) ;; hmmm not sure about this
 (generic-function-add-method length (list Cons)   list-length)
 (generic-function-add-method length (list Null)   (lambda (_) 0))
 

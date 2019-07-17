@@ -979,8 +979,19 @@ Ptr make_filled_string(VM *vm, s64 count, character ch) {
   return objToPtr(s);
 }
 
-s64 string_length(ByteArrayObject *str) {
+s64 string_byte_length(ByteArrayObject *str) {
   return str->length;
+}
+
+s64 string_char_count(ByteArrayObject *str){
+  auto count = 0;
+  auto i = 0;
+  while (i < str->length) {
+    u8 byte = str->data[i];
+    count++;
+    i += utf8_byte_width_for_char(byte);
+  }
+  return count;
 }
 
 inline Ptr make_number(s64 value) { return to(Fixnum, value); }
@@ -3143,7 +3154,7 @@ Ptr make_istream_from_string(VM *vm, const char *input) {
 
 bool istream_at_end(Ptr s) {
   auto used  = as(Fixnum, istream_get_index(s));
-  auto avail = string_length(as(String, istream_get_string(s)));
+  auto avail = string_byte_length(as(String, istream_get_string(s))); // XXX utf8
   return used >= avail - 1;
 }
 

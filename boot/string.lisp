@@ -1,4 +1,3 @@
-(set 'string-byte-length string-length) ;; TODO replace uses of string-length
 
 (defmacro string-do-chars (binding & body)
   (let ((loop (gensym))

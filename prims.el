@@ -342,7 +342,8 @@ void initialize_primitive_functions(VM *vm) {
   (prim char-by-name CHNM ((name String)) any "character_by_name(name)")
 
   (prim make-string MKSTR ((len Fixnum) (ch Char)) any "make_filled_string(vm, len, ch)")
-  (prim string-length STRLEN ((str String)) Fixnum "string_length(str)")
+  (prim string-byte-length STRBLEN ((str String)) Fixnum "string_byte_length(str)")
+  (prim string-char-count STRCHCNT ((str String)) Fixnum "string_char_count(str)")
 
   (prim set-stack-mark SSTKMARK ((m any)) any "vm_set_stack_mark(vm, m)")
   (prim snapshot-to-stack-mark PSTKMARK ((m any) (v any)) any "vm_abort_to_mark(vm, m, v)")

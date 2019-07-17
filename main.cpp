@@ -5970,6 +5970,7 @@ void vm_init_for_blank_startup(VM *vm) {
   load_file(vm, "./boot/generic-functions.lisp");
   load_file(vm, "./boot/list.lisp");
   load_file(vm, "./boot/string.lisp");
+  load_file(vm, "./boot/string-output-stream.lisp");
   load_file(vm, "./boot/exports.lisp");
 }
 

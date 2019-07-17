@@ -260,30 +260,6 @@
 (define (list-length lst)
     (reduce-list (lambda (acc _) (+i acc 1)) 0 lst))
 
-(define (charlist-to-string lst-of-chars)
-    (let ((str (make-string (list-length lst-of-chars) #\Space)))
-      (reduce-list (lambda (idx chr)
-                     (char-at-put str idx chr)
-                     (+i 1 idx))
-                   0 lst-of-chars)
-      str))
-
-(define (string-to-charlist str)
-    (let ((loop #f))
-      (set! loop (lambda (acc n)
-                   (if (<i n 0)
-                       acc
-                       (loop (cons (char-at str n) acc) (-i n 1)))))
-      (loop '() (-i (string-length str) 1))))
-
-(define (implode lst-of-chars)
-    (let ((str (make-string (list-length lst-of-chars) #\Space)))
-      (reduce-list (lambda (idx chr)
-                     (char-at-put str idx chr)
-                     (+i 1 idx))
-                   0 lst-of-chars)
-      (intern str *package*)))
-
 (defmacro case (subj & tests)
   (let* ((name (gensym))
          (xform '()))

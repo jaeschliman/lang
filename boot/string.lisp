@@ -16,4 +16,22 @@
                          (,loop ,str (+i (char-width ,ch) ,idx) ,max)))))
        (,loop ,init-str 0 (string-byte-length ,init-str)))))
 
+(define (charlist-to-string lst-of-chars)
+    (let* ((byte-len (reduce-list (lambda (acc ch) (+i acc (char-width ch))) 0 lst-of-chars))
+           (str (make-string byte-len #\Space)))
+      (reduce-list (lambda (idx chr)
+                     (char-at-put str idx chr)
+                     (+i (char-width chr) idx))
+                   0 lst-of-chars)
+      str))
+
+(define (string-to-charlist str)
+    (let ((result '()))
+      (string-do-chars (ch str)
+         (set! result (cons ch result)))
+      (reverse-list result)))
+
+(define (implode lst-of-chars) (intern (charlist-to-string lst-of-chars) *package*))
+
+
 'done

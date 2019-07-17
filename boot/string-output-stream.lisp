@@ -38,3 +38,24 @@
         (set! idx (if (char? it) (%array-write-char arr it idx)
                       (%array-write-string arr it idx))))
       (char-array->string arr)))
+
+(defmacro with-output-to-string (binding & body)
+  (let ((var (car binding)))
+    `(let ((,var (make-string-output-stream)))
+       ,@body
+       (string-output-stream-get-string ,var))))
+
+
+(define stream-write-char (make-generic-function 2))
+
+(generic-function-add-method stream-write-char (list StringOutputStream #t)
+                             %string-output-stream-write-char)
+(generic-function-add-method stream-write-char (list FileOutputStream #t)
+                             %file-output-stream-write-char)
+
+(define stream-write-string (make-generic-function 2))
+
+(generic-function-add-method stream-write-string (list StringOutputStream #t)
+                             %string-output-stream-write-string)
+(generic-function-add-method stream-write-string (list FileOutputStream #t)
+                             %file-output-stream-write-string)

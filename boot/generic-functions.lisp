@@ -42,8 +42,8 @@
 
 (define (generic-function-2-invoke fn arg1 arg2)
     (let* ((ht (instance-get-ivar fn 0))
-           (ht2 (ht-at ht (class-of arg1)))
-           (method (ht-at ht2 (class-of arg2))))
+           (ht2 (gf-lookup-1 ht (class-of arg1)))
+           (method (gf-lookup-1 ht2 (class-of arg2))))
       (method arg1 arg2)))
 
 (class-set-applicator GenericFunction2 generic-function-2-invoke)

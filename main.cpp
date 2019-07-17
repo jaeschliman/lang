@@ -1073,6 +1073,7 @@ ByteArrayObject *string_from_array(VM *vm, PtrArrayObject *chars) { gc_protect(c
     }
   }
   auto result = alloc_bao(vm, String, size);
+  set_obj_tag(result, String);
   {
     auto array = objToPtr(chars);
     auto write = 0;

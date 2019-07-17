@@ -1,1 +1,2 @@
-X(CompilerEnv, HashTable, StackFrame, InputStream, Continuation, Thread, Semaphore, Package)
+X(CompilerEnv, HashTable, StackFrame, InputStream,
+  Continuation, Thread, Semaphore, Package, FileOutputStream)

@@ -1251,6 +1251,7 @@ enum StructTag : s64 {
   StructTag_Continuation,
   StructTag_Thread,
   StructTag_Semaphore,
+  StructTag_FileOutputStream,
   StructTag_End
 };
 
@@ -1281,6 +1282,7 @@ defstruct(thread, Thread,
           local_bindings);
 defstruct(semaphore, Semaphore,
           count);
+defstruct(file_output_stream, FileOutputStream, fd);
 
 auto THREAD_STATUS_RUNNING  = FIXNUM(0);
 auto THREAD_STATUS_WAITING  = FIXNUM(1);
@@ -1331,6 +1333,23 @@ Ptr closure_env(Ptr closure) {
   return array_get(closure, 1);
 }
 
+bool file_output_stream_write_string(Ptr os, ByteArrayObject *str) {
+  auto fd = from(Fixnum, file_output_stream_get_fd(os));
+  assert(fd == 1 || fd == 2); // only support stdout & stderr right now
+  auto file = fd == 1 ? stdout : stderr;
+  auto wrote = fwrite(str->data, 1, str->length, file);
+  return wrote == str->length;
+}
+bool file_output_stream_write_char(Ptr os, character ch) {
+  auto fd = from(Fixnum, file_output_stream_get_fd(os));
+  assert(fd == 1 || fd == 2); // only support stdout & stderr right now
+  auto file = fd == 1 ? stdout : stderr;
+  auto count = character_byte_width(ch);
+  char buf[5] = {0};
+  auto str = character_as_c_string(ch, (char *)&buf);
+  auto wrote = fwrite(str, 1, count, file);
+  return wrote == count;
+}
 
 /* ---------------------------------------- */
 
@@ -2826,6 +2845,12 @@ inline void _thread_local_binding_pop(VM *vm) {
 void initialize_global_variables(VM *vm) {
   set_symbol_value(vm, KNOWN(XpackageX), vm->globals->root_package);
   mark_symbol_as_special(vm, KNOWN(XpackageX));
+  auto _stdout = root_intern(vm, "*standard-output*");
+  set_symbol_value(vm, _stdout, make_file_output_stream(vm, FIXNUM(1)));
+  mark_symbol_as_special(vm, _stdout);
+  auto _stderr = root_intern(vm, "*standard-error*");
+  set_symbol_value(vm, _stderr, make_file_output_stream(vm, FIXNUM(2)));
+  mark_symbol_as_special(vm, _stderr);
 }
 
 /* -------------------------------------------------- */

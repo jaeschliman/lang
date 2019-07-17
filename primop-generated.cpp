@@ -117,7 +117,9 @@ enum PrimitiveOperation : u64 {
   PRIM_SEM_SIG = ((114ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_CURR_THD = ((115ULL << 32) | (255ULL << 16) | PrimOp_Tag),
   PRIM_SLURP = ((116ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_IM_SAV = ((117ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_OS_WSTR = ((117ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_OS_WCH = ((118ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_IM_SAV = ((119ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -1123,6 +1125,24 @@ Ptr PRIM_SLURP_impl(VM *vm, u32 argc) {
 }
 
 // Primitive 116
+Ptr PRIM_OS_WSTR_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("%file-output-stream-write-string",String,str);
+   VM_ARG("%file-output-stream-write-string",any,s);
+
+  return to(Bool,(file_output_stream_write_string(s, str)));
+}
+
+// Primitive 117
+Ptr PRIM_OS_WCH_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("%file-output-stream-write-char",Char,ch);
+   VM_ARG("%file-output-stream-write-char",any,s);
+
+  return to(Bool,(file_output_stream_write_char(s, ch)));
+}
+
+// Primitive 118
 Ptr PRIM_IM_SAV_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("save-snapshot",String,path);
@@ -1249,6 +1269,8 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_SEM_SIG_impl,
   &PRIM_CURR_THD_impl,
   &PRIM_SLURP_impl,
+  &PRIM_OS_WSTR_impl,
+  &PRIM_OS_WCH_impl,
   &PRIM_IM_SAV_impl,
 
   (PrimitiveFunction)(void *)0
@@ -1373,6 +1395,8 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "signal-semaphore", to(PrimOp, PRIM_SEM_SIG));
   set_global(vm, "current-thread", to(PrimOp, PRIM_CURR_THD));
   set_global(vm, "slurp", to(PrimOp, PRIM_SLURP));
+  set_global(vm, "%file-output-stream-write-string", to(PrimOp, PRIM_OS_WSTR));
+  set_global(vm, "%file-output-stream-write-char", to(PrimOp, PRIM_OS_WCH));
   set_global(vm, "save-snapshot", to(PrimOp, PRIM_IM_SAV));
 
 }
@@ -2265,6 +2289,22 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
   }
 
   case 117: {
+   VM_ARG("%file-output-stream-write-string",String,str);
+   VM_ARG("%file-output-stream-write-string",any,s);
+
+     vm_push(vm, to(Bool,(file_output_stream_write_string(s, str))));
+    break;
+  }
+
+  case 118: {
+   VM_ARG("%file-output-stream-write-char",Char,ch);
+   VM_ARG("%file-output-stream-write-char",any,s);
+
+     vm_push(vm, to(Bool,(file_output_stream_write_char(s, ch))));
+    break;
+  }
+
+  case 119: {
    VM_ARG("save-snapshot",String,path);
 
     vm_push(vm, im_snapshot_to_path(vm, path));

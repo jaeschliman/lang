@@ -412,6 +412,10 @@
 (set-class-name Semaphore    'Semaphore)
 (define         Thread       (class-of (current-thread)))
 (set-class-name Thread       'Thread)
+
+(define         FileOutputStream (class-of *standard-output*))
+(set-class-name FileOutputStream 'FileOutputStream)
+
 (define         Class        (class-of (class-of 0)))
 (set-class-name Class        'Class)
 

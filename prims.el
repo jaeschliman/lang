@@ -361,6 +361,11 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim slurp SLURP ((path String)) any "slurp(vm, path)")
 
+  (prim %file-output-stream-write-string OS_WSTR ((s any) (str String)) Bool
+        "file_output_stream_write_string(s, str)")
+  (prim %file-output-stream-write-char OS_WCH ((s any) (ch Char)) Bool
+        "file_output_stream_write_char(s, ch)")
+
   (prim save-snapshot IM_SAV ((path String)) any "im_snapshot_to_path(vm, path)")
 
   (setf *prims* (reverse *prims*))

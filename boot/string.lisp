@@ -24,6 +24,8 @@
                    0 lst-of-chars)
       str))
 
+(define list->string charlist-to-string)
+
 (define (string-to-charlist str)
     (let ((result '()))
       (string-do-chars (ch str)
@@ -32,5 +34,6 @@
 
 (define (implode lst-of-chars) (intern (charlist-to-string lst-of-chars) *package*))
 
+(define string->list string-to-charlist)
 
 'done

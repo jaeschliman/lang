@@ -287,10 +287,23 @@
 (set 'eval (lambda (x) ((compile-to-closure (compiler x)))))
 
 ;;; more utils
+
 (defmacro when (test & body)
   `(if ,test (let () ,@body)))
+
 (defmacro unless (test & body)
   `(when (not ,test) ,@body))
+
+(defmacro dotimes (binding & body)
+  (let ((var (car binding))
+        (max (gensym))
+        (loop (gensym)))
+    `(let ((,loop #f))
+       (set! ,loop (lambda (,var ,max)
+                     (when (<i ,var ,max)
+                       ,@body
+                       (,loop (+i 1 ,var) ,max))))
+       (,loop 0 ,(cadr binding)))))
 
 ;;; test helpers
 

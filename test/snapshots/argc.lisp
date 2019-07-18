@@ -1,0 +1,12 @@
+(define (print-em-all)
+    (let ((argc (%argument-count)))
+      (when (>= argc 1) (print (%load-arg 0)))
+      (when (>= argc 2) (print (%load-arg 1)))
+      (when (>= argc 3) (print (%load-arg 2)))
+      (when (>= argc 4) (print (%load-arg 3)))))
+
+(print-em-all)
+(print-em-all 0)
+(print-em-all 0 1)
+(print-em-all 0 1 2)
+(print-em-all 0 1 2 3)

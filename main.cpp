@@ -5968,10 +5968,12 @@ void vm_init_for_blank_startup(VM *vm) {
 
   // load the stdlib
   load_file(vm, "./boot/0.lisp");
+  load_file(vm, "./boot/built-in-classes.lisp");
   load_file(vm, "./boot/generic-functions.lisp");
   load_file(vm, "./boot/list.lisp");
   load_file(vm, "./boot/string.lisp");
   load_file(vm, "./boot/string-output-stream.lisp");
+  load_file(vm, "./boot/interaction-support.lisp");
   load_file(vm, "./boot/exports.lisp");
 }
 

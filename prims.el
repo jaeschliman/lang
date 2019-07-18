@@ -192,6 +192,8 @@ void initialize_primitive_functions(VM *vm) {
 
   ;; NORMAL BUILTINS
 
+  (prim %argument-count ARGC () Fixnum "(s64)vm->frame->argc")
+  (prim %load-arg LDARG ((it Fixnum)) any "vm_load_arg(vm, it)")
   (prim compile-to-closure CMPC ((expr any)) any "compile_to_closure(vm, expr)")
 
   (prim class-of CLASSOF ((a any)) any "class_of(vm, a)")

@@ -4088,6 +4088,12 @@ inline Ptr vm_stack_ref(VM *vm, u32 distance) {
   return vm->stack[distance];
 }
 
+inline Ptr vm_load_arg(VM *vm, u32 idx) {
+  u64 argc = vm->frame->argc;
+  u64 ofs  = vm->frame->pad_count;
+  return vm->frame->argv[ofs + (argc - (idx + 1))];
+}
+
 // N.B. must not double-prot the ptrs on the stack to avoid double-copy
 Ptr vm_get_stack_values_as_list(VM *vm, u32 count) { //@varargs
   Ptr result = Nil; prot_ptr(result);
@@ -4483,9 +4489,7 @@ void vm_interp(VM* vm, interp_params params) {
     }
     case LOAD_ARG: {
       u64 idx = data;
-      u64 argc = vm->frame->argc;
-      u64 ofs  = vm->frame->pad_count;
-      auto it = vm->frame->argv[ofs + (argc - (idx + 1))];
+      auto it = vm_load_arg(vm, idx);
       vm_push(vm, it);
       // cout << " loading arg "<< idx << ": " << it << endl;
       // vm_dump_args(vm);

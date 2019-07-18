@@ -305,6 +305,19 @@
                        (,loop (+i 1 ,var) ,max))))
        (,loop 0 ,(cadr binding)))))
 
+(defmacro dolist (binding & body)
+  (let ((loop (gensym))
+        (remaining (gensym))
+        (var (car binding))
+        (form (cadr binding)))
+    `(let ((,loop #f))
+       (set! ,loop (lambda (,remaining)
+                     (unless (nil? ,remaining)
+                       (let ((,var (car ,remaining)))
+                         ,@body)
+                       (,loop (cdr ,remaining)))))
+       (,loop ,form))))
+
 ;;; test helpers
 
 (define deep-eq? #f)

@@ -33,8 +33,10 @@
 #include <stdlib.h> 
 #include <netinet/in.h>
 #include <fcntl.h>
+#include <math.h>
 #include "./stacktrace.h"
 #include "./macro_support.h"
+
 
 using std::string;
 
@@ -82,6 +84,11 @@ s64 current_time_ms() {
   auto now = std::chrono::system_clock::now();
   auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
   return ms.count();
+}
+
+f32 fractional_part(f32 n) {
+  f32 unused = 0;
+  return modf(n, &unused);
 }
 
 #define EXTRACT_PTR_MASK 0xFFFFFFFFFFFFFFF0

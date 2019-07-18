@@ -234,6 +234,15 @@ void initialize_primitive_functions(VM *vm) {
   (prim i->f  FIX_TO_FLT ((a Fixnum))            Float  "(f32)a")
   (prim f->i  FLT_TO_FIX ((a Float))             Fixnum "(s64)a")
 
+  (prim logf   FLT_LOG   ((base Float) (n Float)) Float "log(n) / log(base)")
+  (prim floorf FLT_FLOOR ((n Float))              Float "floorf(n)")
+  (prim ceilf  FLT_CEIL  ((n Float))              Float "ceilf(n)")
+  (prim powf   FLT_POW   ((n Float) (e Float))    Float "pow(n, e)")
+  (prim remf   FLT_REM   ((n Float))              Float "fractional_part(n)")
+  (prim cosf   FLT_COS   ((n Float))              Float "cos(n)")
+  (prim sinf   FLT_SIN   ((n Float))              Float "sin(n)")
+  (prim tanf   FLT_TAN   ((n Float))              Float "tan(n)")
+
   (prim list  LIST       list                    any    "list")
   (prim cons  CONS       ((a any) (b any))       any    "cons(vm, a, b)")
   (prim car   CAR        ((a any))               any    "car(a)")

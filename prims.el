@@ -213,26 +213,7 @@ void initialize_primitive_functions(VM *vm) {
         ((obj Standard) (idx Fixnum) (val any)) any
         "standard_object_set_ivar(obj, idx, val)")
 
-  ;; not convinced we need this block anymore. we can implement in userspace
   (prim class?        IS_CLSS ((a any)) Bool "is_class(a)")
-  (prim bool?         IS_BOOL ((a any)) Bool "is(Bool, a)")
-  (prim closure?      IS_CLS  ((a any)) Bool "is(Closure, a)")
-  (prim primop?       IS_PRIM ((a any)) Bool "is(PrimOp, a)")
-  (prim float?        IS_FLT  ((a any)) Bool "is(Float, a)")
-  (prim fixnum?       IS_INT  ((a any)) Bool "is(Fixnum, a)")
-  (prim pair?         PAIR_Q  ((a any)) Bool "is(cons, a)")
-  (prim nil?          ISNIL   ((a any)) Bool "isNil(a)")
-  (prim ht?           IS_HT   ((a any)) Bool "is(ht, a)")
-  (prim array?        IS_ARY  ((a any)) Bool "is(Array, a)")
-  (prim symbol?       SYM_Q   ((a any)) Bool "is(Symbol, a)")
-  (prim char?         ISCHAR  ((a any)) Bool "is(Char, a)")
-  (prim image?        ISIMAGE ((a any)) Bool "is(Image, a)")
-  (prim point?        IS_PT   ((a any)) Bool "is(Point, a)")
-  (prim continuation? IS_CONT ((a any)) Bool "is(cont, a)")
-  (prim string?       STR_P   ((a any)) Bool "is(String, a)")
-  (prim semaphore?    IS_SEM  ((a any)) Bool "is(semaphore, a)")
-  (prim thread?       IS_THD  ((a any)) Bool "is(thread, a)")
-  (prim package?      IS_PKG  ((a any)) Bool "is(package, a)")
 
   (prim +i    FIX_PLUS   ((a Fixnum) (b Fixnum)) Fixnum "a + b")
   (prim -i    FIX_MINUS  ((a Fixnum) (b Fixnum)) Fixnum "a - b")

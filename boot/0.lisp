@@ -356,13 +356,6 @@
 
 ;;  basic threading support -------------------------------------------------------
 
-(define (lambda->continuation fn)
-    (set-stack-mark 'helper)
-  (let ((r ((lambda ()
-              (snapshot-to-stack-mark 'helper '())
-              (fn)))))
-    r))
-
 (defmacro fork-with-priority (priority & forms)
   `(fork-continuation ,priority
                       (lambda->continuation (lambda () (let ((r (let () ,@forms))) r)))))

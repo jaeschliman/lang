@@ -219,6 +219,10 @@ e.g.
 * TODO make strings immutable
   with conversion functions <-> mutable arrays of characters
 * TODO get rid of the istream nonsense
+* TODO could make lists callable
+  ((list foo bar baz) a b c) =>
+  (baz (bar (foo a b c))) =>
+  (reduce-list (lambda (fn acc) (fn acc)) (apply (car fns) args) (cdr args))
 * notes
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack

@@ -1248,7 +1248,6 @@ enum StructTag : s64 {
   StructTag_VarInfo,
   StructTag_CompilerEnv,
   StructTag_HashTable,
-  StructTag_InputStream,
   StructTag_Continuation,
   StructTag_Thread,
   StructTag_Semaphore,
@@ -1267,7 +1266,6 @@ defstruct(cons, Cons, car, cdr);
 defstruct(Symbol, Symbol, name, package, value, flags, meta);
 defstruct(package, Package, name, symtab, exports, use_list);
 defstruct(ht, HashTable, array, dedupe_strings, count);
-defstruct(istream, InputStream, string, index);
 defstruct(cont, Continuation,
           stack_top,
           program_counter,
@@ -3220,47 +3218,6 @@ Ptr read_all(VM *vm, const char* input) {
   auto res  = make_list(vm, used, mem);
   unprot_ptrs(done, items, item);
   return res;
-}
-
-Ptr make_istream_from_string(VM *vm, const char *input) {
-  auto str = make_string(vm, input); prot_ptr(str);
-  auto idx = to(Fixnum, 0);
-  auto result = make_istream(vm, str, idx);
-  unprot_ptrs(str);
-  return result;
-}
-
-bool istream_at_end(Ptr s) {
-  auto used  = as(Fixnum, istream_get_index(s));
-  auto avail = string_byte_length(as(String, istream_get_string(s))); // XXX utf8
-  return used >= avail - 1;
-}
-
-Ptr istream_next(VM *vm, Ptr s) {
-  if (istream_at_end(s)) return Nil;
-  auto used = as(Fixnum, istream_get_index(s));
-  auto str  = as(String, istream_get_string(s));
-  istream_set_index(s, to(Fixnum, 1+used));
-  return to(Char, string_char_code_at(vm, str, used));
-}
-
-// sigh... this is pretty ugly, but it'll have to do for now...
-// @speed all this copying is horrrrrrible
-Ptr read_from_istream(VM *vm, Ptr s) { prot_ptr(s);
-  auto _str  = as(String, istream_get_string(s));
-  auto len   = _str->length;
-  auto used  = as(Fixnum, istream_get_index(s));
-  auto str   = string(_str->data + used, _str->length);
-  auto cstr  = str.c_str();
-  auto start = cstr;
-  auto end   = cstr + (len - used);
-  auto done  = cons(vm, Nil, Nil);     prot_ptr(done);
-  auto input = start;
-  auto result = read(vm, &input, end, done);
-  used += input - start;
-  istream_set_index(s, to(Fixnum, used));
-  unprot_ptrs(s, done);
-  return result;
 }
 
 /* -------------------------------------------------- */
@@ -6140,13 +6097,16 @@ Ptr eval(VM *vm, Ptr expr) { // N.B. should /not/ be exposed to userspace
 }
 
 Ptr run_string(VM *vm, const char *str) {
-  Ptr result = Nil;                                 prot_ptr(result);
-  auto istream = make_istream_from_string(vm, str); prot_ptr(istream);
-  while (!istream_at_end(istream)) {
-    auto read = read_from_istream(vm, istream);
-    result = eval(vm, read);
+  Ptr result = Nil;                        prot_ptr(result);
+  auto done  = cons(vm, Nil, Nil);         prot_ptr(done);
+  auto start = str;
+  auto end = str + strlen(str) - 1;
+  const char *curr = start;
+  while (curr < end) {
+    auto form = read(vm, &curr, end, done);
+    result = eval(vm, form);
   }
-  unprot_ptrs(result, istream);
+  unprot_ptrs(result, done);
   return result;
 }
 
@@ -6506,19 +6466,22 @@ void run_event_loop_with_display(VM *vm, int w, int h, bool from_image = false) 
 void run_file_with_optional_display(const char * path) {
   VM *vm = vm_create();
   auto str = read_file_contents(path);
-  auto istream = make_istream_from_string(vm, str); prot_ptr(istream);
 
-  while (!istream_at_end(istream)) {
-    auto read = read_from_istream(vm, istream);
-    eval(vm, read);
+  auto done  = cons(vm, Nil, Nil);         prot_ptr(done);
+  auto start = str;
+  auto end = str + strlen(str) - 1;
+  const char *curr = start;
+  while (curr < end) {
+    auto form = read(vm, &curr, end, done);
+    eval(vm, form);
     if (vm->globals->current_thread != Nil &&
         thread_get_status(vm->globals->current_thread) == THREAD_STATUS_DEAD) {
       vm->globals->current_thread = Nil;
       break;
     }
   }
+  unprot_ptrs(done);
 
-  unprot_ptrs(istream);
   auto wants_display = get_global(vm, root_intern(vm, "wants-display"));
   if (is(Point, wants_display)) {
     auto p = as(Point, wants_display);

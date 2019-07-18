@@ -206,7 +206,7 @@ e.g.
 * TODO thread scheduling needs to be made relative to image startup
   so should walk sleeping threads, subtract now from wait time on save,
   and on restore walk again and add now back in.
-* TODO recover from image snapshot call
+* DONE recover from image snapshot call
 * TODO snapshot support for graphics sessions
 * TODO window resizing
 * TODO BC level support for messaging
@@ -218,7 +218,7 @@ e.g.
 
 * TODO make strings immutable
   with conversion functions <-> mutable arrays of characters
-* TODO get rid of the istream nonsense
+* DONE get rid of the istream nonsense
 * TODO could make lists callable
   ((list foo bar baz) a b c) =>
   (baz (bar (foo a b c))) =>

@@ -123,4 +123,14 @@
 (generic-function-add-method
  print-object (list Character #t) print-character)
 
+(generic-function-add-method
+ print-object
+ (list Class #t)
+ (lambda (object stream)
+   (stream-write-string stream "#<Class ")
+   (stream-write-string stream (symbol-name (class-name object)))
+   (stream-write-char stream #\Space)
+   (%print-object-address object stream)
+   (stream-write-char stream #\>)))
+
 'done

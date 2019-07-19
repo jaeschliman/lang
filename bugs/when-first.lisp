@@ -3,13 +3,8 @@
 (define (bug a b)
     (let () (print b))
   (let ((a '()))
-    (print b)
-    (let* ((a '())
-           (a '())
-           (a '()))
-      (dotimes (_ 3) b)
-      (print b))))
+    (lambda () b)))
 
-(bug a b)
+(bug 'a 'b)
 
 'done

@@ -13,9 +13,6 @@
 (define (digit-to-character n)
     (aget *digit-table* n))
 
-(define (absi n) (if (<i n 0) (*i -1 n) n))
-(define (absf n) (if (<f n 0.0) (*f -1.0 n) n))
-
 (defparameter *print-base* 10)
 
 (define (%print-integer int stream base)

@@ -5241,15 +5241,16 @@ void emit_set_bang(VM *vm, BCBuilder *builder, Ptr it, Ptr env) { prot_ptrs(it, 
   unprot_ptrs(it, env, sym, expr);
 }
 
-void emit_with_special_binding(VM *vm, BCBuilder *builder, Ptr it, Ptr env) {
+void emit_with_special_binding(VM *vm, BCBuilder *builder, Ptr it, Ptr env) { prot_ptrs(it, env);
   auto sym       = car(cdr(it));
-  auto val_expr  = car(cdr(cdr(it)));
-  auto body_form = car(cdr(cdr(cdr(it))));
   builder->pushLit(sym);
+  auto val_expr  = car(cdr(cdr(it)));
   emit_expr(vm, builder, val_expr, env, false);
   builder->pushSpecialBinding();
+  auto body_form = car(cdr(cdr(cdr(it))));
   emit_expr(vm, builder, body_form, env, false);
   builder->popSpecialBinding();
+  unprot_ptrs(it, env);
 }
 
 void emit_expr(VM *vm, BCBuilder *builder, Ptr it, Ptr env, bool tail) {

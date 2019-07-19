@@ -1,7 +1,7 @@
-;; change the first `when` to an `if` and it goes away
+;; should be fixed
 
 (define (bug bugme)
-    (let () bugme)
+    (let () (print bugme))
   (lambda () bugme))
 
 (define (nobug bugme)
@@ -11,6 +11,6 @@
 (print 'no-bug)
 (nobug 'bug)
 (print 'bug)
-(bug 'bug)
+(print ((bug 'bug)))
 
 'done

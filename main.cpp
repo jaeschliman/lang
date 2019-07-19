@@ -5000,7 +5000,8 @@ bool cenv_is_let(Ptr cenv) {
 }
 
 bool cenv_has_closure(Ptr cenv) {
-  return as(Bool, cenv_get_has_closure(cenv));
+  auto parent = cenv_get_prev(cenv);
+  return as(Bool, cenv_get_has_closure(cenv)) || (parent != Nil && cenv_has_closure(parent));
 }
 
 auto compiler_env_get_subenv(VM *vm, Ptr env, Ptr it) {

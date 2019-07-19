@@ -1530,6 +1530,17 @@ Ptr character_by_name(ByteArrayObject *str) {
   }
 }
 
+Ptr character_name(VM *vm, character ch) {
+  if (character_byte_width(ch) == 1) {
+    auto byte = character_byte_at(ch, 0);
+    return make_string(vm, character_names_by_code[byte].c_str());
+  } else {
+    char buf[5] = {0};
+    auto str = character_as_c_string(ch, (char *)&buf);
+    return make_string(vm, str);
+  }
+}
+
 bool is_object_class(StandardObject *obj);
 
 std::ostream &operator<<(std::ostream &os, Object *obj) {
@@ -1609,6 +1620,7 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
   }
   return os << "don't know how to print object: " << otype << (void*)obj << std::endl;
 }
+
 
 std::ostream &operator<<(std::ostream &os, Ptr it) {
   PtrTag tag = (PtrTag)(it.value & TAG_MASK);

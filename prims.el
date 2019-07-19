@@ -268,6 +268,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim ht-at-put HT_AT_PUT ((ht any) (key any) (val any)) any "ht_at_put(vm, ht, key, val)")
 
   (prim symbol-name SYM_NAME ((a any)) any "Symbol_get_name(a)")
+  (prim symbol-package SYM_PKG ((a any)) any "Symbol_get_package(a)")
 
   (prim set-symbol-value SET_SYM_VAL ((a any) (b any)) any
         "set_symbol_value(vm, a, b)")
@@ -277,6 +278,8 @@ void initialize_primitive_functions(VM *vm) {
         "package_extern_symbol(vm, a, b)")
   (prim make-user-package MK_USR_PKG ((name any)) any
         "make_user_package(vm, name)")
+  (prim package-name PKG_NAME ((a any)) any
+        "package_get_name(a)")
 
   (prim gensym GSYM   ()                     any "make_symbol(vm, \"_gensym_\")")
   (prim intern INTERN ((a String) (pkg any)) any "intern(vm, a, pkg)")
@@ -337,7 +340,8 @@ void initialize_primitive_functions(VM *vm) {
   (prim char->     CH_GT ((a Char) (b Char)) Bool   "character_gt(a,b)")
   (prim char-width CH_W  ((a Char))          Fixnum "character_byte_width(a)")
 
-  (prim char-by-name CHNM ((name String)) any "character_by_name(name)")
+  (prim char-by-name CHBYNM ((name String)) any "character_by_name(name)")
+  (prim char-name    CHNM   ((a Char))      any "character_name(vm, a)")
 
   (prim make-string MKSTR ((len Fixnum) (ch Char)) any "make_filled_string(vm, len, ch)")
   (prim string-byte-length STRBLEN ((str String)) Fixnum "string_byte_length(str)")

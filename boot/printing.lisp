@@ -19,7 +19,7 @@
 (defparameter *print-base* 10)
 
 (define (%print-integer int stream base)
-  (if (<i int 0) (stream-write-char stream #\-))
+  (when (<i int 0) (stream-write-char stream #\-))
   (let ((n (absi int)))
     (dotimes (i (integer-digit-length n base))
       (stream-write-char stream (digit-to-character (integer-nth-digit n i base))))))
@@ -31,7 +31,7 @@
     (stream-write-char stream #\Newline))
 
 (define (print-float fl &opt (stream *standard-output*))
-    (if (<f fl 0.0) (stream-write-string stream "-"))
+    (when (<f fl 0.0) (stream-write-string stream "-"))
   (let ((f (absf fl)))
     (%print-integer (f->i f) stream 10)
     (stream-write-char stream #\.)
@@ -44,6 +44,15 @@
 
 (define print-object (make-generic-function 2))
 
+(define (%print-object-address object stream)
+    (let ((hi (%obj-high-bits object))
+          (lo (%obj-low-bits object)))
+      (binding ((*print-base* 16))
+               (dotimes (_ (-i 4 (integer-digit-length hi 16))) (stream-write-char stream #\0))
+               (print-integer hi stream)
+               (dotimes (_ (-i 4 (integer-digit-length lo 16))) (stream-write-char stream #\0))
+               (print-integer lo stream))) )
+
 (generic-function-add-method
  print-object
  (list #t #t)
@@ -51,13 +60,7 @@
    (stream-write-string stream "#<")
    (stream-write-string stream (symbol-name (class-name (class-of object))))
    (stream-write-char stream #\Space)
-   (let ((hi (%obj-high-bits object))
-         (lo (%obj-low-bits object)))
-     (binding ((*print-base* 16))
-        (dotimes (_ (-i 4 (integer-digit-length hi 16))) (stream-write-char stream #\0))
-        (print-integer hi stream)
-        (dotimes (_ (-i 4 (integer-digit-length lo 16))) (stream-write-char stream #\0))
-        (print-integer lo stream)))
+   (%print-object-address object stream)
    (stream-write-char stream #\>)))
 
 (generic-function-add-method
@@ -86,5 +89,37 @@
 
 (generic-function-add-method
  print-object (list Cons #t) print-list)
+
+(define (print-point p &opt (stream *standard-output*))
+    (print-integer (point-x p) stream)
+  (stream-write-char stream #\@)
+  (print-integer (point-y p)))
+
+(generic-function-add-method
+ print-object (list Point #t) print-point)
+
+;; TODO: decide on syntax for global package references, subpackages etc.
+(define (%write-relative-package-name package relative-to stream)
+    (unless (eq package relative-to)
+      (stream-write-string stream (package-name package))
+      (stream-write-char stream #\:)))
+
+;; TODO: syntax for escaped symbols
+(define (print-symbol it &opt (stream *standard-output*))
+    (%write-relative-package-name (symbol-package it) *package* stream)
+  (stream-write-string stream (symbol-name it)))
+
+(generic-function-add-method
+ print-object (list Symbol #t) print-symbol)
+
+(generic-function-add-method
+ print-object (list Null #t) (lambda (_ stream) (stream-write-string stream "()")))
+
+(define (print-character ch &opt (stream *standard-output*))
+    (stream-write-string stream "#\\")
+  (stream-write-string stream (char-name ch)))
+
+(generic-function-add-method
+ print-object (list Character #t) print-character)
 
 'done

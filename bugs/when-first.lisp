@@ -1,10 +1,16 @@
 ;; change the first `when` to an `if` and it goes away
 
-(define (bug a b)
-    (let () (print b))
-  (let ((a '()))
-    (lambda () b)))
+(define (bug bugme)
+    (let () bugme)
+  (lambda () bugme))
 
-(bug 'a 'b)
+(define (nobug bugme)
+    ((lambda () bugme))
+  (let () bugme))
+
+(print 'no-bug)
+(nobug 'bug)
+(print 'bug)
+(bug 'bug)
 
 'done

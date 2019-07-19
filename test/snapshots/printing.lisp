@@ -1,7 +1,9 @@
 (print (integer-digit-length 10 10))
 (print (integer-nth-digit 120 0 10))
 
-(print-integer 200)
+(print-integer 311)
+(newline)
+(print-integer -200)
 (newline)
 (print-float 1.3)
 (newline)
@@ -14,6 +16,8 @@
 (print-float 12345.12345)
 (newline)
 (print-float 1.020304)
+(newline)
+(print-float -3.14)
 (newline)
 
 (binding ((*print-base* 2))

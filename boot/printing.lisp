@@ -13,11 +13,16 @@
 (define (digit-to-character n)
     (aget *digit-table* n))
 
+(define (absi n) (if (<i n 0) (*i -1 n) n))
+(define (absf n) (if (<f n 0.0) (*f -1.0 n) n))
+
 (defparameter *print-base* 10)
 
-(define (%print-integer n stream base)
+(define (%print-integer int stream base)
+  (if (<i int 0) (stream-write-char stream #\-))
+  (let ((n (absi int)))
     (dotimes (i (integer-digit-length n base))
-      (stream-write-char stream (digit-to-character (integer-nth-digit n i base)))))
+      (stream-write-char stream (digit-to-character (integer-nth-digit n i base))))))
 
 (define (print-integer n &opt (stream *standard-output*))
     (%print-integer n stream *print-base*))
@@ -25,15 +30,17 @@
 (define (newline &opt (stream *standard-output*))
     (stream-write-char stream #\Newline))
 
-(define (print-float f &opt (stream *standard-output*))
+(define (print-float fl &opt (stream *standard-output*))
+    (if (<f fl 0.0) (stream-write-string stream "-"))
+  (let ((f (absf fl)))
     (%print-integer (f->i f) stream 10)
-  (stream-write-char stream #\.)
-  (let* ((precision 5)
-         (rem (f->i (*f (powf 10.0 (i->f precision)) (remf f))))
-         (len (integer-digit-length rem 10))
-         (leading-zeroes (-i precision len)))
-    (dotimes (_ leading-zeroes) (stream-write-char stream #\0))
-    (%print-integer rem stream 10)))
+    (stream-write-char stream #\.)
+    (let* ((precision 5)
+           (rem (f->i (*f (powf 10.0 (i->f precision)) (remf f))))
+           (len (integer-digit-length rem 10))
+           (leading-zeroes (-i precision len)))
+      (dotimes (_ leading-zeroes) (stream-write-char stream #\0))
+      (%print-integer rem stream 10))))
 
 (define print-object (make-generic-function 2))
 

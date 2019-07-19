@@ -12,6 +12,8 @@
 (set-symbol-value 'set-class-name (lambda (class name)
                                   (if (class? class) (instance-set-ivar class 0 name))))
 
+(set-symbol-value 'class-name (lambda (class) (instance-get-ivar class 0)))
+
 (set-symbol-value 'init-builtin-class
                   (lambda (name class)
                     (set-symbol-value name class)

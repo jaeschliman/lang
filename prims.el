@@ -194,6 +194,9 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim %argument-count ARGC () Fixnum "(s64)vm->frame->argc")
   (prim %load-arg LDARG ((it Fixnum)) any "vm_load_arg(vm, it)")
+  (prim %obj-high-bits OHIBITS ((it Object)) Fixnum "((u64) it >> 32)")
+  (prim %obj-low-bits OLOBITS ((it Object)) Fixnum "((u64) it & 0xFFFF)")
+
   (prim compile-to-closure CMPC ((expr any)) any "compile_to_closure(vm, expr)")
 
   (prim class-of CLASSOF ((a any)) any "class_of(vm, a)")
@@ -263,6 +266,8 @@ void initialize_primitive_functions(VM *vm) {
   (prim make-st   MK_ST     ()                             any "string_table(vm)")
   (prim ht-at     HT_AT     ((ht any) (key any))           any "ht_at(ht, key)")
   (prim ht-at-put HT_AT_PUT ((ht any) (key any) (val any)) any "ht_at_put(vm, ht, key, val)")
+
+  (prim symbol-name SYM_NAME ((a any)) any "Symbol_get_name(a)")
 
   (prim set-symbol-value SET_SYM_VAL ((a any) (b any)) any
         "set_symbol_value(vm, a, b)")

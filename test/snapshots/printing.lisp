@@ -63,3 +63,20 @@
                   (newline)
                   (print-float 1.020304)
                   (newline))))
+
+
+(define (show x &opt (stream *standard-output*))
+    (print-object x stream)
+  (newline stream))
+
+(show #\A)
+(show 'x)
+(show 10@-10)
+
+(with-output-to-string (s)
+  (show *package* s))
+(with-output-to-string (s)
+  (show (current-thread) s))
+
+(binding ((*package* (make-user-package "anon")))
+  (show 'x))

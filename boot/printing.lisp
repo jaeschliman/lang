@@ -116,7 +116,8 @@
  print-object (list Null #t) (lambda (_ stream) (stream-write-string stream "()")))
 
 (define (print-character ch &opt (stream *standard-output*))
-    (stream-write-string stream "#\\")
+    (stream-write-char stream #\#)
+    (stream-write-char stream #\\)
   (stream-write-string stream (char-name ch)))
 
 (generic-function-add-method

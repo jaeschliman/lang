@@ -984,6 +984,7 @@ Ptr make_filled_string(VM *vm, s64 count, character ch) {
   auto width = character_byte_width(ch);
   auto size = count * width;
   auto s = alloc_bao(vm, String, size);
+  set_obj_tag(s, String);
   // memset(s->data, ch, size);
   // TODO this is slow
   for (auto i = 0; i < size; i+=width) {

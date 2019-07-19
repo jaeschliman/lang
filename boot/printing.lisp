@@ -123,14 +123,26 @@
 (generic-function-add-method
  print-object (list Character #t) print-character)
 
+(define (print-class object &opt (stream *standard-output*))
+    (lambda (object stream)
+      (stream-write-string stream "#<Class ")
+      (stream-write-string stream (symbol-name (class-name object)))
+      (stream-write-char stream #\Space)
+      (%print-object-address object stream)
+      (stream-write-char stream #\>)))
+
 (generic-function-add-method
- print-object
- (list Class #t)
- (lambda (object stream)
-   (stream-write-string stream "#<Class ")
-   (stream-write-string stream (symbol-name (class-name object)))
-   (stream-write-char stream #\Space)
-   (%print-object-address object stream)
-   (stream-write-char stream #\>)))
+ print-object (list Class #t) print-class)
+
+(define (print-string str &opt (stream *standard-output*))
+    (stream-write-char stream #\")
+  ;; TODO: escape codes for unprintable characters
+  (string-do-chars (ch str)
+    (when (eq ch #\") (stream-write-char stream #\\))
+    (stream-write-char stream ch))
+    (stream-write-char stream #\"))
+
+(generic-function-add-method
+ print-object (list String #t) print-string)
 
 'done

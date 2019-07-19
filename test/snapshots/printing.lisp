@@ -80,3 +80,5 @@
 
 (binding ((*package* (make-user-package "anon")))
   (show 'x))
+
+(show "hello world")

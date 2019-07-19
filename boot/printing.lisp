@@ -48,9 +48,9 @@
     (let ((hi (%obj-high-bits object))
           (lo (%obj-low-bits object)))
       (binding ((*print-base* 16))
-               (dotimes (_ (-i 4 (integer-digit-length hi 16))) (stream-write-char stream #\0))
+               (dotimes (_ (-i 8 (integer-digit-length hi 16))) (stream-write-char stream #\0))
                (print-integer hi stream)
-               (dotimes (_ (-i 4 (integer-digit-length lo 16))) (stream-write-char stream #\0))
+               (dotimes (_ (-i 8 (integer-digit-length lo 16))) (stream-write-char stream #\0))
                (print-integer lo stream))) )
 
 (generic-function-add-method

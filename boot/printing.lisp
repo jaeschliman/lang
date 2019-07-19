@@ -124,12 +124,11 @@
  print-object (list Character #t) print-character)
 
 (define (print-class object &opt (stream *standard-output*))
-    (lambda (object stream)
-      (stream-write-string stream "#<Class ")
-      (stream-write-string stream (symbol-name (class-name object)))
-      (stream-write-char stream #\Space)
-      (%print-object-address object stream)
-      (stream-write-char stream #\>)))
+  (stream-write-string stream "#<Class ")
+  (stream-write-string stream (symbol-name (class-name object)))
+  (stream-write-char stream #\Space)
+  (%print-object-address object stream)
+  (stream-write-char stream #\>))
 
 (generic-function-add-method
  print-object (list Class #t) print-class)
@@ -146,12 +145,11 @@
  print-object (list String #t) print-string)
 
 (define (print-package object &opt (stream *standard-output*))
-    (lambda (object stream)
-      (stream-write-string stream "#<Package ")
-      (stream-write-string stream (package-name object))
-      (stream-write-char stream #\Space)
-      (%print-object-address object stream)
-      (stream-write-char stream #\>)))
+  (stream-write-string stream "#<Package ")
+  (stream-write-string stream (package-name object))
+  (stream-write-char stream #\Space)
+  (%print-object-address object stream)
+  (stream-write-char stream #\>))
 
 (generic-function-add-method
  print-object (list Package #t) print-package)

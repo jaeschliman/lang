@@ -1,5 +1,35 @@
+(defmacro define-numeric-op (name & clauses)
+  (let ((it (gensym))
+        (count (list-length (first (first clauses)))))
+    `(let ((,it (make-generic-function ,count)))
+       ,@(mapcar
+          (lambda (clause) `(generic-function-add-method ,it (list ,@(first clause)) ,(second clause)))
+          clauses)
+       (define ,name ,it))))
+
 (define (absi n) (if (<i n 0) (*i -1 n) n))
 (define (absf n) (if (<f n 0.0) (*f -1.0 n) n))
+
+(define-numeric-op abs ((Fixnum) absi) ((Float) absf))
+
+(define-numeric-op log
+  ((Fixnum Fixnum) (lambda (a b) (logf (i->f a) (i->f b))))
+  ((Fixnum Float ) (lambda (a b) (logf (i->f a) b)))
+  ((Float  Fixnum) (lambda (a b) (logf a (i->f b))))
+  ((Float  Float ) logf))
+
+(define-numeric-op pow
+  ((Fixnum Fixnum) (lambda (a b) (f->i (powf (i->f a) (i->f b)))))
+  ((Fixnum Float ) (lambda (a b) (powf (i->f a) b)))
+  ((Float  Fixnum) (lambda (a b) (powf a (i->f b))))
+  ((Float  Float ) powf))
+
+(define-numeric-op floor ((Fixnum) (lambda (x) x))               ((Float) floorf))
+(define-numeric-op ceil  ((Fixnum) (lambda (x) x))               ((Float) ceilf))
+(define-numeric-op rem   ((Fixnum) (lambda (_) 0))               ((Float) remf))
+(define-numeric-op cos   ((Fixnum) (lambda (a) (cosf (i->f a)))) ((Float) cosf))
+(define-numeric-op sin   ((Fixnum) (lambda (a) (sinf (i->f a)))) ((Float) sinf))
+(define-numeric-op tan   ((Fixnum) (lambda (a) (tanf (i->f a)))) ((Float) tanf))
 
 (define ArithmeticOp (create-class 'ArithmeticOp 1))
 
@@ -18,8 +48,7 @@
        (instance-set-ivar ,it 0 ,combine)
        ,@(mapcar
           (lambda (clause)
-            `(generic-function-add-method ,combine (list ,@(first clause))
-                                          ,(second clause)))
+            `(generic-function-add-method ,combine (list ,@(first clause)) ,(second clause)))
           clauses)
        (define ,name ,it))))
 

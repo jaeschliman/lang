@@ -145,4 +145,16 @@
 (generic-function-add-method
  print-object (list String #t) print-string)
 
+(define (print-package object &opt (stream *standard-output*))
+    (lambda (object stream)
+      (stream-write-string stream "#<Package ")
+      (stream-write-string stream (package-name object))
+      (stream-write-char stream #\Space)
+      (%print-object-address object stream)
+      (stream-write-char stream #\>)))
+
+(generic-function-add-method
+ print-object (list Package #t) print-package)
+
+
 'done

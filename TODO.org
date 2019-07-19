@@ -135,7 +135,7 @@ http://www.jezzamon.com/fourier/index.html
 * DONE work out threading issues with run_file
 * DONE clean up (new BCBuilder(vm)) callsites (ensure delete)
 * TODO CAS for object slots
-* TODO userspace print-object (requires output stream)
+* DONE userspace print-object (requires output stream)
 * TODO a GUI
 * TODO a smalltalk-like
 * TODO an actor system
@@ -172,7 +172,8 @@ http://www.jezzamon.com/fourier/index.html
 * TODO print debug info on receiving a signal
 * TODO compiler arity checks
   where to keep the arity info? on the lambdas?
-* TODO optional args, rest args, kwargs
+* DONE optional args
+* TODO rest args, kwargs
   this will likely be done in userspace
 * TODO replace `lambda` with `%nlambda`
   lambda with a name, that can be included in stack traces

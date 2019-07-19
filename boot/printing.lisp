@@ -1,11 +1,11 @@
 (define (integer-digit-length n base)
-    (let ((len (f->i (floorf (logf (i->f base) (i->f n))))))
+    (let ((len (f->i (floor (log base n)))))
       (+i len 1)))
 
 (define (integer-nth-digit n digit base)
     (let* ((len (integer-digit-length n base))
            (offs (-i len digit))
-           (div (f->i (powf (i->f base) (i->f (-i offs 1))))))
+           (div (pow base (-i offs 1))))
       (%i (/i n div) base)))
 
 (define *digit-table* (string->char-array "0123456789abcdefghijklmnopqrstuvwxyz"))

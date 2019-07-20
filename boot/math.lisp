@@ -76,6 +76,12 @@
   ((Fixnum Float)  (lambda (a b) (/f (i->f a) b)))
   ((Float Fixnum)  (lambda (a b) (/f a (i->f b)))))
 
+(define-arithmetic-op %
+  ((Fixnum Fixnum) %i)
+  ((Float Float)   %f)
+  ((Fixnum Float)  (lambda (a b) (%f (i->f a) b)))
+  ((Float Fixnum)  (lambda (a b) (%f a (i->f b)))))
+
 (define ComparisonOp (create-class 'ComparisonOp 1))
 
 (define (pairwise-compare compare items)

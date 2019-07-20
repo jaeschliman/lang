@@ -6,6 +6,9 @@
 (define (id x) x)
 (define (safe-cdr it) (if (pair? it) (cdr it) it))
 
+(define fail '(fail fail fail))
+(define (failure? state) (eq state fail))
+
 (define applicators (make-ht))
 (defmacro define-apply (defn & body)
   (lambda-bind
@@ -18,10 +21,11 @@
       ((pair? form) (ht-at applicators (car form)))
       (#t (ht-at applicators '%exactly))))
 
+(define (state-result state) (nth state 1))
 (define (apply-rule rule state next)
     (let ((fn (applicator rule)))
-      (if (not (nil? fn))
-          (fn state (safe-cdr rule) next))))
+      (unless (nil? fn)
+        (fn state (safe-cdr rule) next))))
 
 (define compilers-table (make-ht))
 (defmacro define-compile (defn & body)
@@ -86,6 +90,7 @@
           (*      (xf-pass-thru r))
           (+      (xf-pass-thru r))
           (?      (xf-pass-thru r))
+          (not    (xf-pass-thru r))
           (return (xf-ignore r))
           (where  (xf-ignore r))
           (extern (xf-ignore r))
@@ -137,8 +142,6 @@
 (define (get-rule x) (meta-lookup x))
 (define (set-rule x fn) (ht-at-put (second (find-meta (first *meta-context*))) x fn))
 
-(define fail '(fail fail fail))
-(define (failure? state) (eq state fail))
 (define nothing '(nothing))
 (define (nothing? result) (eq result nothing))
 
@@ -320,6 +323,13 @@
       `(if ,test (,next ,state)
            fail)))
 
+(define-compile (not state forms next)
+    (let ((rule (car forms))
+          (_state (gensym)))
+      `(let* ((,_state ,state))
+         (if (failure? ,(compile-rule rule _state 'id)) (,next ,_state)
+             fail))))
+
 (define-compile (return state forms next)
     (let ((var (car forms)))
       `(,next (state+result ,state ,var))))
@@ -349,21 +359,10 @@
   (return x)) 
 
 (define-rule constituent
-    (set! x any)
-  (where (not (or
-               (whitespace-char? x)
-               (eq x #\))
-               (eq x #\()
-               (eq x #\[)
-               (eq x #\])
-               (eq x #\{)
-               (eq x #\}))))
-  (return x))
+    (not (or space #\( #\) #\[ #\] #\{ #\})) any)
 
 (define-rule non-space
-  (set! x any)
-  (where (not (whitespace-char? x)))
-  (return x))
+    (not space) any)
 
 (define-rule ws (* space))
 
@@ -386,13 +385,8 @@
 (ht-at-put meta-by-name 'Lisp (make-meta 'Base))
 (push-meta-context 'Lisp)
 
-(define-rule eol
-    (or #\Return #\Newline nothing))
-(define-rule non-eol
-    (set! x any)
-  (where (not (or (eq x #\Return)
-                  (eq x #\Newline))))
-  (return x))
+(define-rule eol (or #\Return #\Newline nothing))
+(define-rule non-eol (not eol) any)
 
 (define-rule comment
     #\; (* non-eol) eol)
@@ -408,11 +402,7 @@
     (where (character-name? (charlist-to-string -name)))
     (return (char-by-name (charlist-to-string -name))))
 
-(define-rule non-quote
-    (set! x any)
-  (where (not (or (eq x #\")
-                  (eq x #\\))))
-  (return x))
+(define-rule non-quote (not (or #\" #\\)) any)
 
 (define (escaped-char-character ch)
     (case ch

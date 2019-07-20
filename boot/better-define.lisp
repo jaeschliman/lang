@@ -30,9 +30,9 @@
                (args (%parse-define-arglist (cdr head)))
                (norms (first args))
                (opts (second args)))
-          (if (nil? opts) `(set-symbol-value ',name (lambda ,norms ,@body))
+          (if (nil? opts) `(set-symbol-value ',name (%nlambda ,name ,norms ,@body))
               (let ((opt-bindings (%prepare-optional-arg-bindings opts (list-length norms))))
-                `(set-symbol-value ',name (lambda ,norms (let* ,opt-bindings ,@body))))))))
+                `(set-symbol-value ',name (%nlambda ,name ,norms (let* ,opt-bindings ,@body))))))))
 
 (defmacro define (head & body) (%transform-define head body))
 

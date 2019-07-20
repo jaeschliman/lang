@@ -218,16 +218,14 @@
     (let ((sym (gensym)))
       `(set-macro-function
         ',name
-        (lambda (,sym)
+        (%nlambda ,name (,sym)
           (lambda-bind ,params (cdr ,sym) ,@body)))))))
 
 (defmacro define (binding & body)
   (if (pair? binding)
       (let ((name (car binding))
             (params (cdr binding)))
-        `(let ()
-           (set-symbol-value ',name #f)
-           (set-symbol-value ',name (lambda ,params ,@body))))
+        `(set-symbol-value ',name (%nlambda ,name ,params ,@body)))
       `(set-symbol-value ',binding ,(car body))))
 
 (defmacro let* (bindings & body)

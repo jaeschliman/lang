@@ -7,8 +7,8 @@ meta testfile {
   int     = ws digit+:ds ws           -> (make-integer ds)
   ident   = ws idchar+:chs ws         -> (implode chs)
   foo     = ws "foo"+:fs ws           -> `(foo-count ,(list-length fs))
-  notq    = any:ch ?(not (eq #\' ch)) -> ch
-  stringy = ws "'" notq+:chs "'" ws   -> (list chs (implode chs))
+  nonq    = ~"'" any
+  stringy = ws "'" nonq+:chs "'" ws   -> (list chs (implode chs))
   main    = int | foo | ident | stringy
 }
 

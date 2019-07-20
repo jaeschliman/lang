@@ -501,7 +501,6 @@
 (define-rule quotation
     (or quoted quasiquoted unquoted-splicing unquoted))
 
-
 (define-rule expr
     (or (seq ws #\( (set! x (* expr)) #\) ws
              (return x))
@@ -515,7 +514,6 @@
 (define-rule meta-mod
     (set! m (or #\* #\? #\+))
   (return (implode (list m))))
-
 
 (define-rule string-lit
     (set! x (extern Lisp string)) (return (cons 'seq (string-to-charlist x))))
@@ -556,18 +554,19 @@
 (define-rule meta-lit
     (or ident string-lit bracket-lit))
 
-(define-rule meta-atom
-    (or (seq (set! -id meta-lit) (set! -mm meta-mod) (return (list -mm -id)))
-        meta-lit))
+(define-rule meta-lit-with-modifier
+    (seq (set! -id meta-lit) (set! -mm meta-mod) (return (list -mm -id))))
 
-(define-rule meta-app-1
+(define-rule meta-atom
+    (set! ?negated (? #\~))
+  (set! item (or meta-lit-with-modifier meta-lit))
+  (return (if (nil? ?negated) item `(not ,item))))
+
+(define-rule meta-app
     (or (seq (set! -rule meta-atom) ws #\: (set! -as ident)
              (return `(set! ,-as ,-rule)))
         meta-atom
         meta-pred))
-
-(define-rule meta-app
-    (set! -app meta-app-1) (return -app))
 
 (define-rule meta-pred
     #\? ws (set! -it (extern Lisp expr)) (return `(where ,-it)))
@@ -576,7 +575,7 @@
     "->" ws (set! -it (extern Lisp expr)) (return `(return ,-it)))
 
 (define-rule rule-app
-    (* #\Space) (set! -app meta-app-1) (return -app))
+    (* #\Space) (set! -app meta-app) (return -app))
 
 (define-rule rule-branch
     (set! -match (+ rule-app)) (* #\Space) (set! -result (? meta-result))

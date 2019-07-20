@@ -551,8 +551,11 @@
     "[" (set! chs (+ (or bracket-char-range bracket-char))) "]"
     (return (cons 'or chs)))
 
+(define-rule extern
+    (set! ns ident) #\. (set! rule ident) (return `(extern ,ns ,rule)))
+
 (define-rule meta-lit
-    (or ident string-lit bracket-lit))
+    (or extern ident string-lit bracket-lit))
 
 (define-rule meta-lit-with-modifier
     (seq (set! -id meta-lit) (set! -mm meta-mod) (return (list -mm -id))))
@@ -635,7 +638,7 @@
 
 (binding ((*meta-context* (list 'testfile)))
          (match-map print 'main "
-123 456 a 789 hello how are you with-dashes foo foofoo '😍😍😍'
+123 456 a 789 hello how are you with-dashes foo foofoo '😍😍😍' -234@123
 "))
 
 ;; use as default reader for the repl

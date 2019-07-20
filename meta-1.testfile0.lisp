@@ -9,7 +9,7 @@ meta testfile {
   foo     = ws "foo"+:fs ws           -> `(foo-count ,(list-length fs))
   nonq    = ~"'" any
   stringy = ws "'" nonq+:chs "'" ws   -> (list chs (implode chs))
-  main    = int | foo | ident | stringy
+  main    = Lisp.point | int | foo | ident | stringy
 }
 
 ;; test comment

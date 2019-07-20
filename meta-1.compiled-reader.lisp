@@ -546,13 +546,15 @@
 (define-rule bracket-char
     (or bracket-body-char bracket-escaped-char))
 
+(define (make-bracket-char-range a b)
+    (let ((var (gensym)))
+      `(seq (set! ,var any)
+            (where (char-between ,var ,a ,b))
+            (return ,var))))
+
 (define-rule bracket-char-range
     (set! a bracket-char) #\- (set! b bracket-char)
-    (return
-      (let ((var (gensym)))
-        `(seq (set! ,var any)
-              (where (char-between ,var ,a ,b))
-              (return ,var)))))
+    (return (make-bracket-char-range a b)))
 
 (define-rule bracket-lit
     "[" (set! chs (+ (or bracket-char-range bracket-char))) "]"
@@ -615,14 +617,18 @@
               `(define-rule ,-name ,-body))))
 
 
+(define (make-meta-definition name rules)
+    `(let ()
+       (ht-at-put meta-by-name ',name (make-meta 'Base))
+       (binding ((*meta-context* (list ',name)))
+         ,@rules)))
+
+
 (define-rule meta-block
     ws "meta" ws (set! -n ident) ws #\{ ws
     (set! -rs (+ rule))
     ws #\}
-    (return `(let ()
-               (ht-at-put meta-by-name ',-n (make-meta 'Base))
-               (binding ((*meta-context* (list ',-n)))
-                        ,@-rs))))
+    (return (make-meta-definition -n -rs)))
 
 (define-rule meta-main
     (set! -it (or meta-block (extern Lisp expr)))

@@ -561,8 +561,10 @@
 (define-rule extern
     (set! ns sym) #\. (set! rule sym) (return `(extern ,ns ,rule)))
 
+(define-rule grouped "(" (set! b rule-body) ")" (return b))
+
 (define-rule meta-lit
-    (or extern sym string-lit bracket-lit))
+    (or extern sym string-lit bracket-lit grouped))
 
 (define-rule meta-lit-with-modifier
     (seq (set! -id meta-lit) (set! -mm meta-mod) (return (list -mm -id))))

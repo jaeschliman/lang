@@ -281,29 +281,33 @@
          ,run)))
 
 (define-compile (or state rules next)
-    (let ((body
-           (reduce-list
-            (lambda (acc rule)
-              `(let ((next-state ,(compile-rule rule 'state 'id)))
-                 (if (failure? next-state)
-                     ,acc
-                     (next next-state))))
-            'fail
-            (reverse-list rules))))
-      `(let ((state ,state)
-             (next  ,next))
-         ,body)))
+    (if (= 1 (list-length rules))
+        (compile-rule (first rules) state next)
+        (let ((body
+               (reduce-list
+                (lambda (acc rule)
+                  `(let ((next-state ,(compile-rule rule 'state 'id)))
+                     (if (failure? next-state)
+                         ,acc
+                         (next next-state))))
+                'fail
+                (reverse-list rules))))
+          `(let ((state ,state)
+                 (next  ,next))
+             ,body))))
 
 ;; changed to _not_ aggregate results as I'm not sure we actually need
 ;; that from seq.
 ;; TODO: optimize the single-item case e.g. (seq x) => x
 (define-compile (seq state rules next)
-    (let ((body
-           (reduce-list (lambda (run-next rule)
-                          `(lambda (_st_) ,(compile-rule rule '_st_ run-next)))
-                        next
-                        (reverse-list rules))))
-      `(,body ,state)))
+    (if (= 1 (list-length rules))
+        (compile-rule (first rules) state next)
+        (let ((body
+               (reduce-list (lambda (run-next rule)
+                              `(lambda (_st_) ,(compile-rule rule '_st_ run-next)))
+                            next
+                            (reverse-list rules))))
+          `(,body ,state))))
 
 ;; this is sort of a cheesy form of let, but it works for now
 (define-compile (let state forms next)

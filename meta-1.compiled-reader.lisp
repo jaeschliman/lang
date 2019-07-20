@@ -439,24 +439,27 @@
   (set! xs (* symbol-char))
   (return (implode (cons x xs))))
 
+(define (digits-to-integer xs)  (reduce-list (lambda (acc n) (+i n (*i 10 acc))) 0 xs))
+
 (define-rule integer
     (set! sign? (? #\-))  (set! x (+ digit))
     (return
-      (let ((n (reduce-list
-                (lambda (acc n) (+i n (*i 10 acc)))
-                0 x))
+      (let ((n (digits-to-integer x))
             (s (if (nil? sign?) 1 -1)))
         (*i s n))))
+
+(define (digits-to-float xs ys)
+    (+f (i->f (reduce-list
+               (lambda (acc n) (+i n (*i 10 acc)))
+               0 xs))
+        (reduce-list
+         (lambda (acc n) (*f 0.1 (+f (i->f n) acc)))
+         0.0 (reverse-list ys))) )
 
 (define-rule float
     (set! sign? (? #\-)) (set! x (+ digit)) #\. (set! y (+ digit))
     (return
-      (let ((n (+f (i->f (reduce-list
-                          (lambda (acc n) (+i n (*i 10 acc)))
-                          0 x))
-                   (reduce-list
-                    (lambda (acc n) (*f 0.1 (+f (i->f n) acc)))
-                    0.0 (reverse-list y))))
+      (let ((n (digits-to-float x y))
             (s (if (nil? sign?) 1.0 -1.0)))
         (*f s n))))
 
@@ -474,11 +477,12 @@
         (+i 10 (-i (char-code ch) (char-code #\a)))
         (-i (char-code ch) (char-code #\0))))
 
+(define (hex-chars-to-integer xs)
+    (reduce-list (lambda (acc hx) (+i (hex-char-value hx) (*i 16 acc))) 0 xs))
+
 (define-rule hex-integer
     "0x" (set! x (+ hex-char))
-    (return (reduce-list
-             (lambda (acc hx) (+i (hex-char-value hx) (*i 16 acc)))
-             0 x)))
+    (return (hex-chars-to-integer x)))
 
 (define-rule true "#t" (return #t))
 (define-rule false "#f" (return #f))
@@ -524,7 +528,8 @@
          (#\t #\Tab)
          (#\\ #\\)
          (#\] #\])
-         (#\- #\-)))
+         (#\- #\-)
+         (#\" #\")))
 
 (define-rule bracket-body-char
     (set! x any) (where (not (or (eq x #\])
@@ -603,6 +608,7 @@
               ;; (print `(matched rule ,-name ,-body))
               `(define-rule ,-name ,-body))))
 
+
 (define-rule meta-block
     ws "meta" ws (set! -n ident) ws #\{ ws
     (set! -rs (+ rule))
@@ -636,14 +642,18 @@
       (binding ((*meta-context* (list 'Meta)))
                (match-map eval 'meta-main input))))
 
-(meta1-runfile "./meta-1.testfile0.lisp")
+;; (meta1-runfile "./meta-1.testfile0.lisp")
 
-(binding ((*meta-context* (list 'testfile)))
-         (match-map print 'main "
-123 456 a 789 hello how are you with-dashes foo foofoo '😍😍😍' -234@123
-"))
+;; (binding ((*meta-context* (list 'testfile)))
+;;   (match-map print 'main "
+;; 123 456 a 789 hello how are you with-dashes foo foofoo '😍😍😍' -234@123
+;; "))
 
 (meta1-runfile "./meta-lisp-reader.lisp")
+
+
+(binding ((*meta-context* (list 'lisp)))
+  (match-map print 'expr (slurp "./cow-storm.lisp")))
 
 ;; use as default reader for the repl
 (define (run-string input)

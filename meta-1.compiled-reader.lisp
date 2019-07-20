@@ -24,8 +24,9 @@
 (define (state-result state) (nth state 1))
 (define (apply-rule rule state next)
     (let ((fn (applicator rule)))
-      (unless (nil? fn)
-        (fn state (safe-cdr rule) next))))
+      (if (nil? fn)
+          (throw `(rule ,rule is undefined))
+          (fn state (safe-cdr rule) next))))
 
 (define compilers-table (make-ht))
 (defmacro define-compile (defn & body)
@@ -139,7 +140,11 @@
                                  exist))))))
       (lookup (first *meta-context*))))
 
-(define (get-rule x) (meta-lookup x))
+(define (get-rule x)
+    (let ((r (meta-lookup x)))
+      (when (nil? r) (throw `(rule ,x is undefined)))
+      r))
+
 (define (set-rule x fn) (ht-at-put (second (find-meta (first *meta-context*))) x fn))
 
 (define nothing '(nothing))
@@ -536,8 +541,7 @@
          (#\" #\")))
 
 (define-rule bracket-body-char
-    (set! x any) (where (not (or (eq x #\])
-                                 (eq x #\\))))
+    (set! x any) (where (not (or (eq x #\]) (eq x #\\))))
     (return x))
 
 (define-rule bracket-escaped-char
@@ -662,15 +666,30 @@
 ;; "))
 
 (meta1-runfile "./meta-lisp-reader.lisp")
+(meta1-runfile "./meta-meta-reader.lisp")
 
 
-(binding ((*meta-context* (list 'lisp)))
-  (match-map print 'expr (slurp "./cow-storm.lisp")))
+;; (binding ((*meta-context* (list 'lisp)))
+;;   (match-map print 'expr (slurp "./cow-storm.lisp")))
+;; (binding ((*meta-context* (list 'meta)))
+;;   (match-map print 'main (slurp "./cow-storm.lisp")))
+
+;; (binding ((*meta-context* (list 'meta)))
+;;   (match-map print 'main (slurp "./meta-lisp-reader.lisp")))
+(binding ((*meta-context* (list 'meta)))
+  (match-map eval 'main (slurp "./meta-meta-reader.lisp")))
+(binding ((*meta-context* (list 'meta)))
+  (match-map print 'main (slurp "./meta-meta-reader.lisp")))
+(print "----------------------------------------")
+(binding ((*meta-context* (list 'meta)))
+  (match-map eval 'main (slurp "./meta-meta-reader.lisp")))
+(binding ((*meta-context* (list 'meta)))
+  (match-map print 'main (slurp "./meta-meta-reader.lisp")))
 
 ;; use as default reader for the repl
-(define (run-string input)
-  (binding ((*meta-context* (list 'Meta)))
-    (match-map eval 'meta-main input)))
+;; (define (run-string input)
+;;   (binding ((*meta-context* (list 'Meta)))
+;;     (match-map eval 'meta-main input)))
 
 ;; (print "sleeping first")
 ;; (sleep-ms 500)

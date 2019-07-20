@@ -340,6 +340,7 @@ struct PtrArrayObject : Object {
 struct ByteCodeObject : Object {
   U64ArrayObject *code;
   PtrArrayObject *literals;
+  Ptr name;
   bool is_varargs;
 };
 
@@ -1415,6 +1416,7 @@ void bang_refs(StackFrameObject *it, BangPtrFn fn) {
 void bang_refs(ByteCodeObject *it, BangPtrFn fn) {
   it->code = (U64ArrayObject *)as(void, fn(objToPtr(it->code)));
   it->literals = (PtrArrayObject *)as(void, fn(objToPtr(it->literals)));
+  it->name = fn(it->name);
 }
 void bang_refs(PtrArrayObject *it, BangPtrFn fn) {
   for (u64 i = 0; i < it->length; i++) {
@@ -1464,6 +1466,7 @@ void obj_refs(StackFrameObject *it, PtrFn fn) {
 void obj_refs(ByteCodeObject *it, PtrFn fn) {
   fn(objToPtr(it->code));
   fn(objToPtr(it->literals));
+  fn(it->name);
 }
 void obj_refs(PtrArrayObject *it, PtrFn fn) {
   for (u64 i = 0; i < it->length; i++) {
@@ -1604,7 +1607,8 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
     return os;
   }
   case ByteCode_ObjectType: {
-    std::cout << "#<ByteCode " << (void*)obj << ">";
+    auto bc = (ByteCodeObject *)obj;
+    std::cout << "#<ByteCode " << bc->name << " " << (void*)obj << ">";
     return os;
   }
   case U64Array_ObjectType: {
@@ -2004,6 +2008,7 @@ void gc_update(VM *vm, ByteCodeObject* it) {
     gc_update_ptr(vm, &p);
     it->literals = as(PtrArray, p);
   }
+  gc_update_ptr(vm, &it->name);
 }
 
 void gc_update(VM *vm, PtrArrayObject* it) {
@@ -4633,6 +4638,7 @@ private:
 
   u64 *temp_count;
   Object *literals; // xarray[any]
+  Ptr name;
 
   void _reserveInstruction() {
     if (bc_index - 1 >= bc_capacity) {
@@ -4702,6 +4708,9 @@ private:
     for (u64 i = start_index; i < bc_index; i++) {
       bc->code->data[i - start_index] = bc_mem[i];
     }
+
+    bc->name = this->name;
+    unprot_ptr(this->name);
   }
 public:
   BCBuilder(VM* vm) {
@@ -4721,6 +4730,8 @@ public:
     // cleaned up in finalizeByteCode
     this->literals = as(Object, make_xarray(vm));
     gc_protect(this->literals);
+    this->name = Nil;
+    prot_ptr(this->name);
 
     pushOp(STACK_RESERVE);
     temp_count = &bc_mem[bc_index];
@@ -4737,6 +4748,10 @@ public:
     auto start = *temp_count;
     *temp_count += count;
     return start;
+  }
+  auto setName(Ptr name){
+    this->name = name;
+    return this;
   }
   auto isVarargs() {
     is_varargs = true;
@@ -5100,6 +5115,8 @@ void emit_lambda_body(VM *vm, BCBuilder *builder, Ptr body, Ptr env) {
 auto emit_flat_lambda(VM *vm, Ptr it, Ptr env) {
   prot_ptrs(it, env);
   auto builder = new BCBuilder(vm);
+  auto name = car(cdr(it));
+  builder->setName(name);
   auto arglist = car(cdr(cdr(it)));
   if (is(Symbol, arglist)) builder->isVarargs();
   auto body = cdr(cdr(cdr(it)));
@@ -5121,6 +5138,8 @@ void emit_lambda(VM *vm, BCBuilder *parent, Ptr it, Ptr p_env) {  prot_ptrs(it, 
 
     auto builder = new BCBuilder(vm);
 
+    auto name = car(cdr(it));
+    builder->setName(name);
     auto arglist = car(cdr(cdr(it)));
     if (is(Symbol, arglist)) builder->isVarargs();
 

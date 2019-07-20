@@ -345,6 +345,8 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim make-string MKSTR ((len Fixnum) (ch Char)) any "make_filled_string(vm, len, ch)")
   (prim string-byte-length STRBLEN ((str String)) Fixnum "string_byte_length(str)")
+  (prim string-substr-bytes STRSBB ((str String) (a Fixnum) (b Fixnum)) any
+        "string_substr_byte_range(vm, str, a, b)")
   (prim string-char-count STRCHCNT ((str String)) Fixnum "string_char_count(str)")
   (prim string->char-array STR_CHARY ((str String)) Array "array_from_string(vm, str)")
   (prim char-array->string CHARY_STR ((arr Array)) String "string_from_array(vm, arr)")

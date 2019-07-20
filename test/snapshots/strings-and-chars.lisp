@@ -17,3 +17,6 @@
 
 (print (string->char-array str))
 (print (char-array->string (string->char-array str)))
+
+(define str2 "hello, world")
+(print (string-substr-bytes str2 1 (- (string-byte-length str2) 1)))

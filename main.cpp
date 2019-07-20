@@ -994,6 +994,21 @@ Ptr make_filled_string(VM *vm, s64 count, character ch) {
   return objToPtr(s);
 }
 
+Ptr string_substr_byte_range(VM *vm, ByteArrayObject *str, s64 start, s64 end) {
+  gc_protect(str);
+  auto len = end - start;
+  // @speed should just allocate inline here instead
+  auto result = make_filled_string(vm, len, from(Char, to(Char, '0')));
+  const char *read = str->data + start;
+  auto write = from(String, result);
+  for (auto i = 0; i < len; i++) {
+    write->data[i] = read[i];
+  }
+  gc_unprotect(str);
+  return result;
+}
+
+
 s64 string_byte_length(ByteArrayObject *str) {
   return str->length;
 }

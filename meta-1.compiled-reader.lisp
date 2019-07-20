@@ -397,8 +397,7 @@
 (define-rule ws
     (* (or space comment)))
 
-(define (character-name? str)
-    (not (nil? (char-by-name str))))
+(define (character-name? str) (not (nil? (char-by-name str))))
 
 (define-rule character
     #\# #\\ (set! -name (+ constituent))
@@ -531,6 +530,7 @@
          (#\r #\Return)
          (#\t #\Tab)
          (#\\ #\\)
+         (#\[ #\[)
          (#\] #\])
          (#\- #\-)
          (#\" #\")))

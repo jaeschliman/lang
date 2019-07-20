@@ -2,8 +2,9 @@ meta lisp {
   eol          = [\r\n] | nothing
   comment      = ";" (~eol any)* eol
   ws           = (space | comment)*
-  constr       = constituent+:chs -> (charlist-to-string chs)
-  character    = "#\\" constr+:name ?(character-name? name) -> (char-by-name name)
+  nonterm-char = ~(space | [(){}\[\]]) any
+  charname     = any:ch nonterm-char*:chs -> (charlist-to-string (cons ch chs))
+  character    = "#\\" charname:name ?(character-name? name) -> (char-by-name name)
   non-quote    = ~["\\] any
   escaped-char = "\\" any:x -> (escaped-char-character x)
   string       = "\"" (non-quote | escaped-char)*:chs "\"" -> (charlist-to-string chs)

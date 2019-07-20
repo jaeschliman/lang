@@ -14,34 +14,28 @@
 ;; (fill-rect output 0@0 500@500 0xff00ff00)
 
 (define (blit-charcode-at raw-code point scale rotation)
-  (let ((code (-i raw-code font-start)))
-    (let ((col (%i code font-chars-per-row))
-          (row (/i code font-chars-per-row)))
-      (let ((origin (make-point (*i col font-char-width )
-                                (*i row font-char-height))))
+  (let ((code (- raw-code font-start)))
+    (let ((col (% code font-chars-per-row))
+          (row (/ code font-chars-per-row)))
+      (let ((origin (make-point (* col font-char-width)
+                                (* row font-char-height))))
         (blit
          font output point
          origin (point+ origin font-char-size)
          scale rotation)))))
 
-(define strloop #f)
-(define strloop (lambda (str fn idx len)
-                  (if (<i idx len)
-                      (let ()
-                        (fn (char-code-at str idx) idx)
-                        (strloop str fn (+i 1 idx) len)))))
 
 (define (map-charcodes-with-index  str fn)
-    (strloop str fn 0 (string-length str)))
+    (let ((i 0))
+      (string-do-chars (ch str)
+        (fn (char-code ch) i)
+        (set! i (+ i 1)))))
 
 (define (display-string at scale rotation str)
     (map-charcodes-with-index
      str
      (lambda (char idx)
-       (let ((left (f->i
-                    (*f (*f (i->f idx)
-                            (i->f font-char-width))
-                        scale))))
+       (let ((left (f->i (* idx font-char-width scale))))
          (blit-charcode-at
           char (point+ at (make-point left 0)) scale rotation))))
   (blit-to-screen output 0@0 100 0))
@@ -51,13 +45,13 @@
 
 (define rot 0.0)
 (define (step-rot!)
-    (set-symbol-value 'rot (%f (+f 1.0 rot) 360.0)))
+    (set-symbol-value 'rot (% (+ 0.1 rot) 360.0)))
 
 (define (step!)
     (step-rot!)
-  (display-string 0@0 3.3 rot "hello, world!")
+  (display-string 0@0 3.3 (* (cos rot) 33.0) "hello, world!")
   (step-rot!)
-  (display-string 0@30 1.3 rot "(lambda (x) x) [ ^ self ]."))
+  (display-string 0@30 1.3 (* (cos rot) 33.0) "(lambda (x) x) [ ^ self ]."))
 
 (define (update)
     (clear-screen)

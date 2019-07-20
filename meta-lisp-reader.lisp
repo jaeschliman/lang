@@ -21,7 +21,7 @@ meta lisp {
   quoted       = "'"  ws expr:x -> (list 'quote x)
   quasiquoted  = "`"  ws expr:x -> (list 'quasiquote x)
   unq-splicing = ",@" ws expr:x -> (list 'unquote-splicing x)
-  unquoted     = ","  ws expr:x -> (list 'unquoted x)
+  unquoted     = ","  ws expr:x -> (list 'unquote x)
   quotation    = quoted | quasiquoted | unq-splicing | unquoted
   expr         = ws ( "(" expr*:x")" -> x | quotation | atom ):x ws -> x
 }

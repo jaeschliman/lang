@@ -381,7 +381,6 @@
     (set! x (+ alpha))
   (return (implode x)))
 
-
 (ht-at-put meta-by-name 'Lisp (make-meta 'Base))
 (push-meta-context 'Lisp)
 
@@ -546,16 +545,19 @@
               (where (char-between ,var ,a ,b))
               (return ,var)))))
 
-;; TODO: A-Za-z syntax
 (define-rule bracket-lit
     "[" (set! chs (+ (or bracket-char-range bracket-char))) "]"
     (return (cons 'or chs)))
 
+(define-rule sym
+    (not "->")
+  (set! xs (+ (or alpha #\-))) (return (implode xs)))
+
 (define-rule extern
-    (set! ns ident) #\. (set! rule ident) (return `(extern ,ns ,rule)))
+    (set! ns sym) #\. (set! rule sym) (return `(extern ,ns ,rule)))
 
 (define-rule meta-lit
-    (or extern ident string-lit bracket-lit))
+    (or extern sym string-lit bracket-lit))
 
 (define-rule meta-lit-with-modifier
     (seq (set! -id meta-lit) (set! -mm meta-mod) (return (list -mm -id))))
@@ -596,7 +598,7 @@
   (return (cons 'or -rules)))
 
 (define-rule rule
-    ws (set! -name ident) ws "=" (set! -body rule-body)
+    ws (set! -name sym) ws "=" (set! -body rule-body)
     (return (let ()
               ;; (print `(matched rule ,-name ,-body))
               `(define-rule ,-name ,-body))))
@@ -641,11 +643,12 @@
 123 456 a 789 hello how are you with-dashes foo foofoo '😍😍😍' -234@123
 "))
 
+(meta1-runfile "./meta-lisp-reader.lisp")
+
 ;; use as default reader for the repl
 (define (run-string input)
-    (push-meta-context 'Meta)
-  (match-map eval 'meta-main input)
-  (pop-meta-context))
+  (binding ((*meta-context* (list 'Meta)))
+    (match-map eval 'meta-main input)))
 
 ;; (print "sleeping first")
 ;; (sleep-ms 500)

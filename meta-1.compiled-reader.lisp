@@ -186,11 +186,16 @@
                     prev-pos)))
       (list (+i (char-width char) (car s)) (second s) pos)))
 
-(define (state-position st) (car (car st)))
+(define (state-position st) (first (car st)))
 (define (state-col-row st) (third (car st)))
 
 (defparameter *match-start*)
 (defparameter *match-end*)
+(defparameter *current-rule-name*)
+
+(define (current-match-string)
+    (let ((str (second (state-stream *match-start*))))
+      (string-substr-bytes str (state-position *match-start*) (state-position *match-end*))))
 
 (define (match-1 rule string)
     (let* ((stream (make-stream string))
@@ -232,8 +237,10 @@
 (define-compile (%base state symbol next)
     (let ((s (gensym)))
       `(let ((,s ,state))
-         (binding ((*match-start* ,s))
-                  (apply-rule ',symbol ,s ,next)))))
+         (let ((result (binding ((*match-start* ,s)
+                                 (*current-rule-name* ',symbol))
+                          (apply-rule ',symbol ,s ,id))))
+           (if (failure? result) result (,next result))))))
 
 (define-apply (%base state symbol next)
     (let* ((rule (get-rule symbol))
@@ -349,11 +356,11 @@
              fail))))
 
 (define-compile (return state forms next)
-    (let ((var (car forms))
+    (let ((form (car forms))
           (s (gensym)))
       `(let ((,s ,state))
          (binding ((*match-end* ,s))
-                  (,next (state+result ,s ,var))))))
+                  (,next (state+result ,s ,form))))))
 
 (defmacro define-rule (name & forms)
   (let ((xform (xf-tl (cons 'seq forms))))
@@ -629,7 +636,11 @@
 (define-rule rule
     (set! -name sym) ws "=" (set! -body rule-body) ws
     (return (let ()
-              ;; (print `(matched rule ,-name at ,(state-col-row *match-start*)))
+              (print "----------------------------------------")
+              (print `(matched ,*current-rule-name* ,-name at ,(state-col-row *match-start*)
+                               to ,(state-col-row *match-end*)))
+              (print (current-match-string))
+              (print "----------------------------------------")
               `(define-rule ,-name ,-body))))
 
 
@@ -688,15 +699,16 @@
 
 ;; (binding ((*meta-context* (list 'meta)))
 ;;   (match-map print 'main (slurp "./meta-lisp-reader.lisp")))
-(binding ((*meta-context* (list 'meta)))
-  (match-map eval 'main (slurp "./meta-meta-reader.lisp")))
-(binding ((*meta-context* (list 'meta)))
-  (match-map print 'main (slurp "./meta-meta-reader.lisp")))
-(print "----------------------------------------")
-(binding ((*meta-context* (list 'meta)))
-  (match-map eval 'main (slurp "./meta-meta-reader.lisp")))
-(binding ((*meta-context* (list 'meta)))
-  (match-map print 'main (slurp "./meta-meta-reader.lisp")))
+
+;; (binding ((*meta-context* (list 'meta)))
+;;   (match-map eval 'main (slurp "./meta-meta-reader.lisp")))
+;; (binding ((*meta-context* (list 'meta)))
+;;   (match-map print 'main (slurp "./meta-meta-reader.lisp")))
+;; (print "----------------------------------------")
+;; (binding ((*meta-context* (list 'meta)))
+;;   (match-map eval 'main (slurp "./meta-meta-reader.lisp")))
+;; (binding ((*meta-context* (list 'meta)))
+;;   (match-map print 'main (slurp "./meta-meta-reader.lisp")))
 
 ;; use as default reader for the repl
 ;; (define (run-string input)

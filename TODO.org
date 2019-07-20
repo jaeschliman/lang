@@ -231,6 +231,7 @@ e.g.
 * TODO move pc into current frame
 * TODO 'better lambda'
 * TODO keywords
+* TODO use meta reader to save source location info for top-level forms
 
 * notes
 maybe have a stack of compilers? can push/pop...

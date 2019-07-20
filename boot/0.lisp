@@ -3,25 +3,25 @@
 ;; helper functions
 
 (set 'mapcar #f)
-(set 'mapcar (lambda (f lst)
+(set 'mapcar (%nlambda () (f lst)
                (if (nil? lst) lst
                    (cons (f (car lst)) (mapcar f (cdr lst))))))
 
 (set 'list-every #f)
 (set 'list-every
-     (lambda (pred lst)
+     (%nlambda () (pred lst)
        (if (nil? lst) #t
            (if (pred (car lst)) (list-every pred (cdr lst))
                #f))))
 
 (set 'append3 #f)
-(set 'append3 (lambda (a b cs)
+(set 'append3 (%nlambda () (a b cs)
                 (if (nil? a)
                     (if (nil? cs) b
                         (append3 b (car cs) (cdr cs)))
                     (cons (car a) (append3 (cdr a) b cs)))))
 
-(set 'append (lambda args (append3 (car args) (car (cdr args)) (cdr (cdr args)))))
+(set 'append (%nlambda () args (append3 (car args) (car (cdr args)) (cdr (cdr args)))))
 
 ;; ----------------------------------------
 ;;; nested quasiquote support
@@ -30,13 +30,13 @@
 (set 'qq-process #f) ;; entry point for quasiquoting (toplevel function)
 (set 'qq-xform #f)   ;; fn that begins qq-transforming a given form at lvl
 
-(set 'qq-is-unq-sym (lambda (sym)
+(set 'qq-is-unq-sym (%nlambda () (sym)
                       (if (eq sym 'unquote) #t
                           (eq sym 'unquote-splicing))))
 
-(set 'qq-has-unq (lambda (f) (qq-is-unq-sym (car f))))
+(set 'qq-has-unq (%nlambda () (f) (qq-is-unq-sym (car f))))
 (set 'qq-has-unq-level #f)
-(set 'qq-has-unq-level (lambda (form lvl)
+(set 'qq-has-unq-level (%nlambda () (form lvl)
                          (if (not (pair? form)) #f
                              (if (eq lvl 0) (qq-has-unq form)
                                  (if (not (qq-has-unq form)) #f
@@ -45,7 +45,7 @@
 
 (set 'qq-unq-form #f)
 (set 'qq-unq-form-unq
-     (lambda (form lvl sym)
+     (%nlambda () (form lvl sym)
        (if (eq lvl 0)
            (if (eq sym 'unquote)
                (list 'list (qq-process (car (cdr form))))
@@ -57,7 +57,7 @@
                            (qq-xform (car (cdr form)) (-i lvl 1))))))))
 
 (set 'qq-unq-form
-     (lambda (form lvl)
+     (%nlambda () (form lvl)
        (if (pair? form)
            (let ((sym (car form)))
              (if (qq-is-unq-sym sym)
@@ -67,20 +67,20 @@
 
 
 (set 'qq-simple-quote-result?
-     (lambda (it)
+     (%nlambda () (it)
        (if (not (pair? it)) #f
            (if (not (eq (car it) 'quote)) #f
                (nil? (cdr (cdr it)))))))
 
 ;; (list 'a 'b 'c) => '(a b c)
 (set 'qq-quote-opt
-     (lambda (lst)
+     (%nlambda () (lst)
        (if (list-every qq-simple-quote-result? lst)
-           (list 'quote (mapcar (lambda (it) (car (cdr it))) lst))
+           (list 'quote (mapcar (%nlambda () (it) (car (cdr it))) lst))
            (cons 'list lst))))
 
 (set 'qq-simple-list-result?
-     (lambda (it)
+     (%nlambda () (it)
        (if (not (pair? it)) #f
            (if (not (eq (car it) 'list)) #f
                (nil? (cdr (cdr it)))))))
@@ -90,17 +90,17 @@
 ;; and so on
 ;; (append '(a) '(b) '(c)) => (list a b c)
 (set 'qq-append-opt
-     (lambda (lst)
+     (%nlambda () (lst)
        (if (list-every qq-simple-list-result? lst)
-           (qq-quote-opt (mapcar (lambda (it) (car (cdr it))) lst))
+           (qq-quote-opt (mapcar (%nlambda () (it) (car (cdr it))) lst))
            (cons 'append lst))))
 
 (set 'qq-xform-for-unq
-     (lambda (lst lvl)
+     (%nlambda () (lst lvl)
        (qq-append-opt
-        (mapcar (lambda (f) (qq-unq-form f lvl)) lst))))
+        (mapcar (%nlambda () (f) (qq-unq-form f lvl)) lst))))
 
-(set 'qq-xform (lambda (x lvl)
+(set 'qq-xform (%nlambda () (x lvl)
                  (if (pair? x)
                      (if (eq (car x) 'quasiquote)
                          (list 'list ''quasiquote (qq-xform (car (cdr x)) (+i 1 lvl)))
@@ -108,7 +108,7 @@
                      (list 'quote x))))
 
 (set 'qq-process
-     (lambda (expr)
+     (%nlambda () (expr)
        (if (pair? expr)
            (let ((sym (car expr)))
              (if (eq sym 'quote) expr
@@ -122,26 +122,26 @@
 ;;; macro support
 
 (set 'macro-functions (make-ht))
-(set 'set-macro-function (lambda (sym fn) (ht-at-put macro-functions sym fn)))
+(set 'set-macro-function (%nlambda () (sym fn) (ht-at-put macro-functions sym fn)))
 
 (set 'macroexpand #f)
 
 (set 'mx-process-let-binding
-     (lambda (bind)
+     (%nlambda () (bind)
        (list (car bind) (macroexpand (car (cdr bind))))))
 
 (set 'mx-process-let
-     (lambda (expr)
+     (%nlambda () (expr)
        `(let ,(mapcar mx-process-let-binding (car (cdr expr)))
           ,@(mapcar macroexpand (cdr (cdr expr))))))
 
 (set 'mx-process-lambda
-     (lambda (expr)
-       `(lambda ,(car (cdr expr))
+     (%nlambda () (expr)
+       `(%nlambda () ,(car (cdr expr))
           ,@(mapcar macroexpand (cdr (cdr expr))) )))
 
 (set 'macroexpand
-     (lambda (expr)
+     (%nlambda () (expr)
        ;; (print `(expanding: ,expr))
        (if (pair? expr)
            (let ((sym (car expr)))
@@ -155,10 +155,16 @@
                                (mapcar macroexpand expr)))))))
            expr)))
 
-(set 'compiler (lambda (expr) (macroexpand (qq-process expr))))
+(set 'compiler (%nlambda () (expr) (macroexpand (qq-process expr))))
 
 ;;; ----------------------------------------
 ;;; basic macros
+
+(set-macro-function
+ 'lambda
+ (%nlambda () (expr)
+           `(%nlambda () ,(car (cdr (cdr expr)))
+                      ,@(cdr (cdr (cdr expr))))))
 
 (set-macro-function
  'and

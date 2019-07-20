@@ -2651,7 +2651,8 @@ Ptr mark_symbol_as_special(VM *vm, Ptr sym) {
 void initialize_known_symbols(VM *vm) {
 
   auto globals = vm->globals;
-  _init_symbols(lambda, quote, let, if, fixnum, cons, string, array, character, boolean, quasiquote, unquote, compiler, exception);
+  _init_symbols(quote, let, if, fixnum, cons, string, array, character, boolean, quasiquote, unquote, compiler, exception);
+  globals->known._lambda = root_intern(vm, "%nlambda");
   globals->known._unquote_splicing = root_intern(vm, "unquote-splicing");
   globals->known._set_bang = root_intern(vm, "set!");
   globals->known._run_string = root_intern(vm, "run-string");
@@ -5099,8 +5100,9 @@ void emit_lambda_body(VM *vm, BCBuilder *builder, Ptr body, Ptr env) {
 auto emit_flat_lambda(VM *vm, Ptr it, Ptr env) {
   prot_ptrs(it, env);
   auto builder = new BCBuilder(vm);
-  if (is(Symbol, car(cdr(it)))) builder->isVarargs();
-  auto body = cdr(cdr(it));
+  auto arglist = car(cdr(cdr(it)));
+  if (is(Symbol, arglist)) builder->isVarargs();
+  auto body = cdr(cdr(cdr(it)));
   emit_lambda_body(vm, builder, body, env);
   builder->ret();
   auto bc = objToPtr(builder->build());
@@ -5119,7 +5121,8 @@ void emit_lambda(VM *vm, BCBuilder *parent, Ptr it, Ptr p_env) {  prot_ptrs(it, 
 
     auto builder = new BCBuilder(vm);
 
-    if (is(Symbol, car(cdr(it)))) builder->isVarargs();
+    auto arglist = car(cdr(cdr(it)));
+    if (is(Symbol, arglist)) builder->isVarargs();
 
     for (u64 i = 0; i < closed_count; i++) {
       auto ptr     = xarray_at(closed, i);
@@ -5130,7 +5133,7 @@ void emit_lambda(VM *vm, BCBuilder *parent, Ptr it, Ptr p_env) {  prot_ptrs(it, 
     unprot_ptrs(closed);
 
     builder->pushClosureEnv(closed_count);
-    auto body = cdr(cdr(it));
+    auto body = cdr(cdr(cdr(it)));
     emit_lambda_body(vm, builder, body, env);
     builder->ret();
     parent->pushLit(objToPtr(builder->build()));
@@ -5373,7 +5376,7 @@ mark_lambda_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {  prot_ptrs(it, p_
   cenv_set_type(env, CompilerEnvType_Lambda);
   assert(cenv_is_lambda(env));
 
-  it = cdr(it);
+  it = cdr(cdr(it));
   auto zero = to(Fixnum, 0);
   u64 idx = 0;
 

@@ -175,8 +175,9 @@ http://www.jezzamon.com/fourier/index.html
 * DONE optional args
 * TODO rest args, kwargs
   this will likely be done in userspace
-* TODO replace `lambda` with `%nlambda`
+* DONE replace `lambda` with `%nlambda`
   lambda with a name, that can be included in stack traces
+* TODO put %nlambda names into stack frames for debugging
 * TODO replace `let` with `%let`
   so we can do some type checking etc in `let`
 * TODO have make-semaphore take a boolean or fixnum param

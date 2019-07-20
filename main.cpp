@@ -347,7 +347,7 @@ struct ByteCodeObject : Object {
 struct StackFrameObject : Object {
   Ptr* prev_stack;
   StackFrameObject* prev_frame;
-  ByteCodeObject* prev_fn;
+  ByteCodeObject* bc;
   u64 prev_pc;
   Ptr closed_over;
   Ptr special_variables;
@@ -1405,9 +1405,7 @@ void bang_refs(StackFrameObject *it, BangPtrFn fn) {
   it->special_variables = fn(it->special_variables);
   it->closed_over = fn(it->closed_over);
   it->mark = fn(it->mark);
-  if (it->prev_fn) {
-    it->prev_fn = (ByteCodeObject *)as(void, fn(objToPtr(it->prev_fn)));  
-  }
+  it->bc = (ByteCodeObject *)as(void, fn(objToPtr(it->bc)));
   if (it->prev_frame) {
     it->prev_frame = (StackFrameObject *)as(void, fn(objToPtr(it->prev_frame)));
   }
@@ -1459,7 +1457,7 @@ void obj_refs(StackFrameObject *it, PtrFn fn) {
   fn(it->special_variables);
   fn(it->closed_over);
   fn(it->mark);
-  if (it->prev_fn) fn(objToPtr(it->prev_fn));
+  fn(objToPtr(it->bc));
   if (it->prev_frame) fn(objToPtr(it->prev_frame));
 }
 
@@ -1687,7 +1685,6 @@ void debug_walk(VM *vm, Ptr it) {
 auto vm_map_stack_refs(VM *vm, PtrFn fn) {
   StackFrameObject *fr = vm->frame;
   Ptr *stack = vm->stack;
-  ByteCodeObject *bytecode = vm->bc;
   while (fr) {
     fn(fr->special_variables);
     fn(fr->closed_over);
@@ -1697,13 +1694,12 @@ auto vm_map_stack_refs(VM *vm, PtrFn fn) {
       auto arg = fr->argv[pad + i];
       fn(arg);
     }
-    if (bytecode) fn(objToPtr(bytecode));
+    if (fr->bc) fn(objToPtr(fr->bc));
     auto on_stack = (Ptr*)(void *)fr; // go back 'up' the stack to get current args
     while (on_stack > stack) {
       on_stack--;
       fn(*on_stack);
     }
-    bytecode = fr->prev_fn;
     stack = &fr->argv[fr->argc + pad];
     fr = fr->prev_frame;
   }
@@ -2040,10 +2036,10 @@ void gc_update(VM *vm, StackFrameObject *it) {
     gc_update_ptr(vm, &p);
     it->prev_frame = as(StackFrame, p);
   }
-  if (it->prev_fn) {
-    Ptr p = objToPtr(it->prev_fn);
+  if (it->bc) {
+    Ptr p = objToPtr(it->bc);
     gc_update_ptr(vm, &p);
-    it->prev_fn = as(ByteCode, p);
+    it->bc = as(ByteCode, p);
   }
 }
 
@@ -2058,7 +2054,12 @@ void gc_update_copied_object(VM *vm, Ptr it) {
 void gc_update_stack(VM *vm) {
   StackFrameObject *fr = vm->frame;
   Ptr *stack = vm->stack;
-  ByteCodeObject **bytecode = &vm->bc;
+  {
+    ByteCodeObject **bytecode = &vm->bc;
+    Ptr bc = objToPtr(*bytecode);
+    gc_update_ptr(vm, &bc);
+    *bytecode = as(ByteCode, bc);
+  }
   u64 count = 0;
   while (fr) {
     gc_update_ptr(vm, &fr->special_variables);
@@ -2070,9 +2071,9 @@ void gc_update_stack(VM *vm) {
       gc_update_ptr(vm, fr->argv + offs);
     }
     {
-      Ptr bc = objToPtr(*bytecode);
+      Ptr bc = objToPtr(fr->bc);
       gc_update_ptr(vm, &bc);
-      *bytecode = as(ByteCode, bc);
+      fr->bc = as(ByteCode, bc);
     }
     auto on_stack = (Ptr*)(void *)fr;
     while (on_stack > stack) {
@@ -2080,7 +2081,6 @@ void gc_update_stack(VM *vm) {
       gc_update_ptr(vm, on_stack);
     }
     stack = &fr->argv[fr->argc + pad];
-    bytecode = &fr->prev_fn;
     fr = fr->prev_frame;
     count++;
   }
@@ -3256,10 +3256,10 @@ void vm_pop_stack_frame(VM* vm) {
     vm->error = "nowhere to return to";
     return;
   }
-  vm->bc = fr->prev_fn;
   vm->pc = fr->prev_pc;
   vm->stack = fr->prev_stack + fr->argc;
   vm->frame = fr->prev_frame;
+  vm->bc = vm->frame->bc;
   vm->stack_depth--;
 
   // dbg("--- popped stack frame.");
@@ -3314,9 +3314,9 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
 
   new_frame->closed_over = closed_over;
   new_frame->mark = Nil;
+  new_frame->bc = fn;
   new_frame->prev_stack = vm->stack;
   new_frame->prev_frame = vm->frame;
-  new_frame->prev_fn = vm->bc;
   new_frame->prev_pc = vm->pc;
   new_frame->argc = argc;
   if (vm->frame) {
@@ -3438,10 +3438,6 @@ Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
     nf->preserved_argc = fr->argc;
     nf->prev_stack = 0;
     nf->prev_frame = 0;
-
-    if (is_root_frame) {
-      nf->prev_fn = 0;
-    }
 
     // if there was a frame above us, point it at us
     if (prev_fr != Nil) {
@@ -3570,7 +3566,6 @@ void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
 
   // hook in the tail frame
   if (!new_frame->prev_frame) {
-    new_frame->prev_fn = vm->bc;
     new_frame->prev_pc = vm->pc;
   } else {
     // do nothing
@@ -4984,19 +4979,16 @@ Ptr _stack_frame_get_args(VM *vm, StackFrameObject *fr) {
 
 Ptr _current_thread_get_debug_info(VM *vm){
   auto result = Nil;                         prot_ptr(result);
-  auto bc = vm->bc;                          gc_protect(bc);
   auto fr = vm->frame;                       gc_protect(fr);
 
   while (fr) {
     auto args = _stack_frame_get_args(vm, fr);
-    auto frame = cons(vm, bc->name, args);
+    auto frame = cons(vm, fr->bc->name, args);
     result = cons(vm, frame, result);
-    bc = fr->prev_fn;
     fr = fr->prev_frame;
   }
   result = _list_rev(result);
 
-  gc_unprotect(bc);
   gc_unprotect(fr);
   unprot_ptr(result);
   return result;

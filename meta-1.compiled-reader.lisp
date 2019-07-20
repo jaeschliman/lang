@@ -150,7 +150,7 @@
 (define nothing '(nothing))
 (define (nothing? result) (eq result nothing))
 
-(define (make-initial-state stream) (list stream nothing (make-ht)))
+(define (make-initial-state stream) (list stream nothing))
 
 (define (result-cons a b)
   (cond ((nothing? a) b)
@@ -159,32 +159,38 @@
 
 (define (state-stream state) (car state))
 (define (state-result state) (nth state 1))
-(define (state-vars state) (nth state 2))
-(define (state-vars-at state key) (ht-at (state-vars state) key))
-(define (state-vars-at-put state key value)
-    (ht-at-put (state-vars state) key value))
 
-(define (state+result state res) (lambda-bind (stream _ & rest) state
-                                              `(,stream ,res ,@rest)))
+(define (state+result state res) (list (car state) res))
 (define (state+stream state stream) (cons stream (cdr state)))
-(define (state+vars state vars) (lambda-bind (a b c & rest) state
-                                             `(,a ,b ,vars ,@rest)))
 (define (state-cons a b) (state+result a (result-cons (state-result a) (state-result b))))
-(define (state-cons-onto a b) (state+result b (result-cons (state-result a) (state-result b))))
+(define (state-cons-result a b) (state+result b (result-cons (state-result a) (state-result b))))
 
-(define (reverse-result result)
-    (if (nothing? result) nothing (reverse-list result)))
+(define (reverse-result result) (if (nothing? result) nothing (reverse-list result)))
 
 (define (state-reverse-result state)
     (if (nothing? (state-result state)) state
         (state+result state (reverse-list (state-result state)))))
 
-(define (make-stream str) (cons 0 str))
-(define (stream-read s) (char-at (cdr s) (car s)))
-(define (stream-advance s char-width) (cons (+i char-width (car s)) (cdr s)))
-(define (stream-end? s) (>i (+i 1 (car s)) (string-byte-length (cdr s))))
+(define (make-stream str) (list 0 str (cons 0 0)))
+(define (stream-line-position s) (car (third s)))
+(define (stream-col-position s)  (cdr (third s)))
+(define (stream-read s) (char-at (second s) (first s)))
+(define (stream-end? s) (>i (+i 1 (first s)) (string-byte-length (second s))))
+(define (stream-advance s char)
+    (let* ((nl? (eq char #\Newline))
+           (col? (not (or (eq char #\Newline) (eq char #\Return))))
+           (prev-pos (third s))
+           (pos (if (or nl? col?)
+                    (cons (if nl? (+i 1 (car prev-pos)) (car prev-pos))
+                          (if nl? 0 (if col? (+i 1 (cdr prev-pos)) (cdr prev-pos))))
+                    prev-pos)))
+      (list (+i (char-width char) (car s)) (second s) pos)))
 
 (define (state-position st) (car (car st)))
+(define (state-col-row st) (third (car st)))
+
+(defparameter *match-start*)
+(defparameter *match-end*)
 
 (define (match-1 rule string)
     (let* ((stream (make-stream string))
@@ -216,7 +222,7 @@
                        fail
                        (let ((ch (stream-read s)))
                          (state+stream (state+result st ch)
-                                       (stream-advance s (char-width ch))))))))
+                                       (stream-advance s ch)))))))
 (set-rule 'nothing (lambda (st)
                      (let ((s (state-stream st)))
                        (if (stream-end? s)
@@ -224,7 +230,10 @@
                            fail))))
 
 (define-compile (%base state symbol next)
-    `(apply-rule ',symbol ,state ,next))
+    (let ((s (gensym)))
+      `(let ((,s ,state))
+         (binding ((*match-start* ,s))
+                  (apply-rule ',symbol ,s ,next)))))
 
 (define-apply (%base state symbol next)
     (let* ((rule (get-rule symbol))
@@ -279,7 +288,7 @@
                (let ((next-state ,(compile-rule (list '* rule) 'st 'id)))
                  (if (eq next-state st)
                      (next (state+result st (result-cons (state-result st) nothing)))
-                     (next (state-cons-onto st next-state))))))
+                     (next (state-cons-result st next-state))))))
            (run (compile-rule rule 'state gather)))
       `(let* ((next ,next)
               (state ,state))
@@ -340,8 +349,11 @@
              fail))))
 
 (define-compile (return state forms next)
-    (let ((var (car forms)))
-      `(,next (state+result ,state ,var))))
+    (let ((var (car forms))
+          (s (gensym)))
+      `(let ((,s ,state))
+         (binding ((*match-end* ,s))
+                  (,next (state+result ,s ,var))))))
 
 (defmacro define-rule (name & forms)
   (let ((xform (xf-tl (cons 'seq forms))))
@@ -615,9 +627,9 @@
   (return (cons 'or -rules)))
 
 (define-rule rule
-    ws (set! -name sym) ws "=" (set! -body rule-body)
+    (set! -name sym) ws "=" (set! -body rule-body) ws
     (return (let ()
-              ;; (print `(matched rule ,-name ,-body))
+              ;; (print `(matched rule ,-name at ,(state-col-row *match-start*)))
               `(define-rule ,-name ,-body))))
 
 

@@ -151,5 +151,11 @@
 (generic-function-add-method
  print-object (list Package #t) print-package)
 
+(define (print-boolean object &opt (stream *standard-output*))
+    (stream-write-string stream (if object "#t" "#f")))
+
+(generic-function-add-method
+ print-object (list Boolean #t) print-boolean)
+
 
 'done

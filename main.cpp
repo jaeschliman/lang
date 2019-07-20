@@ -4965,6 +4965,51 @@ Ptr imap_set(VM *vm, Ptr map, Ptr key, Ptr value) {
   return ht_at_put(vm, map, key, value);
 }
 
+/* -------- thread introspection -------------------- */
+
+inline Ptr _stack_frame_load_arg(StackFrameObject *fr, u32 idx) {
+  u64 argc = fr->argc;
+  u64 ofs  = fr->pad_count;
+  return fr->argv[ofs + (argc - (idx + 1))];
+}
+
+Ptr _stack_frame_get_args(VM *vm, StackFrameObject *fr) {
+  auto result = Nil; prot_ptr(result);
+  for (auto i = ((s32)fr->argc) - 1; i >= 0; i--) {
+    result = cons(vm, _stack_frame_load_arg(fr, i), result);
+  }
+  unprot_ptr(result);
+  return result;
+}
+
+Ptr _current_thread_get_debug_info(VM *vm){
+  auto result = Nil;                         prot_ptr(result);
+  auto bc = vm->bc;                          gc_protect(bc);
+  auto fr = vm->frame;                       gc_protect(fr);
+
+  while (fr) {
+    auto args = _stack_frame_get_args(vm, fr);
+    auto frame = cons(vm, bc->name, args);
+    result = cons(vm, frame, result);
+    bc = fr->prev_fn;
+    fr = fr->prev_frame;
+  }
+  result = _list_rev(result);
+
+  gc_unprotect(bc);
+  gc_unprotect(fr);
+  unprot_ptr(result);
+  return result;
+}
+
+
+Ptr thread_get_debug_info(VM *vm, Ptr thread) {
+  if (thread == vm->globals->current_thread) {
+    return _current_thread_get_debug_info(vm);
+  }
+  return Nil;
+}
+
 
 /* -------------------------------------------------- */
 

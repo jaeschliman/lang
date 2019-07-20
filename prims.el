@@ -367,6 +367,8 @@ void initialize_primitive_functions(VM *vm) {
   (prim %file-output-stream-write-char OS_WCH ((s any) (ch Char)) Bool
         "file_output_stream_write_char(s, ch)")
 
+  (prim thread-get-debug-info THD_DBG_INFO ((a any)) any "thread_get_debug_info(vm, a)")
+
   (prim save-snapshot IM_SAV ((path String)) any "im_snapshot_to_path(vm, path)")
 
   (setf *prims* (reverse *prims*))

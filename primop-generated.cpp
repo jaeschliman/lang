@@ -117,7 +117,8 @@ enum PrimitiveOperation : u64 {
   PRIM_SLURP = ((114ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_OS_WSTR = ((115ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_OS_WCH = ((116ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_IM_SAV = ((117ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_THD_DBG_INFO = ((117ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_IM_SAV = ((118ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -1126,6 +1127,14 @@ Ptr PRIM_OS_WCH_impl(VM *vm, u32 argc) {
 }
 
 // Primitive 116
+Ptr PRIM_THD_DBG_INFO_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("thread-get-debug-info",any,a);
+
+ return thread_get_debug_info(vm, a);
+}
+
+// Primitive 117
 Ptr PRIM_IM_SAV_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("save-snapshot",String,path);
@@ -1252,6 +1261,7 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_SLURP_impl,
   &PRIM_OS_WSTR_impl,
   &PRIM_OS_WCH_impl,
+  &PRIM_THD_DBG_INFO_impl,
   &PRIM_IM_SAV_impl,
 
   (PrimitiveFunction)(void *)0
@@ -1376,6 +1386,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "slurp", to(PrimOp, PRIM_SLURP));
   set_global(vm, "%file-output-stream-write-string", to(PrimOp, PRIM_OS_WSTR));
   set_global(vm, "%file-output-stream-write-char", to(PrimOp, PRIM_OS_WCH));
+  set_global(vm, "thread-get-debug-info", to(PrimOp, PRIM_THD_DBG_INFO));
   set_global(vm, "save-snapshot", to(PrimOp, PRIM_IM_SAV));
 
 }
@@ -2271,6 +2282,13 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
   }
 
   case 117: {
+   VM_ARG("thread-get-debug-info",any,a);
+
+    vm_push(vm, thread_get_debug_info(vm, a));
+    break;
+  }
+
+  case 118: {
    VM_ARG("save-snapshot",String,path);
 
     vm_push(vm, im_snapshot_to_path(vm, path));

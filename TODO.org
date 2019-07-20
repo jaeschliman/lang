@@ -1,3 +1,4 @@
+#+TODO: TODO IN-PROGRESS | IGNORE DONE
 * DONE stack traces
 * DONE move allocations into vm-managed heap
 * DONE lists (incl printing)
@@ -61,8 +62,8 @@
 * DONE set!
 * TODO set! for more binding contexts
 * DONE repl
-* TODO basic notebook
-* TODO notebook w/ event reactor
+* DONE basic notebook
+* DONE notebook w/ event reactor
 * DONE 'load file' vs run file
 * TODO rewrite the codegen in the lang itself 
 * DONE 'apply'
@@ -85,7 +86,7 @@
 * DONE optionally plugin in Meta reader as program reader
 * DONE basic text rendering
   (very, very basic)
-* TODO type-of
+* IGNORE type-of
 * DONE class-of
 * DONE better float printing (may be missing trailing .0)
 * DONE float exponent support?
@@ -148,7 +149,7 @@ http://www.jezzamon.com/fourier/index.html
 * DONE semaphore
 * TODO mutex etc
 * DONE use bitmask for 'primitive' primOps (aka @send apply etc)
-* TODO generic maths
+* DONE generic maths
 * DONE a package system
 * DONE hash tables need to grow after threshold
 * TODO think about package system syntax for symbols
@@ -177,9 +178,10 @@ http://www.jezzamon.com/fourier/index.html
   this will likely be done in userspace
 * DONE replace `lambda` with `%nlambda`
   lambda with a name, that can be included in stack traces
-* TODO put %nlambda names into stack frames for debugging
+* DONE put %nlambda names into stack frames for debugging
 * TODO replace `let` with `%let`
   so we can do some type checking etc in `let`
+  also named let
 * TODO have make-semaphore take a boolean or fixnum param
  when bool, it becomes a binary semaphore
 * DONE fix meta1.compiled-reader.lisp RE: threading
@@ -228,6 +230,7 @@ e.g.
 * DONE move bc into current frame
 * TODO move pc into current frame
 * TODO 'better lambda'
+* TODO keywords
 
 * notes
 maybe have a stack of compilers? can push/pop...

@@ -225,6 +225,10 @@ e.g.
   ((list foo bar baz) a b c) =>
   (baz (bar (foo a b c))) =>
   (reduce-list (lambda (fn acc) (fn acc)) (apply (car fns) args) (cdr args))
+* DONE move bc into current frame
+* TODO move pc into current frame
+* TODO 'better lambda'
+
 * notes
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack

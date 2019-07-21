@@ -3,7 +3,7 @@
      (print (list ',form '= _res))
      _res))
 
-(define (id x) x)
+(define (identity x) x)
 (define (safe-cdr it) (if (pair? it) (cdr it) it))
 
 (define fail '(fail fail fail))
@@ -109,7 +109,7 @@
   (print (list rule string))
   ;; (print '------------>)
   ;; (print (compile-rule rule 'initial-state 'final-return))
-  (let ((compiled (compile-rule rule 'state 'id)))
+  (let ((compiled (compile-rule rule 'state 'identity)))
     (print '========>)
     `(let* ((stream (make-stream ,string))
             (state  (make-initial-state stream)))
@@ -239,7 +239,7 @@
       `(let ((,s ,state))
          (let ((result (binding ((*match-start* ,s)
                                  (*current-rule-name* ',symbol))
-                          (apply-rule ',symbol ,s ,id))))
+                          (apply-rule ',symbol ,s ,identity))))
            (if (failure? result) result (,next result))))))
 
 (define-apply (%base state symbol next)
@@ -263,11 +263,11 @@
           (rule (second args)))
       `(let ((_result_ '()))
          (binding ((*meta-context* (list ',meta)))
-                  (set! _result_ ,(compile-rule rule state 'id)))
+                  (set! _result_ ,(compile-rule rule state 'identity)))
          (if (failure? _result_) fail (,next _result_)))))
 
 (define-compile (? state args next)
-    (let* ((comp (compile-rule (car args) '_state_ 'id)))
+    (let* ((comp (compile-rule (car args) '_state_ 'identity)))
       `(let* ((_state_ ,state)
               (result ,comp)
               (next   ,next))
@@ -292,7 +292,7 @@
     (let* ((rule (car args))
            (gather
             `(lambda (st)
-               (let ((next-state ,(compile-rule (list '* rule) 'st 'id)))
+               (let ((next-state ,(compile-rule (list '* rule) 'st 'identity)))
                  (if (eq next-state st)
                      (next (state+result st (result-cons (state-result st) nothing)))
                      (next (state-cons-result st next-state))))))
@@ -307,7 +307,7 @@
         (let ((body
                (reduce-list
                 (lambda (acc rule)
-                  `(let ((next-state ,(compile-rule rule 'state 'id)))
+                  `(let ((next-state ,(compile-rule rule 'state 'identity)))
                      (if (failure? next-state)
                          ,acc
                          (next next-state))))
@@ -352,7 +352,7 @@
     (let ((rule (car forms))
           (_state (gensym)))
       `(let* ((,_state ,state))
-         (if (failure? ,(compile-rule rule _state 'id)) (,next ,_state)
+         (if (failure? ,(compile-rule rule _state 'identity)) (,next ,_state)
              fail))))
 
 (define-compile (return state forms next)
@@ -364,7 +364,7 @@
 
 (defmacro define-rule (name & forms)
   (let ((xform (xf-tl (cons 'seq forms))))
-    `(set-rule ',name (lambda (_state_) ,(compile-rule xform '_state_ 'id)))))
+    `(set-rule ',name (lambda (_state_) ,(compile-rule xform '_state_ 'identity)))))
 
 ;;;; ----------------------------------------
 

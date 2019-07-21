@@ -1,6 +1,6 @@
 (defmacro export (& syms)
-  `(let ()
-     ,@(mapcar (lambda (s) `(package-extern-symbol ',s *package*)))))
+  (let ((exports (mapcar (lambda (s) `(package-extern-symbol *package* ',s)) syms)))
+    `(let () ,@exports)))
 
 (export let lambda define set-symbol-value binding set! *package* defparameter)
 

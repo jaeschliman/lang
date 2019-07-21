@@ -1,3 +1,4 @@
 (let ()
-  (save-snapshot "./cmdline.amb")
-  (print *command-line-args*))
+  (save-snapshot-and-exit "./cmdline.amb")
+  (if (> (length *command-line-args*) 2)
+      (load (third *command-line-args*))))

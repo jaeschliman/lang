@@ -107,7 +107,7 @@ https://wiki.libsdl.org/SDL_UpdateWindowSurfaceRects
 * DONE audit uses of *_mem functions for GC safety
 * DONE apparently we are leaking like crazy somewhere...
 * TODO make the lisp programs objects that respond to messages
-* TODO ability to load files at the repl
+* DONE ability to load files at the repl
 * TODO basic debugger (not that we save debug info, but...)
 * DONE some WEIRD bug around hashing -- was seeing the same object change hash codes
   may need to confirm that hash persists across GCs
@@ -220,7 +220,7 @@ e.g.
 * DONE support for command line args in image and boot
 * TODO call onshow when booting image as well
 
-* TODO make strings immutable
+* IN-PROGRESS make strings immutable
   with conversion functions <-> mutable arrays of characters
 * DONE get rid of the istream nonsense
 * TODO could make lists callable
@@ -236,9 +236,9 @@ e.g.
 * TODO pathname utils, e.g. `get-cwd` `chdir` `absolute-path`
 * TODO maybe add freetype
 https://mrandri19.github.io/2019/07/18/modern-text-rendering-linux-ep1.html
-* TODO save-snapshot-and-exit
+* DONE save-snapshot-and-exit
 * DONE switch over to userspace print function
-* TODO run tests using built img instead of repeated cold boots
+* DONE run tests using built img instead of repeated cold boots
 
 * notes
 maybe have a stack of compilers? can push/pop...

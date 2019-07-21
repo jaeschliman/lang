@@ -562,7 +562,7 @@ Ptr PRIM_NOT_impl(VM *vm, u32 argc) {
 // Primitive 52
 Ptr PRIM_PRINT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
-   VM_ARG("print",any,a);
+   VM_ARG("%print",any,a);
 
  return primitive_print(a);
 }
@@ -1334,7 +1334,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "cdr", to(PrimOp, PRIM_CDR));
   set_global(vm, "eq", to(PrimOp, PRIM_EQ));
   set_global(vm, "not", to(PrimOp, PRIM_NOT));
-  set_global(vm, "print", to(PrimOp, PRIM_PRINT));
+  set_global(vm, "%print", to(PrimOp, PRIM_PRINT));
   set_global(vm, "nth", to(PrimOp, PRIM_NTH));
   set_global(vm, "make-array", to(PrimOp, PRIM_MKARY));
   set_global(vm, "aget", to(PrimOp, PRIM_AGET));
@@ -1791,7 +1791,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
   }
 
   case 53: {
-   VM_ARG("print",any,a);
+   VM_ARG("%print",any,a);
 
     vm_push(vm, primitive_print(a));
     break;

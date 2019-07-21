@@ -157,5 +157,21 @@
 (generic-function-add-method
  print-object (list Boolean #t) print-boolean)
 
+(define (print-array object &opt (stream *standard-output*))
+    (stream-write-char stream #\[)
+  (when (> (array-length object) 0)
+    (print-object (aget object 0) stream))
+  (dotimes (i (- (array-length object) 1))
+    (stream-write-char stream #\Space)
+    (print-object (aget object (+ 1 i)) stream))
+  (stream-write-char stream #\]))
+
+(generic-function-add-method
+ print-object (list Array #t) print-array)
+
+(define (print object)
+    (print-object object *standard-output*)
+  (stream-write-char *standard-output* #\Newline))
+
 
 'done

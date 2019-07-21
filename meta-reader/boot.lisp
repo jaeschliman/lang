@@ -688,8 +688,8 @@
 ;; 123 456 a 789 hello how are you with-dashes foo foofoo '😍😍😍' -234@123
 ;; "))
 
-(meta1-runfile "./meta-lisp-reader.lisp")
-(meta1-runfile "./meta-meta-reader.lisp")
+(meta1-runfile "./meta-reader/meta-lisp-reader.lisp")
+(meta1-runfile "./meta-reader/meta-meta-reader.lisp")
 
 
 ;; (binding ((*meta-context* (list 'lisp)))

@@ -26,8 +26,7 @@ meta meta {
 
   rule-app            = " "* app
   rule-branch         = rule-app+:as " "* result?:r -> (cons 'seq (append as (if-nil? r r (list r))))
-  rule-body-list      = rule-branch:fst ws more-rule-body-list?:rst -> (cons fst rst)
-  more-rule-body-list = "|" rule-body-list:rs -> rs
+  rule-body-list      = rule-branch:fst ws ("|" rule-body-list)?:rst -> (cons fst rst)
   rule-body           = rule-body-list:rs -> (cons 'or rs)
 
   rule = ws sym:name ws "=" ws rule-body:b -> `(define-rule ,name ,b)

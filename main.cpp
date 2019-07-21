@@ -5869,6 +5869,7 @@ Ptr gfx_blit_image_with_mask(ByteArrayObject *src_img,
 };
 
 Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 deg_rot) {
+  if (!vm->surface) return Nil;
   if (!is(Image, objToPtr(img))) die("gfx_blit_image: not an image");
   auto src  = image_blit_surface(img);
   auto dst = vm->surface;

@@ -237,7 +237,7 @@ e.g.
 * TODO maybe add freetype
 https://mrandri19.github.io/2019/07/18/modern-text-rendering-linux-ep1.html
 * TODO save-snapshot-and-exit
-* TODO switch over to userspace print function
+* DONE switch over to userspace print function
 * TODO run tests using built img instead of repeated cold boots
 
 * notes

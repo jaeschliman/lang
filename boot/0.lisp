@@ -384,6 +384,8 @@
      (mark-symbol-as-special ',var)
      ',var))
 
+(defparameter *command-line-args*)
+
 ;;  basic threading support -------------------------------------------------------
 
 (defmacro fork-with-priority (priority & forms)

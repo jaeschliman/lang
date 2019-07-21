@@ -37,6 +37,9 @@
 #include "./stacktrace.h"
 #include "./macro_support.h"
 
+struct run_info {
+  int argc; const char** argv;
+};
 
 using std::string;
 
@@ -5939,6 +5942,15 @@ Ptr slurp(VM *vm, ByteArrayObject* path) {
 
 /* -------------------------------------------------- */
 
+void _vm_poke_arguments(VM *vm, run_info info) {
+  auto args = Nil; prot_ptr(args);
+  for (auto i = info.argc - 1; i >= 0; i--) {
+    args = cons(vm, make_string(vm, info.argv[i]), args);
+  }
+  set_global(vm, root_intern(vm, "*command-line-args*"), args);
+  unprot_ptr(args);
+}
+
 void load_file(VM *vm, const char* path);
 void _debug_assert_in_heap(VM *vm, Ptr p) {
   if (p == Nil || ! is(Object, p)) return;
@@ -5990,7 +6002,7 @@ void vm_init_from_heap_snapshot(VM *vm) {
 
 }
 
-void vm_init_for_blank_startup(VM *vm) {
+void vm_init_for_blank_startup(VM *vm, run_info info) {
   vm->gc_disabled = true;
 
   vm->system_dictionary = ht(vm); // should be the first allocation
@@ -6035,6 +6047,8 @@ void vm_init_for_blank_startup(VM *vm) {
   load_file(vm, "./boot/printing.lisp");
   load_file(vm, "./boot/interaction-support.lisp");
   load_file(vm, "./boot/exports.lisp");
+
+  _vm_poke_arguments(vm, info);
 }
 
 VM *_vm_create() {
@@ -6080,13 +6094,13 @@ VM *_vm_create() {
   return vm;
 }
 
-VM *vm_create() {
+VM *vm_create(run_info info) {
   VM *vm = _vm_create();
-  vm_init_for_blank_startup(vm);
+  vm_init_for_blank_startup(vm, info);
   return vm;
 }
 
-VM *vm_create_from_image(const char *path) {
+VM *vm_create_from_image(const char *path, run_info info) {
   VM *vm = _vm_create();
 
   // read the image into heap memory
@@ -6136,6 +6150,8 @@ VM *vm_create_from_image(const char *path) {
   vm->suspended = false;
 
   _vm_thread_resume(vm, vm->globals->current_thread);
+
+  _vm_poke_arguments(vm, info);
 
   return vm;
 }
@@ -6312,8 +6328,8 @@ char *socket_connection_read(socket_connection *conn) {
 
 // ----------------------------------------
 
-void start_up_and_run_repl() {
-  VM *vm = vm_create();
+void start_up_and_run_repl(run_info info) {
+  VM *vm = vm_create(info);
 
   // set stdin to nonblocking
   int flags = fcntl(0, F_GETFL, 0);
@@ -6566,8 +6582,8 @@ void run_event_loop_with_display(VM *vm, int w, int h, bool from_image = false) 
   SDL_Quit();
 }
 
-void run_file_with_optional_display(const char * path) {
-  VM *vm = vm_create();
+void run_file_with_optional_display(const char * path, run_info info) {
+  VM *vm = vm_create(info);
   auto str = read_file_contents(path);
 
   auto done  = cons(vm, Nil, Nil);         prot_ptr(done);
@@ -6594,8 +6610,8 @@ void run_file_with_optional_display(const char * path) {
   }
 }
 
-void start_up_and_run_image(const char* path) {
-  VM *vm = vm_create_from_image(path);
+void start_up_and_run_image(const char* path, run_info info) {
+  VM *vm = vm_create_from_image(path, info);
 
   vm->pc++;
 
@@ -6635,15 +6651,19 @@ int main(int argc, const char** argv) {
     curr++;
   }
 
+  run_info info;
+  info.argc = argc;
+  info.argv = argv;
+
   // pretty hacky way of avoiding checking flags, I'll admit...
   if (strcmp(invoked, "amber") == 0) {
     auto file = require_argv_file(argc, argv);
-    run_file_with_optional_display(file);
+    run_file_with_optional_display(file, info);
   } else if (strcmp(invoked, "img") == 0){
     auto file = require_argv_file(argc, argv);
-    start_up_and_run_image(file);
+    start_up_and_run_image(file, info);
   } else if (strcmp(invoked, "repl") == 0){
-    start_up_and_run_repl();
+    start_up_and_run_repl(info);
   } else {
     std::cerr << " unrecognized invocation: " << invoked << std::endl;
     return 2;

@@ -6048,10 +6048,10 @@ void vm_init_for_blank_startup(VM *vm, run_info info) {
   load_file(vm, "./boot/printing.lisp");
   load_file(vm, "./boot/interaction-support.lisp");
   load_file(vm, "./boot/exports.lisp");
-  load_file(vm, "./meta-reader/compiler.lisp");
-  load_file(vm, "./meta-reader/lisp-handwritten.lisp");
-  load_file(vm, "./meta-reader/meta-handwritten.lisp");
-  load_file(vm, "./meta-reader/bootstrap.lisp");
+  load_file(vm, "./meta-reader/0-compiler.lisp");
+  load_file(vm, "./meta-reader/1-lisp-handwritten.lisp");
+  load_file(vm, "./meta-reader/1-meta-handwritten.lisp");
+  load_file(vm, "./meta-reader/2-bootstrap.lisp");
 
   _vm_poke_arguments(vm, info);
 }

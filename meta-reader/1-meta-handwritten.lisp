@@ -103,13 +103,11 @@
               ;; (print "----------------------------------------")
               `(define-rule ,-name ,-body))))
 
-
 (define (make-meta-definition name rules)
     `(let ()
        (ht-at-put meta-by-name ',name (make-meta 'Base))
        (binding ((*meta-context* (list ',name)))
          ,@rules)))
-
 
 (define-rule meta-block
     ws "meta" ws (set! -n ident) ws #\{ ws

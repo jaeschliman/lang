@@ -372,6 +372,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim thread-get-debug-info THD_DBG_INFO ((a any)) any "thread_get_debug_info(vm, a)")
 
   (prim save-snapshot IM_SAV ((path String)) any "im_snapshot_to_path(vm, path)")
+  (prim save-snapshot-and-exit IM_SAV_DIE ((path String)) any "im_snapshot_to_path_and_exit(vm, path)")
 
   (setf *prims* (reverse *prims*))
   (write-prims))

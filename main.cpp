@@ -4069,6 +4069,11 @@ Ptr im_snapshot_to_path(VM *vm, ByteArrayObject* path) {
   return result;
 }
 
+Ptr im_snapshot_to_path_and_exit(VM *vm, ByteArrayObject *path) {
+  im_snapshot_to_path(vm, path);
+  exit(0);
+  return Nil;
+}
 
 typedef Ptr (*CCallFunction)(VM*);
 

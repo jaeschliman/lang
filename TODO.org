@@ -211,13 +211,13 @@ e.g.
   so should walk sleeping threads, subtract now from wait time on save,
   and on restore walk again and add now back in.
 * DONE recover from image snapshot call
-* TODO snapshot support for graphics sessions
+* DONE snapshot support for graphics sessions
 * TODO window resizing
 * TODO BC level support for messaging
 * TODO think whether we should have inheritance
   I like the idea of object delegation a bit more, it seems more flexible
 * TODO `proper` macroexpander that understands lexical scope
-* TODO support for command line args in image and boot
+* DONE support for command line args in image and boot
 * TODO call onshow when booting image as well
 
 * TODO make strings immutable
@@ -233,6 +233,7 @@ e.g.
 * TODO keywords
 * TODO use meta reader to save source location info for top-level forms
 
+* TODO pathname utils, e.g. `get-cwd` `chdir` `absolute-path`
 * notes
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack

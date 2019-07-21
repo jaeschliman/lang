@@ -4925,26 +4925,35 @@ ByteCodeObject *make_empty_bytecode(VM *vm){
 
 /* ---------------------------------------------------*/
 
-void vm_run_until_completion(VM *vm) {
-  // dbg("running remaining threads");
+void run_event_loop_with_display(VM *vm, int w, int h, bool from_image);
 
+void vm_run_until_completion(VM *vm) {
   // so we have a root frame
   auto bc = make_empty_bytecode(vm);
   vm_push_stack_frame(vm, 0, bc, Nil);
   vm->frame->mark = KNOWN(exception);
 
+  auto wants_display_sym = root_intern(vm, "wants-display"); prot_ptr(wants_display_sym);
+
   while (vm->threads->front) {
+
+    {
+      auto wants_display = get_global(vm, wants_display_sym);
+      // launch display if requested
+      if (is(Point, wants_display)) {
+        auto p = as(Point, wants_display);
+        run_event_loop_with_display(vm, p.x, p.y, false);
+        break;
+      } else {
+        // do nothing
+      }
+    }
+
     auto success = vm_maybe_start_next_thread(vm);
     if (success) {
-      // dbg("resuming with thread count: ", vm->threads->size());
       vm->pc++;
       vm_interp(vm, INTERP_PARAMS_MAIN_EXECUTION);
 
-      // if (vm->suspended) {
-      //   dbg("suspended with thread count: ", vm->threads->size());
-      // } else {
-      //   dbg("returned normally with thread count: ", vm->threads->size());
-      // }
       // re-add root frame
       auto bc = make_empty_bytecode(vm);
       vm_push_stack_frame(vm, 0, bc, Nil);
@@ -4954,13 +4963,15 @@ void vm_run_until_completion(VM *vm) {
       // TODO: some kind of event loop will be more appropriate in the long run
       auto ms = _vm_threads_get_minimum_sleep_time(vm);
       if (ms < 0) {
-        // dbg("run completed, return code was", ms);
         return;
       }
       usleep(ms * 1000);
     }
+
   }
-  // dbg("all threads finished: ", (bool)(vm->threads->front == 0));
+
+  unprot_ptr(wants_display_sym);
+
 }
 
 

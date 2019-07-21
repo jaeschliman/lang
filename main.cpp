@@ -381,6 +381,7 @@ struct blit_surface {
 struct VM {
   Ptr system_dictionary;
   Ptr *stack;
+  Ptr *stack_start;
   Ptr *stack_end;
   s64 stack_depth;
   void* heap_mem;
@@ -3369,14 +3370,18 @@ s64 vm_stack_frame_additional_item_count(StackFrameObject *fr) {
 typedef std::function<bool(StackFrameObject*)> StackPred;
 
 void _debug_validate_stack_frame(StackFrameObject *fr){
+  auto count = 0;
   while (fr) {
     auto f = objToPtr(fr);
     if (!is(StackFrame, f)) die("expecting stack frame got: ", f);
     fr = fr->prev_frame;
+    count++;
   }
 }
 
 void _debug_validate_stack(VM *vm) {
+  assert((void *)vm->frame <= (void *)vm->stack_start && (void*)vm->frame > (void *)vm->stack_end);
+  assert(vm->stack <= vm->stack_start && vm->stack > vm->stack_end);
   StackFrameObject *fr = vm->frame;
   _debug_validate_stack_frame(fr);
 }
@@ -3415,6 +3420,7 @@ void _debug_validate_thread_in_heap(void *start, void *end, Ptr thread){
 }
 
 Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
+  _debug_validate_stack(vm);
   StackFrameObject *fr = vm->frame;
   Ptr result  = Nil;                               prot_ptr(result);
   result = alloc_cont(vm);
@@ -3464,6 +3470,7 @@ Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
     }
 
     prev_fr = objToPtr(nf);
+    assert(is(StackFrame, prev_fr));
     if (top_fr == Nil) top_fr = prev_fr;
     fr = fr->prev_frame;
   }
@@ -3551,7 +3558,7 @@ void _vm_copy_stack_snapshot_args_to_stack(VM *vm, StackFrameObject *fr) {
   }
 }
 
-void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
+void __vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
   if (!fr) return;
   #if DEBUG_IMAGE_SNAPSHOTS
   {
@@ -3561,7 +3568,7 @@ void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
   #endif
 
   // first restore previous frame
-  _vm_restore_stack_snapshot(vm, fr->prev_frame);
+  __vm_restore_stack_snapshot(vm, fr->prev_frame);
 
   //restore previous frame stack top
   _vm_copy_stack_snapshot_args_to_stack(vm, fr);
@@ -3604,6 +3611,12 @@ void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
   vm->stack_depth++;
 
 }
+
+void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
+  __vm_restore_stack_snapshot(vm, fr);
+  vm->stack--;
+}
+
 
 void vm_restore_stack_snapshot(VM *vm, Ptr cont) {
   Ptr extra_args = cont_get_stack_top(cont);
@@ -3967,13 +3980,6 @@ void im_move_heap(VM *vm) {
   vm_init_from_heap_snapshot(vm);
 
   #if DEBUG_IMAGE_SNAPSHOTS
-  {
-
-    auto found = ht_at(vm->system_dictionary, SYSTEM_CURRENT_THREAD_KEY);
-    assert(found == main);
-    assert(main == vm->globals->current_thread);
-  }
-  _debug_validate_thread(main);
   _debug_validate_thread(vm->globals->current_thread);
   #endif
 
@@ -4504,11 +4510,6 @@ void vm_interp(VM* vm, interp_params params) {
       if (params.thread_switch_instr_budget && ctx_switch_budget <= 0) {
         if (vm_swap_threads(vm)) {
           // dbg("swapped threads.");
-          #if DEBUG_IMAGE_SNAPSHOTS
-          if (vm->gc_count > 1 && counter % 30 == 0) {
-           im_move_heap(vm);
-          }
-          #endif
           counter++;
         } else {
           // dbg("did not swap threads. ", vm->threads->size());
@@ -6066,9 +6067,10 @@ VM *_vm_create() {
   VM *vm;
   vm = (VM *)calloc(sizeof(VM), 1);
 
-  auto count = 1024 * 1000;
+  auto count = 1024 * 1024;
   Ptr *stack_mem = (Ptr *)calloc(sizeof(Ptr), count);
   vm->stack = stack_mem + (count - 1);
+  vm->stack_start = vm->stack;
   vm->stack_end = stack_mem + 1024; // padding
 
   auto heap_size_in_mb = 50;

@@ -121,6 +121,7 @@ enum PrimitiveOperation : u64 {
   PRIM_THD_DBG_INFO = ((118ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_IM_SAV = ((119ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_IM_SAV_DIE = ((120ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_TIME_MS = ((121ULL << 32) | (255ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -1162,6 +1163,13 @@ Ptr PRIM_IM_SAV_DIE_impl(VM *vm, u32 argc) {
  return im_snapshot_to_path_and_exit(vm, path);
 }
 
+// Primitive 120
+Ptr PRIM_TIME_MS_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+
+  return to(Fixnum,(current_time_ms()));
+}
+
 
 PrimitiveFunction PrimLookupTable[] = {
   (PrimitiveFunction)(void *)0, // apply
@@ -1285,6 +1293,7 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_THD_DBG_INFO_impl,
   &PRIM_IM_SAV_impl,
   &PRIM_IM_SAV_DIE_impl,
+  &PRIM_TIME_MS_impl,
 
   (PrimitiveFunction)(void *)0
 };
@@ -1412,6 +1421,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "thread-get-debug-info", to(PrimOp, PRIM_THD_DBG_INFO));
   set_global(vm, "save-snapshot", to(PrimOp, PRIM_IM_SAV));
   set_global(vm, "save-snapshot-and-exit", to(PrimOp, PRIM_IM_SAV_DIE));
+  set_global(vm, "current-time-ms", to(PrimOp, PRIM_TIME_MS));
 
 }
 
@@ -2332,6 +2342,12 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("save-snapshot-and-exit",String,path);
 
     vm_push(vm, im_snapshot_to_path_and_exit(vm, path));
+    break;
+  }
+
+  case 121: {
+
+     vm_push(vm, to(Fixnum,(current_time_ms())));
     break;
   }
 

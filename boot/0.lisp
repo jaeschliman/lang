@@ -324,6 +324,8 @@
                        (,loop (cdr ,remaining)))))
        (,loop ,form))))
 
+(defmacro if-nil? (test & rest) `(if (nil? ,test) ,@rest))
+
 ;;; test helpers
 
 (define deep-eq? #f)

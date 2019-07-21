@@ -17,7 +17,7 @@ meta meta {
   lit     = extern | sym | string-lit | bracket-lit | grouped
   lit-mod = lit:lit mod:mod -> (list mod lit)
 
-  atom = "~"?:negated (lit-mod | lit):item -> (if (nil? negated) item `(not ,item))
+  atom = "~"?:negated (lit-mod | lit):item -> (if-nil? negated item `(not ,item))
 
   pred   = "?" ws lisp.expr:it -> `(where ,it)
   bind   = atom:rule ws ":" ident:as -> `(set! ,as ,rule)
@@ -25,7 +25,7 @@ meta meta {
   result = "->" ws lisp.expr:it -> `(return ,it)
 
   rule-app            = " "* app
-  rule-branch         = rule-app+:as " "* result?:r -> (cons 'seq (append as (if (nil? r) '() (list r))))
+  rule-branch         = rule-app+:as " "* result?:r -> (cons 'seq (append as (if-nil? r r (list r))))
   rule-body-list      = rule-branch:fst ws more-rule-body-list?:rst -> (cons fst rst)
   more-rule-body-list = "|" rule-body-list:rs -> rs
   rule-body           = rule-body-list:rs -> (cons 'or rs)

@@ -667,14 +667,14 @@
 ;;   (match-map print 'main (slurp "./meta-lisp-reader.lisp")))
 
 ;; (binding ((*meta-context* (list 'meta)))
-;;   (match-map eval 'main (slurp "./meta-meta-reader.lisp")))
+;;   (match-map eval 'main (slurp "./meta-reader/meta-meta-reader.lisp")))
 ;; (binding ((*meta-context* (list 'meta)))
-;;   (match-map print 'main (slurp "./meta-meta-reader.lisp")))
+;;   (match-map print 'main (slurp "./meta-reader/meta-meta-reader.lisp")))
 ;; (print "----------------------------------------")
 ;; (binding ((*meta-context* (list 'meta)))
-;;   (match-map eval 'main (slurp "./meta-meta-reader.lisp")))
+;;   (match-map eval 'main (slurp "./meta-reader/meta-meta-reader.lisp")))
 ;; (binding ((*meta-context* (list 'meta)))
-;;   (match-map print 'main (slurp "./meta-meta-reader.lisp")))
+;;   (match-map print 'main (slurp "./meta-reader/meta-meta-reader.lisp")))
 
 ;; use as default reader for the repl
 ;; (define (run-string input)

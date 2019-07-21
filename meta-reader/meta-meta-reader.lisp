@@ -24,10 +24,10 @@ meta meta {
   app    = bind | atom | pred
   result = "->" ws lisp.expr:it -> `(return ,it)
 
-  rule-app            = " "* app
-  rule-branch         = rule-app+:as " "* result?:r -> (cons 'seq (append as (if-nil? r r (list r))))
-  rule-body-list      = rule-branch:fst ws ("|" rule-body-list)?:rst -> (cons fst rst)
-  rule-body           = rule-body-list:rs -> (cons 'or rs)
+  rule-app       = " "* app
+  rule-branch    = rule-app+:as " "* result?:r -> (cons 'seq (append as (if-nil? r r (list r))))
+  rule-body-list = rule-branch:fst ws ("|" rule-body-list)?:rst -> (cons fst rst)
+  rule-body      = rule-body-list:rs -> (cons 'or rs)
 
   rule = ws sym:name ws "=" ws rule-body:b -> `(define-rule ,name ,b)
 

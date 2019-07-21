@@ -1,5 +1,6 @@
 #!/bin/bash
 
+img_path=`mktemp`
 return_value=0
 
 function update_return_value() {
@@ -14,7 +15,7 @@ function run_snapshot() {
     local snap_name="$1.snapshot"
     local out_file=`mktemp`
 
-    ./build/amber $file_name 2>/dev/null > $out_file
+    ./build/img $img_path $file_name 2>/dev/null > $out_file
     local status=$?
 
     if [ $status -eq 0 ]; then
@@ -35,8 +36,14 @@ function run_snapshot() {
     return $return_value
 }
 
+./build/amber ./boot/_cmdline-loader.lisp $img_path
+
 find ./test/snapshots -iname '*.lisp'  | while read line; do
    run_snapshot $line
 done
 
-exit $?
+return_value=$?
+
+rm $img_path
+
+exit $return_value

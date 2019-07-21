@@ -204,10 +204,10 @@
             (lambda (state results)
               (let ((newstate (fn state)))
                 (if (failure? newstate) (reverse-list results)
-                    (let ((newresults (cons (state-result newstate) results)))
+                    (let ((newresults (cons (xf (state-result newstate)) results)))
                       (if (stream-end? (state-stream newstate)) (reverse-list newresults)
                           (loop newstate newresults)))))))
-      (mapcar xf (loop state '()))))
+      (loop state '())))
 
 (define (match-all rule string)
     (match-map (lambda (x) x) rule string))

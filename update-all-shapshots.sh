@@ -2,5 +2,5 @@
 
 find ./test/snapshots -iname '*.lisp'  | while read line; do
     echo "updating $line..."
-   ./update_snapshot.sh $line
+   ./update-snapshot.sh $line
 done

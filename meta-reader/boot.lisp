@@ -3,9 +3,6 @@
      (print (list ',form '= _res))
      _res))
 
-(define (identity x) x)
-(define (safe-cdr it) (if (pair? it) (cdr it) it))
-
 (define fail '(fail fail fail))
 (define (failure? state) (eq state fail))
 
@@ -368,19 +365,6 @@
 
 ;;;; ----------------------------------------
 
-(define (char-between b a c)
-    (or (eq a b) (eq b c)
-        (and (char-< a b)
-             (char-< b c))))
-
-(define (whitespace-char? x)
-    (or (eq x #\Space)
-        (char-< x #\Space)) )
-
-(define (alpha-char? x)
-    (or (char-between x #\a #\z)
-        (char-between x #\A #\Z)))
-
 (define-rule space
   (set! x any)
   (where (whitespace-char? x))
@@ -421,8 +405,6 @@
 (define-rule ws
     (* (or space comment)))
 
-(define (character-name? str) (not (nil? (char-by-name str))))
-
 (define-rule character
     #\# #\\ (set! -name (+ constituent))
     (where (character-name? (charlist-to-string -name)))
@@ -448,15 +430,6 @@
     #\" (set! -chars (* string-char)) #\"
     (return (charlist-to-string -chars)))
 
-(define (symbol-char x) ;; TODO: convert to lookup table
-    (or (char-between x #\a #\z)
-        (char-between x #\* #\-)
-        (char-between x #\< #\Z)
-        (char-between x #\/ #\9)
-        (char-between x #\# #\&)
-        (eq x #\!) (eq x #\^) (eq x #\_)
-        (eq x #\|) (eq x #\~)))
-
 (define-rule symbol-char
     (set! x any) (where (symbol-char x)) (return x))
 
@@ -468,13 +441,6 @@
 
 (define (digits-to-integer xs)  (reduce-list (lambda (acc n) (+i n (*i 10 acc))) 0 xs))
 
-(define-rule integer
-    (set! sign? (? #\-))  (set! x (+ digit))
-    (return
-      (let ((n (digits-to-integer x))
-            (s (if (nil? sign?) 1 -1)))
-        (*i s n))))
-
 (define (digits-to-float xs ys)
     (+f (i->f (reduce-list
                (lambda (acc n) (+i n (*i 10 acc)))
@@ -482,6 +448,21 @@
         (reduce-list
          (lambda (acc n) (*f 0.1 (+f (i->f n) acc)))
          0.0 (reverse-list ys))) )
+
+(define (hex-char-value ch)
+    (if (char-between ch #\a #\f)
+        (+i 10 (-i (char-code ch) (char-code #\a)))
+        (-i (char-code ch) (char-code #\0))))
+
+(define (hex-chars-to-integer xs)
+    (reduce-list (lambda (acc hx) (+i (hex-char-value hx) (*i 16 acc))) 0 xs))
+
+(define-rule integer
+    (set! sign? (? #\-))  (set! x (+ digit))
+    (return
+      (let ((n (digits-to-integer x))
+            (s (if (nil? sign?) 1 -1)))
+        (*i s n))))
 
 (define-rule float
     (set! sign? (? #\-)) (set! x (+ digit)) #\. (set! y (+ digit))
@@ -498,14 +479,6 @@
     (set! x any) (where (or (char-between x #\0 #\9)
                             (char-between x #\a #\f)))
     (return x))
-
-(define (hex-char-value ch)
-    (if (char-between ch #\a #\f)
-        (+i 10 (-i (char-code ch) (char-code #\a)))
-        (-i (char-code ch) (char-code #\0))))
-
-(define (hex-chars-to-integer xs)
-    (reduce-list (lambda (acc hx) (+i (hex-char-value hx) (*i 16 acc))) 0 xs))
 
 (define-rule hex-integer
     "0x" (set! x (+ hex-char))
@@ -661,13 +634,6 @@
     (set! -it (or meta-block (extern Lisp expr)))
   (return -it))
 
-(define (whitespace-char? ch)
-    (or (eq ch #\Space)
-        (char-< ch #\Space)))
-(define (digit-char? ch)
-    (char-between ch #\0 #\9))
-(define (char-to-digit ch)
-    (-i (char-code ch) (char-code #\0)))
 (define (make-integer numbers)
     (reduce-list
      (lambda (acc n) (+i n (*i 10 acc)))

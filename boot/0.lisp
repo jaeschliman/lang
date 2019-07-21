@@ -287,8 +287,10 @@
 (define second cadr)
 (define third caddr)
 
+(define (identity x) x)
+
 ;;; eval
-(set 'eval (lambda (x) ((compile-to-closure (compiler x)))))
+(define (eval x) ((compile-to-closure (compiler x))))
 
 ;;; more utils
 

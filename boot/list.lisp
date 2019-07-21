@@ -18,4 +18,9 @@
       (loop (-i len 1))
       result))
 
+(define (safe-car it) (if (pair? it) (car it) it))
+(define (safe-cdr it) (if (pair? it) (cdr it) it))
+
+(define (ensure-list it) (if (or (pair? it) (nil? it)) it (list it)))
+
 'done

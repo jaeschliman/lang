@@ -36,7 +36,7 @@ function run_snapshot() {
     return $return_value
 }
 
-./build/amber ./boot/_cmdline-loader.lisp $img_path
+./build/boot ./boot/_cmdline-loader.lisp $img_path
 
 find ./test/snapshots -iname '*.lisp'  | while read line; do
    run_snapshot $line

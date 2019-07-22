@@ -6672,7 +6672,7 @@ int main(int argc, const char** argv) {
   info.argv = argv;
 
   // pretty hacky way of avoiding checking flags, I'll admit...
-  if (strcmp(invoked, "amber") == 0) {
+  if (strcmp(invoked, "boot") == 0) {
     auto file = require_argv_file(argc, argv);
     run_file_with_optional_display(file, info);
   } else if (strcmp(invoked, "img") == 0){

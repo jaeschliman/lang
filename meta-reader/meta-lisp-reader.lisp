@@ -10,8 +10,8 @@ meta lisp {
   string       = "\"" (non-quote | escaped-char)*:chs "\"" -> (charlist-to-string chs)
   symbol-char  = any:x ?(symbol-char x) -> x
   symbol       = ~[0-9] symbol-char+:xs -> (implode xs)
-  integer      = "-"?:sign digit+:xs -> (* (digits-to-integer xs) (if-nil? sign 1 -1))
-  float        = "-"?:sign digit+:xs "." digit+:ys -> (* (digits-to-float xs ys) (if-nil? sign 1 -1))
+  integer      = "-"?:s digit+:xs -> (*i (digits-to-integer xs) (if-nil? s 1 -1))
+  float        = "-"?:s digit+:xs "." digit+:ys -> (*f (digits-to-float xs ys) (if-nil? s 1.0 -1.0))
   point        = integer:x "@" integer:y -> (make-point x y)
   hex-integer  = "0x" [0-9a-f]+:chs -> (hex-chars-to-integer chs)
   true         = "#t" -> #t

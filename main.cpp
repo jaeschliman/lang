@@ -6056,6 +6056,11 @@ void vm_init_for_blank_startup(VM *vm, run_info info) {
   // load the stdlib
   load_file(vm, "./boot/built-in-classes.lisp");
   load_file(vm, "./boot/0.lisp");
+  load_file(vm, "./meta-reader/0-compiler.lisp");
+  load_file(vm, "./meta-reader/1-lisp-handwritten.lisp");
+  load_file(vm, "./meta-reader/1-meta-handwritten.lisp");
+  load_file(vm, "./meta-reader/2-bootstrap.lisp");
+  // TODO: load the rest of these via meta compiler
   load_file(vm, "./boot/better-define.lisp");
   load_file(vm, "./boot/generic-functions.lisp");
   load_file(vm, "./boot/math.lisp");
@@ -6066,10 +6071,6 @@ void vm_init_for_blank_startup(VM *vm, run_info info) {
   load_file(vm, "./boot/printing.lisp");
   load_file(vm, "./boot/interaction-support.lisp");
   load_file(vm, "./boot/exports.lisp");
-  load_file(vm, "./meta-reader/0-compiler.lisp");
-  load_file(vm, "./meta-reader/1-lisp-handwritten.lisp");
-  load_file(vm, "./meta-reader/1-meta-handwritten.lisp");
-  load_file(vm, "./meta-reader/2-bootstrap.lisp");
 
   _vm_poke_arguments(vm, info);
 }
@@ -6395,6 +6396,7 @@ void start_up_and_run_repl(run_info info) {
 }
 
 void load_file(VM *vm, const char *path) {
+  dbg("loading.... ", path);
   run_string(vm, read_file_contents(path));
 }
 

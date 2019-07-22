@@ -269,7 +269,7 @@
          ,run)))
 
 (define-compile (or state rules next)
-    (if (= 1 (list-length rules))
+    (if (eq 1 (list-length rules))
         (compile-rule (first rules) state next)
         (let ((body
                (reduce-list
@@ -288,7 +288,7 @@
 ;; that from seq.
 ;; TODO: optimize the single-item case e.g. (seq x) => x
 (define-compile (seq state rules next)
-    (if (= 1 (list-length rules))
+    (if (eq 1 (list-length rules))
         (compile-rule (first rules) state next)
         (let ((body
                (reduce-list (lambda (run-next rule)

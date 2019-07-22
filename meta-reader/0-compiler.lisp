@@ -188,30 +188,6 @@
     (let ((str (second (state-stream *match-start*))))
       (string-substr-bytes str (state-position *match-start*) (state-position *match-end*))))
 
-(define (match-1 rule string)
-    (let* ((stream (make-stream string))
-           (state  (make-initial-state stream))
-           (fn (get-rule rule))
-           (newstate (fn state)))
-      (state-result newstate)))
-
-(define (match-map xf rule string)
-    (let* ((stream (make-stream string))
-           (state  (make-initial-state stream))
-           (fn (get-rule rule))
-           (loop #f))
-      (set! loop
-            (lambda (state results)
-              (let ((newstate (fn state)))
-                (if (failure? newstate) (reverse-list results)
-                    (let ((newresults (cons (xf (state-result newstate)) results)))
-                      (if (stream-end? (state-stream newstate)) (reverse-list newresults)
-                          (loop newstate newresults)))))))
-      (loop state '())))
-
-(define (match-all rule string)
-    (match-map (lambda (x) x) rule string))
-
 (set-rule 'any (lambda (st)
                  (let ((s (state-stream st)))
                    (if (stream-end? s)

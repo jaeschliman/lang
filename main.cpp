@@ -6060,17 +6060,7 @@ void vm_init_for_blank_startup(VM *vm, run_info info) {
   load_file(vm, "./meta-reader/1-lisp-handwritten.lisp");
   load_file(vm, "./meta-reader/1-meta-handwritten.lisp");
   load_file(vm, "./meta-reader/2-bootstrap.lisp");
-  // TODO: load the rest of these via meta compiler
-  load_file(vm, "./boot/better-define.lisp");
-  load_file(vm, "./boot/generic-functions.lisp");
-  load_file(vm, "./boot/math.lisp");
-  load_file(vm, "./boot/list.lisp");
-  load_file(vm, "./boot/string.lisp");
-  load_file(vm, "./boot/char.lisp");
-  load_file(vm, "./boot/string-output-stream.lisp");
-  load_file(vm, "./boot/printing.lisp");
-  load_file(vm, "./boot/interaction-support.lisp");
-  load_file(vm, "./boot/exports.lisp");
+  load_file(vm, "./boot/1.lisp");
 
   _vm_poke_arguments(vm, info);
 }

@@ -1,3 +1,10 @@
+;; it is a list so we can push/pop on it, but only the first element
+;; is used to look things up.
+(defparameter *meta-context* (list 'Base))
+(defparameter *match-start*)
+(defparameter *match-end*)
+(defparameter *current-rule-name*)
+
 (defmacro trace (form)
   `(let ((_res ,form))
      (print (list ',form '= _res))
@@ -112,9 +119,6 @@
 
 (ht-at-put meta-by-name 'Base (make-meta '()))
 
-;; it is a list so we can push/pop on it, but only the first element
-;; is used to look things up.
-(defparameter *meta-context* (list 'Base))
 
 (define (push-meta-context meta)
     (set-symbol-value '*meta-context* (cons meta *meta-context*)))
@@ -179,10 +183,6 @@
 
 (define (state-position st) (first (car st)))
 (define (state-col-row st) (third (car st)))
-
-(defparameter *match-start*)
-(defparameter *match-end*)
-(defparameter *current-rule-name*)
 
 (define (current-match-string)
     (let ((str (second (state-stream *match-start*))))

@@ -231,7 +231,7 @@ e.g.
 * TODO move pc into current frame
 * TODO 'better lambda'
 * TODO keywords
-* TODO use meta reader to save source location info for top-level forms
+* IN-PROGRESS use meta reader to save source location info for top-level forms
 
 * TODO pathname utils, e.g. `get-cwd` `chdir` `absolute-path`
 * TODO maybe add freetype

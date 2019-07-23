@@ -2449,7 +2449,7 @@ u64 list_length(VM *vm, Ptr it) {
 /* ---------------------------------------- */
 
 Ptr ht(VM *vm) {
-  return make_ht(vm, make_xarray_with_capacity_and_used(vm, 64, 64), False, FIXNUM(0));
+  return make_ht(vm, make_xarray_with_capacity_and_used(vm, 16, 16), False, FIXNUM(0));
 }
 Ptr string_table(VM *vm) {
   return make_ht(vm, make_xarray_with_capacity_and_used(vm, 64, 64), True, FIXNUM(0));

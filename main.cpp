@@ -1823,7 +1823,7 @@ struct Globals {
   Ptr root_package;
   Ptr call1;
   struct {
-    Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean, _quasiquote, _unquote, _unquote_splicing, _compiler, _set_bang, _exception, _run_string, _with_special_binding, _XpackageX;
+    Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean, _quasiquote, _unquote, _unquote_splicing, _compiler, _set_bang, _exception, _run_string, _with_special_binding, _XpackageX, _Xsource_locationX;
   } known;
 
   Ptr current_thread;
@@ -2132,7 +2132,7 @@ void gc_update_globals(VM *vm) {
   update_symbols(lambda, quote, let, if, fixnum, cons, string);
   update_symbols(array, character, boolean, quasiquote, unquote, unquote_splicing);
   update_symbols(compiler, set_bang, exception, run_string, with_special_binding);
-  update_symbols(XpackageX);
+  update_symbols(XpackageX, Xsource_locationX);
 
 }
 
@@ -2682,6 +2682,7 @@ void initialize_known_symbols(VM *vm) {
   globals->known._run_string = root_intern(vm, "run-string");
   globals->known._with_special_binding = root_intern(vm, "with-special-binding");
   globals->known._XpackageX = root_intern(vm, "*package*");
+  globals->known._Xsource_locationX = root_intern(vm, "*source-location*");
 
 }
 #undef _init_sym
@@ -2841,6 +2842,9 @@ Ptr get_global(VM *vm,  const char*name) {
 }
 
 inline Ptr get_special_binding(VM *vm, Ptr sym) {
+  // when we compile initial bytecode the frame may not be ready
+  // may make sense to move this check there rather than take the hit on every lookup
+  if (!vm->frame) return Nil;
   return assoc(sym, vm->frame->special_variables);
 }
 
@@ -2889,12 +2893,17 @@ inline void _thread_local_binding_pop(VM *vm) {
 void initialize_global_variables(VM *vm) {
   set_symbol_value(vm, KNOWN(XpackageX), vm->globals->root_package);
   mark_symbol_as_special(vm, KNOWN(XpackageX));
+
   auto _stdout = root_intern(vm, "*standard-output*");
   set_symbol_value(vm, _stdout, make_file_output_stream(vm, FIXNUM(1)));
   mark_symbol_as_special(vm, _stdout);
+
   auto _stderr = root_intern(vm, "*standard-error*");
   set_symbol_value(vm, _stderr, make_file_output_stream(vm, FIXNUM(2)));
   mark_symbol_as_special(vm, _stderr);
+
+  set_symbol_value(vm, KNOWN(Xsource_locationX), Nil);
+  mark_symbol_as_special(vm, KNOWN(Xsource_locationX));
 }
 
 /* -------------------------------------------------- */
@@ -4703,6 +4712,12 @@ private:
     }
   }
   void finalizeByteCode() {
+    // save source location as final slot in literals array
+    {
+      auto val = get_symbol_value(vm, KNOWN(Xsource_locationX));
+      xarray_push(vm, objToPtr(this->literals), val);
+    }
+
     PtrArrayObject *array;
     {
       auto literal_count = xarray_used(objToPtr(this->literals));
@@ -5010,6 +5025,14 @@ Ptr _stack_frame_get_args(VM *vm, StackFrameObject *fr) {
   }
   unprot_ptr(result);
   return result;
+}
+
+Ptr get_source_location(Ptr it) {
+  if (is(Closure, it)) {
+    auto bc = closure_code(it);
+    return bc->literals->data[bc->literals->length - 1];
+  }
+  return Nil;
 }
 
 Ptr _current_thread_get_debug_info(VM *vm){

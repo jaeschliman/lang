@@ -375,6 +375,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim save-snapshot-and-exit IM_SAV_DIE ((path String)) any "im_snapshot_to_path_and_exit(vm, path)")
 
   (prim current-time-ms TIME_MS () Fixnum "current_time_ms()")
+  (prim closure-source-location CL_SRC_LOC ((a any)) any "get_source_location(a)")
 
   (setf *prims* (reverse *prims*))
   (write-prims))

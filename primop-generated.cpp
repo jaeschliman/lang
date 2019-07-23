@@ -122,6 +122,7 @@ enum PrimitiveOperation : u64 {
   PRIM_IM_SAV = ((119ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_IM_SAV_DIE = ((120ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_TIME_MS = ((121ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_CL_SRC_LOC = ((122ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -1170,6 +1171,14 @@ Ptr PRIM_TIME_MS_impl(VM *vm, u32 argc) {
   return to(Fixnum,(current_time_ms()));
 }
 
+// Primitive 121
+Ptr PRIM_CL_SRC_LOC_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("closure-source-location",any,a);
+
+ return get_source_location(a);
+}
+
 
 PrimitiveFunction PrimLookupTable[] = {
   (PrimitiveFunction)(void *)0, // apply
@@ -1294,6 +1303,7 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_IM_SAV_impl,
   &PRIM_IM_SAV_DIE_impl,
   &PRIM_TIME_MS_impl,
+  &PRIM_CL_SRC_LOC_impl,
 
   (PrimitiveFunction)(void *)0
 };
@@ -1422,6 +1432,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "save-snapshot", to(PrimOp, PRIM_IM_SAV));
   set_global(vm, "save-snapshot-and-exit", to(PrimOp, PRIM_IM_SAV_DIE));
   set_global(vm, "current-time-ms", to(PrimOp, PRIM_TIME_MS));
+  set_global(vm, "closure-source-location", to(PrimOp, PRIM_CL_SRC_LOC));
 
 }
 
@@ -2348,6 +2359,13 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
   case 121: {
 
      vm_push(vm, to(Fixnum,(current_time_ms())));
+    break;
+  }
+
+  case 122: {
+   VM_ARG("closure-source-location",any,a);
+
+    vm_push(vm, get_source_location(a));
     break;
   }
 

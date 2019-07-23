@@ -1,5 +1,12 @@
 (defparameter *current-file*)
-(defparameter *load-evaluator* eval)
+
+(define (eval-with-source-location x)
+    (let* ((pos (state-col-row *match-start*)))
+      (binding ((*source-location* (list (if-nil? *current-file* "<anonymous>" *current-file*)
+                                         (car pos) (cdr pos))))
+        (eval x))))
+
+(defparameter *load-evaluator* eval-with-source-location)
 
 (define (match-1 rule string)
     (let* ((stream (make-stream string))

@@ -1292,7 +1292,7 @@ StructTag struct_get_tag(Ptr it) {
 
 defstruct(cons, Cons, car, cdr);
 defstruct(Symbol, Symbol, name, package, value, flags, meta);
-defstruct(package, Package, name, symtab, exports, use_list);
+defstruct(package, Package, name, symtab, exports, use_list, subpackages);
 defstruct(ht, HashTable, array, dedupe_strings, count);
 defstruct(cont, Continuation,
           stack_top,
@@ -2623,8 +2623,9 @@ Ptr make_user_package(VM *vm, Ptr name) {                   prot_ptr(name);
   auto symtab = string_table(vm);                           prot_ptr(symtab);
   auto exports = ht(vm);                                    prot_ptr(exports);
   auto use_list = cons(vm, vm->globals->root_package, Nil); prot_ptr(use_list);
-  auto res = make_package(vm, name, symtab, exports, use_list);
-  unprot_ptrs(name, symtab, exports, use_list);
+  auto subpackages = string_table(vm);                      prot_ptr(subpackages);
+  auto res = make_package(vm, name, symtab, exports, use_list, subpackages);
+  unprot_ptrs(name, symtab, exports, use_list, subpackages);
   return res;
 }
 
@@ -6052,7 +6053,8 @@ void vm_init_for_blank_startup(VM *vm, run_info info) {
                                            make_string(vm, "lang"),
                                            string_table(vm),
                                            ht(vm),
-                                           Nil);
+                                           Nil,
+                                           string_table(vm));
 
   vm->globals->current_thread = make_thread(vm, Nil,
                                             THREAD_STATUS_RUNNING,

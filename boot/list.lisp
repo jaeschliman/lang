@@ -23,4 +23,10 @@
 
 (define (ensure-list it) (if (or (pair? it) (nil? it)) it (list it)))
 
+(define list-member? #f)
+(define (list-member? item lst)
+    (if-nil? lst #f
+             (or (eq (car lst) item)
+                 (list-member? item (cdr lst)))))
+
 'done

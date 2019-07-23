@@ -280,6 +280,8 @@ void initialize_primitive_functions(VM *vm) {
         "make_user_package(vm, name)")
   (prim package-name PKG_NAME ((a any)) any
         "package_get_name(a)")
+  (prim package-subpackages PKG_SUBP ((a any)) any
+        "package_get_subpackages(a)")
 
   (prim gensym GSYM   ()                     any "make_symbol(vm, \"_gensym_\")")
   (prim intern INTERN ((a String) (pkg any)) any "intern(vm, a, pkg)")

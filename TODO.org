@@ -239,6 +239,13 @@ https://mrandri19.github.io/2019/07/18/modern-text-rendering-linux-ep1.html
 * DONE save-snapshot-and-exit
 * DONE switch over to userspace print function
 * DONE run tests using built img instead of repeated cold boots
+* TODO package/symbol read/print syntax needs to account for smalltalk-like symbols
+  e.g. we should allow for free colons in the symbol name
+  so perhaps a slash would be a better seperator
+  but then need to account for symbols with the name /, /f, /i etc
+  and think about how to differentiate the root package
+  like it starts with slash? perhaps #/sym for root package symbols
+  so then #// would still be viable
 
 * notes
 maybe have a stack of compilers? can push/pop...

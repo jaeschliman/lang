@@ -78,7 +78,14 @@
 (with-output-to-string (s)
   (show (current-thread) s))
 
+;; unexported (should print prefix)
 (binding ((*package* (make-user-package "anon")))
   (show 'x))
+
+(define root-package *package*)
+
+;; exported (should not print prefix)
+(binding ((*package* (make-user-package "anon")))
+  (show 'define))
 
 (show "hello world")

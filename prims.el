@@ -286,6 +286,8 @@ void initialize_primitive_functions(VM *vm) {
         "package_get_use_list(a)")
   (prim package-exports PKG_EXTERNS ((a any)) any
         "package_get_exports(a)")
+  (prim package-meta PKG_META ((a any)) any
+        "package_get_meta(a)")
 
   (prim gensym GSYM   ()                     any "make_symbol(vm, \"_gensym_\")")
   (prim intern INTERN ((a String) (pkg any)) any "intern(vm, a, pkg)")

@@ -246,6 +246,8 @@ https://mrandri19.github.io/2019/07/18/modern-text-rendering-linux-ep1.html
   and think about how to differentiate the root package
   like it starts with slash? perhaps #/sym for root package symbols
   so then #// would still be viable
+* TODO short string optimization
+  can fit 10 6 bit chars into a Ptr
 
 * notes
 maybe have a stack of compilers? can push/pop...

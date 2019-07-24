@@ -2635,8 +2635,7 @@ Ptr intern(VM *vm, const char* cstr, int len, Ptr pkg) {
   auto tab = package_get_symtab(pkg); 
   auto exist = package_lookup_string(pkg, name);
   if (exist == Nil) {                                         prot_ptrs(tab, name);
-    exist = make_Symbol(vm, name, vm->globals->root_package,
-                        Nil, FIXNUM(0), Nil);
+    exist = make_Symbol(vm, name, pkg, Nil, FIXNUM(0), Nil);
     prot_ptr(exist);
     ht_at_put(vm, tab, name, exist); 
     unprot_ptrs(tab, name, exist);

@@ -92,7 +92,7 @@
 (show '#/foo)
 (define subpackage (make-user-package "anon"))
 (package-add-subpackage *package* subpackage "sub")
-(print 'sub/hello)
-(print (package-name (symbol-package 'sub/hello)))
+
+(show 'sub/hello)
 
 (show "hello world")

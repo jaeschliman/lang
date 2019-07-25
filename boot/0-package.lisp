@@ -34,7 +34,7 @@
                          (set! path (cons (ht-at (package-get-subpackage-nametable parent) curr) path))
                          (loop parent (package-get-meta parent 'parent)))))
           (loop pkg (package-get-meta pkg 'parent))
-          (package-set-meta pkg 'canonical-path (reverse-list path))))
+          (package-set-meta pkg 'canonical-path path)))
   (package-get-meta pkg 'canonical-path))
 
 ;; TODO: we will want to be able to 'symlink' packages, i.e. nicknames

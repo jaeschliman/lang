@@ -33,4 +33,7 @@ x
 10@-10
 #/lang/x
 define
+define
+#/foo
+sub/hello
 "hello world"

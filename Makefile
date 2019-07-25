@@ -1,4 +1,4 @@
-.PHONY : release debug
+.PHONY : release debug image
 
 INCLUDE=/Users/jsn/Library/Frameworks
 FRAMEWORKS= -framework Cocoa -framework SDL2 -framework SDL2_image
@@ -17,4 +17,7 @@ debug :
 	mkdir -p build
 	clang++ main.cpp -Werror -O0 -g -std=c++14 -F$(INCLUDE) $(FRAMEWORKS) -o build/boot
 	cd build && ln boot repl && ln boot img
-	./build/amber ./boot/_cmdline-loader.lisp ./build/latest.image
+	./build/boot ./boot/_cmdline-loader.lisp ./build/latest.image
+
+image :
+	./build/boot ./boot/_cmdline-loader.lisp ./build/latest.image

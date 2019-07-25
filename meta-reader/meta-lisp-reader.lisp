@@ -8,8 +8,12 @@ meta lisp {
   non-quote    = ~["\\] any
   escaped-char = "\\" any:x -> (escaped-char-character x)
   string       = "\"" (non-quote | escaped-char)*:chs "\"" -> (charlist-to-string chs)
+  pkg-name     = [a-zA-Z\-]+:chs -> (charlist-to-string chs)
+  pkg-path     = pkg-name:n "/" -> n
+  pkg-prefix   = "#/"?:gl pkg-path*:parts  -> (if-nil? gl parts (cons 'root parts))
   symbol-char  = any:x ?(symbol-char x) -> x
-  symbol       = ~[0-9] symbol-char+:xs -> (implode xs)
+  symbol-name  = ~[0-9] symbol-char+:xs -> (charlist-to-string xs)
+  symbol       = pkg-prefix?:pfx symbol-name:name -> (intern-with-package-prefix pfx name)
   integer      = "-"?:s digit+:xs -> (*i (digits-to-integer xs) (if-nil? s 1 -1))
   float        = "-"?:s digit+:xs "." digit+:ys -> (*f (digits-to-float xs ys) (if-nil? s 1.0 -1.0))
   point        = integer:x "@" integer:y -> (make-point x y)
@@ -23,6 +27,6 @@ meta lisp {
   unq-splicing = ",@" ws expr:x -> (list 'unquote-splicing x)
   unquoted     = ","  ws expr:x -> (list 'unquote x)
   quotation    = quoted | quasiquoted | unq-splicing | unquoted
-  expr         = ws ( "(" expr*:x")" -> x | quotation | atom ):x ws -> x
+  expr         = ws ( "(" expr*:x ")" -> x | quotation | atom ):x ws -> x
 }
 

@@ -53,14 +53,19 @@
           (loop a b)
           (cons 'root a))))
 
-(define root-package (%make-package "root"))
-(package-add-subpackage root-package *package* "lang")
+(define %root-package (%make-package "root"))
+(package-add-subpackage %root-package *package* "lang")
 
 (define (find-package-by-path path)
     (let* ((root? (eq (car path) 'root))
-           (pkg (if root? root-package *package*)))
+           (pkg (if root? %root-package *package*)))
       (when root? (set! path (cdr path)))
       (dolist (name path)
         (set! pkg (package-find-subpackage pkg name))
         (if-nil? pkg (throw `(could not find package at ,path))))
       pkg))
+
+
+(define (intern-with-package-prefix pfx str)
+    (if-nil? pfx (intern str *package*)
+             (intern str (find-package-by-path pfx))))

@@ -101,7 +101,9 @@
                 (and (list-member? package (package-use-list relative-to))
                      (not (nil? (ht-at (package-exports package) symbol)))))
       (dolist (part (package-relative-path package relative-to))
-        (stream-write-string stream part)
+        (if (eq part 'root)
+            (stream-write-string stream "#")
+            (stream-write-string stream part))
         (stream-write-string stream "/"))))
 
 ;; TODO: syntax for escaped symbols

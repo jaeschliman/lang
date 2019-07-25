@@ -31,6 +31,6 @@ ff
 #\A
 x
 10@-10
-lang:x
+lang/x
 define
 "hello world"

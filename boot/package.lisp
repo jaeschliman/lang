@@ -19,7 +19,7 @@
 
 (define (package-add-subpackage parent child name)
     (ht-at-put (package-get-subpackages parent) name child)
-  (ht-at-put (package-get-subpackage-nametable) child name)
+  (ht-at-put (package-get-subpackage-nametable parent) child name)
   (package-set-meta child 'parent parent))
 
 (define (package-find-subpackage pkg name)
@@ -37,8 +37,24 @@
           (package-set-meta pkg 'canonical-path (reverse-list path))))
   (package-get-meta pkg 'canonical-path))
 
+;; TODO: we will want to be able to 'symlink' packages, i.e. nicknames
+(define (package-relative-path pkg &opt (relative-to *package*))
+    (let ((a (package-canonical-path pkg))
+          (b (package-canonical-path relative-to))
+          (loop #f))
+      (set! loop (lambda (a b)
+                   (if (not (or (nil? a) (nil? b)))
+                       (if (string-equal (car a) (car b))
+                           (loop (cdr a) (cdr b))
+                           a)
+                       a)))
+      (loop a b)))
+
+(define root-package (%make-package "root"))
+(package-add-subpackage root-package *package* "lang")
+
 (define (find-package-by-path path)
-    (let ((pkg (package-get-root-package)))
+    (let ((pkg root-package))
       (dolist (name path)
         (set! pkg (package-find-subpackage pkg name))
         (if-nil? pkg (throw `(could not find package at ,path))))

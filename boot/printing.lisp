@@ -100,8 +100,9 @@
     (unless (or (eq package relative-to)
                 (and (list-member? package (package-use-list relative-to))
                      (not (nil? (ht-at (package-exports package) symbol)))))
-      (stream-write-string stream (package-name package))
-      (stream-write-char stream #\:)))
+      (dolist (part (package-relative-path package relative-to))
+        (stream-write-string stream part)
+        (stream-write-string stream "/"))))
 
 ;; TODO: syntax for escaped symbols
 (define (print-symbol it &opt (stream *standard-output*))

@@ -20,3 +20,8 @@
 
 (define str2 "hello, world")
 (print (string-substr-bytes str2 1 (- (string-byte-length str2) 1)))
+
+(print `(expecting #t))
+(print (string-equal "hello" "hello"))
+(print `(expecting #f))
+(print (string-equal "hello" "goodbye"))

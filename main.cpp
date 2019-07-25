@@ -1028,6 +1028,13 @@ s64 string_char_count(ByteArrayObject *str){
   return count;
 }
 
+u32 hash_code(Ptr it);
+bool string_equal(ByteArrayObject *a, ByteArrayObject*b) {
+  if (hash_code(objToPtr(a)) != hash_code(objToPtr(b))) return false;
+  if (a->length != b->length) return false;
+  return memcmp(a->data, b->data, a->length) == 0;
+}
+
 inline Ptr make_number(s64 value) { return to(Fixnum, value); }
 
 Ptr make_zf_array(VM *vm, u64 len) {

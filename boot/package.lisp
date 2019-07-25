@@ -1,0 +1,45 @@
+(define (package-get-meta pkg key) (ht-at (package-meta pkg) key))
+(define (package-set-meta pkg key value) (ht-at-put (package-meta pkg) key value))
+
+(define (package-get-subpackages pkg)
+    (let ((exist (package-get-meta pkg 'subpackages)))
+      (if-nil? exist
+               (let ()
+                 (set! exist (make-st))
+                 (package-set-meta pkg 'subpackages exist)))
+      exist))
+
+(define (package-get-subpackage-nametable pkg)
+    (let ((exist (package-get-meta pkg 'subpackage-nametable)))
+      (if-nil? exist
+               (let ()
+                 (set! exist (make-ht))
+                 (package-set-meta pkg 'subpackage-nametable exist)))
+      exist))
+
+(define (package-add-subpackage parent child name)
+    (ht-at-put (package-get-subpackages parent) name child)
+  (ht-at-put (package-get-subpackage-nametable) child name)
+  (package-set-meta child 'parent parent))
+
+(define (package-find-subpackage pkg name)
+    (ht-at (package-get-subpackages pkg) name))
+
+(define (package-canonical-path pkg)
+    (if (nil? (package-get-meta pkg 'canonical-path))
+        (let ((path '())
+              (loop #f))
+          (set! loop (lambda (curr parent)
+                       (unless (nil? parent)
+                         (set! path (cons (ht-at (package-get-subpackage-nametable parent) curr) path))
+                         (loop parent (package-get-meta parent 'parent)))))
+          (loop pkg (package-get-meta pkg 'parent))
+          (package-set-meta pkg 'canonical-path (reverse-list path))))
+  (package-get-meta pkg 'canonical-path))
+
+(define (find-package-by-path path)
+    (let ((pkg (package-get-root-package)))
+      (dolist (name path)
+        (set! pkg (package-find-subpackage pkg name))
+        (if-nil? pkg (throw `(could not find package at ,path))))
+      pkg))

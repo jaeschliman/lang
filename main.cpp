@@ -6097,6 +6097,7 @@ void vm_init_for_blank_startup(VM *vm, run_info info) {
   // load the stdlib
   load_file(vm, "./boot/built-in-classes.lisp");
   load_file(vm, "./boot/0.lisp");
+  load_file(vm, "./boot/0-package.lisp");
   load_file(vm, "./meta-reader/0-compiler.lisp");
   load_file(vm, "./meta-reader/1-lisp-handwritten.lisp");
   load_file(vm, "./meta-reader/1-meta-handwritten.lisp");

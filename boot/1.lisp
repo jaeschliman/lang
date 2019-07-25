@@ -5,7 +5,6 @@
 (load "./boot/string.lisp")
 (load "./boot/char.lisp")
 (load "./boot/string-output-stream.lisp")
-(load "./boot/package.lisp")
 (load "./boot/printing.lisp")
 (load "./boot/interaction-support.lisp")
 (load "./boot/exports.lisp")

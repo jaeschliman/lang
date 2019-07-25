@@ -78,7 +78,7 @@ typedef double f64;
 // we can't reduce them down to 0 as they would be indistinguishable from Nil
 #define SYSTEM_HEAP_IMAGE_OFFSET 512;
 
-#define SYSTEM_ROOT_PACKAGE_KEY FIXNUM(0)
+#define SYSTEM_LANG_PACKAGE_KEY FIXNUM(0)
 #define SYSTEM_CURRENT_THREAD_KEY FIXNUM(1)
 #define SYSTEM_OTHER_THREADS_KEY FIXNUM(2)
 #define SYSTEM_BUILTIN_CLASSES_KEY FIXNUM(3)
@@ -1827,7 +1827,7 @@ struct Globals {
     StandardObject *builtins[127];
 
   } classes;
-  Ptr root_package;
+  Ptr lang_package;
   Ptr call1;
   struct {
     Ptr _lambda, _quote, _if, _let, _fixnum, _cons, _string, _array, _character, _boolean, _quasiquote, _unquote, _unquote_splicing, _compiler, _set_bang, _exception, _run_string, _with_special_binding, _XpackageX, _Xsource_locationX;
@@ -1905,7 +1905,7 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
     map_refs(it, recurse);
   };
   vm_map_stack_refs(vm, recurse);
-  recurse(vm->globals->root_package);
+  recurse(vm->globals->lang_package);
   recurse(vm->globals->call1);
 
 #define handle_class(name) recurse(objToPtr(vm->globals->classes._##name));
@@ -2125,7 +2125,7 @@ void gc_update_base_class(VM *vm, StandardObject **it) {
 
 void gc_update_globals(VM *vm) {
   gc_update_ptr(vm, &vm->globals->call1);
-  gc_update_ptr(vm, &vm->globals->root_package);
+  gc_update_ptr(vm, &vm->globals->lang_package);
   gc_update_ptr(vm, &vm->globals->current_thread);
 
 #define X(...) MAP(handle_class, __VA_ARGS__)
@@ -2629,7 +2629,7 @@ Ptr package_extern_symbol(VM *vm, Ptr pkg, Ptr sym) {
 Ptr make_user_package(VM *vm, Ptr name) {                   prot_ptr(name);
   auto symtab = string_table(vm);                           prot_ptr(symtab);
   auto exports = ht(vm);                                    prot_ptr(exports);
-  auto use_list = cons(vm, vm->globals->root_package, Nil); prot_ptr(use_list);
+  auto use_list = cons(vm, vm->globals->lang_package, Nil); prot_ptr(use_list);
   auto subpackages = string_table(vm);                      prot_ptr(subpackages);
   auto res = make_package(vm, name, symtab, exports, use_list, subpackages, ht(vm));
   unprot_ptrs(name, symtab, exports, use_list, subpackages);
@@ -2669,7 +2669,7 @@ Ptr intern(VM *vm, string name, Ptr pkg) {
 }
 
 Ptr root_intern(VM *vm, string name) {
-  return intern(vm, name, vm->globals->root_package);
+  return intern(vm, name, vm->globals->lang_package);
 }
 
 bool is_special_symbol(VM *vm, Ptr sym) {
@@ -2907,7 +2907,7 @@ inline void _thread_local_binding_pop(VM *vm) {
 /* -------------------------------------------------- */
 
 void initialize_global_variables(VM *vm) {
-  set_symbol_value(vm, KNOWN(XpackageX), vm->globals->root_package);
+  set_symbol_value(vm, KNOWN(XpackageX), vm->globals->lang_package);
   mark_symbol_as_special(vm, KNOWN(XpackageX));
 
   auto _stdout = root_intern(vm, "*standard-output*");
@@ -3904,7 +3904,7 @@ void _im_prepare_vm_for_snapshot(VM *vm) {
 
   // write the root package
   ht_at_put(vm, vm->system_dictionary,
-            SYSTEM_ROOT_PACKAGE_KEY, vm->globals->root_package);
+            SYSTEM_LANG_PACKAGE_KEY, vm->globals->lang_package);
 
   // copy the waiting threads into the system dictionary 
   auto threads = _background_threads_as_list(vm);
@@ -6023,9 +6023,9 @@ void vm_init_from_heap_snapshot(VM *vm) {
   assert(is(ht, vm->system_dictionary));
 
   // set root package
-  vm->globals->root_package = ht_at(vm->system_dictionary, SYSTEM_ROOT_PACKAGE_KEY);
-  _debug_assert_in_heap(vm, vm->globals->root_package);
-  assert(is(package, vm->globals->root_package));
+  vm->globals->lang_package = ht_at(vm->system_dictionary, SYSTEM_LANG_PACKAGE_KEY);
+  _debug_assert_in_heap(vm, vm->globals->lang_package);
+  assert(is(package, vm->globals->lang_package));
 
   // set main thread
   vm->globals->current_thread = ht_at(vm->system_dictionary, SYSTEM_CURRENT_THREAD_KEY);
@@ -6064,7 +6064,7 @@ void vm_init_for_blank_startup(VM *vm, run_info info) {
 
   vm->system_dictionary = ht(vm); // should be the first allocation
 
-  vm->globals->root_package = make_package(vm,
+  vm->globals->lang_package = make_package(vm,
                                            make_string(vm, "lang"),
                                            string_table(vm),
                                            ht(vm),
@@ -6080,7 +6080,7 @@ void vm_init_for_blank_startup(VM *vm, run_info info) {
                                             Nil);
 
   ht_at_put(vm, vm->system_dictionary,
-            SYSTEM_ROOT_PACKAGE_KEY, vm->globals->root_package);
+            SYSTEM_LANG_PACKAGE_KEY, vm->globals->lang_package);
 
   initialize_known_symbols(vm);
   initialize_classes(vm);

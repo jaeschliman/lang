@@ -2636,6 +2636,15 @@ Ptr make_user_package(VM *vm, Ptr name) {                   prot_ptr(name);
   return res;
 }
 
+Ptr make_basic_package(VM *vm, Ptr name) {                  prot_ptr(name);
+  auto symtab = string_table(vm);                           prot_ptr(symtab);
+  auto exports = ht(vm);                                    prot_ptr(exports);
+  auto subpackages = string_table(vm);                      prot_ptr(subpackages);
+  auto res = make_package(vm, name, symtab, exports, Nil, subpackages, ht(vm));
+  unprot_ptrs(name, symtab, exports, subpackages);
+  return res;
+}
+
 Ptr intern(VM *vm, const char* cstr, int len, Ptr pkg) {
   auto name = make_string_with_end(vm, cstr, cstr+len);
   if (pkg == Nil) return make_Symbol(vm, name, Nil, Nil, FIXNUM(0), Nil);

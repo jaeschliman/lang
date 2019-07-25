@@ -278,6 +278,8 @@ void initialize_primitive_functions(VM *vm) {
         "package_extern_symbol(vm, a, b)")
   (prim make-user-package MK_USR_PKG ((name any)) any
         "make_user_package(vm, name)")
+  (prim %make-package MK_PKG ((name any)) any
+        "make_basic_package(vm, name)")
   (prim package-name PKG_NAME ((a any)) any
         "package_get_name(a)")
   (prim package-subpackages PKG_SUBP ((a any)) any

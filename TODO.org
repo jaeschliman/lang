@@ -152,8 +152,8 @@ http://www.jezzamon.com/fourier/index.html
 * DONE generic maths
 * DONE a package system
 * DONE hash tables need to grow after threshold
-* TODO think about package system syntax for symbols
-* TODO should packages be hierarchical?
+* DONE think about package system syntax for symbols
+* DONE should packages be hierarchical?
   want to avoid the problem of name collision for packages.
   perhaps packages should be referred to by a variable binding and the name
   is just for printing? could work better if package object has explicit name bindings
@@ -239,7 +239,7 @@ https://mrandri19.github.io/2019/07/18/modern-text-rendering-linux-ep1.html
 * DONE save-snapshot-and-exit
 * DONE switch over to userspace print function
 * DONE run tests using built img instead of repeated cold boots
-* TODO package/symbol read/print syntax needs to account for smalltalk-like symbols
+* DONE package/symbol read/print syntax needs to account for smalltalk-like symbols
   e.g. we should allow for free colons in the symbol name
   so perhaps a slash would be a better seperator
   but then need to account for symbols with the name /, /f, /i etc

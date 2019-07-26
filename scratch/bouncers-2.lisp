@@ -1,4 +1,3 @@
-(set '*package* (make-user-package "anon"))
 
 (define mouse-position 0@0)
 (define boxes '())

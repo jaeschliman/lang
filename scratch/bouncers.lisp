@@ -1,4 +1,3 @@
-(set '*package* (make-user-package "anon"))
 
 ;; TODO: this would be a good one to stress-test shift/reset
 

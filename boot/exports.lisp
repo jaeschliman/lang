@@ -2,7 +2,7 @@
   (let ((exports (mapcar (lambda (s) `(package-extern-symbol *package* ',s)) syms)))
     `(let () ,@exports)))
 
-(export let lambda let* define set-symbol-value binding set set! *package* defparameter)
+(export apply let lambda let* define set-symbol-value binding set set! *package* defparameter symbol-package)
 
 (export defmacro gensym intern)
 
@@ -45,5 +45,9 @@
 
 (export
  load-image image-width image-height blit-to-screen screen-fill-rect)
+
+(export set-stack-mark snapshot-to-stack-mark resume-stack-snapshot)
+
+(export continuation? continuation-value)
 
 'done

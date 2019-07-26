@@ -9,35 +9,35 @@
 (set 'expect-f (lambda (r) (expect-t (not r))))
 (define (expect-runs x) (expect #t #t))
 
-(expect-t (qq-simple-list-result? '(list 'a)))
-(expect-f (qq-simple-list-result? '(list 'a 'b)))
+(expect-t (#/lang/qq-simple-list-result? '(list 'a)))
+(expect-f (#/lang/qq-simple-list-result? '(list 'a 'b)))
 
-(expect-t (list-every qq-simple-list-result?
+(expect-t (list-every #/lang/qq-simple-list-result?
                       '((list 'a) (list 'b) (list 'c))))
 
-(expect-f (list-every qq-simple-list-result?
+(expect-f (list-every #/lang/qq-simple-list-result?
                       '((list 'a) b (list 'c))))
 
-(expect ''(a b c) (qq-append-opt '((list 'a) (list 'b) (list 'c))))
+(expect ''(a b c) (#/lang/qq-append-opt '((list 'a) (list 'b) (list 'c))))
 
 (expect ''(a b c)
-        (qq-xform-for-unq '(a b c) 0))
+        (#/lang/qq-xform-for-unq '(a b c) 0))
 
 (expect '(list 'a b 'c)
-        (qq-xform-for-unq '(a (unquote b) c) 0))
+        (#/lang/qq-xform-for-unq '(a (unquote b) c) 0))
 
 (expect ''(a b c (d e f))
-        (qq-xform '(a b c (d e f)) 0))
+        (#/lang/qq-xform '(a b c (d e f)) 0))
 
 (expect '(list 'a 'b 'c (list 'd e 'f))
- (qq-xform '(a b c (d (unquote e) f)) 0))
+ (#/lang/qq-xform '(a b c (d (unquote e) f)) 0))
 
 (expect '(append (list 'a) (list 'b) (list 'c) (list (list 'd e 'f)) g)
-        (qq-xform '(a b c (d (unquote e) f) (unquote-splicing g)) 0))
+        (#/lang/qq-xform '(a b c (d (unquote e) f) (unquote-splicing g)) 0))
 
 (expect
  '(list 'a 'b 'c (list 'd e 'f) (append g (list 'h)))
- (qq-xform '(a b c (d (unquote e) f) ((unquote-splicing g) h)) 0))
+ (#/lang/qq-xform '(a b c (d (unquote e) f) ((unquote-splicing g) h)) 0))
 
 ;; basic varargs check
 (set 'myfun (lambda args (cons 'myfun! args)))
@@ -46,15 +46,15 @@
 ;; append internals
 (expect
  '(a b c 1 2 3 d e f 4 5 6 done)
- (append3 '(a b c) '(1 2 3) '((d e f) (4 5 6) (done))))
+ (#/lang/append3 '(a b c) '(1 2 3) '((d e f) (4 5 6) (done))))
 
 (expect
  '(a b c 1 2 3)
- (append3 '(a b c) '(1 2 3) (list)))
+ (#/lang/append3 '(a b c) '(1 2 3) (list)))
 
 (expect
  '(a b c)
- (append3 '(a b c) (list) (list)))
+ (#/lang/append3 '(a b c) (list) (list)))
 
 ;; basic append checks
 (expect '(a b)                 (append '(a b)))
@@ -63,16 +63,16 @@
 (expect '(a b c d e f g h)     (append '(a b) '(c d) '(e f) '(g h)))
 (expect '(a b c d e f g h i j) (append '(a b) '(c d) '(e f) '(g h) '(i j)))
 
-(expect ''x (qq-process '(quasiquote x)))
-(expect '(lambda (x) x) (qq-process '(lambda (x) x)))
+(expect ''x (#/lang/qq-process '(quasiquote x)))
+(expect '(lambda (x) x) (#/lang/qq-process '(lambda (x) x)))
 
 ;; TODO: could optimize (list 'x) => '(x)
 ;; TODO: could optimize '1 => 1
 (expect
  '(lambda (x) (append (list '1) (list '2) '(3 4) (list '5) (list '6)))
- (qq-process '(lambda (x) (quasiquote (1 2 (unquote-splicing '(3 4)) 5 6)))))
+ (#/lang/qq-process '(lambda (x) (quasiquote (1 2 (unquote-splicing '(3 4)) 5 6)))))
 
-(let ((fn (eval (qq-process '(lambda (x)
+(let ((fn (#/lang/eval (#/lang/qq-process '(lambda (x)
                               (quasiquote
                                (1 2
                                 (unquote-splicing '(3 4))
@@ -82,9 +82,9 @@
 
 (expect
  '(lambda (x) (append (list '1) (list '2) '(3 4) (list '5) (list '6) (list x)))
- (qq-process '(lambda (x) `(1 2 ,@'(3 4) 5 6 ,x))))
+ (#/lang/qq-process '(lambda (x) `(1 2 ,@'(3 4) 5 6 ,x))))
 
-(let ((fn (eval (qq-process '(lambda (x) `(1 2 ,@'(3 4) 5 6 ,x))))))
+(let ((fn (#/lang/eval (#/lang/qq-process '(lambda (x) `(1 2 ,@'(3 4) 5 6 ,x))))))
   (expect '(1 2 3 4 5 6 7) (fn 7)))
 
 (set 'myfun (lambda (a b c) `(On a rainy ,a I saw ,b (and we ,@c))))
@@ -99,7 +99,7 @@
 
 (expect 'hello (macroexpand 'hello))
 
-(expect-runs (ht-at macro-functions 'and))
+(expect-runs (ht-at #/lang/macro-functions 'and))
 
 ;; unclear how to test these.. other than asserting there is no error...
 (expect-runs (macroexpand '(and)))
@@ -138,8 +138,8 @@
   (expect '(hello world) y))
 
 (define (show x)
-    (cond ((symbol? x) 'symbol)
-          ((nil? x) 'nil!)
+    (cond ((#/lang/symbol? x) 'symbol)
+          ((#/lang/nil? x) 'nil!)
           (#t 'other)))
 
 (expect 'symbol (show 'x))
@@ -186,12 +186,12 @@
 (expect '(a b c) (reverse-list '(c b a)))
 
 ;; TODO: no string-equal? yet
-(expect-runs (make-string 3 #\x))
+(expect-runs (#/lang/make-string 3 #\x))
 
-(define my-str (make-string 3 #\Space))
-(expect-runs (char-at-put my-str 1 #\o))
+(define my-str (#/lang/make-string 3 #\Space))
+(expect-runs (#/lang/char-at-put my-str 1 #\o))
 
-(expect-runs (implode '(#\h #\e #\l #\l #\o)))
+(expect-runs (#/lang/implode '(#\h #\e #\l #\l #\o)))
 
 (define (test-let-binding)
     (let ((x 'x-value))

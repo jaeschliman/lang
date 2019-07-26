@@ -12,7 +12,7 @@
 (export
  list cons append nil? nth
  first second third
- mapcar reverse-list list-every?)
+ mapcar reverse-list list-every)
 
 (export
  car cdr caar cadr cdar cddr caaar caddr cdaar cdddr caaar caddr cdaar cdddr)

@@ -2,7 +2,7 @@
   (let ((exports (mapcar (lambda (s) `(package-extern-symbol *package* ',s)) syms)))
     `(let () ,@exports)))
 
-(export let lambda define set-symbol-value binding set set! *package* defparameter)
+(export let lambda let* define set-symbol-value binding set set! *package* defparameter)
 
 (export defmacro gensym intern)
 
@@ -23,10 +23,13 @@
  make-array aget aset)
 
 (export
+ make-point point-x point-y point+ point- point-rotate)
+
+(export
  = <= >= * / % + - i->f f->i)
 
 (export
- +i -i +f -f /i /f %i %f *i *f)
+ +i -i +f -f /i /f %i %f *i *f >i >f)
 
 (export
  sin cos tan floor ceil rem pow log abs)
@@ -41,6 +44,6 @@
  onmousemove onmousedown onmousedrag onkey onshow request-display)
 
 (export
- load-image blit-to-screen screen-fill-rect)
+ load-image image-width image-height blit-to-screen screen-fill-rect)
 
 'done

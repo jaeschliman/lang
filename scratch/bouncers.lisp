@@ -1,4 +1,7 @@
+(set '*package* (make-user-package "anon"))
+
 ;; TODO: this would be a good one to stress-test shift/reset
+
 (define (call-with-tag tag body handler)
     (set-stack-mark tag)
   (let* ((invoke body)
@@ -46,7 +49,6 @@
                            (,loop))
                          '())))
        (,loop))))
-
 
 (define (my-counter-body start)
     (let ((curr start))

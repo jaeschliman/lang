@@ -230,7 +230,7 @@ e.g.
 * DONE move bc into current frame
 * TODO move pc into current frame
 * TODO 'better lambda'
-* TODO keywords
+* DONE keywords
 * DONE use meta reader to save source location info for top-level forms
 
 * TODO pathname utils, e.g. `get-cwd` `chdir` `absolute-path`

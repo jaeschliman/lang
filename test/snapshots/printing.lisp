@@ -95,4 +95,6 @@
 
 (show 'sub/hello)
 
+(show :ok)
+
 (show "hello world")

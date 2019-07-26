@@ -36,4 +36,5 @@ define
 define
 #/foo
 sub/hello
+:ok
 "hello world"

@@ -95,7 +95,6 @@
 (generic-function-add-method
  print-object (list Point #t) print-point)
 
-;; TODO: decide on syntax for global package references, subpackages etc.
 (define (%write-relative-package-name symbol package relative-to stream)
     (unless (or (eq package relative-to)
                 (and (list-member? package (package-use-list relative-to))
@@ -108,8 +107,11 @@
 
 ;; TODO: syntax for escaped symbols
 (define (print-symbol it &opt (stream *standard-output*))
-    (%write-relative-package-name it (symbol-package it) *package* stream)
-  (stream-write-string stream (symbol-name it)))
+    (let ((pkg (symbol-package it)))
+      (if (eq pkg %keyword-package)
+          (stream-write-string stream ":")
+          (%write-relative-package-name it pkg *package* stream))
+      (stream-write-string stream (symbol-name it))))
 
 (generic-function-add-method
  print-object (list Symbol #t) print-symbol)

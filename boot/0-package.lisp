@@ -72,4 +72,7 @@
 
 (define (intern-with-package-prefix pfx str)
     (if-nil? pfx (intern str *package*)
-             (intern str (find-package-by-path pfx))))
+             (let* ((pkg (find-package-by-path pfx))
+                    (sym (intern str pkg))) 
+               (when (eq pkg %keyword-package) (set sym sym))
+               sym)))

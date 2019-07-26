@@ -1,3 +1,5 @@
+(set '*package* (make-user-package "anon"))
+
 (define screen-width 300)
 (define screen-height 200)
 (define screen-size (make-point screen-width screen-height))

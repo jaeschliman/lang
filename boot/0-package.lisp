@@ -55,6 +55,10 @@
 
 (define %root-package (%make-package "root"))
 (package-add-subpackage %root-package *package* "lang")
+(define %keyword-package (%make-package "keyword"))
+(package-add-subpackage %root-package %keyword-package "keyword")
+(define %user-package (%make-package "user"))
+(package-add-subpackage %root-package %user-package "user")
 
 (define (find-package-by-path path)
     (let* ((root? (eq (car path) 'root))

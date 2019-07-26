@@ -64,6 +64,12 @@
                ;; TODO: we don't need to keep the results
                (match-map *load-evaluator* 'main input))))
 
+(define (load-as name path)
+    (let ((pkg (make-user-package "anon")))
+      (package-add-subpackage *package* pkg name)
+      (binding ((*package* pkg))
+        (%load path))))
+
 ;; (binding ((*meta-context* (list 'lisp)))
 ;;   (match-map print 'expr (slurp "./cow-storm.lisp")))
 ;; (binding ((*meta-context* (list 'meta)))

@@ -57,7 +57,7 @@
 (meta1-runfile "./meta-reader/meta-lisp-reader.lisp")
 (meta1-runfile "./meta-reader/meta-meta-reader.lisp")
 
-(define (load path)
+(define (%load path)
     (let ((input (slurp path)))
       (binding ((*current-file* path)
                 (*meta-context* (list 'meta)))

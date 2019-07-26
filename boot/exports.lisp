@@ -35,6 +35,12 @@
  sin cos tan floor ceil rem pow log abs)
 
 (export
+ string-do-chars string-equal)
+
+(export
+ char-code)
+
+(export
  *standard-output* stream-write-char stream-write-string print-object print)
 
 (export
@@ -45,6 +51,8 @@
 
 (export
  make-image load-image image-width image-height blit-to-screen screen-fill-rect fill-rect)
+
+(export blit)
 
 (export set-stack-mark snapshot-to-stack-mark resume-stack-snapshot)
 

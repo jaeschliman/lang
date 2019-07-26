@@ -252,6 +252,8 @@ https://mrandri19.github.io/2019/07/18/modern-text-rendering-linux-ep1.html
 * TODO fix race conditions in tl-exception tests
 * TODO think about import vs load syntax
   want to have loaded files always be wrapped in a fresh package
+* TODO symbol shadow support
+* TODO maybe make keywords their own class
 
 * notes
 maybe have a stack of compilers? can push/pop...

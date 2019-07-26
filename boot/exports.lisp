@@ -4,14 +4,15 @@
 
 (export apply let lambda let* define set-symbol-value binding set set! *package* defparameter symbol-package)
 
-(export defmacro gensym intern & &opt)
+(export defmacro gensym intern & &opt macroexpand eval lambda-bind)
 
 (export
  eq if not when unless cond case and or)
 
 (export
  list cons append nil? nth
- first second third)
+ first second third
+ mapcar reverse-list list-every?)
 
 (export
  car cdr caar cadr cdar cddr caaar caddr cdaar cdddr caaar caddr cdaar cdddr)
@@ -61,5 +62,7 @@
 (export save-snapshot save-snapshot-and-exit)
 
 (export kill-thread current-thread)
+
+(export deep-eq? quote quasiquote unquote unquote-splicing)
 
 'done

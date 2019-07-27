@@ -1,28 +1,17 @@
 (define (export sym)
     (package-extern-symbol *package* sym))
-(define (export-all syms)
-    (mapcar export syms))
-
 
 (define old-package *package*)
 (define my-package (make-user-package "my package"))
-;;TODO: add *package* to use-list of my-package
+(package-use-package my-package *package*)
 
-(export-all
- '(print
-   unless
-   eq
-   define
-   *package*
-   set
-   old-package))
+(export 'old-package)
 
 (define (myfun) (print "hello from lang!"))
 
 (set '*package* my-package)
 
 ;; import works?
-
 (print "hello, world")
 
 ;; macro import works?

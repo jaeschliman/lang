@@ -29,4 +29,10 @@
              (or (eq (car lst) item)
                  (list-member? item (cdr lst)))))
 
+(define plist-get #f)
+(define (plist-get item lst)
+    (if-nil? lst lst
+             (if (eq item (car lst)) (cadr lst)
+                 (plist-get item (cddr lst)))))
+
 'done

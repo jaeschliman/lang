@@ -24,7 +24,8 @@
  first second third
  mapcar reverse-list list-every
  dolist
- list->array)
+ list->array
+ plist-get)
 
 (export
  car cdr caar cadr cdar cddr caaar caddr cdaar cdddr caaar caddr cdaar cdddr)

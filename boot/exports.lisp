@@ -46,7 +46,7 @@
 (export
  string-do-chars string-equal string->list
  string-byte-length string->char-array string-substr-bytes
- with-output-to-string)
+ with-output-to-string make-string-output-stream string-output-stream-get-string)
 
 (export
  char-code char-at char-code-at char-array->string)

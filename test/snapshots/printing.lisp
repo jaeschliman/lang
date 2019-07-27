@@ -1,5 +1,5 @@
-(print (integer-digit-length 10 10))
-(print (integer-nth-digit 120 0 10))
+(print (#/lang/integer-digit-length 10 10))
+(print (#/lang/integer-nth-digit 120 0 10))
 
 (print-integer 311)
 (newline)

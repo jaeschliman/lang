@@ -31,7 +31,7 @@ ff
 #\A
 x
 10@-10
-#/lang/x
+#/user/script/x
 define
 define
 #/foo

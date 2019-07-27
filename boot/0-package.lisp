@@ -1,6 +1,9 @@
 (define (package-get-meta pkg key) (ht-at (package-meta pkg) key))
 (define (package-set-meta pkg key value) (ht-at-put (package-meta pkg) key value))
 
+(define (package-use-package pkg to-use)
+    (package-set-use-list pkg (cons to-use (package-use-list pkg))))
+
 (define (package-get-subpackages pkg)
     (let ((exist (package-get-meta pkg 'subpackages)))
       (if-nil? exist

@@ -12,7 +12,7 @@
 
 (export defgeneric generic-function-add-method)
 
-(export make-user-package package-extern-symbol package-add-subpackage)
+(export make-user-package package-extern-symbol package-add-subpackage package-use-package)
 
 (export reset-tag shift-tag)
 

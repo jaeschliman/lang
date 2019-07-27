@@ -2,9 +2,15 @@
   (let ((exports (mapcar (lambda (s) `(package-extern-symbol *package* ',s)) syms)))
     `(let () ,@exports)))
 
-(export apply let lambda let* define set-symbol-value binding set set! *package* defparameter symbol-package)
+(export apply let lambda let* define set-symbol-value binding set set!
+        *package* defparameter symbol-package)
 
-(export defmacro gensym intern & &opt macroexpand eval lambda-bind)
+(export defmacro gensym intern & &opt macroexpand eval lambda-bind
+        mark-symbol-as-special with-special-binding)
+
+(export make-user-package package-extern-symbol)
+
+(export reset-tag shift-tag)
 
 (export
  eq if not when unless cond case and or)
@@ -13,7 +19,8 @@
  list cons append nil? nth
  first second third
  mapcar reverse-list list-every
- dolist)
+ dolist
+ list->array)
 
 (export
  car cdr caar cadr cdar cddr caaar caddr cdaar cdddr caaar caddr cdaar cdddr)
@@ -22,7 +29,7 @@
  make-ht make-st ht-at ht-at-put)
 
 (export
- make-array aget aset)
+ make-array aget aset array->list)
 
 (export
  make-point point-x point-y point+ point- point-rotate)
@@ -67,5 +74,7 @@
 (export kill-thread current-thread)
 
 (export deep-eq? quote quasiquote unquote unquote-splicing)
+
+(export try-catch throw)
 
 'done

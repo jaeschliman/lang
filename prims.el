@@ -286,6 +286,8 @@ void initialize_primitive_functions(VM *vm) {
         "package_get_subpackages(a)")
   (prim package-use-list PKG_USELST ((a any)) any
         "package_get_use_list(a)")
+  (prim package-set-use-list PKG_SET_USELST ((pkg any) (lst any)) any
+        "(package_set_use_list(pkg,lst), Nil)")
   (prim package-exports PKG_EXTERNS ((a any)) any
         "package_get_exports(a)")
   (prim package-meta PKG_META ((a any)) any

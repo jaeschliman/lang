@@ -8,7 +8,7 @@
 (export defmacro gensym intern & &opt macroexpand eval lambda-bind
         mark-symbol-as-special with-special-binding)
 
-(export make-user-package package-extern-symbol)
+(export make-user-package package-extern-symbol package-add-subpackage)
 
 (export reset-tag shift-tag)
 
@@ -44,10 +44,12 @@
  sin cos tan floor ceil rem pow log abs)
 
 (export
- string-do-chars string-equal string->list)
+ string-do-chars string-equal string->list
+ string-byte-length string->char-array string-substr-bytes
+ with-output-to-string)
 
 (export
- char-code)
+ char-code char-at char-code-at char-array->string)
 
 (export
  *standard-output* stream-write-char stream-write-string print-object print)
@@ -76,5 +78,7 @@
 (export deep-eq? quote quasiquote unquote unquote-splicing)
 
 (export try-catch throw)
+
+(export newline *print-base* print-integer print-float)
 
 'done

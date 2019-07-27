@@ -12,7 +12,8 @@
 (export
  list cons append nil? nth
  first second third
- mapcar reverse-list list-every)
+ mapcar reverse-list list-every
+ dolist)
 
 (export
  car cdr caar cadr cdar cddr caaar caddr cdaar cdddr caaar caddr cdaar cdddr)
@@ -36,13 +37,15 @@
  sin cos tan floor ceil rem pow log abs)
 
 (export
- string-do-chars string-equal)
+ string-do-chars string-equal string->list)
 
 (export
  char-code)
 
 (export
  *standard-output* stream-write-char stream-write-string print-object print)
+
+(export length)
 
 (export
  fork fork-with-priority forever sleep-ms)

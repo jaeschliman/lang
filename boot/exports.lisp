@@ -35,7 +35,7 @@
  make-point point-x point-y point+ point- point-rotate)
 
 (export
- = <= >= * / % + - i->f f->i)
+ = < > <= >= * / % + - i->f f->i)
 
 (export
  +i -i +f -f /i /f %i %f *i *f >i >f <i <f)

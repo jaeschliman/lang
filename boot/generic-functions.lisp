@@ -48,6 +48,8 @@
 
 (class-set-applicator GenericFunction2 generic-function-2-invoke)
 
+(defmacro defgeneric (name arglist)
+  `(define ,name (make-generic-function ,(list-length arglist))))
 
 (define length (make-generic-function 1))
 (generic-function-add-method length (list String) string-byte-length) ;; hmmm not sure about this

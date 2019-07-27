@@ -254,6 +254,7 @@ https://mrandri19.github.io/2019/07/18/modern-text-rendering-linux-ep1.html
   want to have loaded files always be wrapped in a fresh package
 * TODO symbol shadow support
 * TODO maybe make keywords their own class
+* TODO `find-package`
 
 * notes
 maybe have a stack of compilers? can push/pop...

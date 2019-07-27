@@ -6,6 +6,7 @@
 
 (define old-package *package*)
 (define my-package (make-user-package "my package"))
+;;TODO: add *package* to use-list of my-package
 
 (export-all
  '(print

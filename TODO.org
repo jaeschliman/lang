@@ -316,8 +316,8 @@ GOT conscar0
   can use a vector, but will have to add a layer of indirection around method objects
   rather than returning the lambda directly from `class-find-method` will need to return a box
   so that on redefinition we can update it
-* TODO clean up the meta parser
-  - get rid of the hash tables/recursion guards (don't really need them...)
+* IN-PROGRESS clean up the meta parser
+  - implement OMeta's apply-rule function
   - clean up the tracing code (allow tracing specific set of rules rather than all or none)
   - replace state list and stream list with objects
 * TODO move the parsers into their own packages

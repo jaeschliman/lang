@@ -5,7 +5,7 @@
                                      (append acc (car pair)))
                                    '() parts)))
         (args (mapcar cdr parts)))
-    `(send ',msg ,@args)))
+    `(send ',msg ,rcvr ,@args)))
 
 (define (compose-hdr parts)
   (let ((msg (implode (reduce-list (lambda (acc pair)
@@ -129,8 +129,24 @@ Fixnum>>pi [ ^ `*pi* ]
 
 (dbge 'file-in "
 Fixnum>>+ other [ ^ `(+ self other) ]
+Closure>>value [ ^ `(self) ]
+Boolean>>ifTrue: then ifFalse: else [
+ ^ `(if self (@send 'value then) (@send 'value else))
+]
+Fixnum>>isEven [ ^ `(= 0 (% self 2)) ]
+Fixnum>>aCheck [
+  (self isEven) ifTrue: [ ^ 'yes, even' ] ifFalse: [ ^ 'no, not even' ]
+]
 ")
 
 (print (@send '+ 2 3))
+(print (@send 'value (lambda () 10)))
+(print (@send 'isEven 4))
+(print 'ifTrue:ifFalse:)
+(let ((even? (@send 'isEven 4)))
+  (print `(even? ,even?))
+  (print (@send 'ifTrue:ifFalse: even? (lambda () "ok") (lambda () "not ok"))))
+(print (@send 'ifTrue:ifFalse: (@send 'isEven 4) (lambda () "ok") (lambda () "not ok")))
+(print (@send 'aCheck 4))
 
 (print 'done)

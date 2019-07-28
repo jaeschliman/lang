@@ -290,7 +290,7 @@ stack trace:
   14  boot                                0x000000010fef0eb9 main + 361
   15  libdyld.dylib                       0x00007fff5edfe3d5 start + 1
 GOT conscar0
-* TODO throw errors on failure in match-map, fix stx errors in boot files
+* DONE throw errors on failure in match-map, fix stx errors in boot files
 * TODO figure out some way to walk the heap from userspace
   will allow all kinds of goodies
   could be supported with something like a `(%next-object walk-state) function.

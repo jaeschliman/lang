@@ -13,7 +13,7 @@ meta chitchat {
   escaped-char = "\\" any:x -> x
   comment      = "\"" (~[\"\\] any | escaped-char)* "\"" 
   string       = "'" (~['\\] any | escaped-char)*:chs "'" -> (charlist-to-string chs)
-  ws           = (space | comment)*
+  ws           = ([ \r\n] | comment)*
   binop-ident  = "+" -> '+ | "-" -> '- | "/" -> '/ | "*" -> '*
   unary-ident  = [a-zA-Z]:fst [a-zA-Z0-9]*:rst -> (implode (cons fst rst))
   nary-part    = [a-zA-Z]:fst [a-zA-Z0-9]*:rst ":" -> (append (cons fst rst) '(#\:))
@@ -22,11 +22,19 @@ meta chitchat {
   binary-send  = rcvr:r ws binop-ident:msg ws expr:arg -> `(@send ',msg ,r ,arg)
   nary-send    = rcvr:r (ws nary-part:m ws subexpr:a -> (cons m a))+:msg -> (compose-msg-send r msg)
   rcvr         = atom | group
-  atom         = keyword | unary-ident | lisp.integer | lisp.float 
+  local        = unary-ident:x -> `(load ,x)
+  atom         = keyword | local | lisp.integer | lisp.float | string
   group        = "(" expr:x ")" -> x
-  subexpr      = unary-send | binary-send | atom | group
+  arglist      = (ws ":" unary-ident)*:vs ws "|" -> vs
+  block        = "[" arglist?:args body:b "]" -> `(block (:args ,args) ,@b)
+  subexpr      = unary-send | binary-send | atom | group | block
   expr         = ws (nary-send | subexpr):x ws -> x
-  stmt         = expr:x "." -> x
+  assign       = unary-ident:var ws ":=" expr:val -> `(set! ,var ,val)
+  return       = "^" ws expr:x -> `(return ,x)
+  stmt         = return | assign | expr
+  stmts        = ws stmt:s (ws "." ws stmt)*:ss -> (cons s ss)
+  vars         = "|" (ws ":" unary-ident)*:vars ws "|" -> vars
+  body         = ws vars?:vars stmts:stmts -> `((:vars ,vars) (:body ,stmts)) 
 }
 
 (print 'done-meta)
@@ -39,20 +47,31 @@ meta chitchat {
             ;(*meta-trace* #t)
             )
     (match-map print rule str))
-    (stream-write-string *standard-output* "================================\n")
-  (stream-write-string *standard-output* str)
-  (newline)
-  (stream-write-string *standard-output* "--------------------------------\n"))
+  (stream-write-string *standard-output* "================================\n"))
 
-;; (dbg 'expr "1")
-;; (dbg 'expr "(1)")
-;; (dbg 'expr "1 + 2")
-;; (dbg 'expr "(1 + 2)")
-;; (dbg 'expr "1 + 2 + 3")
-;; (dbg 'expr "1 + (2 + 3)")
-;; (dbg 'expr "(1 + 2) + 3")
-;; (dbg 'expr "foo print")
-;; (dbg 'expr "foo printWith: 10")
+(dbg 'expr "1")
+(dbg 'expr "(1)")
+(dbg 'expr "1 + 2")
+(dbg 'expr "(1 + 2)")
+(dbg 'expr "1 + 2 + 3")
+(dbg 'expr "1 + (2 + 3)")
+(dbg 'expr "(1 + 2) + 3")
+(dbg 'expr "foo print")
+(dbg 'expr "foo printWith: 10")
 (dbg 'expr "baz do: (x + 5) with: Color blue")
+(dbg 'stmt "^ x")
+(dbg 'stmt "^ x + 2")
+(dbg 'expr "[ x + 2 ]")
+(dbg 'expr "[ ^ x ]")
+(dbg 'body " 
+     x := AThing becomeRelevant.
+     y := self fooWith: x.
+     self frobnicate: [ ^ y ]
+")
+(dbg 'body " |:x :y|
+     x := AThing becomeRelevant.
+     y := self fooWith: x.
+     self frobnicate: [ :arg | self fooWith:arg. ^ y ]
+")
 
 (print 'done)

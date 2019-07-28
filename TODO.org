@@ -282,6 +282,7 @@ stack trace:
   14  boot                                0x000000010fef0eb9 main + 361
   15  libdyld.dylib                       0x00007fff5edfe3d5 start + 1
 GOT conscar0
+* TODO throw errors on failure in match-map, fix stx errors in boot files
 
 * notes
 maybe have a stack of compilers? can push/pop...

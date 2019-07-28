@@ -4436,7 +4436,7 @@ void vm_interp(VM* vm, interp_params params) {
             argc = count;
             goto reenter_call;
           } else if (idx == 1) { // SEND
-            dbg("preparing to send... ", idx);
+            // dbg("preparing to send... ", idx);
             vm_interp_prepare_for_send(vm, argc);
             argc--;
             goto reenter_call;

@@ -91,29 +91,43 @@
 (define (%meta-print-indent)
     (stream-write-string *standard-output* (make-string *meta-trace-indent* #\Space)))
 
+(define (%freshen-state st)
+    (if (failure? st) st
+        (let ((s (first st)))
+          (list (list (first s) (second s) (third s) (make-ht))
+                (second st)))))
+
 (define (apply-rule rule state next)
     (binding ((*meta-trace-indent* (+i 4 *meta-trace-indent*)))
              (let ((fn (applicator rule)))
                (when (nil? fn) (throw `(rule ,rule is undefined)))
+               (when (and *meta-trace*  ;(not (eq rule 'any))
+                          )
+                 (%meta-print-indent)
+                 (%print `(,rule ----- ,(state-position state))))
                (let* ((failed-from-recursion #f)
+                      (cache-hit #f)
                       (exist (stream-at (state-stream state) rule))
                       (applied (cond
                                  ((eq exist sentinel) (let ()  (set! failed-from-recursion #t) fail))
                                  ((nil? exist)
                                   (let ()
-                                    (stream-at-put (state-stream state) rule sentinel)
+                                    ;(stream-at-put (state-stream state) rule sentinel)
                                     (let ((result (fn state (safe-cdr rule) identity)))
                                       ;; FIXME: why can't we memoize the result?
-                                      (if *meta-memo*
+                                      (if (and *meta-memo* (not (failure? result)))
                                           (stream-at-put (state-stream state) rule result)
                                           (stream-at-put (state-stream state) rule '()))
                                       result)))
                                  ;; FIXME: see above
-                                 (#t exist))))
+                                 (#t (let () (set! cache-hit #t)
+                                          ;(%freshen-state exist)
+                                          exist
+                                          )))))
                  (when (and *meta-trace* ;(not (eq rule 'any))
                             )
                    (%meta-print-indent)
-                   (%print `(,rule => ,(state-result applied) ,failed-from-recursion)))
+                   (%print `(,rule => ,(state-result applied) ,failed-from-recursion ,cache-hit)))
                  (next applied)))))
 
 (define compilers-table (make-ht))

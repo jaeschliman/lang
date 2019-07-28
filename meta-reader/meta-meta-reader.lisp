@@ -33,5 +33,5 @@ meta meta {
 
   block = ws "meta" ws sym:n ws "{" ws rule+:rs ws "}" -> (make-meta-definition n rs)
 
-  main = block | lisp.expr
+  main = lisp.ws (block | lisp.expr):x lisp.ws -> x
 }

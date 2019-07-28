@@ -112,7 +112,7 @@
 (define-rule meta-block
     ws "meta" ws (set! -n ident) ws #\{ ws
     (set! -rs (+ rule))
-    ws #\}
+    ws #\} ws
     (return (make-meta-definition -n -rs)))
 
 (define-rule meta-main

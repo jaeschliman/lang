@@ -264,6 +264,24 @@ https://mrandri19.github.io/2019/07/18/modern-text-rendering-linux-ep1.html
   `#/` is pretty ugly it turns out
 * TODO convert meta reader state to a class for better performance
   basically want a way to keep from allocating a hash table for every call to `any`
+* TODO looks like there's an occasional bug somewhere in ht_grow
+stack trace:
+  1   boot                                0x000000010febfb78 _Z12cons_get_car3Ptr + 136
+  2   boot                                0x000000010fecfe4d _Z7do_listP2VM3PtrNSt3__18functionIFvS1_EEE + 125
+  3   boot                                0x000000010fef8b0a _ZNSt3__110__function6__funcIZ7ht_growP2VM3PtrE4$_11NS_9allocatorIS5_EEFvS4_EEclEOS4_ + 74
+  4   boot                                0x000000010fecfea2 _Z7do_listP2VM3PtrNSt3__18functionIFvS1_EEE + 210
+  5   boot                                0x000000010fed087e _Z7ht_growP2VM3Ptr + 254
+  6   boot                                0x000000010fed0cd3 _Z9ht_at_putP2VM3PtrS1_S1_ + 931
+  7   boot                                0x000000010fede253 _Z12giant_switchP2VMjj + 5907
+  8   boot                                0x000000010fedc3d3 _Z9vm_interpP2VM13interp_params + 3379
+  9   boot                                0x000000010feef945 _Z4evalP2VM3Ptr + 117
+  10  boot                                0x000000010feefc72 _Z10run_stringP2VMPKc + 258
+  11  boot                                0x000000010feeef19 _Z9load_fileP2VMPKc + 297
+  12  boot                                0x000000010feeedb0 _Z25vm_init_for_blank_startupP2VM8run_info + 1232
+  13  boot                                0x000000010fef087e _Z30run_file_with_optional_displayPKc8run_info + 46
+  14  boot                                0x000000010fef0eb9 main + 361
+  15  libdyld.dylib                       0x00007fff5edfe3d5 start + 1
+GOT conscar0
 
 * notes
 maybe have a stack of compilers? can push/pop...

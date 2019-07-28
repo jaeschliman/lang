@@ -312,6 +312,15 @@ GOT conscar0
 * TODO probably going to wind up with inheritance...
   alternatively could have a list of method tables and walk them to find whatever method,
   and use mixins
+* TODO inline caches for message sends
+  can use a vector, but will have to add a layer of indirection around method objects
+  rather than returning the lambda directly from `class-find-method` will need to return a box
+  so that on redefinition we can update it
+* TODO clean up the meta parser
+  - get rid of the hash tables/recursion guards (don't really need them...)
+  - clean up the tracing code (allow tracing specific set of rules rather than all or none)
+  - replace state list and stream list with objects
+* TODO move the parsers into their own packages
 
 * notes
 maybe have a stack of compilers? can push/pop...

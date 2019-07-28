@@ -20,7 +20,8 @@
         (char-between x #\/ #\9)
         (char-between x #\# #\&)
         (eq x #\!) (eq x #\^) (eq x #\_)
-        (eq x #\|) (eq x #\~)))
+        (eq x #\|) (eq x #\~)
+        (eq x #\:)))
 
 (define (digit-char? ch)
     (char-between ch #\0 #\9))

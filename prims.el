@@ -367,6 +367,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim set-stack-mark SSTKMARK ((m any)) any "vm_set_stack_mark(vm, m)")
   (prim snapshot-to-stack-mark PSTKMARK ((m any) (v any)) any "vm_abort_to_mark(vm, m, v)")
   (prim resume-stack-snapshot RSTKSNAP ((s any) (arg any)) any "vm_resume_stack_snapshot(vm, s, arg)")
+  (prim return-from-mark RETMARK ((m any) (a any)) any "vm_return_from_mark(vm, m, a)")
   (prim continuation-value CONT_VAL ((a any)) any "cont_get_value(a)")
   (prim fork-continuation FORK ((priority any) (a any)) any "vm_schedule_cont(vm, a, priority, Nil)")
 

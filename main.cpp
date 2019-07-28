@@ -3534,6 +3534,12 @@ Ptr vm_abort_to_mark(VM *vm, Ptr mark, Ptr value) { prot_ptrs(mark, value);
   return cont;
 }
 
+Ptr vm_return_from_mark(VM *vm, Ptr mark, Ptr value) {
+  vm_unwind_to_mark(vm, mark);
+  vm_pop_stack_frame(vm);
+  return value;
+}
+
 bool vm_handle_error(VM *vm) {
   Ptr ex = make_string(vm, vm->error); // TODO: signal better errors than just strings
   vm->error = 0;

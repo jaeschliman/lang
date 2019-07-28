@@ -272,7 +272,7 @@ https://mrandri19.github.io/2019/07/18/modern-text-rendering-linux-ep1.html
   `#/` is pretty ugly it turns out
 * IN-PROGRESS convert meta reader state to a class for better performance
   basically want a way to keep from allocating a hash table for every call to `any`
-* TODO looks like there's an occasional bug somewhere in ht_grow
+* IN-PROGRESS looks like there's an occasional bug somewhere in ht_grow
 stack trace:
   1   boot                                0x000000010febfb78 _Z12cons_get_car3Ptr + 136
   2   boot                                0x000000010fecfe4d _Z7do_listP2VM3PtrNSt3__18functionIFvS1_EEE + 125
@@ -290,6 +290,10 @@ stack trace:
   14  boot                                0x000000010fef0eb9 main + 361
   15  libdyld.dylib                       0x00007fff5edfe3d5 start + 1
 GOT conscar0
+
+-- trouble reproing this one now. manually triggering GC during the loop does not cause it, so
+not clear yet on exactly what is going on...
+
 * DONE throw errors on failure in match-map, fix stx errors in boot files
 * TODO figure out some way to walk the heap from userspace
   will allow all kinds of goodies

@@ -10,6 +10,20 @@
      (print (list ',form '= _res))
      _res))
 
+(define MetaInputStream (create-class 'MetaInputStream 4))
+(define (make-meta-input-stream pos str line)
+    (let ((r (instantiate-class MetaInputStream)))
+      (instance-set-ivar r 0 pos)
+      (instance-set-ivar r 1 str)
+      (instance-set-ivar r 2 line)
+      (instance-set-ivar r 3 (make-ht)) ;; TODO: create on demand
+      r))
+
+(define (meta-stream-pos it)  (instance-get-ivar it 0))
+(define (meta-stream-str it)  (instance-get-ivar it 1))
+(define (meta-stream-line it) (instance-get-ivar it 2))
+(define (meta-stream-memo it) (instance-get-ivar it 3))
+
 
 (define fail '(fail fail fail))
 (define (failure? state) (eq state fail))
@@ -20,33 +34,37 @@
 (define (state-stream state) (car state))
 (define (state-result state) (nth state 1))
 
-(define (make-stream str) (list 0 str (cons 0 0) (make-ht)))
-(define (stream-line-position s) (car (third s)))
-(define (stream-col-position s)  (cdr (third s)))
-(define (stream-read s) (char-at (second s) (first s)))
-(define (stream-end? s) (>i (+i 1 (first s)) (string-byte-length (second s))))
+(define (make-stream str) (make-meta-input-stream 0 str (cons 0 0)))
+(define (stream-line-position s) (car (meta-stream-line s)))
+(define (stream-col-position s)  (cdr (meta-stream-line s)))
+(define (stream-read s) (char-at (meta-stream-str s) (meta-stream-pos s)))
+(define (stream-end? s) (>i (+i 1 (meta-stream-pos s)) (string-byte-length (meta-stream-str s))))
 (define (stream-advance s char)
     (let* ((nl? (eq char #\Newline))
            (col? (not (or (eq char #\Newline) (eq char #\Return))))
-           (prev-pos (third s))
+           (prev-pos (meta-stream-line s))
            (pos (if (or nl? col?)
                     (cons (if nl? (+i 1 (car prev-pos)) (car prev-pos))
                           (if nl? 0 (if col? (+i 1 (cdr prev-pos)) (cdr prev-pos))))
                     prev-pos)))
-      (list (+i (char-width char) (car s)) (second s) pos (make-ht))))
+      (make-meta-input-stream
+       (+i (char-width char) (meta-stream-pos s))
+       (meta-stream-str s)
+       pos)))
 
-(define (stream-at s key) (ht-at (fourth s) key))
+(define (stream-at s key) (ht-at (meta-stream-memo s) key))
 
-(define (stream-at-put s key val) (ht-at-put (fourth s) key val))
+(define (stream-at-put s key val) (ht-at-put (meta-stream-memo s) key val))
 
-(define (state-position st) (first (car st)))
-(define (state-col-row st) (third (car st)))
+(define (state-position st) (meta-stream-pos (car st)))
+(define (state-col-row st) (meta-stream-line (car st)))
 
 (define (result-cons a b)
   (cond ((nothing? a) b)
         ((nothing? b) (list a))
         (#t (cons a b))))
 
+(define (state-result state) (nth state 1))
 (define (state+result state res) (list (car state) res))
 (define (state+stream state stream) (cons stream (cdr state)))
 (define (state-cons a b) (state+result a (result-cons (state-result a) (state-result b))))
@@ -57,14 +75,6 @@
 (define (state-reverse-result state)
     (if (nothing? (state-result state)) state
         (state+result state (reverse-list (state-result state)))))
-
-(define (state-with-fresh-applications state)
-    (let ((stream (state-stream state)))
-      (list (list (first stream)
-                  (second stream)
-                  (third stream)
-                  (make-ht))
-            (second state))))
 
 (define sentinel (list 'sentinel))
 
@@ -79,8 +89,6 @@
       ((symbol? form) (ht-at applicators '%base))
       ((pair? form) (ht-at applicators (car form)))
       (#t (ht-at applicators '%exactly))))
-
-(define (state-result state) (nth state 1))
 
 (defparameter *meta-trace* #f)
 (defparameter *meta-trace-indent* 0)

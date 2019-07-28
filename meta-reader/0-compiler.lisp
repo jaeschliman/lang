@@ -16,7 +16,7 @@
       (instance-set-ivar r 0 pos)
       (instance-set-ivar r 1 str)
       (instance-set-ivar r 2 line)
-      (instance-set-ivar r 3 (make-ht)) ;; TODO: create on demand
+      (instance-set-ivar r 3 '())
       r))
 
 (define (meta-stream-pos it)  (instance-get-ivar it 0))
@@ -52,9 +52,14 @@
        (meta-stream-str s)
        pos)))
 
-(define (stream-at s key) (ht-at (meta-stream-memo s) key))
+(define (stream-at s key)
+    (let ((ht (meta-stream-memo s)))
+      (if-nil? ht '() (ht-at ht key))))
 
-(define (stream-at-put s key val) (ht-at-put (meta-stream-memo s) key val))
+(define (stream-at-put s key val)
+    (unless (eq key 'any)
+      (if-nil? (meta-stream-memo s) (instance-set-ivar s 3 (make-ht)))
+      (ht-at-put (meta-stream-memo s) key val)))
 
 (define (state-position st) (meta-stream-pos (car st)))
 (define (state-col-row st) (meta-stream-line (car st)))

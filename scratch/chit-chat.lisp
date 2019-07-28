@@ -5,9 +5,9 @@
                                      (append acc (car pair)))
                                    '() parts)))
         (args (mapcar cdr parts)))
-    `(@send ',msg ,@args)))
+    `(send ',msg ,@args)))
 
-(define (compose-hdr rcvr parts)
+(define (compose-hdr parts)
   (let ((msg (implode (reduce-list (lambda (acc pair)
                                      (append acc (car pair)))
                                    '() parts)))
@@ -25,12 +25,13 @@ meta chitchat {
   unary-ident  = [a-zA-Z]:fst [a-zA-Z0-9]*:rst -> (implode (cons fst rst))
   nary-part    = [a-zA-Z]:fst [a-zA-Z0-9]*:rst ":" -> (append (cons fst rst) '(#\:))
   keyword      = "self" -> 'self | "true" -> #t | "false" -> #f
-  unary-send   = rcvr:r ws unary-ident:msg ~":" -> `(@send ',msg ,r)
-  binary-send  = rcvr:r ws binop-ident:msg ws expr:arg -> `(@send ',msg ,r ,arg)
+  unary-send   = rcvr:r ws unary-ident:msg ~":" -> `(send ',msg ,r)
+  binary-send  = rcvr:r ws binop-ident:msg ws expr:arg -> `(send ',msg ,r ,arg)
   nary-send    = rcvr:r (ws nary-part:m ws subexpr:a -> (cons m a))+:msg -> (compose-msg-send r msg)
   rcvr         = atom | group
   local        = unary-ident:x -> `(load ,x)
-  atom         = keyword | local | lisp.integer | lisp.float | string | block
+  lisp         = "`" lisp.expr:x -> `(lisp ,x)
+  atom         = keyword | lisp | local | lisp.integer | lisp.float | string | block
   group        = "(" expr:x ")" -> x
   arglist      = (ws ":" unary-ident)*:vs ws "|" -> vs
   block        = "[" arglist?:args body:b "]" -> `(block (:args ,args) ,@b)
@@ -96,6 +97,12 @@ meta chitchat {
 (dbg 'file-in "
 Array>>first [ ^ self at: 0 ]
 String>>first [ ^ self at: 0 ]
+LazyTable>>at:x put:y [
+  storage ifNil: [ storage := HashTable new ].
+  ^ storage at: x put:y
+]
+Cons>>collect: block [ ^ `(mapcar (lambda (it) (send 'value: block it)) self) ]
+Fixnum>>pi [ ^ `*pi* ]
 ")
 
 (print 'done)

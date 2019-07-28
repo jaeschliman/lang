@@ -289,6 +289,14 @@ GOT conscar0
 * TODO throw errors on failure in match-map, fix stx errors in boot files
 * TODO figure out some way to walk the heap from userspace
   will allow all kinds of goodies
+  could be supported with something like a `(%next-object walk-state) function.
+  could disallow nested calls to the walk function to simplify.
+  could use a flag bit in object to signify whether it has been seen by %next-object
+  main difficulty would be in handling gc occuring while walking the heap.
+  could store the current gc_count in walk state, and if it has changed since last invocation,
+  then rescan to find the first unmarked object accordingly. otherwise, walk-state will contain
+  a ref to the last-seen object, and we can just jump to the next unmarked object in the heap.
+  when we finish the walk, we then scan the heap and reset all the mark bits
 * TODO move StandardObject ivars into a slot-vector
   will allow class redefinition, simple to impl once heap-walking is implemented
 * TODO review smalltalk file-in syntax, support class declaration

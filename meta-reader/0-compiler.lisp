@@ -83,27 +83,38 @@
 (define (state-result state) (nth state 1))
 
 (defparameter *meta-trace* #f)
+(defparameter *meta-trace-indent* 0)
+(defparameter *meta-memo* #f)
+
+;; to be defined later
+(define (stream-write-string))
+(define (%meta-print-indent)
+    (stream-write-string *standard-output* (make-string *meta-trace-indent* #\Space)))
 
 (define (apply-rule rule state next)
-    (let ((fn (applicator rule)))
-      (when (nil? fn) (throw `(rule ,rule is undefined)))
-      (let* ((failed-from-recursion #f)
-             (exist (stream-at (state-stream state) rule))
-             (applied (cond
-                        ((eq exist sentinel) (let ()  (set! failed-from-recursion #t) fail))
-                        ((nil? exist)
-                         (let ()
-                           (stream-at-put (state-stream state) rule sentinel)
-                           (let ((result (fn state (safe-cdr rule) identity)))
-                             ;; FIXME: why can't we memoize the result?
-                             ;; (stream-at-put (state-stream state) rule result)
-                             (stream-at-put (state-stream state) rule '())
-                             result)))
-                        ;; FIXME: see above
-                        (#t exist))))
-        (when (and *meta-trace* (not (eq rule 'any)))
-          (%print `(,rule => ,(state-result applied) ,failed-from-recursion)))
-        (next applied))))
+    (binding ((*meta-trace-indent* (+i 4 *meta-trace-indent*)))
+             (let ((fn (applicator rule)))
+               (when (nil? fn) (throw `(rule ,rule is undefined)))
+               (let* ((failed-from-recursion #f)
+                      (exist (stream-at (state-stream state) rule))
+                      (applied (cond
+                                 ((eq exist sentinel) (let ()  (set! failed-from-recursion #t) fail))
+                                 ((nil? exist)
+                                  (let ()
+                                    (stream-at-put (state-stream state) rule sentinel)
+                                    (let ((result (fn state (safe-cdr rule) identity)))
+                                      ;; FIXME: why can't we memoize the result?
+                                      (if *meta-memo*
+                                          (stream-at-put (state-stream state) rule result)
+                                          (stream-at-put (state-stream state) rule '()))
+                                      result)))
+                                 ;; FIXME: see above
+                                 (#t exist))))
+                 (when (and *meta-trace* ;(not (eq rule 'any))
+                            )
+                   (%meta-print-indent)
+                   (%print `(,rule => ,(state-result applied) ,failed-from-recursion)))
+                 (next applied)))))
 
 (define compilers-table (make-ht))
 (defmacro define-compile (defn & body)

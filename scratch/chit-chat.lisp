@@ -29,6 +29,7 @@ meta chitchat {
   (stream-write-string *standard-output* str)
   (newline)
   (binding ((*meta-context* '(chitchat))
+            (*meta-memo* #t)
             (*meta-trace* #t))
     (match-map print rule str))
     (stream-write-string *standard-output* "================================\n")

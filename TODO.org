@@ -287,6 +287,19 @@ stack trace:
   15  libdyld.dylib                       0x00007fff5edfe3d5 start + 1
 GOT conscar0
 * TODO throw errors on failure in match-map, fix stx errors in boot files
+* TODO figure out some way to walk the heap from userspace
+  will allow all kinds of goodies
+* TODO move StandardObject ivars into a slot-vector
+  will allow class redefinition, simple to impl once heap-walking is implemented
+* TODO review smalltalk file-in syntax, support class declaration
+* TODO save slot names when defining classes
+* TODO some way to allow class objects to have their own methods 
+* TODO change meta stx to start with #
+  disambiguate from normal symbols on error
+* TODO support ivar references in chitchat
+* TODO probably going to wind up with inheritance...
+  alternatively could have a list of method tables and walk them to find whatever method,
+  and use mixins
 
 * notes
 maybe have a stack of compilers? can push/pop...

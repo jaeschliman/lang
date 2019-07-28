@@ -4216,7 +4216,7 @@ Ptr applicator_for_object(VM *vm, Ptr it) {
 }
 
 // @speed this will be hideously slow. need bytecode level support
-inline void vm_interp_prepare_for_send(VM *vm, u32 argc) {
+inline void vm_interp_prepare_for_send(VM *vm, s32 argc) {
   // TODO: arity check and errors
   auto message = vm_stack_ref(vm, argc - 1);
   auto self    = vm_stack_ref(vm, argc - 2);
@@ -4224,6 +4224,18 @@ inline void vm_interp_prepare_for_send(VM *vm, u32 argc) {
   auto dict    = standard_object_get_ivar(as(Standard, klass), BaseClassMethodDict);
   auto fn      = ht_at(dict, message);
   if (isNil(fn)) die("could not send message: ", message);
+  // shift args back @speed could just memmove these
+  if (argc > 0) {
+    Ptr args[argc];
+    for (auto i = argc - 1; i >= 0; i--) {
+      args[i] = vm_pop(vm);
+    }
+    for (auto i = 1; i < argc; i++) {
+      vm_push(vm, args[i]);
+    }
+  } else {
+    vm_pop(vm);
+  }
   vm_push(vm, fn);
 }
 

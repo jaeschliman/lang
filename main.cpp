@@ -2521,7 +2521,6 @@ void ht_grow(VM *vm, Ptr ht) {              prot_ptr(ht);
   unprot_ptrs(ht, entries);
 }
 
-// TODO: grow table when it gets too full
 Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
   auto count = from(Fixnum, ht_get_count(ht));
   auto strs  = ht_get_dedupe_strings(ht) == True && is(String, key); 
@@ -2581,11 +2580,9 @@ Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
 
   // not found
   prot_ptr(ht);
-  auto list = cons(vm, cons(vm, key, value), mem[idx]);
-  {
-    auto mem = xarray_memory(array); // mem may have moved
-    mem[idx] = list;
-  }
+  auto pair = cons(vm, key, value);
+  auto list = cons(vm, pair, xarray_memory(array)[idx]);
+  xarray_memory(array)[idx] = list;
   unprot_ptrs(ht, key, value, array);
   ht_set_count(ht, to(Fixnum, count + 1));
   return Nil;

@@ -49,7 +49,7 @@ meta chitchat {
   binary-hdr   = binop-ident:m ws unary-ident:arg -> (list :name m :args (list arg))
   method-hdr   = nary-hdr | unary-hdr  | binary-hdr
   method-defn  = unary-ident:cls ">>" method-hdr:h ws "[" body:b "]" -> `(method :class ,cls ,@h ,@b)
-  file-in      = (ws method-defn)+:ms -> `(chitchat-methods ,ms)
+  file-in      = (ws method-defn)+:ms ws -> `(chitchat-methods ,ms)
 }
 
 (print 'done-meta)
@@ -127,6 +127,7 @@ Cons>>collect: block [ ^ `(mapcar (lambda (it) (@send 'value: block it)) self) ]
 Fixnum>>pi [ ^ `*pi* ]
 ")
 
+
 (dbge 'file-in "
 Fixnum>>+ other [ ^ `(+ self other) ]
 Closure>>value [ ^ `(self) ]
@@ -145,6 +146,7 @@ Fixnum>>anotherCheck [
   ^ 'was not even'
 ]
 ")
+
 
 (print (@send '+ 2 3))
 (print (@send 'value (lambda () 10)))

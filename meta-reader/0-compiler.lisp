@@ -10,8 +10,63 @@
      (print (list ',form '= _res))
      _res))
 
+
 (define fail '(fail fail fail))
 (define (failure? state) (eq state fail))
+(define nothing '(nothing))
+(define (nothing? result) (eq result nothing))
+
+(define (make-initial-state stream) (list stream nothing))
+(define (state-stream state) (car state))
+(define (state-result state) (nth state 1))
+
+(define (make-stream str) (list 0 str (cons 0 0) (make-ht)))
+(define (stream-line-position s) (car (third s)))
+(define (stream-col-position s)  (cdr (third s)))
+(define (stream-read s) (char-at (second s) (first s)))
+(define (stream-end? s) (>i (+i 1 (first s)) (string-byte-length (second s))))
+(define (stream-advance s char)
+    (let* ((nl? (eq char #\Newline))
+           (col? (not (or (eq char #\Newline) (eq char #\Return))))
+           (prev-pos (third s))
+           (pos (if (or nl? col?)
+                    (cons (if nl? (+i 1 (car prev-pos)) (car prev-pos))
+                          (if nl? 0 (if col? (+i 1 (cdr prev-pos)) (cdr prev-pos))))
+                    prev-pos)))
+      (list (+i (char-width char) (car s)) (second s) pos (make-ht))))
+
+(define (stream-at s key) (ht-at (fourth s) key))
+
+(define (stream-at-put s key val) (ht-at-put (fourth s) key val))
+
+(define (state-position st) (first (car st)))
+(define (state-col-row st) (third (car st)))
+
+(define (result-cons a b)
+  (cond ((nothing? a) b)
+        ((nothing? b) (list a))
+        (#t (cons a b))))
+
+(define (state+result state res) (list (car state) res))
+(define (state+stream state stream) (cons stream (cdr state)))
+(define (state-cons a b) (state+result a (result-cons (state-result a) (state-result b))))
+(define (state-cons-result a b) (state+result b (result-cons (state-result a) (state-result b))))
+
+(define (reverse-result result) (if (nothing? result) nothing (reverse-list result)))
+
+(define (state-reverse-result state)
+    (if (nothing? (state-result state)) state
+        (state+result state (reverse-list (state-result state)))))
+
+(define (state-with-fresh-applications state)
+    (let ((stream (state-stream state)))
+      (list (list (first stream)
+                  (second stream)
+                  (third stream)
+                  (make-ht))
+            (second state))))
+
+(define sentinel (list 'sentinel))
 
 (define applicators (make-ht))
 (defmacro define-apply (defn & body)
@@ -26,11 +81,29 @@
       (#t (ht-at applicators '%exactly))))
 
 (define (state-result state) (nth state 1))
+
+(defparameter *meta-trace* #f)
+
 (define (apply-rule rule state next)
     (let ((fn (applicator rule)))
-      (if (nil? fn)
-          (throw `(rule ,rule is undefined))
-          (fn state (safe-cdr rule) next))))
+      (when (nil? fn) (throw `(rule ,rule is undefined)))
+      (let* ((failed-from-recursion #f)
+             (exist (stream-at (state-stream state) rule))
+             (applied (cond
+                        ((eq exist sentinel) (let ()  (set! failed-from-recursion #t) fail))
+                        ((nil? exist)
+                         (let ()
+                           (stream-at-put (state-stream state) rule sentinel)
+                           (let ((result (fn state (safe-cdr rule) identity)))
+                             ;; FIXME: why can't we memoize the result?
+                             ;; (stream-at-put (state-stream state) rule result)
+                             (stream-at-put (state-stream state) rule '())
+                             result)))
+                        ;; FIXME: see above
+                        (#t exist))))
+        (when (and *meta-trace* (not (eq rule 'any)))
+          (%print `(,rule => ,(state-result applied) ,failed-from-recursion)))
+        (next applied))))
 
 (define compilers-table (make-ht))
 (defmacro define-compile (defn & body)
@@ -141,48 +214,6 @@
       r))
 
 (define (set-rule x fn) (ht-at-put (second (find-meta (first *meta-context*))) x fn))
-
-(define nothing '(nothing))
-(define (nothing? result) (eq result nothing))
-
-(define (make-initial-state stream) (list stream nothing))
-
-(define (result-cons a b)
-  (cond ((nothing? a) b)
-        ((nothing? b) (list a))
-        (#t (cons a b))))
-
-(define (state-stream state) (car state))
-(define (state-result state) (nth state 1))
-
-(define (state+result state res) (list (car state) res))
-(define (state+stream state stream) (cons stream (cdr state)))
-(define (state-cons a b) (state+result a (result-cons (state-result a) (state-result b))))
-(define (state-cons-result a b) (state+result b (result-cons (state-result a) (state-result b))))
-
-(define (reverse-result result) (if (nothing? result) nothing (reverse-list result)))
-
-(define (state-reverse-result state)
-    (if (nothing? (state-result state)) state
-        (state+result state (reverse-list (state-result state)))))
-
-(define (make-stream str) (list 0 str (cons 0 0)))
-(define (stream-line-position s) (car (third s)))
-(define (stream-col-position s)  (cdr (third s)))
-(define (stream-read s) (char-at (second s) (first s)))
-(define (stream-end? s) (>i (+i 1 (first s)) (string-byte-length (second s))))
-(define (stream-advance s char)
-    (let* ((nl? (eq char #\Newline))
-           (col? (not (or (eq char #\Newline) (eq char #\Return))))
-           (prev-pos (third s))
-           (pos (if (or nl? col?)
-                    (cons (if nl? (+i 1 (car prev-pos)) (car prev-pos))
-                          (if nl? 0 (if col? (+i 1 (cdr prev-pos)) (cdr prev-pos))))
-                    prev-pos)))
-      (list (+i (char-width char) (car s)) (second s) pos)))
-
-(define (state-position st) (first (car st)))
-(define (state-col-row st) (third (car st)))
 
 (define (current-match-string)
     (let ((str (second (state-stream *match-start*))))

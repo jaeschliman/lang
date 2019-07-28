@@ -286,6 +286,7 @@
 (define first car)
 (define second cadr)
 (define third caddr)
+(define (fourth x) (car (cdddr x)))
 
 (define (identity x) x)
 

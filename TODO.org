@@ -262,6 +262,8 @@ https://mrandri19.github.io/2019/07/18/modern-text-rendering-linux-ep1.html
 * TODO `unwind-protect`
 * TODO maybe switch root package syntax to ~/ from #/
   `#/` is pretty ugly it turns out
+* TODO convert meta reader state to a class for better performance
+  basically want a way to keep from allocating a hash table for every call to `any`
 
 * notes
 maybe have a stack of compilers? can push/pop...

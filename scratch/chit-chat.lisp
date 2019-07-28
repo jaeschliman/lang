@@ -12,7 +12,7 @@
                                      (append acc (car pair)))
                                    '() parts)))
         (args (mapcar cdr parts)))
-    (list msg args)))
+    (list :name msg :args args)))
 
 (print 'begin)
 
@@ -42,13 +42,13 @@ meta chitchat {
   stmt         = return | assign | expr
   stmts        = ws stmt:s (ws "." ws stmt)*:ss -> (cons s ss)
   vars         = "|" (ws ":" unary-ident)*:vars ws "|" -> vars
-  body         = ws vars?:vars stmts:stmts -> `((:vars ,vars) (:body ,stmts)) 
+  body         = ws vars?:vars stmts:stmts -> `(:vars ,vars :body ,stmts) 
 
   nary-hdr     = (nary-part:m ws unary-ident:a ws -> (cons m a))+:hdr -> (compose-hdr hdr)
-  unary-hdr    = unary-ident:m -> (list m '())
-  binary-hdr   = binop-ident:m unary-ident:arg -> (list m (list arg))
+  unary-hdr    = unary-ident:m -> (list :name m :args '())
+  binary-hdr   = binop-ident:m unary-ident:arg -> (list :name m :args (list arg))
   method-hdr   = nary-hdr | unary-hdr  | binary-hdr
-  method-defn  = unary-ident:cls ">>" method-hdr:hdr ws "[" body:b "]" -> `(method ,cls ,hdr ,b)
+  method-defn  = unary-ident:cls ">>" method-hdr:h ws "[" body:b "]" -> `(method :class ,cls ,@h ,@b)
   file-in      = (ws method-defn)+:ms -> `(chitchat-methods ,ms)
 }
 
@@ -104,5 +104,6 @@ LazyTable>>at:x put:y [
 Cons>>collect: block [ ^ `(mapcar (lambda (it) (send 'value: block it)) self) ]
 Fixnum>>pi [ ^ `*pi* ]
 ")
+
 
 (print 'done)

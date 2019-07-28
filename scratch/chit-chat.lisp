@@ -137,6 +137,13 @@ Fixnum>>isEven [ ^ `(= 0 (% self 2)) ]
 Fixnum>>aCheck [
   (self isEven) ifTrue: [ ^ 'yes, even' ] ifFalse: [ ^ 'no, not even' ]
 ]
+Fixnum>>callIfEven: block [
+  (self isEven) ifTrue: [ block value ] ifFalse: [ false ]
+]
+Fixnum>>anotherCheck [
+  self callIfEven: [ ^ 'early exit' ].
+  ^ 'was not even'
+]
 ")
 
 (print (@send '+ 2 3))
@@ -148,5 +155,9 @@ Fixnum>>aCheck [
   (print (@send 'ifTrue:ifFalse: even? (lambda () "ok") (lambda () "not ok"))))
 (print (@send 'ifTrue:ifFalse: (@send 'isEven 4) (lambda () "ok") (lambda () "not ok")))
 (print (@send 'aCheck 4))
+(print `(expecting early exit))
+(print (@send 'anotherCheck 4))
+(print `(expecting was not even))
+(print (@send 'anotherCheck 3))
 
 (print 'done)

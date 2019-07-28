@@ -46,7 +46,7 @@ meta chitchat {
 
   nary-hdr     = (nary-part:m ws unary-ident:a ws -> (cons m a))+:hdr -> (compose-hdr hdr)
   unary-hdr    = unary-ident:m -> (list :name m :args '())
-  binary-hdr   = binop-ident:m unary-ident:arg -> (list :name m :args (list arg))
+  binary-hdr   = binop-ident:m ws unary-ident:arg -> (list :name m :args (list arg))
   method-hdr   = nary-hdr | unary-hdr  | binary-hdr
   method-defn  = unary-ident:cls ">>" method-hdr:h ws "[" body:b "]" -> `(method :class ,cls ,@h ,@b)
   file-in      = (ws method-defn)+:ms -> `(chitchat-methods ,ms)
@@ -62,6 +62,26 @@ meta chitchat {
             ;(*meta-trace* #t)
             )
     (match-map print rule str))
+  (stream-write-string *standard-output* "================================\n"))
+
+(define (dbgx rule str)
+  (stream-write-string *standard-output* str)
+  (newline)
+  (binding ((*meta-context* '(chitchat))
+            ;(*meta-memo* #t)
+            ;(*meta-trace* #t)
+            )
+    (match-map (lambda (e) (print (compiler e))) rule str))
+  (stream-write-string *standard-output* "================================\n"))
+
+(define (dbge rule str)
+  (stream-write-string *standard-output* str)
+  (newline)
+  (binding ((*meta-context* '(chitchat))
+            ;(*meta-memo* #t)
+            ;(*meta-trace* #t)
+            )
+    (match-map eval rule str))
   (stream-write-string *standard-output* "================================\n"))
 
 (dbg 'expr "1")
@@ -94,16 +114,23 @@ meta chitchat {
      ^ [ :x | x + y ]
 ")
 
-(dbg 'file-in "
+(%load "./scratch/chit-chat.compiler.lisp")
+
+(dbgx 'file-in "
 Array>>first [ ^ self at: 0 ]
 String>>first [ ^ self at: 0 ]
 LazyTable>>at:x put:y [
   storage ifNil: [ storage := HashTable new ].
   ^ storage at: x put:y
 ]
-Cons>>collect: block [ ^ `(mapcar (lambda (it) (send 'value: block it)) self) ]
+Cons>>collect: block [ ^ `(mapcar (lambda (it) (@send 'value: block it)) self) ]
 Fixnum>>pi [ ^ `*pi* ]
 ")
 
+(dbge 'file-in "
+Fixnum>>+ other [ ^ `(+ self other) ]
+")
+
+(print (@send '+ 2 3))
 
 (print 'done)

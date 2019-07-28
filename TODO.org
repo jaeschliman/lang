@@ -294,6 +294,8 @@ GOT conscar0
 -- trouble reproing this one now. manually triggering GC during the loop does not cause it, so
 not clear yet on exactly what is going on...
 
+fixed an issue in ht_at_put that could possibly contribute to this
+
 * DONE throw errors on failure in match-map, fix stx errors in boot files
 * TODO figure out some way to walk the heap from userspace
   will allow all kinds of goodies
@@ -308,7 +310,7 @@ not clear yet on exactly what is going on...
 * TODO move StandardObject ivars into a slot-vector
   will allow class redefinition, simple to impl once heap-walking is implemented
 * TODO review smalltalk file-in syntax, support class declaration
-* TODO save slot names when defining classes
+* DONE save slot names when defining classes
 * TODO some way to allow class objects to have their own methods 
 * TODO change meta stx to start with #
   disambiguate from normal symbols on error
@@ -325,6 +327,9 @@ not clear yet on exactly what is going on...
   - clean up the tracing code (allow tracing specific set of rules rather than all or none)
   - replace state list and stream list with objects
 * TODO move the parsers into their own packages
+* TODO initialize base class ivar names in boot
+* TODO generate lisp-side accessors for builtins instead of lots of prims
+  something like (%aget) and (%aset) like ccl's gvectors IIRC
 
 * notes
 maybe have a stack of compilers? can push/pop...

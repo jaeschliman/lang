@@ -260,6 +260,7 @@ https://mrandri19.github.io/2019/07/18/modern-text-rendering-linux-ep1.html
 * TODO heap analysis function
   walk the heap, count items by class and gather memory usage by class
 * TODO `unwind-protect`
+  will have to interact with return-from-mark now
 * TODO maybe switch root package syntax to ~/ from #/
   `#/` is pretty ugly it turns out
 * TODO convert meta reader state to a class for better performance

@@ -23,7 +23,7 @@
       (set! loop
             (lambda (state results)
               (let ((newstate (fn state)))
-                (if (failure? newstate) (reverse-list results)
+                (if (failure? newstate) (throw `(syntax error in ,*current-file* at ,(state-col-row state)))
                     (let ((newresults (binding ((*match-start* state)
                                                 (*match-end*  newstate))
                                         (cons (xf (state-result newstate)) results))))
@@ -51,7 +51,8 @@
 
 (define (meta1-runfile path)
     (let ((input (slurp path)))
-      (binding ((*meta-context* (list 'Meta)))
+      (binding ((*current-file* path)
+                (*meta-context* (list 'Meta)))
                (match-map eval 'meta-main input))))
 
 (meta1-runfile "./meta-reader/meta-lisp-reader.lisp")

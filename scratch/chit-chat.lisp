@@ -7,6 +7,13 @@
         (args (mapcar cdr parts)))
     `(@send ',msg ,@args)))
 
+(define (compose-hdr rcvr parts)
+  (let ((msg (implode (reduce-list (lambda (acc pair)
+                                     (append acc (car pair)))
+                                   '() parts)))
+        (args (mapcar cdr parts)))
+    (list msg args)))
+
 (print 'begin)
 
 meta chitchat {
@@ -35,6 +42,13 @@ meta chitchat {
   stmts        = ws stmt:s (ws "." ws stmt)*:ss -> (cons s ss)
   vars         = "|" (ws ":" unary-ident)*:vars ws "|" -> vars
   body         = ws vars?:vars stmts:stmts -> `((:vars ,vars) (:body ,stmts)) 
+
+  nary-hdr     = (nary-part:m ws unary-ident:a ws -> (cons m a))+:hdr -> (compose-hdr hdr)
+  unary-hdr    = unary-ident:m -> (list m '())
+  binary-hdr   = binop-ident:m unary-ident:arg -> (list m (list arg))
+  method-hdr   = nary-hdr | unary-hdr  | binary-hdr
+  method-defn  = unary-ident:cls ">>" method-hdr:hdr ws "[" body:b "]" -> `(method ,cls ,hdr ,b)
+  file-in      = (ws method-defn)+:ms -> `(chitchat-methods ,ms)
 }
 
 (print 'done-meta)
@@ -77,6 +91,11 @@ meta chitchat {
      | :y |
      y := 5.
      ^ [ :x | x + y ]
+")
+
+(dbg 'file-in "
+Array>>first [ ^ self at: 0 ]
+String>>first [ ^ self at: 0 ]
 ")
 
 (print 'done)

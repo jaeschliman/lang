@@ -34,7 +34,7 @@ meta chitchat {
   atom         = keyword | lisp | local | lisp.integer | lisp.float | string | block
   group        = "(" expr:x ")" -> x
   arglist      = (ws ":" unary-ident)*:vs ws "|" -> vs
-  block        = "[" arglist?:args body:b "]" -> `(block (:args ,args) ,@b)
+  block        = "[" arglist?:args body:b "]" -> `(block :args ,args ,@b)
   subexpr      = unary-send | binary-send | atom | group 
   expr         = ws (nary-send | subexpr):x ws -> x
   assign       = unary-ident:var ws ":=" expr:val -> `(set! ,var ,val)

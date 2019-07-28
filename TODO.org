@@ -261,6 +261,9 @@ https://mrandri19.github.io/2019/07/18/modern-text-rendering-linux-ep1.html
   walk the heap, count items by class and gather memory usage by class
 * TODO `unwind-protect`
   will have to interact with return-from-mark now
+  maybe reimplement return-from-mark to use the exception system.
+  could have a special wrapper class that is used explictly to transfer control
+  upwards through catch blocks, and stops when it finds the matching block
 * TODO maybe switch root package syntax to ~/ from #/
   `#/` is pretty ugly it turns out
 * TODO convert meta reader state to a class for better performance

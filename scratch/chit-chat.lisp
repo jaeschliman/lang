@@ -23,11 +23,11 @@ meta chitchat {
   nary-send    = rcvr:r (ws nary-part:m ws subexpr:a -> (cons m a))+:msg -> (compose-msg-send r msg)
   rcvr         = atom | group
   local        = unary-ident:x -> `(load ,x)
-  atom         = keyword | local | lisp.integer | lisp.float | string
+  atom         = keyword | local | lisp.integer | lisp.float | string | block
   group        = "(" expr:x ")" -> x
   arglist      = (ws ":" unary-ident)*:vs ws "|" -> vs
   block        = "[" arglist?:args body:b "]" -> `(block (:args ,args) ,@b)
-  subexpr      = unary-send | binary-send | atom | group | block
+  subexpr      = unary-send | binary-send | atom | group 
   expr         = ws (nary-send | subexpr):x ws -> x
   assign       = unary-ident:var ws ":=" expr:val -> `(set! ,var ,val)
   return       = "^" ws expr:x -> `(return ,x)
@@ -72,6 +72,11 @@ meta chitchat {
      x := AThing becomeRelevant.
      y := self fooWith: x.
      self frobnicate: [ :arg | self fooWith:arg. ^ y ]
+")
+(dbg 'body "
+     | :y |
+     y := 5.
+     ^ [ :x | x + y ]
 ")
 
 (print 'done)

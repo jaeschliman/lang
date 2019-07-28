@@ -234,7 +234,7 @@ Ptr PRIM_CLASSOF_impl(VM *vm, u32 argc) {
 // Primitive 13
 Ptr PRIM_MKCLASS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
-   VM_ARG("create-class",Fixnum,ivars);
+   VM_ARG("create-class",any,ivars);
    VM_ARG("create-class",any,name);
 
  return make_user_class(vm, name, ivars);
@@ -1614,7 +1614,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
   }
 
   case 14: {
-   VM_ARG("create-class",Fixnum,ivars);
+   VM_ARG("create-class",any,ivars);
    VM_ARG("create-class",any,name);
 
     vm_push(vm, make_user_class(vm, name, ivars));

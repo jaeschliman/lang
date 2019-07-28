@@ -201,7 +201,7 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim class-of CLASSOF ((a any)) any "class_of(vm, a)")
   (prim create-class MKCLASS
-        ((name any) (ivars Fixnum)) any "make_user_class(vm, name, ivars)")
+        ((name any) (ivars any)) any "make_user_class(vm, name, ivars)")
   (prim class-set-method SETMETHOD
         ((a Standard) (sym any) (fn any)) any "class_set_method(vm, a, sym, fn)")
   (prim class-get-metadata CLSGETMETA

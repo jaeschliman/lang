@@ -3,7 +3,7 @@
 (define (set-slot obj slot value)
     ((class-get-metadata (class-of obj) 'slot-writer) obj slot value))
 
-(define Pair (create-class 'Pair 2))
+(define Pair (create-class 'Pair '(fst snd)))
 
 (class-set-metadata Pair 'slot-reader (lambda (obj slot)
                                         (case slot

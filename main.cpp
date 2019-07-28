@@ -1530,7 +1530,8 @@ enum {
   BaseClassMethodDict = 2,
   BaseClassMetadata   = 3,
   BaseClassApplicator = 4,
-  BaseClassEnd        = 5
+  BaseClassIvarNames  = 5,
+  BaseClassEnd        = 6
 };
 
 typedef void(*DebugPrintFunction)(std::ostream &os, Ptr p);
@@ -2731,6 +2732,7 @@ void initialize_classes(VM *vm)
   standard_object_set_ivar(Base, BaseClassMethodDict, ht(vm));
   standard_object_set_ivar(Base, BaseClassMetadata, ht(vm));
   standard_object_set_ivar(Base, BaseClassApplicator, Nil);
+  standard_object_set_ivar(Base, BaseClassIvarNames, Nil); // TODO: initialize in boot
   mark_object_as_class(Base);
   vm->globals->classes.builtins[BuiltinClassIndex_Base] = Base;
 
@@ -2792,14 +2794,14 @@ bool is_class(Ptr obj) {
 }
 
 
-Ptr make_user_class(VM *vm, Ptr name, s64 ivar) { prot_ptrs(name);
-  auto ivar_ct = to(Fixnum, ivar);
+Ptr make_user_class(VM *vm, Ptr name, Ptr ivar_names) { prot_ptrs(name, ivar_names);
+  auto ivar_ct = to(Fixnum, list_length(vm, ivar_names));
   auto method_dict = ht(vm);                      prot_ptr(method_dict);
   auto metadata = ht(vm);
   auto superclass = vm->globals->classes.builtins[BuiltinClassIndex_Base];
-  Ptr slots[] = {name, ivar_ct, method_dict, metadata, Nil};
+  Ptr slots[] = {name, ivar_ct, method_dict, metadata, Nil, ivar_names};
   auto result = make_standard_object(vm, superclass, slots);
-  unprot_ptrs(name, method_dict);
+  unprot_ptrs(name, method_dict, ivar_names);
   mark_object_as_class(result);
   return objToPtr(result);
 }

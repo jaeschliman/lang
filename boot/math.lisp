@@ -31,7 +31,7 @@
 (define-numeric-op sin   ((Fixnum) (lambda (a) (sinf (i->f a)))) ((Float) sinf))
 (define-numeric-op tan   ((Fixnum) (lambda (a) (tanf (i->f a)))) ((Float) tanf))
 
-(define ArithmeticOp (create-class 'ArithmeticOp 1))
+(define ArithmeticOp (create-class 'ArithmeticOp '(combine)))
 
 (define arithmetic-op-invoke
     (lambda args
@@ -82,7 +82,7 @@
   ((Fixnum Float)  (lambda (a b) (%f (i->f a) b)))
   ((Float Fixnum)  (lambda (a b) (%f a (i->f b)))))
 
-(define ComparisonOp (create-class 'ComparisonOp 1))
+(define ComparisonOp (create-class 'ComparisonOp '(compare)))
 
 (define (pairwise-compare compare items)
     (let ((loop #f))

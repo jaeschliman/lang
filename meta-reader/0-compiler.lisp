@@ -10,7 +10,7 @@
      (print (list ',form '= _res))
      _res))
 
-(define MetaInputStream (create-class 'MetaInputStream 4))
+(define MetaInputStream (create-class 'MetaInputStream '(pos str line memo)))
 (define (make-meta-input-stream pos str line)
     (let ((r (instantiate-class MetaInputStream)))
       (instance-set-ivar r 0 pos)

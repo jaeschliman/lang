@@ -41,7 +41,7 @@ meta chitchat {
   return       = "^" ws expr:x -> `(return ,x)
   stmt         = return | assign | expr
   stmts        = ws stmt:s (ws "." ws stmt)*:ss -> (cons s ss)
-  vars         = "|" (ws ":" unary-ident)*:vars ws "|" -> vars
+  vars         = "|" (ws unary-ident)*:vars ws "|" -> vars
   body         = ws vars?:vars stmts:stmts -> `(:vars ,vars :body ,stmts) 
 
   nary-hdr     = (nary-part:m ws unary-ident:a ws -> (cons m a))+:hdr -> (compose-hdr hdr)
@@ -103,13 +103,13 @@ meta chitchat {
      y := self fooWith: x.
      self frobnicate: [ ^ y ]
 ")
-(dbg 'body " |:x :y|
+(dbg 'body " |x y|
      x := AThing becomeRelevant.
      y := self fooWith: x.
      self frobnicate: [ :arg | self fooWith:arg. ^ y ]
 ")
 (dbg 'body "
-     | :y |
+     | y |
      y := 5.
      ^ [ :x | x + y ]
 ")

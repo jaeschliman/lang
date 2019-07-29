@@ -311,7 +311,7 @@ fixed an issue in ht_at_put that could possibly contribute to this
   then rescan to find the first unmarked object accordingly. otherwise, walk-state will contain
   a ref to the last-seen object, and we can just jump to the next unmarked object in the heap.
   when we finish the walk, we then scan the heap and reset all the mark bits
-* TODO move StandardObject ivars into a slot-vector
+* DONE move StandardObject ivars into a slot-vector
   will allow class redefinition, simple to impl once heap-walking is implemented
 * TODO review smalltalk file-in syntax, support class declaration
 * DONE save slot names when defining classes

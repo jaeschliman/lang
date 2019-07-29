@@ -509,10 +509,9 @@ struct RawPointerObject : Object {
   void *pointer;
 };
 
-struct StandardObject : Object { // really more of a structure object
+struct StandardObject : Object { 
   StandardObject *klass;
-  u64 ivar_count;
-  Ptr ivars[];
+  PtrArrayObject *slots;
 };
 
 #define StandardObjectFlag_IsClass 0b1
@@ -869,25 +868,30 @@ unwrap_ptr_for(Struct, it) {
   return as(ByteArray, it);
 }
 
+
+Ptr make_zf_array(VM *vm, u64 len);
+
 StandardObject *alloc_standard_object(VM *vm, StandardObject *klass, u64 ivar_count) {
-  auto byte_count = (sizeof(StandardObject)) + ivar_count * (sizeof(Ptr));
   gc_protect(klass);
+  auto slot_vector = make_zf_array(vm, ivar_count); prot_ptr(slot_vector);
+  auto byte_count = sizeof(StandardObject);
   auto result = (StandardObject *)vm_alloc(vm, byte_count);
   gc_unprotect(klass);
+  unprot_ptr(slot_vector);
   result->header.object_type = Standard_ObjectType;
   result->klass = klass;
-  result->ivar_count = ivar_count;
+  result->slots = as(PtrArray, slot_vector);
   return result;
 }
 
 Ptr standard_object_get_ivar(StandardObject *object, u64 idx) {
-  assert(idx < object->ivar_count);
-  return object->ivars[idx];
+  assert(idx < object->slots->length);
+  return object->slots->data[idx];
 }
 
 Ptr standard_object_set_ivar(StandardObject *object, u64 idx, Ptr value) {
-  assert(idx < object->ivar_count);
-  return object->ivars[idx] = value;
+  assert(idx < object->slots->length);
+  return object->slots->data[idx] = value;
 }
 
 Ptr make_bytecode(VM *vm, u64 code_len) {
@@ -1391,7 +1395,7 @@ u64 obj_size(U64ArrayObject *it)  { return sizeof(U64ArrayObject) + it->length *
 u64 obj_size(ByteCodeObject *)    { return sizeof(ByteCodeObject) + 0;                 }
 u64 obj_size(ByteArrayObject *it) { return sizeof(ByteArrayObject) + it->length;       }
 u64 obj_size(PtrArrayObject *it)  { return sizeof(PtrArrayObject) + it->length * 8;    }
-u64 obj_size(StandardObject *it)  { return sizeof(StandardObject) + it->ivar_count * 8;}
+u64 obj_size(StandardObject *)    { return sizeof(StandardObject);                     }
 u64 obj_size(StackFrameObject*it) {
   return sizeof(StackFrameObject) + (it->argc + it->pad_count) * 8;
 }
@@ -1447,9 +1451,7 @@ void bang_refs(PtrArrayObject *it, BangPtrFn fn) {
 
 void bang_refs(StandardObject *it, BangPtrFn fn) {
   it->klass = (StandardObject *)as(void, fn(objToPtr(it->klass)));
-  for (u64 i = 0; i < it->ivar_count; i++) {
-    it->ivars[i] = fn(it->ivars[i]);
-  }
+  it->slots = (PtrArrayObject *)as(void, fn(objToPtr(it->slots)));
 }
 
 void scan_heap(void *start, void *end, PtrFn fn);
@@ -1497,9 +1499,7 @@ void obj_refs(PtrArrayObject *it, PtrFn fn) {
 
 void obj_refs(StandardObject *it, PtrFn fn) {
   fn(objToPtr(it->klass));
-  for (u64 i = 0; i < it->ivar_count; i++) {
-    fn(it->ivars[i]);
-  }
+  fn(objToPtr(it->slots));
 }
 
 void map_refs(Ptr it, PtrFn fn) {
@@ -2043,8 +2043,10 @@ void gc_update(VM *vm, StandardObject* it) {
     gc_update_ptr(vm, &p);
     it->klass = as(Standard, p);
   }
-  for (u64 i = 0; i < it->ivar_count; i++) {
-    gc_update_ptr(vm, it->ivars + i);
+  if (it->slots){
+    Ptr p = objToPtr(it->slots);
+    gc_update_ptr(vm, &p);
+    it->slots = as(PtrArray, p);
   }
 }
 

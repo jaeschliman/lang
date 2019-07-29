@@ -315,6 +315,8 @@ fixed an issue in ht_at_put that could possibly contribute to this
 * TODO change meta stx to start with #
   disambiguate from normal symbols on error
 * TODO support ivar references in chitchat
+  for simplicity's sake, globals will start with an uppercase letter, all other references
+  will be assumed to be ivars, local variables, or arguments
 * TODO probably going to wind up with inheritance...
   alternatively could have a list of method tables and walk them to find whatever method,
   and use mixins
@@ -330,6 +332,18 @@ fixed an issue in ht_at_put that could possibly contribute to this
 * TODO initialize base class ivar names in boot
 * TODO generate lisp-side accessors for builtins instead of lots of prims
   something like (%aget) and (%aset) like ccl's gvectors IIRC
+* TODO get/set ivar by name
+* TODO make a Language class, have runtime interface through *language* var
+  should have slots `syntax` `compiler` and `assembler`?
+  not sure `assembler` is the right word... maybe `code-generator`?
+  technically we only need two fields, but I like the flexibility of the three...
+* TODO exceptions are not being properly reported on stx errors in chitchat
+  execution halts, but nothing is printed to the console
+* TODO is the off by one error at end of bytecode back? 
+* TODO clear up the stack corruption bug that was occuring after restoring snapshots
+  add a #define that runs stack validation tediously frequently and
+  clear up what exactly is causing the issue
+* TODO some kind of simple game -- maybe a remake of the alien abduction from xmas
 
 * notes
 maybe have a stack of compilers? can push/pop...

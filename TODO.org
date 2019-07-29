@@ -356,6 +356,8 @@ https://www.cs.indiana.edu/~dyb/pubs/mrvs.pdf
 * TODO some way to iterate a list of thunks off the stack top
   could be a way to implement unwind-protect, by gathering handlers from stack frames
   while popping them
+* TODO maybe separate stack into value and control stacks?
+  could this simplify reifying the control stack?
 
 * notes
 maybe have a stack of compilers? can push/pop...

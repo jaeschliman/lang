@@ -351,7 +351,7 @@ struct StackFrameObject : Object {
   Ptr* prev_stack;
   StackFrameObject* prev_frame;
   ByteCodeObject* bc;
-  u64 pc;
+  s64 pc;
   Ptr closed_over;
   Ptr special_variables;
   u64 special_count;

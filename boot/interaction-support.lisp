@@ -15,7 +15,7 @@
 
 (define wants-display #f)
 
-(define event-ready-semaphore (make-semaphore 0))
+(define event-ready-semaphore (make-semaphore #f))
 (define pending-events '())
 
 (define (handle-event e)

@@ -3354,6 +3354,7 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   uint offset = (sizeof(StackFrameObject) / sizeof(u64));
 
   u64 *top = &((vm->stack - offset)->value);
+  // ensure new stack frame is properly aligned
   u64 padding = ((u64)top & TAG_MASK) ? 1 + STACK_PADDING : STACK_PADDING;
   top -= padding;
   assert(((u64)top & TAG_MASK) == 0);

@@ -1302,7 +1302,6 @@ defstruct(package, Package, name, symtab, exports, use_list, subpackages, meta);
 defstruct(ht, HashTable, array, dedupe_strings, count);
 defstruct(cont, Continuation,
           stack_top,
-          bytecode,
           stack,
           value);
 defstruct(thread, Thread,
@@ -3448,7 +3447,6 @@ Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
   StackFrameObject *fr = vm->frame;
   Ptr result  = Nil;                               prot_ptr(result);
   result = alloc_cont(vm);
-  cont_set_bytecode(result, objToPtr(vm->bc));
   {
     Ptr *stack = vm->stack;
     auto on_stack = (Ptr*)(void *)vm->frame; // go back 'up' the stack to get current args
@@ -3643,7 +3641,7 @@ void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
 void vm_restore_stack_snapshot(VM *vm, Ptr cont) {
   Ptr extra_args = cont_get_stack_top(cont);
   Ptr frame      = cont_get_stack(cont);
-  Ptr bc         = cont_get_bytecode(cont);
+  auto bc        = as(StackFrame, frame)->bc;
 
   auto base_frame = vm->frame;
 
@@ -3659,7 +3657,7 @@ void vm_restore_stack_snapshot(VM *vm, Ptr cont) {
     }
   }
 
-  vm->bc = as(ByteCode, bc);
+  vm->bc = bc;
 
   // restore special variables (must go last as it may cons)
   _vm_restore_special_variables_snapshot(vm, base_frame);

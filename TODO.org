@@ -251,8 +251,9 @@ https://mrandri19.github.io/2019/07/18/modern-text-rendering-linux-ep1.html
 * TODO short string optimization
   can fit 10 6 bit chars into a Ptr
 * TODO meta reader for repl
-* TODO fix race conditions in tl-exception tests
+* DONE fix race conditions in tl-exception tests
   need a mutex around printing
+  race had to be solved by increasing sleeps, which is gross. the reader sure is slow!
 * DONE think about import vs load syntax
   want to have loaded files always be wrapped in a fresh package
   have a `load-as` function now which brings a file into a package and attaches it.

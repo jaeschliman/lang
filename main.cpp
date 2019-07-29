@@ -1849,17 +1849,14 @@ Ptr class_of(VM *vm, Ptr it) {
     builtin_case(Point, Point);
     builtin_case(Float, Float);
   case Object_Tag: {
-    if (is(Object, it)) { // could be Nil
-      auto obj = as(Object, it);
-      if (obj->header.custom_class) {
-        u8 idx     = obj->header.custom_class & 0b01111111;
-        auto klass = vm->globals->classes.builtins[idx];
-        return objToPtr(klass);
-      } else {
-        return objToPtr(as(Standard, it)->klass);
-      }
+    if (it == Nil) return builtin(Null);
+    auto obj = as(Object, it);
+    if (obj->header.custom_class) {
+      u8 idx     = obj->header.custom_class & 0b01111111;
+      auto klass = vm->globals->classes.builtins[idx];
+      return objToPtr(klass);
     } else {
-      return builtin(Null);
+      return objToPtr(as(Standard, it)->klass);
     }
   }
   }

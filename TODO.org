@@ -358,6 +358,9 @@ https://www.cs.indiana.edu/~dyb/pubs/mrvs.pdf
   while popping them
 * TODO maybe separate stack into value and control stacks?
   could this simplify reifying the control stack?
+* TODO per-thread stacks (maybe just value stacks?) -- can use xarray if value only
+see this article on implementation of goroutines:
+https://new.blog.cloudflare.com/how-stacks-are-handled-in-go/
 
 * notes
 maybe have a stack of compilers? can push/pop...

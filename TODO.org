@@ -361,6 +361,10 @@ https://www.cs.indiana.edu/~dyb/pubs/mrvs.pdf
 * TODO per-thread stacks (maybe just value stacks?) -- can use xarray if value only
 see this article on implementation of goroutines:
 https://new.blog.cloudflare.com/how-stacks-are-handled-in-go/
+* TODO maybe think about some way to get rid of previous frame pointer from stack frame 
+can we do a little bookeeping using integers and avoid having to chain stack frames?
+then we could have a 'stack segment' object that just splats on/off the stack
+wouldn't have to worry as much about updating pointers?
 
 * notes
 maybe have a stack of compilers? can push/pop...

@@ -351,6 +351,8 @@ fixed an issue in ht_at_put that could possibly contribute to this
 * TODO read up on `thisContext` in the blue book
   dynamically reify the call stack onto the heap, and continue execution?
 * TODO read up more on metaclasses
+* TODO paper on multiple return values in scheme
+https://www.cs.indiana.edu/~dyb/pubs/mrvs.pdf
 
 * notes
 maybe have a stack of compilers? can push/pop...

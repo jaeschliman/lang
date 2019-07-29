@@ -2804,13 +2804,14 @@ bool is_class(Ptr obj) {
 
 
 Ptr make_user_class(VM *vm, Ptr name, Ptr ivar_names) { prot_ptrs(name, ivar_names);
+  auto ivar_names_vector = make_vector_from_list(vm, ivar_names); prot_ptr(ivar_names_vector);
   auto ivar_ct = to(Fixnum, list_length(vm, ivar_names));
   auto method_dict = ht(vm);                      prot_ptr(method_dict);
   auto metadata = ht(vm);
   auto superclass = vm->globals->classes.builtins[BuiltinClassIndex_Base];
-  Ptr slots[] = {name, ivar_ct, method_dict, metadata, Nil, ivar_names};
+  Ptr slots[] = {name, ivar_ct, method_dict, metadata, Nil, ivar_names_vector};
   auto result = make_standard_object(vm, superclass, slots);
-  unprot_ptrs(name, method_dict, ivar_names);
+  unprot_ptrs(name, method_dict, ivar_names, ivar_names_vector);
   mark_object_as_class(result);
   return objToPtr(result);
 }

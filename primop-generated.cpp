@@ -190,7 +190,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
 Ptr PRIM_ARGC_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
-  return to(Fixnum,((s64)vm->frame->argc));
+  return to(Fixnum,((s64)vm->curr_thread->frame->argc));
 }
 
 // Primitive 8
@@ -1195,7 +1195,7 @@ Ptr PRIM_SEM_SIG_impl(VM *vm, u32 argc) {
 Ptr PRIM_CURR_THD_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
- return vm->globals->current_thread;
+ return vm->curr_thread->thread;
 }
 
 // Primitive 123
@@ -1594,7 +1594,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
 
   case 8: {
 
-     vm_push(vm, to(Fixnum,((s64)vm->frame->argc)));
+     vm_push(vm, to(Fixnum,((s64)vm->curr_thread->frame->argc)));
     break;
   }
 
@@ -2484,7 +2484,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
 
   case 123: {
 
-    vm_push(vm, vm->globals->current_thread);
+    vm_push(vm, vm->curr_thread->thread);
     break;
   }
 

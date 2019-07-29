@@ -192,7 +192,7 @@ void initialize_primitive_functions(VM *vm) {
 
   ;; NORMAL BUILTINS
 
-  (prim %argument-count ARGC () Fixnum "(s64)vm->frame->argc")
+  (prim %argument-count ARGC () Fixnum "(s64)vm->curr_thread->frame->argc")
   (prim %load-arg LDARG ((it Fixnum)) any "vm_load_arg(vm, it)")
   (prim %obj-high-bits OHIBITS ((it Object)) Fixnum "((u64) it >> 32)")
   (prim %obj-low-bits OLOBITS ((it Object)) Fixnum "((u64) it & 0xFFFF)")
@@ -376,7 +376,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim make-semaphore MK_SEM ((a any)) any "make_semaphore(vm, a)")
   (prim signal-semaphore SEM_SIG ((a any)) any "signal_semaphore(a)")
 
-  (prim current-thread CURR_THD () any "vm->globals->current_thread")
+  (prim current-thread CURR_THD () any "vm->curr_thread->thread")
   (prim list-all-threads ALL_THDS () any "list_all_threads(vm)")
 
   (prim slurp SLURP ((path String)) any "slurp(vm, path)")

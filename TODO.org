@@ -230,7 +230,7 @@ e.g.
   (baz (bar (foo a b c))) =>
   (reduce-list (lambda (fn acc) (fn acc)) (apply (car fns) args) (cdr args))
 * DONE move bc into current frame
-* TODO move pc into current frame
+* DONE move pc into current frame
 * TODO 'better lambda'
 * DONE keywords
 * DONE use meta reader to save source location info for top-level forms

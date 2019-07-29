@@ -351,7 +351,7 @@ struct StackFrameObject : Object {
   Ptr* prev_stack;
   StackFrameObject* prev_frame;
   ByteCodeObject* bc;
-  u64 prev_pc;
+  u64 pc;
   Ptr closed_over;
   Ptr special_variables;
   u64 special_count;
@@ -391,7 +391,6 @@ struct VM {
   u64 allocation_count;
   u64 heap_size_in_bytes;
   StackFrameObject *frame;
-  u64 pc;
   ByteCodeObject *bc;
   const char* error;
   u64 instruction_count;
@@ -1303,7 +1302,6 @@ defstruct(package, Package, name, symtab, exports, use_list, subpackages, meta);
 defstruct(ht, HashTable, array, dedupe_strings, count);
 defstruct(cont, Continuation,
           stack_top,
-          program_counter,
           bytecode,
           stack,
           value);
@@ -3294,13 +3292,16 @@ Ptr read_all(VM *vm, const char* input) {
 Ptr vm_pop(VM *vm);
 void vm_push(VM *vm, Ptr it);
 
+inline void vm_adv_pc(VM *vm) {
+  vm->frame->pc++;
+}
+
 void vm_pop_stack_frame(VM* vm) {
   auto fr = vm->frame;
   if (!fr->prev_frame) {
     vm->error = "nowhere to return to";
     return;
   }
-  vm->pc = fr->prev_pc;
   vm->stack = fr->prev_stack + fr->argc;
   vm->frame = fr->prev_frame;
   vm->bc = vm->frame->bc;
@@ -3314,7 +3315,6 @@ void vm_pop_stack_frame(VM* vm) {
 void _vm_reset_stack_from_root_frame(VM *vm) {
   auto fr = vm->frame;
   vm->bc = 0;
-  vm->pc = 0;
   vm->stack = fr->prev_stack + fr->argc;
   vm->frame = 0;
   vm->stack_depth--;
@@ -3361,7 +3361,7 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   new_frame->bc = fn;
   new_frame->prev_stack = vm->stack;
   new_frame->prev_frame = vm->frame;
-  new_frame->prev_pc = vm->pc;
+  new_frame->pc = 0;
   new_frame->argc = argc;
   if (vm->frame) {
     new_frame->special_variables = vm->frame->special_variables;
@@ -3372,7 +3372,6 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   vm->stack = (Ptr*)(void *)new_frame; // - 100; // STACK_PADDING
   vm->frame = new_frame;
   vm->bc = fn;
-  vm->pc = 0;
   vm->stack_depth++;
 }
 
@@ -3449,7 +3448,6 @@ Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
   StackFrameObject *fr = vm->frame;
   Ptr result  = Nil;                               prot_ptr(result);
   result = alloc_cont(vm);
-  cont_set_program_counter(result, to(Fixnum, vm->pc));
   cont_set_bytecode(result, objToPtr(vm->bc));
   {
     Ptr *stack = vm->stack;
@@ -3620,13 +3618,6 @@ void __vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
   new_frame->pad_count = was_aligned ? 0 : 1;
   new_frame->argc = new_frame->preserved_argc;
 
-  // hook in the tail frame
-  if (!new_frame->prev_frame) {
-    new_frame->prev_pc = vm->pc;
-  } else {
-    // do nothing
-  }
-
   #if DEBUG_IMAGE_SNAPSHOTS
   {
     Ptr it = objToPtr(vm->frame);
@@ -3652,7 +3643,6 @@ void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
 void vm_restore_stack_snapshot(VM *vm, Ptr cont) {
   Ptr extra_args = cont_get_stack_top(cont);
   Ptr frame      = cont_get_stack(cont);
-  Ptr pc         = cont_get_program_counter(cont);
   Ptr bc         = cont_get_bytecode(cont);
 
   auto base_frame = vm->frame;
@@ -3669,9 +3659,7 @@ void vm_restore_stack_snapshot(VM *vm, Ptr cont) {
     }
   }
 
-  // restore bc and pc
   vm->bc = as(ByteCode, bc);
-  vm->pc = as(Fixnum, pc);
 
   // restore special variables (must go last as it may cons)
   _vm_restore_special_variables_snapshot(vm, base_frame);
@@ -4275,8 +4263,8 @@ bool vm_handle_error(VM *vm);
 
 // @speed would be nice to have less indirection here,
 //        but need to integrate with stack push/pop and gc both
-#define vm_curr_instr(vm) vm->bc->code->data[vm->pc]
-#define vm_adv_instr(vm) vm->bc->code->data[++vm->pc]
+#define vm_curr_instr(vm) vm->bc->code->data[vm->frame->pc]
+#define vm_adv_instr(vm) vm->bc->code->data[++(vm->frame->pc)]
 
 typedef struct {
   s64 thread_switch_instr_budget, total_execution_instr_budget;
@@ -4392,7 +4380,7 @@ void vm_interp(VM* vm, interp_params params) {
       auto it = vm_pop(vm);
       u64 jump = vm_adv_instr(vm);
       if ((u64)it.value == 0) {
-        vm->pc = jump - 1; //-1 to acct for pc advancing
+        vm->frame->pc = jump - 1; //-1 to acct for pc advancing
       }
       break;
     }
@@ -4400,7 +4388,7 @@ void vm_interp(VM* vm, interp_params params) {
       auto it = vm_pop(vm);
       u64 jump = vm_adv_instr(vm);
       if ((u64)it.value != 0) {
-        vm->pc = jump - 1; //-1 to acct for pc advancing
+        vm->frame->pc = jump - 1; //-1 to acct for pc advancing
       }
       break;
     }
@@ -4408,13 +4396,13 @@ void vm_interp(VM* vm, interp_params params) {
       auto it = vm_pop(vm);
       u64 jump = vm_adv_instr(vm);
       if (ptr_eq(it, False)) {
-        vm->pc = jump - 1; //-1 to acct for pc advancing
+        vm->frame->pc = jump - 1; //-1 to acct for pc advancing
       }
       break;
     }
     case JUMP: {
       u64 jump = vm_adv_instr(vm);
-      vm->pc = jump - 1; //-1 to acct for pc advancing
+      vm->frame->pc = jump - 1; //-1 to acct for pc advancing
       break;
     }
     case DUP: {
@@ -4478,7 +4466,7 @@ void vm_interp(VM* vm, interp_params params) {
             if (ct > 0) {
               semaphore_set_count(semaphore, to(Fixnum, ct - 1));
             } else {
-              vm->pc++;
+              vm->frame->pc++;
               if (!vm_sem_wait_current_thread(vm, semaphore)) {
                 // if we failed to resume another thread, we are suspended
                 vm->suspended = true;
@@ -4556,7 +4544,7 @@ void vm_interp(VM* vm, interp_params params) {
         vm_push_stack_frame(vm, argc, bc, env);
       }
 
-      vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
+      vm->frame->pc--; // or, could insert a NOOP at start of each fn... (or continue)
       // PC is now -1
 
       // we choose the end of a CALL as our safe point for ctx switching
@@ -4627,7 +4615,7 @@ void vm_interp(VM* vm, interp_params params) {
       }
     }
 
-    ++vm->pc;
+    ++vm->frame->pc;
   }
 
  exit:
@@ -4653,7 +4641,7 @@ void vm_interp(VM* vm, interp_params params) {
       if (restarting) {
         // dbg("restarting interpreter loop, remaining other threads: ", vm->threads->size());
         ctx_switch_budget = params.thread_switch_instr_budget;
-        ++vm->pc;
+        ++vm->frame->pc;
         goto restart_interp;
       } else {
         auto ms = _vm_threads_get_minimum_sleep_time(vm);
@@ -4688,7 +4676,7 @@ void vm_interp(VM* vm, interp_params params) {
   if (restarting) {
     // dbg("restarting interpreter loop, remaining other threads: ", vm->threads->size());
     ctx_switch_budget = params.thread_switch_instr_budget;
-    ++vm->pc;
+    ++vm->frame->pc;
     goto restart_interp;
   }
 
@@ -5018,7 +5006,7 @@ void vm_run_until_completion(VM *vm) {
 
     auto success = vm_maybe_start_next_thread(vm);
     if (success) {
-      vm->pc++;
+      vm->frame->pc++;
       vm_interp(vm, INTERP_PARAMS_MAIN_EXECUTION);
 
       // re-add root frame
@@ -6651,7 +6639,7 @@ void run_event_loop_with_display(VM *vm, int w, int h, bool from_image = false) 
         if (can_run) {
           // thread resumption usually happens in the interpreter loop,
           // which means the pc is advanced. here we have to do it manually.
-          vm->pc++;
+          vm->frame->pc++;
           vm_interp(vm, as_main_event);
         }
       }
@@ -6708,7 +6696,7 @@ void run_file_with_optional_display(const char * path, run_info info) {
 void start_up_and_run_image(const char* path, run_info info) {
   VM *vm = vm_create_from_image(path, info);
 
-  vm->pc++;
+  vm->frame->pc++;
 
   auto wants_display = get_global(vm, root_intern(vm, "wants-display"));
   if (is(Point, wants_display)) {

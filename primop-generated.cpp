@@ -123,14 +123,15 @@ enum PrimitiveOperation : u64 {
   PRIM_MK_SEM = ((120ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_SEM_SIG = ((121ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_CURR_THD = ((122ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_SLURP = ((123ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_OS_WSTR = ((124ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_OS_WCH = ((125ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_THD_DBG_INFO = ((126ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_IM_SAV = ((127ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_IM_SAV_DIE = ((128ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_TIME_MS = ((129ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_CL_SRC_LOC = ((130ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_ALL_THDS = ((123ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_SLURP = ((124ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_OS_WSTR = ((125ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_OS_WCH = ((126ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_THD_DBG_INFO = ((127ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_IM_SAV = ((128ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_IM_SAV_DIE = ((129ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_TIME_MS = ((130ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_CL_SRC_LOC = ((131ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -1190,6 +1191,13 @@ Ptr PRIM_CURR_THD_impl(VM *vm, u32 argc) {
 }
 
 // Primitive 122
+Ptr PRIM_ALL_THDS_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+
+ return list_all_threads(vm);
+}
+
+// Primitive 123
 Ptr PRIM_SLURP_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("slurp",String,path);
@@ -1197,7 +1205,7 @@ Ptr PRIM_SLURP_impl(VM *vm, u32 argc) {
  return slurp(vm, path);
 }
 
-// Primitive 123
+// Primitive 124
 Ptr PRIM_OS_WSTR_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("%file-output-stream-write-string",String,str);
@@ -1206,7 +1214,7 @@ Ptr PRIM_OS_WSTR_impl(VM *vm, u32 argc) {
   return to(Bool,(file_output_stream_write_string(s, str)));
 }
 
-// Primitive 124
+// Primitive 125
 Ptr PRIM_OS_WCH_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("%file-output-stream-write-char",Char,ch);
@@ -1215,7 +1223,7 @@ Ptr PRIM_OS_WCH_impl(VM *vm, u32 argc) {
   return to(Bool,(file_output_stream_write_char(s, ch)));
 }
 
-// Primitive 125
+// Primitive 126
 Ptr PRIM_THD_DBG_INFO_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("thread-get-debug-info",any,a);
@@ -1223,7 +1231,7 @@ Ptr PRIM_THD_DBG_INFO_impl(VM *vm, u32 argc) {
  return thread_get_debug_info(vm, a);
 }
 
-// Primitive 126
+// Primitive 127
 Ptr PRIM_IM_SAV_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("save-snapshot",String,path);
@@ -1231,7 +1239,7 @@ Ptr PRIM_IM_SAV_impl(VM *vm, u32 argc) {
  return im_snapshot_to_path(vm, path);
 }
 
-// Primitive 127
+// Primitive 128
 Ptr PRIM_IM_SAV_DIE_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("save-snapshot-and-exit",String,path);
@@ -1239,14 +1247,14 @@ Ptr PRIM_IM_SAV_DIE_impl(VM *vm, u32 argc) {
  return im_snapshot_to_path_and_exit(vm, path);
 }
 
-// Primitive 128
+// Primitive 129
 Ptr PRIM_TIME_MS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
   return to(Fixnum,(current_time_ms()));
 }
 
-// Primitive 129
+// Primitive 130
 Ptr PRIM_CL_SRC_LOC_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("closure-source-location",any,a);
@@ -1379,6 +1387,7 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_MK_SEM_impl,
   &PRIM_SEM_SIG_impl,
   &PRIM_CURR_THD_impl,
+  &PRIM_ALL_THDS_impl,
   &PRIM_SLURP_impl,
   &PRIM_OS_WSTR_impl,
   &PRIM_OS_WCH_impl,
@@ -1516,6 +1525,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "make-semaphore", to(PrimOp, PRIM_MK_SEM));
   set_global(vm, "signal-semaphore", to(PrimOp, PRIM_SEM_SIG));
   set_global(vm, "current-thread", to(PrimOp, PRIM_CURR_THD));
+  set_global(vm, "list-all-threads", to(PrimOp, PRIM_ALL_THDS));
   set_global(vm, "slurp", to(PrimOp, PRIM_SLURP));
   set_global(vm, "%file-output-stream-write-string", to(PrimOp, PRIM_OS_WSTR));
   set_global(vm, "%file-output-stream-write-char", to(PrimOp, PRIM_OS_WCH));
@@ -2463,13 +2473,19 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
   }
 
   case 123: {
+
+    vm_push(vm, list_all_threads(vm));
+    break;
+  }
+
+  case 124: {
    VM_ARG("slurp",String,path);
 
     vm_push(vm, slurp(vm, path));
     break;
   }
 
-  case 124: {
+  case 125: {
    VM_ARG("%file-output-stream-write-string",String,str);
    VM_ARG("%file-output-stream-write-string",any,s);
 
@@ -2477,7 +2493,7 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 125: {
+  case 126: {
    VM_ARG("%file-output-stream-write-char",Char,ch);
    VM_ARG("%file-output-stream-write-char",any,s);
 
@@ -2485,34 +2501,34 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 126: {
+  case 127: {
    VM_ARG("thread-get-debug-info",any,a);
 
     vm_push(vm, thread_get_debug_info(vm, a));
     break;
   }
 
-  case 127: {
+  case 128: {
    VM_ARG("save-snapshot",String,path);
 
     vm_push(vm, im_snapshot_to_path(vm, path));
     break;
   }
 
-  case 128: {
+  case 129: {
    VM_ARG("save-snapshot-and-exit",String,path);
 
     vm_push(vm, im_snapshot_to_path_and_exit(vm, path));
     break;
   }
 
-  case 129: {
+  case 130: {
 
      vm_push(vm, to(Fixnum,(current_time_ms())));
     break;
   }
 
-  case 130: {
+  case 131: {
    VM_ARG("closure-source-location",any,a);
 
     vm_push(vm, get_source_location(a));

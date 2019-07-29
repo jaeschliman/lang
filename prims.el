@@ -375,6 +375,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim signal-semaphore SEM_SIG ((a any)) any "signal_semaphore(a)")
 
   (prim current-thread CURR_THD () any "vm->globals->current_thread")
+  (prim list-all-threads ALL_THDS () any "list_all_threads(vm)")
 
   (prim slurp SLURP ((path String)) any "slurp(vm, path)")
 

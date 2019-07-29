@@ -3763,6 +3763,18 @@ Ptr _vm_maybe_get_next_available_thread(VM *vm) {
   return Nil;
 }
 
+Ptr list_all_threads(VM *vm) {
+  Ptr result = Nil; prot_ptr(result);
+  auto n = vm->threads->front;
+  while (n) {
+    result = cons(vm, n->val, result);
+    n = n->next;
+  }
+  result = cons(vm, vm->globals->current_thread, result);
+  unprot_ptr(result);
+  return result;
+}
+
 Ptr _list_rev(Ptr lst) {
   if (lst == Nil) return Nil;
   auto prev = lst;

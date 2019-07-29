@@ -353,6 +353,9 @@ fixed an issue in ht_at_put that could possibly contribute to this
 * TODO read up more on metaclasses
 * TODO paper on multiple return values in scheme
 https://www.cs.indiana.edu/~dyb/pubs/mrvs.pdf
+* TODO some way to iterate a list of thunks off the stack top
+  could be a way to implement unwind-protect, by gathering handlers from stack frames
+  while popping them
 
 * notes
 maybe have a stack of compilers? can push/pop...

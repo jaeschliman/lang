@@ -59,7 +59,7 @@
 (export
  *standard-output* stream-write-char stream-write-string print-object print)
 
-(export length)
+(export vector length)
 
 (export
  fork fork-with-priority forever sleep-ms)

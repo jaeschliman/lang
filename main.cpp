@@ -2453,6 +2453,16 @@ u64 list_length(VM *vm, Ptr it) {
   do_list(vm, it, [&](Ptr p){ unused(p); count++; });
   return count;
 }
+
+Ptr make_vector_from_list(VM *vm, Ptr lst) { prot_ptr(lst);
+  auto result = make_zf_array(vm, list_length(vm, lst));
+  auto idx = 0;
+  do_list(vm, lst, [&](Ptr it){ array_set(result, idx, it); idx++; });
+  unprot_ptr(lst);
+  return result;
+}
+
+
 /* ---------------------------------------- */
 
 Ptr ht(VM *vm) {

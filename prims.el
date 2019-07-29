@@ -257,6 +257,8 @@ void initialize_primitive_functions(VM *vm) {
   (prim %print PRINT ((a any))              any  "primitive_print(a)")
   (prim nth    NTH   ((a any) (idx Fixnum)) any  "nth_or_nil(a, idx)")
 
+  (prim vector VEC as any "make_vector_from_list(vm, as)" )
+
   (prim make-array   MKARY ((len Fixnum))                        any    "make_zf_array(vm, len)")
   (prim aget         AGET  ((a PtrArray) (idx Fixnum))           any    "aget(a, idx)")
   (prim aset         ASET  ((a PtrArray) (idx Fixnum) (val any)) any    "aset(a, idx, val)")

@@ -347,6 +347,9 @@ fixed an issue in ht_at_put that could possibly contribute to this
   add a #define that runs stack validation tediously frequently and
   clear up what exactly is causing the issue
 * TODO some kind of simple game -- maybe a remake of the alien abduction from xmas
+* TODO read up on `thisContext` in the blue book
+  dynamically reify the call stack onto the heap, and continue execution?
+* TODO read up more on metaclasses
 
 * notes
 maybe have a stack of compilers? can push/pop...

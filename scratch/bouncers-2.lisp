@@ -89,5 +89,9 @@
 (define (onmousemove p) (set 'mouse-position p))
 
 (fork-with-priority 100 (forever (draw-frame) (sleep-ms 10)))
+(let ((pkg *package*))
+  (fork
+   (binding ((*package* pkg))
+     (forever (sleep-ms 1000) (print `(thread count = ,(length (list-all-threads))))))))
 
 (request-display screen-width screen-height)

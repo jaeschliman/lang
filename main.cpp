@@ -129,19 +129,19 @@ struct Ptr { u64 value; };
 
 struct thread_ctx;
 
-struct ptrq_node { Ptr val;  ptrq_node *next;  };
-struct ptrq { ptrq_node *front, *back; ptrq_node *free_list; };
+struct thdq_node { Ptr val;  thdq_node *next;  };
+struct thdq { thdq_node *front, *back; thdq_node *free_list; };
 
-ptrq_node *ptrq_get_node(ptrq *q) {
+thdq_node *thdq_get_node(thdq *q) {
   if (q->free_list) {
     auto res = q->free_list;
     q->free_list = q->free_list->next;
     return res;
   }
-  return (ptrq_node *)calloc(sizeof(ptrq_node), 1);
+  return (thdq_node *)calloc(sizeof(thdq_node), 1);
 }
 
-void ptrq_push(ptrq *q, ptrq_node *n) {
+void thdq_push(thdq *q, thdq_node *n) {
   n->next = 0;
   if (!q->front) {
     q->front = q->back = n;
@@ -151,13 +151,13 @@ void ptrq_push(ptrq *q, ptrq_node *n) {
   }
 }
 
-void ptrq_push(ptrq *q, Ptr p) {
-  auto n = ptrq_get_node(q);
+void thdq_push(thdq *q, Ptr p) {
+  auto n = thdq_get_node(q);
   n->val = p;
-  ptrq_push(q, n);
+  thdq_push(q, n);
 }
 
-ptrq_node *ptrq_pop(ptrq *q) {
+thdq_node *thdq_pop(thdq *q) {
   if (q->front) {
     auto res = q->front;
     if (q->front == q->back) {
@@ -171,17 +171,17 @@ ptrq_node *ptrq_pop(ptrq *q) {
   return 0;
 }
 
-void ptrq_remove_all(ptrq *q) {
-  while (auto n = ptrq_pop(q)) {
+void thdq_remove_all(thdq *q) {
+  while (auto n = thdq_pop(q)) {
     n->next = q->free_list;
     q->free_list = n;
     n->val = Nil;
   }
 }
 
-void ptrq_remove_next(ptrq *q, ptrq_node *p) {
+void thdq_remove_next(thdq *q, thdq_node *p) {
   if (!p) { // first item
-    auto n = ptrq_pop(q);
+    auto n = thdq_pop(q);
     if (n) {
       n->next = q->free_list;
       q->free_list = n;
@@ -199,12 +199,12 @@ void ptrq_remove_next(ptrq *q, ptrq_node *p) {
   n->val = Nil;
 }
 
-void ptrq_remove_ptr(ptrq *q, Ptr ptr) {
-  ptrq_node *p = 0;
+void thdq_remove_ptr(thdq *q, Ptr ptr) {
+  thdq_node *p = 0;
   auto n = q->front;
   while (n) {
     if (n->val.value == ptr.value) {
-      ptrq_remove_next(q, p);
+      thdq_remove_next(q, p);
       return;
     }
     p = n;
@@ -423,7 +423,7 @@ struct VM {
   std::unordered_map<Ptr *, u64> *gc_protected_ptr_vectors;
   blit_surface *surface;
   bool screen_dirty;
-  ptrq *threads;
+  thdq *threads;
   thread_ctx* curr_thread;
   bool suspended;
 };
@@ -3766,14 +3766,14 @@ s64 _vm_threads_get_minimum_sleep_time(VM *vm) {
 Ptr _vm_maybe_get_next_available_thread(VM *vm) {
   if (vm->threads->front) {
     s64 now = current_time_ms();
-    ptrq_node *p = 0;
+    thdq_node *p = 0;
     auto n = vm->threads->front;
     while (n) {
       auto thread = n->val;
       auto status = thread_get_status(thread);
       if (status == THREAD_STATUS_WAITING) {
         // dbg("found waiting thread");
-        ptrq_remove_next(vm->threads, p);
+        thdq_remove_next(vm->threads, p);
         return thread;
       } else if (status == THREAD_STATUS_SLEEPING) {
         auto wake_after = thread_get_wake_after(thread);
@@ -3781,13 +3781,13 @@ Ptr _vm_maybe_get_next_available_thread(VM *vm) {
         // if (delta > 0) dbg("thread still sleeping for ", delta, " ms", thread);
         if (delta <= 0) {
           // dbg("waking sleeping thread");
-          ptrq_remove_next(vm->threads, p);
+          thdq_remove_next(vm->threads, p);
           return thread;
         }
       } else if (status == THREAD_STATUS_SEM_WAIT) {
         auto sem = thread_get_semaphore(thread);
         if (acquire_semaphore(sem)) {
-          ptrq_remove_next(vm->threads, p);
+          thdq_remove_next(vm->threads, p);
           return thread;
         }
       } else if (status == THREAD_STATUS_RUNNING) {
@@ -3888,7 +3888,7 @@ void vm_add_thread_to_background_set(VM *vm, Ptr thread){
     thread_set_status(thread, THREAD_STATUS_WAITING);
   }
   // dbg("adding background thread");
-  ptrq_push(vm->threads, thread);
+  thdq_push(vm->threads, thread);
 }
 
 void vm_suspend_current_thread(VM *vm) {
@@ -4538,7 +4538,7 @@ void vm_interp(VM* vm, interp_params params) {
                 goto exit;
               }
             } else {
-              ptrq_remove_ptr(vm->threads, thread);
+              thdq_remove_ptr(vm->threads, thread);
             }
             break;
           }
@@ -6115,14 +6115,14 @@ void vm_init_from_heap_snapshot(VM *vm) {
   _debug_validate_thread(vm->curr_thread->thread);
 
   // clear out old threads, add new threads
-  ptrq_remove_all(vm->threads);
+  thdq_remove_all(vm->threads);
   assert(vm->threads->front == vm->threads->back);
   assert(!vm->threads->front);
 
   auto thread_list = ht_at(vm->system_dictionary, SYSTEM_OTHER_THREADS_KEY);
   auto count = 0;
   do_list(vm, thread_list, [&](Ptr thread) {
-      ptrq_push(vm->threads, thread);
+      thdq_push(vm->threads, thread);
       count++;
     });
   dbg("restored ", count, " threads + main = ", vm->curr_thread->thread);
@@ -6209,7 +6209,7 @@ VM *_vm_create() {
 
   vm->in_gc = false;
 
-  vm->threads = (ptrq *)calloc(sizeof(ptrq), 1);
+  vm->threads = (thdq *)calloc(sizeof(thdq), 1);
   vm->suspended = false;
 
   vm->curr_thread->frame = 0;

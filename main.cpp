@@ -3830,9 +3830,8 @@ Ptr _vm_thread_suspend(VM *vm) {
 }
 
 void _vm_thread_resume(VM *vm, Ptr thread) { prot_ptr(thread);
-  // FIXME: we should be able to unwind to root here, but it breaks things at the moment
-  auto cont = thread_get_continuation(thread);
-  vm_restore_stack_snapshot(vm, cont);
+  _vm_unwind_to_root_frame(vm);
+  vm_restore_stack_snapshot(vm, thread_get_continuation(thread));
   vm->globals->current_thread = thread;
   thread_set_status(thread, THREAD_STATUS_RUNNING);
   unprot_ptr(thread);

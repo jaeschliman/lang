@@ -148,6 +148,8 @@ http://www.jezzamon.com/fourier/index.html
 * TODO list-all-threads, thread-status
 * DONE semaphore
 * TODO mutex etc
+  perhaps have threads hold a list of all held locks so that when they
+  are killed they can release them
 * DONE use bitmask for 'primitive' primOps (aka @send apply etc)
 * DONE generic maths
 * DONE a package system

@@ -365,6 +365,8 @@ https://new.blog.cloudflare.com/how-stacks-are-handled-in-go/
 can we do a little bookeeping using integers and avoid having to chain stack frames?
 then we could have a 'stack segment' object that just splats on/off the stack
 wouldn't have to worry as much about updating pointers?
+* TODO better error machinery for primitive calls
+  this is a bit vague, but want to have resumable exceptions eventually etc
 
 * notes
 maybe have a stack of compilers? can push/pop...

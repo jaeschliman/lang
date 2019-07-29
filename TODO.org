@@ -145,11 +145,12 @@ http://www.jezzamon.com/fourier/index.html
 * DONE more thread manipulation functions
   (current-thread)
   (kill-thread thread)
-* TODO list-all-threads, thread-status
+* IN-PROGRESS list-all-threads, thread-status
 * DONE semaphore
 * TODO mutex etc
   perhaps have threads hold a list of all held locks so that when they
   are killed they can release them
+  also, depends on a reliable unwind-protect to release lock
 * DONE use bitmask for 'primitive' primOps (aka @send apply etc)
 * DONE generic maths
 * DONE a package system
@@ -187,7 +188,7 @@ http://www.jezzamon.com/fourier/index.html
 * DONE have make-semaphore take a boolean or fixnum param
  when bool, it becomes a binary semaphore
 * DONE fix meta1.compiled-reader.lisp RE: threading
-* TODO start running user files in a fresh package
+* DONE start running user files in a fresh package
 * DONE fix issue with resuming continuation over fresh special variables bindings
   need to re-situate special bindings over the new dynamic environment
   where the continuation is executed.

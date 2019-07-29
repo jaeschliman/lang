@@ -1169,9 +1169,9 @@ Ptr PRIM_FORK_impl(VM *vm, u32 argc) {
 // Primitive 119
 Ptr PRIM_MK_SEM_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
-   VM_ARG("make-semaphore",Fixnum,a);
+   VM_ARG("make-semaphore",any,a);
 
- return make_semaphore(vm, to(Fixnum, a));
+ return make_semaphore(vm, a);
 }
 
 // Primitive 120
@@ -2443,9 +2443,9 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
   }
 
   case 120: {
-   VM_ARG("make-semaphore",Fixnum,a);
+   VM_ARG("make-semaphore",any,a);
 
-    vm_push(vm, make_semaphore(vm, to(Fixnum, a)));
+    vm_push(vm, make_semaphore(vm, a));
     break;
   }
 

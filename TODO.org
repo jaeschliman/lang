@@ -184,7 +184,7 @@ http://www.jezzamon.com/fourier/index.html
 * TODO replace `let` with `%let`
   so we can do some type checking etc in `let`
   also named let
-* TODO have make-semaphore take a boolean or fixnum param
+* DONE have make-semaphore take a boolean or fixnum param
  when bool, it becomes a binary semaphore
 * DONE fix meta1.compiled-reader.lisp RE: threading
 * TODO start running user files in a fresh package

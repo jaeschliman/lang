@@ -371,7 +371,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim continuation-value CONT_VAL ((a any)) any "cont_get_value(a)")
   (prim fork-continuation FORK ((priority any) (a any)) any "vm_schedule_cont(vm, a, priority, Nil)")
 
-  (prim make-semaphore MK_SEM ((a Fixnum)) any "make_semaphore(vm, to(Fixnum, a))")
+  (prim make-semaphore MK_SEM ((a any)) any "make_semaphore(vm, a)")
   (prim signal-semaphore SEM_SIG ((a any)) any "signal_semaphore(a)")
 
   (prim current-thread CURR_THD () any "vm->globals->current_thread")

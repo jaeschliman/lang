@@ -2848,6 +2848,7 @@ bool boundp(VM *vm, Ptr sym) {
 
 Ptr get_global(VM *vm,  Ptr sym) {
   if (boundp(vm, sym)) return Symbol_get_value(sym);
+  dbg("unbound global: ", sym);
   vm->error = "symbol is unbound";
   return Nil;
 }
@@ -3684,9 +3685,30 @@ Ptr vm_resume_stack_snapshot(VM *vm, Ptr cont, Ptr arg) { prot_ptr(arg);
 
 Ptr signal_semaphore(Ptr a) {
   assert(is(semaphore, a));
-  auto ct = as(Fixnum, semaphore_get_count(a));
-  semaphore_set_count(a, to(Fixnum, ct + 1));
+  auto it = semaphore_get_count(a);
+  if (is(Fixnum, it)) {
+    auto ct = as(Fixnum, it);
+    semaphore_set_count(a, to(Fixnum, ct + 1));
+  } else {
+    semaphore_set_count(a, True);
+  }
   return Nil;
+}
+
+bool acquire_semaphore(Ptr a) {
+  assert(is(semaphore, a));
+  auto it = semaphore_get_count(a);
+  if (is(Fixnum, it)) {
+    auto ct = as(Fixnum, it);
+    if (ct > 0) {
+      semaphore_set_count(a, to(Fixnum, ct - 1));
+      return true;
+    }
+  } else if (it == True) {
+    semaphore_set_count(a, False);
+    return true;
+  }
+  return false;
 }
 
 /* returns time in ms, or -1 or -2 */
@@ -3740,10 +3762,7 @@ Ptr _vm_maybe_get_next_available_thread(VM *vm) {
         }
       } else if (status == THREAD_STATUS_SEM_WAIT) {
         auto sem = thread_get_semaphore(thread);
-        auto count = as(Fixnum, semaphore_get_count(sem));
-        if (count > 0) {
-          // dbg("waking on semaphore, count was: ", count);
-          semaphore_set_count(sem, to(Fixnum, count - 1));
+        if (acquire_semaphore(sem)) {
           ptrq_remove_next(vm->threads, p);
           return thread;
         }
@@ -5533,6 +5552,7 @@ mark_lambda_closed_over_variables(VM *vm, Ptr it, Ptr p_env) {  prot_ptrs(it, p_
     auto var_map = cenv_get_info(env);                          prot_ptr(var_map);
 
     auto mark_arg = [&](Ptr arg){                               prot_ptrs(arg);
+      if (!is(Symbol, arg)) { dbg(it); dbg(arg); };
       assert(is(Symbol, arg));
       auto index = to(Fixnum, idx++);
       auto info  = make_varinfo(vm, VariableScope_Argument, index, zero);

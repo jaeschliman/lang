@@ -377,6 +377,8 @@ inline rect points_to_rect(point upper_left, point lower_right) {
 }
 
 struct thread_ctx {
+  void *stack_mem;
+  s64 curr_size;
   Ptr *stack;
   Ptr *stack_start;
   Ptr *stack_end;
@@ -388,12 +390,111 @@ struct thread_ctx {
 
 thread_ctx *make_thread_ctx() {
   auto result = (thread_ctx *)calloc(sizeof(thread_ctx), 1);
-  auto count = 1024 * 1024;
-  Ptr *stack_mem = (Ptr *)calloc(sizeof(Ptr), count);
-  result->stack = stack_mem + (count - 1);
+  auto count = 512; //1024;// * 1024;
+  auto curr_size = count * sizeof(Ptr);
+  void *stack_mem = calloc(curr_size, 1);
+  Ptr *ptr_mem = (Ptr *)stack_mem;
+  result->stack_mem = stack_mem;
+  result->curr_size = curr_size;
+  result->stack = ptr_mem + (count - 1);
   result->stack_start = result->stack;
-  result->stack_end = stack_mem + 1024; // padding
+  result->stack_end = ptr_mem; // + 1024; // padding
   return result;
+}
+
+bool pointer_is_aligned(void* mem);
+
+struct _copy_state { Ptr *stack; StackFrameObject *frame; };
+
+// cf __vm_restore_stack_snapshot
+_copy_state _copy_frame_to_new_stack(StackFrameObject *fr, Ptr *input_stack, Ptr*a,Ptr*b) {
+  if (!fr) return (_copy_state){input_stack, 0};
+
+  auto state = _copy_frame_to_new_stack(fr->prev_frame, input_stack, a, b);
+  auto stack = state.stack;
+  auto prev_frame = state.frame;
+
+  if (fr->prev_frame) {
+    s64 count =  (Ptr *)(void*)fr->prev_frame - (Ptr *)(void*)fr->prev_stack;
+    for (s64 i = count - 1; i >= 0; i--) {
+      auto it = fr->argv[i + fr->pad_count];
+      *(--stack) = it;
+    }
+  }
+
+  // alloc and align new frame;
+  auto top = stack - (sizeof(StackFrameObject) / sizeof(u64));
+  auto was_aligned = true;
+  if (!pointer_is_aligned(top)) {
+    top -= 1;
+    was_aligned = false;
+  }
+  assert(pointer_is_aligned(top));
+
+  auto new_frame = (StackFrameObject *)(void *)top;
+  memcpy(new_frame, fr, sizeof(StackFrameObject));
+
+  new_frame->pad_count = was_aligned ? 0 : 1;
+  new_frame->prev_stack = stack;
+  new_frame->prev_frame = prev_frame;
+
+  assert(!prev_frame || ((void*)prev_frame <= (void*)a && (void*)prev_frame >= (void*)b));
+  auto new_stack = (Ptr *)(void *)new_frame;
+
+  return (_copy_state){ new_stack, new_frame};
+}
+
+_copy_state _copy_thread_stack_to_new_stack(thread_ctx *ctx, Ptr* input_stack, Ptr* a, Ptr* b) {
+  std::cerr << " copying " << ctx->stack_depth << " frames " << std::endl;
+  auto state = _copy_frame_to_new_stack(ctx->frame, input_stack, a, b);
+  auto stack = state.stack - 0; // XXXX?
+
+  auto on_stack = (Ptr*)(void *)ctx->frame; // go back 'up' the stack to get current args
+  s64 count = on_stack - ctx->stack;
+  std::cerr << " count = " << count << std::endl;
+  for (auto i = count - 1; i >= 0; i--) {
+    *(--stack) = ctx->stack[i];
+  }
+  return (_copy_state){stack, state.frame};
+}
+
+void grow_thread_ctx(thread_ctx *ctx) {
+  auto new_curr_size   = ctx->curr_size * 2;
+  std::cerr << "--------------------------------------------------" << std::endl;
+  std::cerr << "growing stack to " << new_curr_size << " bytes" << std::endl;
+  auto new_count       = new_curr_size / sizeof(Ptr);
+  std::cerr << "new count = " << new_count << " was: " << (ctx->curr_size / sizeof(Ptr)) << std::endl;
+  std::cerr << "prev stack was = " << ctx->stack << std::endl;
+  auto new_stack_mem   = calloc(new_curr_size, 1);
+  assert(pointer_is_aligned(new_stack_mem));
+  auto new_ptr_mem     = (Ptr *)new_stack_mem;
+  auto new_stack       = new_ptr_mem + (new_count - 1);
+  auto new_stack_start = new_stack;
+  auto new_stack_end   = new_ptr_mem;
+  assert(ctx->stack >= ctx->stack_end);
+  assert(new_stack > new_stack_end);
+  assert(new_stack <= new_stack_start);
+
+  auto state = _copy_thread_stack_to_new_stack(ctx, new_stack, new_stack_start, new_stack_end);
+  new_stack = state.stack;
+  auto new_frame = state.frame;
+  free(ctx->stack_mem);
+  std::cerr << ctx->stack_start - ctx->stack << "  ==  " << new_stack_start - new_stack << " ? " << std::endl;
+  assert(ctx->stack_start - ctx->stack == new_stack_start - new_stack);
+
+  ctx->stack_mem   = new_stack_mem;
+  ctx->curr_size   = new_curr_size;
+  ctx->stack       = new_stack;
+  ctx->stack_start = new_stack_start;
+  ctx->stack_end   = new_stack_end;
+  ctx->frame       = new_frame;
+  assert(ctx->stack <= ctx->stack_start && ctx->stack >= ctx->stack_end);
+}
+
+inline void thread_ctx_ensure_bytes(thread_ctx *ctx, s64 byte_count) {
+  if (ctx->stack - (byte_count / sizeof(Ptr)) < ctx->stack_end) {
+    grow_thread_ctx(ctx);
+  } 
 }
 
 
@@ -3331,11 +3432,14 @@ void vm_pop_stack_frame(VM* vm) {
     vm->error = "nowhere to return to";
     return;
   }
+  // assert(vm->curr_thread->stack <= vm->curr_thread->stack_start &&
+  //        vm->curr_thread->stack >= vm->curr_thread->stack_end);
   thd->stack = fr->prev_stack + fr->argc;
   thd->frame = fr->prev_frame;
+  // assert(vm->curr_thread->stack <= vm->curr_thread->stack_start &&
+  //        vm->curr_thread->stack >= vm->curr_thread->stack_end);
   thd->bc = thd->frame->bc;
   thd->stack_depth--;
-
   // dbg("--- popped stack frame.");
   // vm_dump_args(vm);
 
@@ -3381,7 +3485,14 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   top -= padding;
   assert(((u64)top & TAG_MASK) == 0);
 
-  if ((Ptr *)top < thd->stack_end) die("stack overflow.");
+  if ((Ptr *)top < thd->stack_end) {
+    auto ct = thd->curr_size;
+    grow_thread_ctx(thd);
+    assert(ct * 2 == vm->curr_thread->curr_size);
+    assert(thd->stack_start - thd->stack_end > (ct / sizeof(Ptr)));
+    vm_push_stack_frame(vm, argc, fn, closed_over);
+    return;
+  }
 
   StackFrameObject *new_frame = (StackFrameObject *)top;
   new_frame->header.object_type = StackFrame_ObjectType;
@@ -3435,8 +3546,20 @@ void _debug_validate_stack_frame(StackFrameObject *fr){
   }
 }
 
+void _debug_validate_stack_frame(StackFrameObject *fr, thread_ctx *ctx){
+  auto count = 0;
+  while (fr) {
+    auto f = objToPtr(fr);
+    if (!is(StackFrame, f)) die("expecting stack frame got: ", f);
+    assert((void*)fr >= (void*)ctx->stack_start && (void*)fr <= (void*)ctx->stack_end);
+    fr = fr->prev_frame;
+    count++;
+  }
+}
+
 void _debug_validate_stack(VM *vm) {
   auto thd = vm->curr_thread;
+  assert((void *)thd->stack <= (void*)thd->frame);
   assert((void *)thd->frame <= (void *)thd->stack_start && (void*)thd->frame > (void *)thd->stack_end);
   assert(thd->stack <= thd->stack_start && thd->stack > thd->stack_end);
   StackFrameObject *fr = thd->frame;
@@ -3477,7 +3600,6 @@ void _debug_validate_thread_in_heap(void *start, void *end, Ptr thread){
 }
 
 Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
-  _debug_validate_stack(vm);
   auto thd = vm->curr_thread;
   StackFrameObject *fr = thd->frame;
   Ptr result  = Nil;                               prot_ptr(result);
@@ -3637,6 +3759,7 @@ void __vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
   //restore previous frame stack top
   _vm_copy_stack_snapshot_args_to_stack(vm, fr);
 
+  thread_ctx_ensure_bytes(thd, sizeof(StackFrameObject) + sizeof(Ptr));
   // alloc and align new frame;
   auto top = thd->stack - (sizeof(StackFrameObject) / sizeof(u64));
   auto was_aligned = true;
@@ -3671,7 +3794,17 @@ void __vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
 
 void _vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
   __vm_restore_stack_snapshot(vm, fr);
+  thread_ctx_ensure_bytes(vm->curr_thread, sizeof(Ptr));
   vm->curr_thread->stack--;
+}
+
+StackFrameObject *_vm_get_nth_frame(VM *vm, s64 n) {
+  auto curr = vm->curr_thread->frame;
+  while (curr && n > 0) {
+    curr = curr->prev_frame;
+    n--;
+  }
+  return curr;
 }
 
 
@@ -3681,7 +3814,7 @@ void vm_restore_stack_snapshot(VM *vm, Ptr cont) {
   auto bc        = as(StackFrame, frame)->bc;
 
   auto thd = vm->curr_thread;
-  auto base_frame = thd->frame;
+  auto stack_depth = thd->stack_depth;
 
   // restore frames
   _vm_restore_stack_snapshot(vm, as(StackFrame, frame));
@@ -3698,6 +3831,7 @@ void vm_restore_stack_snapshot(VM *vm, Ptr cont) {
   thd->bc = bc;
 
   // restore special variables (must go last as it may cons)
+  auto base_frame = _vm_get_nth_frame(vm, thd->stack_depth - stack_depth);
   _vm_restore_special_variables_snapshot(vm, base_frame);
 }
 
@@ -4195,10 +4329,12 @@ enum OpCode : u8 {
 };
 
 inline void vm_push(VM* vm, Ptr value) {
+  thread_ctx_ensure_bytes(vm->curr_thread, sizeof(Ptr));
   *(--vm->curr_thread->stack) = value;
 }
 
 inline void vm_stack_reserve_n(VM* vm, u64 n){
+  thread_ctx_ensure_bytes(vm->curr_thread, sizeof(Ptr) * n);
   vm->curr_thread->stack -= n;
   memset(vm->curr_thread->stack, 0, n * 8);
 }
@@ -4662,6 +4798,9 @@ void vm_interp(VM* vm, interp_params params) {
         goto exit;
       }
     }
+
+    // assert(vm->curr_thread->stack <= vm->curr_thread->stack_start &&
+    //        vm->curr_thread->stack >= vm->curr_thread->stack_end);
 
     ++vm->curr_thread->frame->pc;
   }

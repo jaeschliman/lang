@@ -473,27 +473,20 @@ _copy_state _copy_frame_to_new_stack(StackFrameObject *fr, Ptr *input_stack, Ptr
 }
 
 _copy_state _copy_thread_stack_to_new_stack(thread_ctx *ctx, Ptr* input_stack, Ptr* a, Ptr* b) {
-  std::cerr << " copying " << ctx->stack_depth << " frames " << std::endl;
   auto state = _copy_frame_to_new_stack(ctx->frame, input_stack, a, b);
-  auto stack = state.stack - 0; // XXXX?
+  auto stack = state.stack;
 
   auto on_stack = (Ptr*)(void *)ctx->frame; // go back 'up' the stack to get current args
   s64 count = on_stack - ctx->stack;
-  std::cerr << " count = " << count << std::endl;
   for (auto i = count - 1; i >= 0; i--) {
     *(--stack) = ctx->stack[i];
   }
   return (_copy_state){stack, state.frame};
 }
 
-void _debug_validate_stack(thread_ctx *thd);
 void grow_thread_ctx(thread_ctx *ctx) {
   auto new_curr_size   = ctx->curr_size * 2;
-  std::cerr << "--------------------------------------------------" << std::endl;
-  std::cerr << "growing stack to " << new_curr_size << " bytes" << std::endl;
   auto new_count       = new_curr_size / sizeof(Ptr);
-  std::cerr << "new count = " << new_count << " was: " << (ctx->curr_size / sizeof(Ptr)) << std::endl;
-  std::cerr << "prev stack was = " << ctx->stack << std::endl;
   auto new_stack_mem   = calloc(new_curr_size, 1);
   assert(pointer_is_aligned(new_stack_mem));
   auto new_ptr_mem     = (Ptr *)new_stack_mem;
@@ -508,7 +501,6 @@ void grow_thread_ctx(thread_ctx *ctx) {
   new_stack = state.stack;
   auto new_frame = state.frame;
   free(ctx->stack_mem);
-  std::cerr << ctx->stack_start - ctx->stack << "  ==  " << new_stack_start - new_stack << " ? " << std::endl;
   assert(ctx->stack_start - ctx->stack == new_stack_start - new_stack);
 
   ctx->stack_mem   = new_stack_mem;
@@ -518,8 +510,6 @@ void grow_thread_ctx(thread_ctx *ctx) {
   ctx->stack_end   = new_stack_end;
   ctx->frame       = new_frame;
   assert(ctx->stack <= ctx->stack_start && ctx->stack >= ctx->stack_end);
-  _debug_validate_stack(ctx);
-  std::cerr << "--------------------------------------------------" << std::endl;
 }
 
 inline void thread_ctx_ensure_bytes(thread_ctx *ctx, s64 byte_count) {
@@ -2441,7 +2431,6 @@ inline void gc_unprotect_ptr_vector(VM *vm, Ptr *ref){
 void im_move_heap(VM *vm);
 
 void gc(VM *vm) {
-  dbg("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
   vm->in_gc = true;
   vm->gc_count++;
 
@@ -3525,9 +3514,6 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn) {
 
 #define STACK_PADDING 0ULL
 
-void _debug_validate_stack(VM *vm);
-void _debug_validate_background_threads(VM *vm);
-
 void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
 
   auto thd = vm->curr_thread;
@@ -3571,8 +3557,6 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   thd->bc = fn;
   thd->stack_depth++;
 
-  _debug_validate_stack(vm);
-  _debug_validate_background_threads(vm);
 }
 
 
@@ -4073,18 +4057,6 @@ void _vm_unwind_to_root_frame(VM *vm) {
 }
 
 thread_ctx *_vm_thread_suspend(VM *vm) {
-  #if 0
-  if (vm->curr_thread->frame->prev_frame == 0) return Nil;
-  auto predicate = [&](StackFrameObject *fr){
-    return fr->prev_frame == 0;
-  };
-  auto cont = vm_snapshot_stack_with_predicate(vm, predicate);
-  thread_set_continuation(vm->curr_thread->thread, cont);
-  thread_set_status(vm->curr_thread->thread, THREAD_STATUS_WAITING);
-  vm_unwind_to_predicate(vm, predicate);
-  return vm->curr_thread->thread;
-  #endif
-  _debug_validate_stack(vm);
   thread_set_status(vm->curr_thread->thread, THREAD_STATUS_WAITING);
   return vm->curr_thread;
 }
@@ -4102,9 +4074,7 @@ void thread_ctx_suspend_in_continuation(VM *vm, thread_ctx *ctx) {
 ByteCodeObject *make_empty_bytecode(VM *vm);
 
 void _vm_thread_resume(VM *vm, thread_ctx* thd) {
-  _debug_validate_stack(thd);
   vm->curr_thread = thd;
-  _debug_validate_stack(vm);
   auto thread = thd->thread;
   auto cont = thread_get_continuation(thread);
   if (is(cont, cont)) {
@@ -4115,9 +4085,7 @@ void _vm_thread_resume(VM *vm, thread_ctx* thd) {
       vm_push_stack_frame(vm, 0, bc, Nil);
       vm->curr_thread->frame->mark = KNOWN(exception);
     }
-    _debug_validate_stack(vm);
     vm_restore_stack_snapshot(vm, cont);
-    _debug_validate_stack(vm);
     thread_set_continuation(thread, Nil);
     unprot_ptr(thread);
   }
@@ -4190,16 +4158,13 @@ bool vm_sem_wait_current_thread(VM *vm, Ptr semaphore) { prot_ptr(semaphore);
 }
 
 bool vm_swap_threads(VM *vm) {
-  _debug_validate_background_threads(vm);
   auto next = _vm_maybe_get_next_available_thread(vm);
   if (next) {
-    _debug_validate_stack(vm);
     assert(vm->curr_thread != next);
     auto curr = _vm_thread_suspend(vm);
     vm->curr_thread = 0; // XXX careful!
     if (curr) vm_add_thread_to_background_set(vm, curr);
     _vm_thread_resume(vm, next);
-    _debug_validate_stack(vm);
     return true;
   }
   return false;
@@ -4803,13 +4768,12 @@ void vm_interp(VM* vm, interp_params params) {
               // FIXME: the check here should not be needed
               // if (!exclusive) _vm_unwind_to_root_frame(vm);
               if (exclusive || !vm_maybe_start_next_thread(vm)) {
-                dbg("exclusive or failed to start next thread");
                 vm->suspended = true;
                 goto exit;
               } else {
-                dbg("started next thread?");
               }
             } else {
+              // FIXME: leak
               thdq_remove_ptr(vm->threads, thread);
             }
             break;
@@ -4852,7 +4816,6 @@ void vm_interp(VM* vm, interp_params params) {
         break;
       }
       auto bc = closure_code(fn);
-      _debug_validate_background_threads(vm);
       if (bc->is_varargs) {
         prot_ptrs(fn);
         vm_push(vm, vm_get_stack_values_as_list(vm, argc));
@@ -4864,7 +4827,6 @@ void vm_interp(VM* vm, interp_params params) {
         auto env = closure_env(fn);
         vm_push_stack_frame(vm, argc, bc, env);
       }
-      _debug_validate_background_threads(vm);
 
       vm->curr_thread->frame->pc--; // or, could insert a NOOP at start of each fn... (or continue)
       // PC is now -1
@@ -4879,9 +4841,7 @@ void vm_interp(VM* vm, interp_params params) {
         return;
       }
       if (params.thread_switch_instr_budget && ctx_switch_budget <= 0) {
-        _debug_validate_background_threads(vm);
         if (vm_swap_threads(vm)) {
-          dbg("swapped threads.",  vm->curr_thread->thread);
           counter++;
         } else {
           // dbg("did not swap threads. ", vm->threads->size());
@@ -4941,8 +4901,8 @@ void vm_interp(VM* vm, interp_params params) {
     // assert(vm->curr_thread->stack <= vm->curr_thread->stack_start &&
     //        vm->curr_thread->stack >= vm->curr_thread->stack_end);
     // assert(vm->curr_thread->frame->argc < 100 && vm->curr_thread->frame->argc >= 0);
-    _debug_validate_stack(vm);
-    _debug_validate_background_threads(vm);
+    // _debug_validate_stack(vm);
+    // _debug_validate_background_threads(vm);
 
     ++vm->curr_thread->frame->pc;
   }

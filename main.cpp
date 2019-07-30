@@ -2225,12 +2225,14 @@ void gc_update_copied_object(VM *vm, Ptr it) {
 void gc_update_thread_ctx(VM *vm, thread_ctx* thd) {
   StackFrameObject *fr = thd->frame;
   Ptr *stack           = thd->stack;
-  {
+
+  if (thd->bc) {
     ByteCodeObject **bytecode = &thd->bc;
     Ptr bc = objToPtr(*bytecode);
     gc_update_ptr(vm, &bc);
     *bytecode = as(ByteCode, bc);
   }
+
   u64 count = 0;
   while (fr) {
     gc_update_ptr(vm, &fr->special_variables);

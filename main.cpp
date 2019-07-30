@@ -140,11 +140,9 @@ thdq_node *thdq_get_node(thdq *q) {
   if (q->free_list) {
     auto res = q->free_list;
     q->free_list = q->free_list->next;
-    res->val = make_thread_ctx();
     return res;
   }
   auto result = (thdq_node *)calloc(sizeof(thdq_node), 1);
-  result->val = make_thread_ctx();
   return result;
 }
 
@@ -160,6 +158,7 @@ void thdq_push(thdq *q, thdq_node *n) {
 
 void thdq_push_ptr(thdq *q, Ptr p) {
   auto n = thdq_get_node(q);
+  n->val = make_thread_ctx();
   thread_ctx_set_thread(n->val, p);
   thdq_push(q, n);
 }
@@ -4179,6 +4178,7 @@ Ptr vm_schedule_cont(VM *vm, Ptr cont, Ptr priority, Ptr bindings) {
                             priority,
                             bindings);
   auto thd = thdq_get_node(vm->threads);
+  thd->val = make_thread_ctx();
   thd->val->thread = thread;
   thdq_push(vm->threads, thd);
   // vm_add_thread_to_background_set(vm, thd);

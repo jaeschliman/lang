@@ -128,17 +128,24 @@ struct Ptr { u64 value; };
 // queue for threads
 
 struct thread_ctx;
+thread_ctx *make_thread_ctx();
+void reset_thread_ctx(thread_ctx *ctx);
+void thread_ctx_set_thread(thread_ctx *ctx, Ptr thread);
+Ptr thread_ctx_get_thread(thread_ctx *ctx);
 
-struct thdq_node { Ptr val;  thdq_node *next;  };
+struct thdq_node { thread_ctx *val;  thdq_node *next;  };
 struct thdq { thdq_node *front, *back; thdq_node *free_list; };
 
 thdq_node *thdq_get_node(thdq *q) {
   if (q->free_list) {
     auto res = q->free_list;
     q->free_list = q->free_list->next;
+    res->val = make_thread_ctx();
     return res;
   }
-  return (thdq_node *)calloc(sizeof(thdq_node), 1);
+  auto result = (thdq_node *)calloc(sizeof(thdq_node), 1);
+  result->val = make_thread_ctx();
+  return result;
 }
 
 void thdq_push(thdq *q, thdq_node *n) {
@@ -151,7 +158,13 @@ void thdq_push(thdq *q, thdq_node *n) {
   }
 }
 
-void thdq_push(thdq *q, Ptr p) {
+void thdq_push_ptr(thdq *q, Ptr p) {
+  auto n = thdq_get_node(q);
+  thread_ctx_set_thread(n->val, p);
+  thdq_push(q, n);
+}
+
+void thdq_push(thdq *q, thread_ctx *p) {
   auto n = thdq_get_node(q);
   n->val = p;
   thdq_push(q, n);
@@ -175,7 +188,9 @@ void thdq_remove_all(thdq *q) {
   while (auto n = thdq_pop(q)) {
     n->next = q->free_list;
     q->free_list = n;
-    n->val = Nil;
+    free(n->val);
+    n->val = 0;
+    // n->val = Nil;
   }
 }
 
@@ -185,7 +200,7 @@ void thdq_remove_next(thdq *q, thdq_node *p) {
     if (n) {
       n->next = q->free_list;
       q->free_list = n;
-      n->val = Nil;
+      n->val = 0;
     }
     return;
   }
@@ -196,14 +211,15 @@ void thdq_remove_next(thdq *q, thdq_node *p) {
   
   n->next = q->free_list;
   q->free_list = n;
-  n->val = Nil;
+  n->val = 0;
 }
 
 void thdq_remove_ptr(thdq *q, Ptr ptr) {
   thdq_node *p = 0;
   auto n = q->front;
   while (n) {
-    if (n->val.value == ptr.value) {
+    if (thread_ctx_get_thread(n->val).value == ptr.value) {
+      // FIXME: audit as we leak val here
       thdq_remove_next(q, p);
       return;
     }
@@ -359,7 +375,7 @@ struct StackFrameObject : Object {
   u64 special_count;
   Ptr mark;
   u64 preserved_argc; // used for snapshots;
-  u64 argc;
+  s64 argc;
   u64 pad_count; // must be 0 or 1
   Ptr argv[]; // MUST be trailing element
 };
@@ -400,6 +416,18 @@ thread_ctx *make_thread_ctx() {
   result->stack_start = result->stack;
   result->stack_end = ptr_mem; // + 1024; // padding
   return result;
+}
+
+// reset the stack of this ctx
+void reset_thread_ctx(thread_ctx *ctx) {
+  ctx->stack = ctx->stack_start;
+}
+
+void thread_ctx_set_thread(thread_ctx *ctx, Ptr thread) {
+  ctx->thread = thread;
+}
+Ptr thread_ctx_get_thread(thread_ctx *ctx) {
+  return ctx->thread;
 }
 
 bool pointer_is_aligned(void* mem);
@@ -458,6 +486,7 @@ _copy_state _copy_thread_stack_to_new_stack(thread_ctx *ctx, Ptr* input_stack, P
   return (_copy_state){stack, state.frame};
 }
 
+void _debug_validate_stack(thread_ctx *thd);
 void grow_thread_ctx(thread_ctx *ctx) {
   auto new_curr_size   = ctx->curr_size * 2;
   std::cerr << "--------------------------------------------------" << std::endl;
@@ -489,10 +518,12 @@ void grow_thread_ctx(thread_ctx *ctx) {
   ctx->stack_end   = new_stack_end;
   ctx->frame       = new_frame;
   assert(ctx->stack <= ctx->stack_start && ctx->stack >= ctx->stack_end);
+  _debug_validate_stack(ctx);
+  std::cerr << "--------------------------------------------------" << std::endl;
 }
 
 inline void thread_ctx_ensure_bytes(thread_ctx *ctx, s64 byte_count) {
-  if (ctx->stack - (byte_count / sizeof(Ptr)) < ctx->stack_end) {
+  if (ctx->stack - (byte_count / sizeof(Ptr)) <= ctx->stack_end) {
     grow_thread_ctx(ctx);
   } 
 }
@@ -1825,9 +1856,11 @@ void debug_walk(VM *vm, Ptr it) {
 }
 
 // @unsafe
-auto vm_map_stack_refs(VM *vm, PtrFn fn) {
-  StackFrameObject *fr = vm->curr_thread->frame;
-  Ptr *stack = vm->curr_thread->stack;
+auto vm_map_thread_ctx_refs(VM *vm, thread_ctx *ctx, PtrFn fn) {
+  fn(ctx->thread);
+  fn(objToPtr(ctx->bc));
+  StackFrameObject *fr = ctx->frame;
+  Ptr *stack = ctx->stack;
   while (fr) {
     fn(fr->special_variables);
     fn(fr->closed_over);
@@ -1845,6 +1878,14 @@ auto vm_map_stack_refs(VM *vm, PtrFn fn) {
     }
     stack = &fr->argv[fr->argc + pad];
     fr = fr->prev_frame;
+  }
+}
+auto vm_map_stack_refs(VM *vm, PtrFn fn) {
+  return vm_map_thread_ctx_refs(vm, vm->curr_thread, fn);
+  auto n = vm->threads->front;
+  while(n) {
+    vm_map_thread_ctx_refs(vm, n->val, fn);
+    n = n->next;
   }
 }
 
@@ -2119,7 +2160,7 @@ void gc_update_ptr(VM *vm, Ptr *p) {
   auto ptr = *p;
   if (!is(NonNilObject, ptr)) return;
   auto obj = as(Object, ptr);
-  // assert(!gc_ptr_is_in_to_space(vm, obj));
+  assert(!gc_ptr_is_in_to_space(vm, obj));
   if (!gc_is_broken_heart(obj)) {
     gc_move_object(vm, obj);
   }
@@ -2192,11 +2233,11 @@ void gc_update_copied_object(VM *vm, Ptr it) {
   if (is(StackFrame, it)) return gc_update(vm, as(StackFrame, it));
 }
 
-void gc_update_stack(VM *vm) {
-  StackFrameObject *fr = vm->curr_thread->frame;
-  Ptr *stack = vm->curr_thread->stack;
+void gc_update_thread_ctx(VM *vm, thread_ctx* thd) {
+  StackFrameObject *fr = thd->frame;
+  Ptr *stack           = thd->stack;
   {
-    ByteCodeObject **bytecode = &vm->curr_thread->bc;
+    ByteCodeObject **bytecode = &thd->bc;
     Ptr bc = objToPtr(*bytecode);
     gc_update_ptr(vm, &bc);
     *bytecode = as(ByteCode, bc);
@@ -2227,6 +2268,15 @@ void gc_update_stack(VM *vm) {
   }
 }
 
+void gc_update_stack(VM *vm) {
+  gc_update_thread_ctx(vm, vm->curr_thread);
+  auto n = vm->threads->front;
+  while(n) {
+    gc_update_thread_ctx(vm, n->val);
+    n = n->next;
+  }
+}
+
 void gc_update_base_class(VM *vm, StandardObject **it) {
   Ptr p = objToPtr(*it);
   gc_update_ptr(vm, &p);
@@ -2241,7 +2291,6 @@ void gc_update_base_class(VM *vm, StandardObject **it) {
 void gc_update_globals(VM *vm) {
   gc_update_ptr(vm, &vm->globals->call1);
   gc_update_ptr(vm, &vm->globals->lang_package);
-  gc_update_ptr(vm, &vm->curr_thread->thread);
 
 #define X(...) MAP(handle_class, __VA_ARGS__)
 #include "./primitive-classes.include"
@@ -2263,9 +2312,10 @@ void gc_update_globals(VM *vm) {
 #undef handle_class
 
 void gc_copy_threads(VM *vm) {
+  gc_update_ptr(vm, &vm->curr_thread->thread);
   auto n = vm->threads->front;
   while(n) {
-    gc_update_ptr(vm, &n->val);
+    gc_update_ptr(vm, &n->val->thread);
     n = n->next;
   }
 }
@@ -2391,6 +2441,7 @@ inline void gc_unprotect_ptr_vector(VM *vm, Ptr *ref){
 void im_move_heap(VM *vm);
 
 void gc(VM *vm) {
+  dbg("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
   vm->in_gc = true;
   vm->gc_count++;
 
@@ -3474,6 +3525,9 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn) {
 
 #define STACK_PADDING 0ULL
 
+void _debug_validate_stack(VM *vm);
+void _debug_validate_background_threads(VM *vm);
+
 void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
 
   auto thd = vm->curr_thread;
@@ -3516,6 +3570,9 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   thd->frame = new_frame;
   thd->bc = fn;
   thd->stack_depth++;
+
+  _debug_validate_stack(vm);
+  _debug_validate_background_threads(vm);
 }
 
 
@@ -3552,18 +3609,35 @@ void _debug_validate_stack_frame(StackFrameObject *fr, thread_ctx *ctx){
     auto f = objToPtr(fr);
     if (!is(StackFrame, f)) die("expecting stack frame got: ", f);
     assert((void*)fr >= (void*)ctx->stack_start && (void*)fr <= (void*)ctx->stack_end);
+    assert(fr->argc < 100 && fr->argc >= 0);
     fr = fr->prev_frame;
     count++;
   }
 }
 
-void _debug_validate_stack(VM *vm) {
-  auto thd = vm->curr_thread;
+void _debug_validate_stack(thread_ctx *thd) {
+  if (!thd->frame) return; // when thread has not yet started
   assert((void *)thd->stack <= (void*)thd->frame);
-  assert((void *)thd->frame <= (void *)thd->stack_start && (void*)thd->frame > (void *)thd->stack_end);
-  assert(thd->stack <= thd->stack_start && thd->stack > thd->stack_end);
+  assert((void *)thd->frame <= (void *)thd->stack_start);
+  assert((void*)thd->frame >= (void *)thd->stack_end);
+  assert(thd->stack <= thd->stack_start);
+  assert(thd->stack >= thd->stack_end);
   StackFrameObject *fr = thd->frame;
   _debug_validate_stack_frame(fr);
+}
+
+void _debug_validate_stack(VM *vm) {
+  _debug_validate_stack(vm->curr_thread);
+}
+
+void _debug_validate_background_threads(VM *vm) {
+  auto count = 0;
+  auto curr = vm->threads->front;
+  while(curr) {
+    if (curr->val->frame) _debug_validate_stack(curr->val);
+    curr = curr->next;
+    count++;
+  }
 }
 
 void _debug_validate_thread(Ptr thread) {
@@ -3599,8 +3673,7 @@ void _debug_validate_thread_in_heap(void *start, void *end, Ptr thread){
   }
 }
 
-Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
-  auto thd = vm->curr_thread;
+Ptr snapshot_thread_ctx_with_predicate(VM *vm, thread_ctx *thd, StackPred fn) {
   StackFrameObject *fr = thd->frame;
   Ptr result  = Nil;                               prot_ptr(result);
   result = alloc_cont(vm);
@@ -3656,6 +3729,11 @@ Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
   cont_set_stack(result, top_fr);
   unprot_ptrs(result, top_fr, prev_fr);
   return result;
+}
+
+Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
+  auto thd = vm->curr_thread;
+  return snapshot_thread_ctx_with_predicate(vm, thd, fn);
 }
 
 Ptr vm_snapshot_stack_to_mark(VM *vm, Ptr mark) { prot_ptr(mark);
@@ -3878,7 +3956,7 @@ s64 _vm_threads_get_minimum_sleep_time(VM *vm) {
   auto now = current_time_ms();
   auto best = -2; // -2 signals we are waiting for a signal (or deadlocked)
   while (curr) {
-    auto thread = curr->val;
+    auto thread = curr->val->thread;
     auto status = thread_get_status(thread);
     if (status == THREAD_STATUS_WAITING) return 0;
     if (status == THREAD_STATUS_SLEEPING) {
@@ -3897,18 +3975,19 @@ s64 _vm_threads_get_minimum_sleep_time(VM *vm) {
 }
 
 // FIXME: doesn't yet respect thread priority
-Ptr _vm_maybe_get_next_available_thread(VM *vm) {
+thread_ctx *_vm_maybe_get_next_available_thread(VM *vm) {
   if (vm->threads->front) {
     s64 now = current_time_ms();
     thdq_node *p = 0;
     auto n = vm->threads->front;
     while (n) {
-      auto thread = n->val;
+      auto thd = n->val;
+      auto thread = thd->thread;
       auto status = thread_get_status(thread);
       if (status == THREAD_STATUS_WAITING) {
         // dbg("found waiting thread");
         thdq_remove_next(vm->threads, p);
-        return thread;
+        return thd;
       } else if (status == THREAD_STATUS_SLEEPING) {
         auto wake_after = thread_get_wake_after(thread);
         s64 delta = as(Fixnum, wake_after) - now;
@@ -3916,13 +3995,13 @@ Ptr _vm_maybe_get_next_available_thread(VM *vm) {
         if (delta <= 0) {
           // dbg("waking sleeping thread");
           thdq_remove_next(vm->threads, p);
-          return thread;
+          return thd;
         }
       } else if (status == THREAD_STATUS_SEM_WAIT) {
         auto sem = thread_get_semaphore(thread);
         if (acquire_semaphore(sem)) {
           thdq_remove_next(vm->threads, p);
-          return thread;
+          return thd;
         }
       } else if (status == THREAD_STATUS_RUNNING) {
         // should not get here
@@ -3932,14 +4011,14 @@ Ptr _vm_maybe_get_next_available_thread(VM *vm) {
       n = n->next;
     }
   }
-  return Nil;
+  return 0;
 }
 
 Ptr list_all_threads(VM *vm) {
   Ptr result = Nil; prot_ptr(result);
   auto n = vm->threads->front;
   while (n) {
-    result = cons(vm, n->val, result);
+    result = cons(vm, n->val->thread, result);
     n = n->next;
   }
   result = cons(vm, vm->curr_thread->thread, result);
@@ -3961,11 +4040,25 @@ Ptr _list_rev(Ptr lst) {
   return prev;
 }
 
+void thread_ctx_suspend_in_continuation(VM *vm, thread_ctx *ctx);
+
+Ptr _suspended_background_threads_as_list(VM *vm) {
+  auto result = Nil; prot_ptr(result);
+  auto n = vm->threads->front;
+  while (n) {
+    thread_ctx_suspend_in_continuation(vm, n->val);
+    result = cons(vm, n->val->thread, result);
+    n = n->next;
+  }
+  unprot_ptr(result);
+  return _list_rev(result);
+}
+
 Ptr _background_threads_as_list(VM *vm) {
   auto result = Nil; prot_ptr(result);
   auto n = vm->threads->front;
   while (n) {
-    result = cons(vm, n->val, result);
+    result = cons(vm, n->val->thread, result);
     n = n->next;
   }
   unprot_ptr(result);
@@ -3979,7 +4072,8 @@ void _vm_unwind_to_root_frame(VM *vm) {
   vm_unwind_to_predicate(vm, predicate);
 }
 
-Ptr _vm_thread_suspend(VM *vm) {
+thread_ctx *_vm_thread_suspend(VM *vm) {
+  #if 0
   if (vm->curr_thread->frame->prev_frame == 0) return Nil;
   auto predicate = [&](StackFrameObject *fr){
     return fr->prev_frame == 0;
@@ -3989,21 +4083,52 @@ Ptr _vm_thread_suspend(VM *vm) {
   thread_set_status(vm->curr_thread->thread, THREAD_STATUS_WAITING);
   vm_unwind_to_predicate(vm, predicate);
   return vm->curr_thread->thread;
+  #endif
+  _debug_validate_stack(vm);
+  thread_set_status(vm->curr_thread->thread, THREAD_STATUS_WAITING);
+  return vm->curr_thread;
 }
 
-void _vm_thread_resume(VM *vm, Ptr thread) { prot_ptr(thread);
-  _vm_unwind_to_root_frame(vm);
-  vm_restore_stack_snapshot(vm, thread_get_continuation(thread));
-  vm->curr_thread->thread = thread;
+void thread_ctx_suspend_in_continuation(VM *vm, thread_ctx *ctx) {
+  if (ctx->frame->prev_frame == 0) return;
+  auto predicate = [&](StackFrameObject *fr){
+    return fr->prev_frame == 0;
+  };
+  auto cont = snapshot_thread_ctx_with_predicate(vm, ctx, predicate);
+  thread_set_continuation(ctx->thread, cont);
+  thread_set_status(ctx->thread, THREAD_STATUS_WAITING);
+}
+
+ByteCodeObject *make_empty_bytecode(VM *vm);
+
+void _vm_thread_resume(VM *vm, thread_ctx* thd) {
+  _debug_validate_stack(thd);
+  vm->curr_thread = thd;
+  _debug_validate_stack(vm);
+  auto thread = thd->thread;
+  auto cont = thread_get_continuation(thread);
+  if (is(cont, cont)) {
+    prot_ptr(thread);
+    _vm_unwind_to_root_frame(vm);
+    if (!vm->curr_thread->frame) {
+      auto bc = make_empty_bytecode(vm);
+      vm_push_stack_frame(vm, 0, bc, Nil);
+      vm->curr_thread->frame->mark = KNOWN(exception);
+    }
+    _debug_validate_stack(vm);
+    vm_restore_stack_snapshot(vm, cont);
+    _debug_validate_stack(vm);
+    thread_set_continuation(thread, Nil);
+    unprot_ptr(thread);
+  }
   thread_set_status(thread, THREAD_STATUS_RUNNING);
-  unprot_ptr(thread);
 }
 
 // N.B. when used outside the interpreter loop, you must
 //      manually advance the PC before entering vm_interp
 bool vm_maybe_start_next_thread(VM *vm) {
   auto next = _vm_maybe_get_next_available_thread(vm);
-  if (is(thread, next)) {
+  if (next) {
     _vm_thread_resume(vm, next);
     // dbg("did resume next thread...", next);
     return true;
@@ -4011,9 +4136,10 @@ bool vm_maybe_start_next_thread(VM *vm) {
   return false;
 }
 
-void vm_add_thread_to_background_set(VM *vm, Ptr thread){
+void vm_add_thread_to_background_set(VM *vm, thread_ctx *thd){
+  auto thread = thd->thread;
   assert(is(thread, thread));
-  assert(!(thread == vm->curr_thread->thread));
+  if (vm->curr_thread) assert(!(thread == vm->curr_thread->thread));
   if (!ptr_eq(thread_get_status(thread), THREAD_STATUS_SLEEPING) &&
       !ptr_eq(thread_get_status(thread), THREAD_STATUS_WAITING) &&
       !ptr_eq(thread_get_status(thread), THREAD_STATUS_SEM_WAIT)
@@ -4022,24 +4148,25 @@ void vm_add_thread_to_background_set(VM *vm, Ptr thread){
     thread_set_status(thread, THREAD_STATUS_WAITING);
   }
   // dbg("adding background thread");
-  thdq_push(vm->threads, thread);
+  thdq_push(vm->threads, thd);
 }
 
 void vm_suspend_current_thread(VM *vm) {
-  Ptr curr = _vm_thread_suspend(vm);
-  vm->curr_thread->thread = Nil; // XXX careful!
-  if (is(thread,curr)) vm_add_thread_to_background_set(vm, curr);
+  auto curr = _vm_thread_suspend(vm);
+  vm->curr_thread = 0; // XXX careful!
+  if (curr) vm_add_thread_to_background_set(vm, curr);
   vm->suspended = true;
 }
 
 bool vm_sleep_current_thread(VM *vm, s64 ms) {
-  Ptr curr = _vm_thread_suspend(vm);
-  vm->curr_thread->thread = Nil; // XXX careful!
-  if (is(thread,curr)) {
+  auto curr = _vm_thread_suspend(vm);
+  vm->curr_thread = 0; // XXX careful!
+  if (curr) {
+    auto thread = curr->thread;
     // dbg("putting thread to sleep, count is now: ", vm->threads->size());
-    thread_set_status(curr, THREAD_STATUS_SLEEPING);
+    thread_set_status(thread, THREAD_STATUS_SLEEPING);
     s64 wake_after = current_time_ms() + ms;
-    thread_set_wake_after(curr, to(Fixnum, wake_after));
+    thread_set_wake_after(thread, to(Fixnum, wake_after));
     vm_add_thread_to_background_set(vm, curr);
     // dbg("put thread to sleep, count is now: ", vm->threads->size());
     // dbg("slept to thread: ", curr);
@@ -4049,11 +4176,12 @@ bool vm_sleep_current_thread(VM *vm, s64 ms) {
 }
 
 bool vm_sem_wait_current_thread(VM *vm, Ptr semaphore) { prot_ptr(semaphore);
-  Ptr curr = _vm_thread_suspend(vm);
-  vm->curr_thread->thread = Nil; // XXX careful!
-  if (is(thread,curr)) {
-    thread_set_status(curr, THREAD_STATUS_SEM_WAIT);
-    thread_set_semaphore(curr, semaphore);
+  auto curr = _vm_thread_suspend(vm);
+  vm->curr_thread = 0; // XXX careful!
+  if (curr) {
+    auto thread = curr->thread;
+    thread_set_status(thread, THREAD_STATUS_SEM_WAIT);
+    thread_set_semaphore(thread, semaphore);
     vm_add_thread_to_background_set(vm, curr);
   }
   auto result = vm_maybe_start_next_thread(vm);
@@ -4062,14 +4190,16 @@ bool vm_sem_wait_current_thread(VM *vm, Ptr semaphore) { prot_ptr(semaphore);
 }
 
 bool vm_swap_threads(VM *vm) {
+  _debug_validate_background_threads(vm);
   auto next = _vm_maybe_get_next_available_thread(vm);
-  if (is(thread, next)) { prot_ptr(next);
-    assert(!ptr_eq(next, vm->curr_thread->thread));
-    Ptr curr = _vm_thread_suspend(vm);
-    vm->curr_thread->thread = Nil; // XXX careful!
-    if (is(thread, curr)) vm_add_thread_to_background_set(vm, curr);
+  if (next) {
+    _debug_validate_stack(vm);
+    assert(vm->curr_thread != next);
+    auto curr = _vm_thread_suspend(vm);
+    vm->curr_thread = 0; // XXX careful!
+    if (curr) vm_add_thread_to_background_set(vm, curr);
     _vm_thread_resume(vm, next);
-    unprot_ptr(next);
+    _debug_validate_stack(vm);
     return true;
   }
   return false;
@@ -4083,7 +4213,10 @@ Ptr vm_schedule_cont(VM *vm, Ptr cont, Ptr priority, Ptr bindings) {
                             FIXNUM(0),
                             priority,
                             bindings);
-  vm_add_thread_to_background_set(vm, thread);
+  auto thd = thdq_get_node(vm->threads);
+  thd->val->thread = thread;
+  thdq_push(vm->threads, thd);
+  // vm_add_thread_to_background_set(vm, thd);
   return Nil;
 }
 
@@ -4100,11 +4233,12 @@ void _im_prepare_vm_for_snapshot(VM *vm) {
             SYSTEM_LANG_PACKAGE_KEY, vm->globals->lang_package);
 
   // copy the waiting threads into the system dictionary 
-  auto threads = _background_threads_as_list(vm);
+  auto threads = _suspended_background_threads_as_list(vm);
   ht_at_put(vm, vm->system_dictionary, SYSTEM_OTHER_THREADS_KEY, threads);
 
   // suspend the current thread and store it in the system dictionary
-  auto main = _vm_thread_suspend(vm);
+  thread_ctx_suspend_in_continuation(vm, vm->curr_thread);
+  auto main = vm->curr_thread->thread;
   ht_at_put(vm, vm->system_dictionary, SYSTEM_CURRENT_THREAD_KEY, main);
 
   auto classes = _built_in_classes_as_array(vm);
@@ -4212,7 +4346,7 @@ void im_move_heap(VM *vm) {
 
   vm->error = 0;
   vm->suspended = false;
-  _vm_thread_resume(vm, vm->curr_thread->thread);
+  _vm_thread_resume(vm, vm->curr_thread);
 }
 
 Ptr im_snapshot_to_path(VM *vm, const char *path){
@@ -4278,7 +4412,7 @@ Ptr im_snapshot_to_path(VM *vm, const char *path){
 
   vm->error = 0;
   vm->suspended = false;
-  _vm_thread_resume(vm, vm->curr_thread->thread);
+  _vm_thread_resume(vm, vm->curr_thread);
 
   return True;
 }
@@ -4665,13 +4799,15 @@ void vm_interp(VM* vm, interp_params params) {
             vm_push(vm, Nil);
             thread_set_status(thread, THREAD_STATUS_DEAD);
             if (thread == vm->curr_thread->thread) {
-              thread_set_status(thread, THREAD_STATUS_DEAD);
               auto exclusive = params.block_for_initial_thread;
               // FIXME: the check here should not be needed
-              if (!exclusive) _vm_unwind_to_root_frame(vm);
+              // if (!exclusive) _vm_unwind_to_root_frame(vm);
               if (exclusive || !vm_maybe_start_next_thread(vm)) {
+                dbg("exclusive or failed to start next thread");
                 vm->suspended = true;
                 goto exit;
+              } else {
+                dbg("started next thread?");
               }
             } else {
               thdq_remove_ptr(vm->threads, thread);
@@ -4716,6 +4852,7 @@ void vm_interp(VM* vm, interp_params params) {
         break;
       }
       auto bc = closure_code(fn);
+      _debug_validate_background_threads(vm);
       if (bc->is_varargs) {
         prot_ptrs(fn);
         vm_push(vm, vm_get_stack_values_as_list(vm, argc));
@@ -4727,6 +4864,7 @@ void vm_interp(VM* vm, interp_params params) {
         auto env = closure_env(fn);
         vm_push_stack_frame(vm, argc, bc, env);
       }
+      _debug_validate_background_threads(vm);
 
       vm->curr_thread->frame->pc--; // or, could insert a NOOP at start of each fn... (or continue)
       // PC is now -1
@@ -4741,8 +4879,9 @@ void vm_interp(VM* vm, interp_params params) {
         return;
       }
       if (params.thread_switch_instr_budget && ctx_switch_budget <= 0) {
+        _debug_validate_background_threads(vm);
         if (vm_swap_threads(vm)) {
-          // dbg("swapped threads.");
+          dbg("swapped threads.",  vm->curr_thread->thread);
           counter++;
         } else {
           // dbg("did not swap threads. ", vm->threads->size());
@@ -4801,6 +4940,9 @@ void vm_interp(VM* vm, interp_params params) {
 
     // assert(vm->curr_thread->stack <= vm->curr_thread->stack_start &&
     //        vm->curr_thread->stack >= vm->curr_thread->stack_end);
+    // assert(vm->curr_thread->frame->argc < 100 && vm->curr_thread->frame->argc >= 0);
+    _debug_validate_stack(vm);
+    _debug_validate_background_threads(vm);
 
     ++vm->curr_thread->frame->pc;
   }
@@ -6261,7 +6403,7 @@ void vm_init_from_heap_snapshot(VM *vm) {
   auto thread_list = ht_at(vm->system_dictionary, SYSTEM_OTHER_THREADS_KEY);
   auto count = 0;
   do_list(vm, thread_list, [&](Ptr thread) {
-      thdq_push(vm->threads, thread);
+      thdq_push_ptr(vm->threads, thread);
       count++;
     });
   dbg("restored ", count, " threads + main = ", vm->curr_thread->thread);
@@ -6414,7 +6556,8 @@ VM *vm_create_from_image(const char *path, run_info info) {
   vm->error = 0;
   vm->suspended = false;
 
-  _vm_thread_resume(vm, vm->curr_thread->thread);
+  _vm_thread_resume(vm, vm->curr_thread);
+  _debug_validate_stack(vm);
 
   _vm_poke_arguments(vm, info);
 

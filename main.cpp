@@ -441,7 +441,7 @@ struct thread_ctx {
 
 thread_ctx *make_thread_ctx() {
   auto result = (thread_ctx *)calloc(sizeof(thread_ctx), 1);
-  auto count = 512; //1024;// * 1024;
+  auto count = 256;
   auto curr_size = count * sizeof(Ptr);
   void *stack_mem = calloc(curr_size, 1);
   Ptr *ptr_mem = (Ptr *)stack_mem;

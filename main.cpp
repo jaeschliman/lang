@@ -564,6 +564,7 @@ struct VM {
   void* heap_end;
   void* alt_heap_mem;
   void* alt_heap_end;
+  void *collection_limit;
   u64 allocation_count;
   u64 heap_size_in_bytes;
   const char* error;
@@ -629,22 +630,18 @@ inline u64 vm_heap_used(VM *vm) {
 void gc(VM *vm);
 
 void * vm_alloc(VM *vm, u64 bytes) {
-  auto preserved_heap_end = vm->heap_end;
   auto result = (void *)vm->heap_end;
+
+  #if DEBUG_GC
   assert(pointer_is_aligned(result));
-  vm->heap_end = align_pointer_with_offset(vm->heap_end, bytes);
   assert(pointer_is_aligned(vm->heap_end));
-  vm->allocation_count++;
+  #endif 
 
-  u64 used_byte_count = vm_heap_used(vm);
+  auto new_heap_end = align_pointer_with_offset(vm->heap_end, bytes);
 
-  u64 threshold = vm->gc_threshold_in_bytes;
+  auto past_end = new_heap_end > vm->collection_limit;
 
-  u64 last_byte_count = vm->gc_compacted_size_in_bytes;
-  u64 limit = std::min(threshold + last_byte_count, vm->heap_size_in_bytes);
-
-  if (used_byte_count > limit && !vm->gc_disabled && !vm->in_gc) {
-      vm->heap_end = preserved_heap_end;
+  if (past_end && !vm->gc_disabled && !vm->in_gc) {
       gc(vm);
       if (vm_heap_used(vm) + bytes + 16 > vm->heap_size_in_bytes) {
         die("heap exhausted after gc");
@@ -652,18 +649,13 @@ void * vm_alloc(VM *vm, u64 bytes) {
       vm->gc_disabled = true;
       auto result = vm_alloc(vm, bytes);
       vm->gc_disabled = false;
+      if (vm_heap_used(vm) > vm->heap_size_in_bytes) { die("heap exhausted"); }
       return result;
   }
 
-  if (used_byte_count > vm->heap_size_in_bytes) {
-    die("heap exhausted");
-  }
+  vm->heap_end = new_heap_end;
+  vm->allocation_count++;
 
-  if (used_byte_count > vm->allocation_high_watermark) {
-    vm->allocation_high_watermark = used_byte_count;
-  }
-
-  bzero(result, bytes);
   return result;
 }
 
@@ -2474,9 +2466,17 @@ inline void gc_unprotect_ptr_vector(VM *vm, Ptr *ref){
 
 void im_move_heap(VM *vm);
 
+void _vm_update_collection_limit(VM *vm);
+
 void gc(VM *vm) {
   vm->in_gc = true;
   vm->gc_count++;
+
+  auto byte_count = vm_heap_used(vm);
+  if (byte_count > vm->allocation_high_watermark) {
+    vm->allocation_high_watermark = byte_count;
+  }
+
 
   if (GC_DEBUG) {
     vm_map_reachable_refs(vm, [&](Ptr it){
@@ -2515,6 +2515,7 @@ void gc(VM *vm) {
   }
 
   vm->gc_compacted_size_in_bytes = (u64)vm->heap_end - (u64)vm->heap_mem;
+  _vm_update_collection_limit(vm);
 
   if (GC_DEBUG) {
     auto frame_count = 0;
@@ -2530,7 +2531,7 @@ void gc(VM *vm) {
   }
 
 
-  memset(vm->alt_heap_mem, 0, vm->heap_size_in_bytes);
+  memset(vm->alt_heap_mem, 0, byte_count);
   // cerr << " protected Object count : " << vm->gc_protected->size() << endl;
   // cerr << " protected ptr    count : " << vm->gc_protected_ptrs->size() << endl;
 
@@ -4041,6 +4042,7 @@ thread_ctx *_vm_maybe_get_next_available_thread(VM *vm) {
   }
   return 0;
 }
+
 
 Ptr list_all_threads(VM *vm) {
   Ptr result = Nil; prot_ptr(result);
@@ -6378,6 +6380,9 @@ void _debug_assert_in_heap(VM *vm, Ptr p) {
 }
 
 void vm_init_from_heap_snapshot(VM *vm) {
+  vm->gc_disabled = true;
+  _vm_update_collection_limit(vm);
+
   // set system dictionary
   vm->system_dictionary = objToPtr((Object *)(vm->heap_mem));
   _debug_assert_in_heap(vm, vm->system_dictionary);
@@ -6418,7 +6423,7 @@ void vm_init_from_heap_snapshot(VM *vm) {
 
   // re-init known symbols
   initialize_known_symbols(vm);
-
+  vm->gc_disabled = false;
 }
 
 void vm_init_for_blank_startup(VM *vm, run_info info) {
@@ -6469,13 +6474,18 @@ void vm_init_for_blank_startup(VM *vm, run_info info) {
   _vm_poke_arguments(vm, info);
 }
 
+inline void _vm_update_collection_limit(VM *vm) {
+  vm->collection_limit = std::min((u8 *)vm->heap_end + vm->gc_threshold_in_bytes,
+                                  (u8 *)vm->heap_mem + vm->heap_size_in_bytes);
+}
+
 VM *_vm_create() {
   VM *vm;
   vm = (VM *)calloc(sizeof(VM), 1);
 
   vm->curr_thread = make_thread_ctx();
 
-  auto heap_size_in_mb = 50;
+  auto heap_size_in_mb = 250;
   auto heap_size_in_bytes = heap_size_in_mb * 1024 * 1024;
   auto heap_mem = calloc(heap_size_in_bytes, 1);
   vm->heap_mem = heap_mem;
@@ -6495,6 +6505,8 @@ VM *_vm_create() {
   vm->gc_protected->reserve(100);
   vm->gc_protected_ptrs->reserve(100);
   vm->gc_protected_ptr_vectors->reserve(100);
+
+  _vm_update_collection_limit(vm);
 
   vm->in_gc = false;
 

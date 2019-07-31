@@ -8,8 +8,8 @@
 
 (define mouse-position 0@0)
 (define boxes '())
-(define screen-width 800)
-(define screen-height 800)
+(define screen-width (f->i (* 1920 0.75)))
+(define screen-height (f->i (* 1080 0.75)))
 (define screen-size (make-point screen-width screen-height))
 (define back-buffer (make-image screen-width screen-height))
 
@@ -39,23 +39,13 @@
       (when (>i ny sh)
         (set! ny sh)
         (set! dy (*i -1 dy)))
-      ;; let (
-      ;;      (mouseover (and (ordered? nx mx (+i 15 nx))
-      ;;                      (ordered? ny my (+i 15 ny))))
-      ;;      )
-      ;; (when mouseover
-      ;;   (kill-thread (current-thread)))
-      ;; (if mouseover
-      ;;     (aset box 4 0xff0000ff)
-      ;;     (aset box 4 0xff00ffff))
       (if (eq (aget box 4) 0xff00ffff)
           (aset box 4 0xff0000ff)
           (aset box 4 0xff00ffff))
-      (let () ;;unless mouseover
-        (aset box 0 nx)
-        (aset box 1 ny)
-        (aset box 2 dx)
-        (aset box 3 dy))))
+      (aset box 0 nx)
+      (aset box 1 ny)
+      (aset box 2 dx)
+      (aset box 3 dy)))
 
 (define (add-box p &opt (dx 1) (dy 1))
     (let ((box (make-array 5)))
@@ -82,7 +72,6 @@
            (a (make-point x y))
            (b (point+ a 4@4)))
       (fill-rect back-buffer a b color)))
-
 
 (define (draw-curr-boxes)
     (forever
@@ -116,41 +105,28 @@
 
 (fork-with-priority 10000 (draw-curr-boxes))
 
-(fork-with-priority 50 (forever (add-some-boxes (make-point (/ screen-width 2) (/ screen-height 5)))
-                               (sleep-ms 200)))
+(define (make-source priority p &opt (dx 1) (dy 1))
+    (let ((box (make-array 5)))
+      (aset box 0 (point-x p))
+      (aset box 1 (point-y p))
+      (aset box 2 dx)
+      (aset box 3 dy)
+      (aset box 4  0xff00ffff)
+      (fork-with-priority
+       priority
+       (forever (move-box box)
+                (add-some-boxes (make-point (aget box 0) (aget box 1)))
+                (sleep-ms 200)))))
 
-(fork (sleep-ms 500)
-      (fork-with-priority 50 (forever (add-some-boxes (make-point (/ screen-width 3) (/ screen-height 2)))
-                                     (sleep-ms 200))))
-
-(fork (sleep-ms 1000)
-      (fork-with-priority 50 (forever (add-some-boxes (make-point (/ screen-width 4) (/ screen-height 2)))
-                                     (sleep-ms 200))))
-
-(fork (sleep-ms 2000)
-      (fork-with-priority 50 (forever (add-some-boxes (make-point (/ screen-width 6) (/ screen-height 3)))
-                                     (sleep-ms 200))))
-(fork (sleep-ms 2000)
-      (fork-with-priority 50 (forever (add-some-boxes (make-point (/ screen-width 5) (/ screen-height 2)))
-                                     (sleep-ms 200))))
-
-(fork-with-priority 50 (forever (add-some-boxes (make-point (/ screen-width 20) (/ screen-height 5)))
-                               (sleep-ms 200)))
-
-(fork (sleep-ms 500)
-      (fork-with-priority 250 (forever (add-some-boxes (make-point (/ screen-width 3) (/ screen-height 20)))
-                                     (sleep-ms 200))))
-
-(fork (sleep-ms 1000)
-      (fork-with-priority 250 (forever (add-some-boxes (make-point (/ screen-width 40) (/ screen-height 2)))
-                                     (sleep-ms 200))))
-
-(fork (sleep-ms 2000)
-      (fork-with-priority 250 (forever (add-some-boxes (make-point (/ screen-width 6) (/ screen-height 30)))
-                                     (sleep-ms 200))))
-(fork (sleep-ms 2000)
-      (fork-with-priority 250 (forever (add-some-boxes (make-point (/ screen-width 50) (/ screen-height 3)))
-                                     (sleep-ms 200))))
+(make-source 50 (make-point (/ screen-width 2) (/ screen-height 5)) 4 5)
+(make-source 50 (make-point (/ screen-width 3) (/ screen-height 2)) 2 -1)
+(make-source 50 (make-point (/ screen-width 4) (/ screen-height 2)))
+(make-source 50 (make-point (/ screen-width 6) (/ screen-height 3)) 1 -3)
+(make-source 50 (make-point (/ screen-width 5) (/ screen-height 2)))
+(make-source 250 (make-point (/ screen-width 6) (/ screen-height 3)) -1 -1)
+(make-source 250 (make-point (/ screen-width 5) (/ screen-height 2)) -2 -3)
+(make-source 250 (make-point (/ screen-width 6) (/ screen-height 3)) -2 1)
+(make-source 250 (make-point (/ screen-width 5) (/ screen-height 2)) -3 2)
 
 
 

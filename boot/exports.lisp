@@ -78,7 +78,8 @@
 
 (export save-snapshot save-snapshot-and-exit)
 
-(export kill-thread current-thread list-all-threads make-semaphore signal-semaphore semaphore-wait)
+(export kill-thread current-thread list-all-threads thread-count
+        make-semaphore signal-semaphore semaphore-wait)
 
 (export deep-eq? quote quasiquote unquote unquote-splicing)
 

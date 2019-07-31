@@ -5349,12 +5349,6 @@ void vm_run_until_completion(VM *vm) {
     if (success) {
       vm->curr_thread->frame->pc++;
       vm_interp(vm, INTERP_PARAMS_MAIN_EXECUTION);
-
-      // re-add root frame
-      auto bc = make_empty_bytecode(vm);
-      vm_push_stack_frame(vm, 0, bc, Nil);
-      vm->curr_thread->frame->mark = KNOWN(exception);
-
     } else {
       // TODO: some kind of event loop will be more appropriate in the long run
       auto ms = _vm_threads_get_minimum_sleep_time(vm);

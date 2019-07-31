@@ -42,7 +42,7 @@
     (set! started-event-loop #t)))
 
 (define (start-additional-event-loop)
-    (fork (forever (poll-for-pending-events))))
+    (fork-with-priority 50 (forever (poll-for-pending-events))))
 
 (define (request-display w h)
     (set 'wants-display (make-point w h))

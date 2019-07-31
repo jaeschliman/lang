@@ -381,10 +381,11 @@ stack trace:
   10  libdyld.dylib                       0x00007fff5edfe3d5 start + 1
 GOT contstack_top#<Broken Object Header>
 Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456.
-* TODO have fork-with-priority take a thunk rather than a snapshot
+* DONE have fork-with-priority take a thunk rather than a snapshot
   should reduce the overhead of spawning threads even more
 * TODO add vm_call_object(VM, Ptr) 
   pushes a stack frame and invokes the applicator of the Ptr with no arguments
+* DONE remove excessive indirection in vp_interp
 
 * notes
 maybe have a stack of compilers? can push/pop...

@@ -358,7 +358,7 @@ https://www.cs.indiana.edu/~dyb/pubs/mrvs.pdf
   while popping them
 * TODO maybe separate stack into value and control stacks?
   could this simplify reifying the control stack?
-* TODO per-thread stacks (maybe just value stacks?) -- can use xarray if value only
+* DONE per-thread stacks (maybe just value stacks?) -- can use xarray if value only
 see this article on implementation of goroutines:
 https://new.blog.cloudflare.com/how-stacks-are-handled-in-go/
 * TODO maybe think about some way to get rid of previous frame pointer from stack frame 
@@ -383,6 +383,8 @@ GOT contstack_top#<Broken Object Header>
 Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456.
 * TODO have fork-with-priority take a thunk rather than a snapshot
   should reduce the overhead of spawning threads even more
+* TODO add vm_call_object(VM, Ptr) 
+  pushes a stack frame and invokes the applicator of the Ptr with no arguments
 
 * notes
 maybe have a stack of compilers? can push/pop...

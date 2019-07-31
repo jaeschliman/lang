@@ -86,4 +86,6 @@
 
 (export newline *print-base* print-integer print-float)
 
+(export start-additional-event-loop update-display)
+
 'done

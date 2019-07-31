@@ -543,11 +543,18 @@ struct VM {
   std::unordered_map<Ptr *, u64> *gc_protected_ptrs;
   std::unordered_map<Ptr *, u64> *gc_protected_ptr_vectors;
   blit_surface *surface;
+  SDL_Window *window;
   bool screen_dirty;
   thdq *threads;
   thread_ctx* curr_thread;
   bool suspended;
 };
+
+Ptr update_display(VM *vm) {
+  if (vm->window) SDL_UpdateWindowSurface(vm->window);
+  vm->screen_dirty = false;
+  return Nil;
+}
 
 /* ---------------------------------------- */
 
@@ -6817,6 +6824,7 @@ void run_event_loop_with_display(VM *vm, int w, int h, bool from_image = false) 
   SDL_Init(SDL_INIT_VIDEO);
   window = SDL_CreateWindow(title, x, y, w, h, winopts);
   if(!window) die("could not create window");
+  vm->window = window;
 
   auto window_surface = SDL_GetWindowSurface(window);
   auto window_context = (blit_surface){

@@ -394,6 +394,8 @@ void initialize_primitive_functions(VM *vm) {
   (prim current-time-ms TIME_MS () Fixnum "current_time_ms()")
   (prim closure-source-location CL_SRC_LOC ((a any)) any "get_source_location(a)")
 
+  (prim update-display UPD_WIN () any "update_display(vm)")
+
   (setf *prims* (reverse *prims*))
   (write-prims))
 

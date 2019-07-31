@@ -56,6 +56,7 @@
 #define MAP_WITH_ARG_AND_INDEXX4(X, Y, a,b,c,d)     X(a,Y,0) X(b,Y,1) X(c,Y, 2) X(d,Y,3)
 #define MAP_WITH_ARG_AND_INDEXX5(X, Y, a,b,c,d,e)   X(a,Y,0) X(b,Y,1) X(c,Y, 2) X(d,Y,3) X(e,Y,4)
 #define MAP_WITH_ARG_AND_INDEXX6(X, Y, a,b,c,d,e,f) X(a,Y,0) X(b,Y,1) X(c,Y, 2) X(d,Y,3) X(e,Y,4) X(f,Y,5)
+#define MAP_WITH_ARG_AND_INDEXX7(X, Y, a,b,c,d,e,f,g) X(a,Y,0) X(b,Y,1) X(c,Y, 2) X(d,Y,3) X(e,Y,4) X(f,Y,5) X(g,Y,5)
 #define MAP_WITH_ARG_AND_INDEXX_(M, X, Y,  ...) M(X, Y,  __VA_ARGS__)
 #define MAP_WITH_ARG_AND_INDEX(X, Y, ...) MAP_WITH_ARG_AND_INDEXX_(XPASTE(MAP_WITH_ARG_AND_INDEXX, PP_NARG(__VA_ARGS__)), X, Y, __VA_ARGS__)
 

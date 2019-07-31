@@ -4247,6 +4247,7 @@ bool vm_swap_threads(VM *vm) {
 
 Ptr vm_schedule_closure(VM *vm, Ptr closure, Ptr priority, Ptr bindings) {
   assert(is(Closure, closure));
+
   auto thread = make_thread(vm,
                             closure,
                             THREAD_STATUS_WAITING,
@@ -4255,12 +4256,10 @@ Ptr vm_schedule_closure(VM *vm, Ptr closure, Ptr priority, Ptr bindings) {
                             priority,
                             bindings,
                             Nil);
-  auto thd = thdq_get_node(vm->threads);
-  thd->val = make_thread_ctx();
-  thd->val->thread = thread;
-  // TODO: should be add_to_background_set
-  thdq_push(vm->threads, thd);
-  // vm_add_thread_to_background_set(vm, thd);
+
+  auto ctx = make_thread_ctx();
+  ctx->thread = thread;
+  vm_add_thread_to_background_set(vm, ctx);
   return Nil;
 }
 

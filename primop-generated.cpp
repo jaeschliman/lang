@@ -1171,10 +1171,10 @@ Ptr PRIM_CONT_VAL_impl(VM *vm, u32 argc) {
 // Primitive 119
 Ptr PRIM_FORK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
-   VM_ARG("fork-continuation",any,a);
-   VM_ARG("fork-continuation",any,priority);
+   VM_ARG("fork-thunk",any,a);
+   VM_ARG("fork-thunk",any,priority);
 
- return vm_schedule_cont(vm, a, priority, Nil);
+ return vm_schedule_closure(vm, a, priority, Nil);
 }
 
 // Primitive 120
@@ -1549,7 +1549,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "resume-stack-snapshot", to(PrimOp, PRIM_RSTKSNAP));
   set_global(vm, "return-from-mark", to(PrimOp, PRIM_RETMARK));
   set_global(vm, "continuation-value", to(PrimOp, PRIM_CONT_VAL));
-  set_global(vm, "fork-continuation", to(PrimOp, PRIM_FORK));
+  set_global(vm, "fork-thunk", to(PrimOp, PRIM_FORK));
   set_global(vm, "make-semaphore", to(PrimOp, PRIM_MK_SEM));
   set_global(vm, "signal-semaphore", to(PrimOp, PRIM_SEM_SIG));
   set_global(vm, "current-thread", to(PrimOp, PRIM_CURR_THD));
@@ -2481,10 +2481,10 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
   }
 
   case 120: {
-   VM_ARG("fork-continuation",any,a);
-   VM_ARG("fork-continuation",any,priority);
+   VM_ARG("fork-thunk",any,a);
+   VM_ARG("fork-thunk",any,priority);
 
-    vm_push(vm, vm_schedule_cont(vm, a, priority, Nil));
+    vm_push(vm, vm_schedule_closure(vm, a, priority, Nil));
     break;
   }
 

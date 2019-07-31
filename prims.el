@@ -371,7 +371,8 @@ void initialize_primitive_functions(VM *vm) {
   (prim resume-stack-snapshot RSTKSNAP ((s any) (arg any)) any "vm_resume_stack_snapshot(vm, s, arg)")
   (prim return-from-mark RETMARK ((m any) (a any)) any "vm_return_from_mark(vm, m, a)")
   (prim continuation-value CONT_VAL ((a any)) any "cont_get_value(a)")
-  (prim fork-continuation FORK ((priority any) (a any)) any "vm_schedule_cont(vm, a, priority, Nil)")
+
+  (prim fork-thunk FORK ((priority any) (a any)) any "vm_schedule_closure(vm, a, priority, Nil)")
 
   (prim make-semaphore MK_SEM ((a any)) any "make_semaphore(vm, a)")
   (prim signal-semaphore SEM_SIG ((a any)) any "signal_semaphore(a)")

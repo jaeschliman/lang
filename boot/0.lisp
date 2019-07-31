@@ -394,12 +394,11 @@
 ;;  basic threading support -------------------------------------------------------
 
 (defmacro fork-with-priority (priority & forms)
-  `(fork-continuation ,priority
-                      (lambda->continuation (lambda () (let ((r (let () ,@forms))) r)))))
+  `(fork-thunk ,priority (lambda () ,@forms)))
 
 
 (defmacro fork (& forms)
-  `(fork-continuation 1 (lambda->continuation (lambda () (let ((r (let () ,@forms))) r)))))
+  `(fork-thunk 1 (lambda () ,@forms)))
 
 ;;  utils for meta reader ---------------------------------------------------------
 

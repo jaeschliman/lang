@@ -1506,12 +1506,14 @@ defstruct(cont, Continuation,
           stack,
           value);
 defstruct(thread, Thread,
-          continuation,
+          thunk,
           status,
           semaphore,
           wake_after,
           priority,
-          local_bindings);
+          local_bindings,
+          suspension);
+
 defstruct(semaphore, Semaphore,
           count);
 defstruct(file_output_stream, FileOutputStream, fd);
@@ -3695,37 +3697,10 @@ void _debug_validate_background_threads(VM *vm) {
   }
 }
 
-void _debug_validate_thread(Ptr thread) {
-  assert(is(thread, thread));
-  auto cont = thread_get_continuation(thread);
-  assert(is(cont, cont));
-  auto stack = cont_get_stack(cont);
-  assert(is(StackFrame, stack));
-  _debug_validate_stack_frame(as(StackFrame, stack));
-}
-
 void _assert_ptr_in_heap(void *start, void *end, Ptr it) {
   if (it == Nil || ! is(Object, it)) return;
   auto addr = as(Object, it);
   assert(addr >= start && addr < end);
-}
-
-void _debug_validate_thread_in_heap(void *start, void *end, Ptr thread){
-  _assert_ptr_in_heap(start, end, thread);
-  assert(is(thread, thread));
-  auto cont = thread_get_continuation(thread);
-  assert(is(cont, cont));
-  _assert_ptr_in_heap(start, end, cont);
-  auto stack = cont_get_stack(cont);
-  assert(is(StackFrame, stack));
-  _assert_ptr_in_heap(start, end, stack);
-  auto fr = as(StackFrame, stack);
-  auto depth = 0;
-  while (fr) {
-    assert(fr >= start && fr < end);
-    fr = fr->prev_frame;
-    depth++;
-  }
 }
 
 Ptr snapshot_thread_ctx_with_predicate(VM *vm, thread_ctx *thd, StackPred fn) {
@@ -4141,7 +4116,7 @@ void thread_ctx_suspend_in_continuation(VM *vm, thread_ctx *ctx) {
     return fr->prev_frame == 0;
   };
   auto cont = snapshot_thread_ctx_with_predicate(vm, ctx, predicate);
-  thread_set_continuation(ctx->thread, cont);
+  thread_set_suspension(ctx->thread, cont);
   thread_set_status(ctx->thread, THREAD_STATUS_WAITING);
 }
 
@@ -4150,18 +4125,37 @@ ByteCodeObject *make_empty_bytecode(VM *vm);
 void _vm_thread_resume(VM *vm, thread_ctx* thd) {
   vm_set_curr_thread(vm, thd);
   auto thread = thd->thread;
-  auto cont = thread_get_continuation(thread);
-  if (is(cont, cont)) {
-    prot_ptr(thread);
-    _vm_unwind_to_root_frame(vm);
-    if (!vm->curr_frame) {
-      auto bc = make_empty_bytecode(vm);
-      vm_push_stack_frame(vm, 0, bc, Nil);
-      vm->curr_frame->mark = KNOWN(exception);
+  auto thunk = thread_get_thunk(thread);
+  auto cont  = thread_get_suspension(thread);
+  if (thunk != Nil || cont != Nil) {
+    if (is(Closure, thunk)) {
+      thread_set_thunk(thread, Nil);
+      prot_ptrs(thread, thunk);
+      _vm_unwind_to_root_frame(vm);
+      if (!vm->curr_frame) {
+        auto bc = make_empty_bytecode(vm);
+        vm_push_stack_frame(vm, 0, bc, Nil);
+        vm->curr_frame->mark = KNOWN(exception);
+      }
+      auto bc = closure_code(thunk);
+      auto env = closure_env(thunk);
+      vm_push_stack_frame(vm, 0, bc, env);
+      vm->curr_frame->pc--;
+      unprot_ptrs(thread, thunk);
+    } else if (is(cont, cont)) {
+      thread_set_suspension(thread, Nil);
+      prot_ptrs(thread, cont);
+      _vm_unwind_to_root_frame(vm);
+      if (!vm->curr_frame) {
+        auto bc = make_empty_bytecode(vm);
+        vm_push_stack_frame(vm, 0, bc, Nil);
+        vm->curr_frame->mark = KNOWN(exception);
+      }
+      vm_restore_stack_snapshot(vm, cont);
+      unprot_ptrs(thread, cont);
+    } else {
+      assert(false);
     }
-    vm_restore_stack_snapshot(vm, cont);
-    thread_set_continuation(thread, Nil);
-    unprot_ptr(thread);
   }
   thread_set_status(thread, THREAD_STATUS_RUNNING);
 }
@@ -4251,17 +4245,20 @@ bool vm_swap_threads(VM *vm) {
   return false;
 }
 
-Ptr vm_schedule_cont(VM *vm, Ptr cont, Ptr priority, Ptr bindings) {
-  assert(is(cont, cont));
-  auto thread = make_thread(vm, cont,
+Ptr vm_schedule_closure(VM *vm, Ptr closure, Ptr priority, Ptr bindings) {
+  assert(is(Closure, closure));
+  auto thread = make_thread(vm,
+                            closure,
                             THREAD_STATUS_WAITING,
                             Nil,
                             FIXNUM(0),
                             priority,
-                            bindings);
+                            bindings,
+                            Nil);
   auto thd = thdq_get_node(vm->threads);
   thd->val = make_thread_ctx();
   thd->val->thread = thread;
+  // TODO: should be add_to_background_set
   thdq_push(vm->threads, thd);
   // vm_add_thread_to_background_set(vm, thd);
   return Nil;
@@ -5356,10 +5353,6 @@ ByteCodeObject *make_empty_bytecode(VM *vm){
 void run_event_loop_with_display(VM *vm, int w, int h, bool from_image);
 
 void vm_run_until_completion(VM *vm) {
-  // so we have a root frame
-  auto bc = make_empty_bytecode(vm);
-  vm_push_stack_frame(vm, 0, bc, Nil);
-  vm->curr_frame->mark = KNOWN(exception);
 
   auto wants_display_sym = root_intern(vm, "wants-display"); prot_ptr(wants_display_sym);
 
@@ -6434,9 +6427,6 @@ void vm_init_from_heap_snapshot(VM *vm) {
 
   assert(is(thread, vm->curr_thd->thread));
   _debug_assert_in_heap(vm, vm->curr_thd->thread);
-  _debug_validate_thread_in_heap(vm->heap_mem, vm->heap_end,
-                                 vm->curr_thd->thread);
-  _debug_validate_thread(vm->curr_thd->thread);
 
   // clear out old threads, add new threads
   thdq_remove_all(vm->threads);
@@ -6469,11 +6459,13 @@ void vm_init_for_blank_startup(VM *vm, run_info info) {
                                            string_table(vm),
                                            ht(vm));
 
-  vm->curr_thd->thread = make_thread(vm, Nil,
+  vm->curr_thd->thread = make_thread(vm,
+                                     Nil,
                                      THREAD_STATUS_RUNNING,
                                      Nil,
                                      FIXNUM(0),
                                      THREAD_PRIORITY_NORMAL,
+                                     Nil,
                                      Nil);
 
   ht_at_put(vm, vm->system_dictionary,

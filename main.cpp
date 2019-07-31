@@ -6016,11 +6016,13 @@ void _gfx_fill_rect(blit_surface *dst, point a, point b, s64 color) {
   u32 pixel = color > 0 ? color : 0L;
   u8* over = (u8*)&pixel;
   auto alpha = over[3];
+  s64 min_x = std::max((s64)a.x, (s64)0);
+  s64 min_y = std::max((s64)a.y, (s64)0);
   s64 max_x = std::min((s64)b.x, dst->width);
   s64 max_y = std::min((s64)b.y, dst->height);
   if (alpha == 255) {
-    for (s64 y = a.y; y < max_y; y++) {
-      for (s64 x = a.x; x < max_x; x++) {
+    for (s64 y = min_y; y < max_y; y++) {
+      for (s64 x = min_x; x < max_x; x++) {
         auto idx = y * dst->pitch + x * 4;
         auto mem = dst->mem + idx;
         mem[0] = over[0];

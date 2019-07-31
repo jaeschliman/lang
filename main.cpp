@@ -133,8 +133,8 @@ void reset_thread_ctx(thread_ctx *ctx);
 void thread_ctx_set_thread(thread_ctx *ctx, Ptr thread);
 Ptr thread_ctx_get_thread(thread_ctx *ctx);
 
-struct thdq_node { thread_ctx *val;  thdq_node *next;  };
-struct thdq { thdq_node *front, *back; thdq_node *free_list; };
+struct thdq_node { thread_ctx *val;  thdq_node *next; };
+struct thdq { thdq_node *front, *back; thdq_node *free_list;  s64 count; };
 
 thdq_node *thdq_get_node(thdq *q) {
   if (q->free_list) {
@@ -147,6 +147,7 @@ thdq_node *thdq_get_node(thdq *q) {
 }
 
 void thdq_push(thdq *q, thdq_node *n) {
+  q->count++;
   n->next = 0;
   if (!q->front) {
     q->front = q->back = n;
@@ -154,6 +155,39 @@ void thdq_push(thdq *q, thdq_node *n) {
     q->back->next = n;
     q->back = n;
   }
+}
+
+void thdq_insert_at_index(thdq *q, thdq_node *n, s64 idx) {
+  // std::cerr << "inserting at: " << idx << std::endl;
+  thdq_node *p = 0;
+  thdq_node *curr = q->front;
+  if (!curr) return thdq_push(q, n);
+  if (idx >= q->count) return thdq_push(q, n);
+  while (curr && idx >= 0) {
+    if (!idx) {
+      q->count++;
+      if (!p) {
+        n->next = q->front;
+        q->front = n;
+      } else {
+        n->next = p->next;
+        p->next = n;
+      }
+      return;
+    }
+    idx--;
+    curr = curr->next;
+    p = curr;
+  }
+  // should not happen
+  // assert(false);
+  thdq_push(q, n);
+}
+
+void thdq_insert_at_index(thdq *q, thread_ctx *ctx, s64 idx) {
+  auto n = thdq_get_node(q);
+  n->val = ctx;
+  thdq_insert_at_index(q, n, idx);
 }
 
 void thdq_push_ptr(thdq *q, Ptr p) {
@@ -171,6 +205,7 @@ void thdq_push(thdq *q, thread_ctx *p) {
 
 thdq_node *thdq_pop(thdq *q) {
   if (q->front) {
+    q->count--;
     auto res = q->front;
     if (q->front == q->back) {
       q->front = q->back = 0;
@@ -184,12 +219,12 @@ thdq_node *thdq_pop(thdq *q) {
 }
 
 void thdq_remove_all(thdq *q) {
+  q->count = 0;
   while (auto n = thdq_pop(q)) {
     n->next = q->free_list;
     q->free_list = n;
     free(n->val);
     n->val = 0;
-    // n->val = Nil;
   }
 }
 
@@ -203,6 +238,7 @@ void thdq_remove_next(thdq *q, thdq_node *p) {
     }
     return;
   }
+  q->count--;
   auto n = p->next;
   assert(n);
   if (n == q->back) q->back = p;
@@ -4124,7 +4160,14 @@ void vm_add_thread_to_background_set(VM *vm, thread_ctx *thd){
     thread_set_status(thread, THREAD_STATUS_WAITING);
   }
   // dbg("adding background thread");
-  thdq_push(vm->threads, thd);
+  auto q = vm->threads;
+  if (q->count < 50) return thdq_push(q, thd);
+  auto pri = from(Fixnum, thread_get_priority(thread));
+  if (pri <= 0) return thdq_push(q, thd);
+  s64 idx = q->count / pri;
+  if (idx < 1) idx = 1;
+  // dbg("scheduling at ", idx, " of ", q->count);
+  thdq_insert_at_index(q, thd, idx);
 }
 
 void vm_suspend_current_thread(VM *vm) {

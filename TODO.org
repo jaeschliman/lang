@@ -367,6 +367,20 @@ then we could have a 'stack segment' object that just splats on/off the stack
 wouldn't have to worry as much about updating pointers?
 * TODO better error machinery for primitive calls
   this is a bit vague, but want to have resumable exceptions eventually etc
+* TODO some error when spawning a fresh thread occasionally
+stack trace:
+  1   img                                 0x0000000100ec1e8a _Z18cont_get_stack_top3Ptr + 138
+  2   img                                 0x0000000100ed8c4f _Z25vm_restore_stack_snapshotP2VM3Ptr + 31
+  3   img                                 0x0000000100eda35b _Z17_vm_thread_resumeP2VMP10thread_ctx + 331
+  4   img                                 0x0000000100edaca7 _Z15vm_swap_threadsP2VM + 167
+  5   img                                 0x0000000100edc847 _Z9vm_interpP2VM13interp_params + 1175
+  6   img                                 0x0000000100ee3066 _Z27run_event_loop_with_displayP2VMiib + 2214
+  7   img                                 0x0000000100ee2774 _Z23vm_run_until_completionP2VM + 1380
+  8   img                                 0x0000000100ef2727 _Z22start_up_and_run_imagePKc8run_info + 247
+  9   img                                 0x0000000100ef2910 main + 384
+  10  libdyld.dylib                       0x00007fff5edfe3d5 start + 1
+GOT contstack_top#<Broken Object Header>
+Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456.
 
 * notes
 maybe have a stack of compilers? can push/pop...

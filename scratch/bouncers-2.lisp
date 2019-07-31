@@ -16,6 +16,30 @@
 (define (ordered? a b c)
     (and (<i a b) (<i b c)))
 
+(define rainbow-colors
+    '(0xffff0000
+      0xffffaa00
+      0xffffff00
+      0xffaaff00
+      0xff00ff00
+      0xff00ffaa
+      0xff00ffff
+      0xff00aaff
+      0xff0000ff
+      0xffaa00ff
+      0xffff00ff
+      0xffffaaff
+      0xffffffff
+      0xffaaaaaa
+      0xff000000
+      0xffaa0000))
+
+(define alternate-colors
+    '(0xff0000ff
+      0xff00ffff))
+
+(define colors rainbow-colors)
+
 (define (move-box box)
     (let* ((x (aget box 0))
            (y (aget box 1))
@@ -26,7 +50,9 @@
            (sw (point-x screen-size))
            (sh (point-y screen-size))
            (mx (point-x mouse-position))
-           (my (point-y mouse-position)))
+           (my (point-y mouse-position))
+           (nc (cdr (aget box 4)))
+           (sc (+i 1 (aget box 5))))
       (when (<i nx 0)
         (set! nx 0)
         (set! dx (*i -1 dx)))
@@ -39,24 +65,31 @@
       (when (>i ny sh)
         (set! ny sh)
         (set! dy (*i -1 dy)))
-      (if (eq (aget box 4) 0xff00ffff)
-          (aset box 4 0xff0000ff)
-          (aset box 4 0xff00ffff))
+      (when (nil? nc)
+        (set! nc colors))
+      (when (eq 0 (% sc 233)) (set! dx (*i -1 dx)))
+      (when (eq 0 (% sc 172)) (set! dy (*i -1 dy)))
+      (when (eq 0 (% sc 389)) (let ((tmp dy))
+                                (set! dy dx)
+                                (set! dx tmp)))
       (aset box 0 nx)
       (aset box 1 ny)
       (aset box 2 dx)
-      (aset box 3 dy)))
+      (aset box 3 dy)
+      (aset box 4 nc)
+      (aset box 5 sc)))
 
 (define (add-box p &opt (dx 1) (dy 1))
-    (let ((box (make-array 5)))
+    (let ((box (make-array 6)))
       (aset box 0 (point-x p))
       (aset box 1 (point-y p))
       (aset box 2 dx)
       (aset box 3 dy)
-      (aset box 4  0xff00ffff)
+      (aset box 4 colors)
+      (aset box 5 0)
       (sync add-box-lock (set 'boxes (cons box boxes)))
       (fork-with-priority 0 (forever
-                             (sleep-ms 64)
+                             (sleep-ms 32)
                              (move-box box)))))
 
 (define (clear-screen)
@@ -68,9 +101,11 @@
 (define (draw-one-box box)
     (let* ((x (aget box 0))
            (y (aget box 1))
-           (color (aget box 4))
+           (sc (/i (aget box 5) 35))
+           (d (if (<i sc 2) 2 sc))
+           (color (car (aget box 4)))
            (a (make-point x y))
-           (b (point+ a 4@4)))
+           (b (point+ a (make-point d d))))
       (fill-rect back-buffer a b color)))
 
 (define (draw-curr-boxes)
@@ -98,20 +133,21 @@
   (add-box (point+ p 20@20)))
 (define (onmousedrag p)
     (add-some-boxes p)
-  (add-some-boxes (point+ p -15@15))
-  (add-some-boxes (point+ p 25@25))
+  ;; (add-some-boxes (point+ p -15@15))
+  ;; (add-some-boxes (point+ p 25@25))
   (set 'mouse-position p))
 (define (onmousemove p) (set 'mouse-position p))
 
 (fork-with-priority 10000 (draw-curr-boxes))
 
 (define (make-source priority p &opt (dx 1) (dy 1))
-    (let ((box (make-array 5)))
+    (let ((box (make-array 6)))
       (aset box 0 (point-x p))
       (aset box 1 (point-y p))
       (aset box 2 dx)
       (aset box 3 dy)
-      (aset box 4  0xff00ffff)
+      (aset box 4 colors)
+      (aset box 5 0)
       (fork-with-priority
        priority
        (forever (move-box box)

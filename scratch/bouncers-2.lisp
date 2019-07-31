@@ -133,6 +133,7 @@
 (let ((pkg *package*))
   (fork-with-priority 50
    (binding ((*package* pkg))
-            (forever (sleep-ms 2000) (print `(thread count = ,(length (list-all-threads))))))))
+            (forever (sleep-ms 2000)
+                     (print (thread-count))))))
 
 (request-display screen-width screen-height)

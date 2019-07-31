@@ -5,8 +5,6 @@
      (signal-semaphore ,sem)))
 
 (define add-box-lock (make-semaphore #t))
-(define draw-lock (make-semaphore #t))
-(define curr-box-lock (make-semaphore #t))
 
 (define mouse-position 0@0)
 (define boxes '())
@@ -41,32 +39,34 @@
       (when (>i ny sh)
         (set! ny sh)
         (set! dy (*i -1 dy)))
-      (let ((mouseover (and (ordered? nx mx (+i 15 nx))
-                            (ordered? ny my (+i 15 ny)))))
-        (when mouseover
-          (kill-thread (current-thread)))
-        (if mouseover
-            (aset box 4 0xff0000ff)
-            (aset box 4 0xff00ffff))
-        (unless mouseover
-          (aset box 0 nx)
-          (aset box 1 ny)
-          (aset box 2 dx)
-          (aset box 3 dy)))))
+      ;; let (
+      ;;      (mouseover (and (ordered? nx mx (+i 15 nx))
+      ;;                      (ordered? ny my (+i 15 ny))))
+      ;;      )
+      ;; (when mouseover
+      ;;   (kill-thread (current-thread)))
+      ;; (if mouseover
+      ;;     (aset box 4 0xff0000ff)
+      ;;     (aset box 4 0xff00ffff))
+      (if (eq (aget box 4) 0xff00ffff)
+          (aset box 4 0xff0000ff)
+          (aset box 4 0xff00ffff))
+      (let () ;;unless mouseover
+        (aset box 0 nx)
+        (aset box 1 ny)
+        (aset box 2 dx)
+        (aset box 3 dy))))
 
-(define (start-drawing-thread) #f)
-
-(define (add-box p)
+(define (add-box p &opt (dx 1) (dy 1))
     (let ((box (make-array 5)))
       (aset box 0 (point-x p))
       (aset box 1 (point-y p))
-      (aset box 2 1)
-      (aset box 3 1)
+      (aset box 2 dx)
+      (aset box 3 dy)
       (aset box 4  0xff00ffff)
       (sync add-box-lock (set 'boxes (cons box boxes)))
-      (if (= 0 (% (length boxes) 125)) (start-drawing-thread))
       (fork-with-priority 0 (forever
-                             (sleep-ms 32)
+                             (sleep-ms 64)
                              (move-box box)))))
 
 (define (clear-screen)
@@ -80,58 +80,32 @@
            (y (aget box 1))
            (color (aget box 4))
            (a (make-point x y))
-           (b (point+ a 5@5)))
+           (b (point+ a 4@4)))
       (fill-rect back-buffer a b color)))
 
-(define curr-boxes '())
-
-(define (draw-boxes)
-    (let ((loop #f))
-      (set! loop (lambda (remaining)
-                   (unless (nil? remaining)
-                     (draw-one-box (car remaining))
-                     ;; only draw every other box, becuase drawing them all is slow
-                     (loop (cddr remaining)))))
-      (loop boxes)))
 
 (define (draw-curr-boxes)
     (forever
-     (let ((these-boxes curr-boxes))
-       (if (nil? these-boxes)
-           (let ()
-             ;; sync curr-box-lock
-             ;; sync draw-lock
-             (flip-buffer)
-             (update-display)
-             (sleep-ms 32)
-             (sync curr-box-lock
-                   (if (nil? curr-boxes)
-                       (let ()
-                         (clear-screen)
-                         (set 'curr-boxes boxes)))))
-           (let ()
-             (draw-one-box (car these-boxes))
-             (sync curr-box-lock (set 'curr-boxes (cdr curr-boxes))))))))
-
-
-(define (draw-frame)
-    (clear-screen)
-  (draw-boxes)
-  (flip-buffer))
+     (clear-screen)
+     (dolist (box boxes)
+       (draw-one-box box))
+     (flip-buffer)
+     (update-display)
+     (sleep-ms 10)))
 
 (define (onmousedown p) (add-box p))
 (define (add-some-boxes p)
     (add-box p)
-  (add-box (point+ p 0@20))
-  (add-box (point+ p 0@10))
-  (add-box (point+ p -20@10))
+  (add-box (point+ p 0@20) -1 2)
+  (add-box (point+ p 0@10) 1 -2)
+  (add-box (point+ p -20@10) 3 1)
   (add-box (point+ p -10@10))
-  (add-box (point+ p -20@20))
-  (add-box (point+ p 10@0))
-  (add-box (point+ p 20@0))
-  (add-box (point+ p -10@0))
+  (add-box (point+ p -20@20) -1 1)
+  (add-box (point+ p 10@0) -1 -1)
+  (add-box (point+ p 20@0) -2 1)
+  (add-box (point+ p -10@0) 1 2)
   (add-box (point+ p -20@0))
-  (add-box (point+ p 10@10))
+  (add-box (point+ p 10@10) -3 2)
   (add-box (point+ p 20@20)))
 (define (onmousedrag p)
     (add-some-boxes p)
@@ -140,34 +114,48 @@
   (set 'mouse-position p))
 (define (onmousemove p) (set 'mouse-position p))
 
-(define (start-drawing-thread)
-    (print "starting additional threads to simulate thread priority")
+(fork-with-priority 10000 (draw-curr-boxes))
 
-  (fork (forever (add-some-boxes (make-point (/ screen-width 2) (/ screen-height 5)))
-                 (sleep-ms 200)))
-  (fork (forever (add-some-boxes (make-point (/ screen-width 3) (/ screen-height 2)))
-                 (sleep-ms 200)))
-  (fork (forever (add-some-boxes (make-point (/ screen-width 4) (/ screen-height 2)))
-                 (sleep-ms 200)))
-  (start-additional-event-loop)
-  (fork (draw-curr-boxes)))
-
-
-(fork (draw-curr-boxes))
-
-(fork (forever (add-some-boxes (make-point (/ screen-width 2) (/ screen-height 5)))
-               (sleep-ms 200)))
+(fork-with-priority 50 (forever (add-some-boxes (make-point (/ screen-width 2) (/ screen-height 5)))
+                               (sleep-ms 200)))
 
 (fork (sleep-ms 500)
-      (fork (forever (add-some-boxes (make-point (/ screen-width 3) (/ screen-height 2)))
-                     (sleep-ms 200))))
+      (fork-with-priority 50 (forever (add-some-boxes (make-point (/ screen-width 3) (/ screen-height 2)))
+                                     (sleep-ms 200))))
 
 (fork (sleep-ms 1000)
-      (fork (forever (add-some-boxes (make-point (/ screen-width 4) (/ screen-height 2)))
-                     (sleep-ms 200))))
+      (fork-with-priority 50 (forever (add-some-boxes (make-point (/ screen-width 4) (/ screen-height 2)))
+                                     (sleep-ms 200))))
+
+(fork (sleep-ms 2000)
+      (fork-with-priority 50 (forever (add-some-boxes (make-point (/ screen-width 6) (/ screen-height 3)))
+                                     (sleep-ms 200))))
+(fork (sleep-ms 2000)
+      (fork-with-priority 50 (forever (add-some-boxes (make-point (/ screen-width 5) (/ screen-height 2)))
+                                     (sleep-ms 200))))
+
+(fork-with-priority 50 (forever (add-some-boxes (make-point (/ screen-width 20) (/ screen-height 5)))
+                               (sleep-ms 200)))
+
+(fork (sleep-ms 500)
+      (fork-with-priority 250 (forever (add-some-boxes (make-point (/ screen-width 3) (/ screen-height 20)))
+                                     (sleep-ms 200))))
+
+(fork (sleep-ms 1000)
+      (fork-with-priority 250 (forever (add-some-boxes (make-point (/ screen-width 40) (/ screen-height 2)))
+                                     (sleep-ms 200))))
+
+(fork (sleep-ms 2000)
+      (fork-with-priority 250 (forever (add-some-boxes (make-point (/ screen-width 6) (/ screen-height 30)))
+                                     (sleep-ms 200))))
+(fork (sleep-ms 2000)
+      (fork-with-priority 250 (forever (add-some-boxes (make-point (/ screen-width 50) (/ screen-height 3)))
+                                     (sleep-ms 200))))
+
+
 
 (let ((pkg *package*))
-  (fork
+  (fork-with-priority 50
    (binding ((*package* pkg))
             (forever (sleep-ms 2000) (print `(thread count = ,(length (list-all-threads))))))))
 

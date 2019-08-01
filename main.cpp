@@ -418,16 +418,16 @@ struct U64ArrayObject : Object {
   u64 data[];
 };
 
-typedef enum {
+enum PAOType : u32 {
   Array,
   Closure,
   Struct
-} PAOType;
+};
 
 struct PtrArrayObject : Object {
   PAOType pao_type;
-  uint length;
-  Ptr  data[];
+  u32 length;
+  Ptr data[];
 };
 
 struct ByteCodeObject : Object {

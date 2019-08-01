@@ -109,6 +109,8 @@ struct stats {
   u64 total_object_bytes_allocated;
   u64 total_closure_bytes_allocated;
   u64 total_bytecode_bytes_allocated;
+  u64 flat_lambda_count;
+  u64 closure_lambda_count;
 };
 
 void report_stats(stats *s) {
@@ -117,6 +119,8 @@ void report_stats(stats *s) {
   dbg("total object bytes allocated (including slot vectors): ", s->total_object_bytes_allocated);
   dbg("total closure bytes: ", s->total_closure_bytes_allocated);
   dbg("total bytecode bytes: ", s->total_bytecode_bytes_allocated);
+  dbg("emitted ", s->flat_lambda_count, " flat lambdas");
+  dbg("emitted ", s->closure_lambda_count, " closure lambdas");
 }
 
 #endif
@@ -5685,6 +5689,9 @@ void emit_lambda_body(VM *vm, BCBuilder *builder, Ptr body, Ptr env) {
 }
 
 auto emit_flat_lambda(VM *vm, Ptr it, Ptr env) {
+  #if STATS
+  vm->stats->flat_lambda_count++;
+  #endif
   prot_ptrs(it, env);
   auto builder = new BCBuilder(vm);
   auto name = car(cdr(it));
@@ -5704,9 +5711,12 @@ void emit_lambda(VM *vm, BCBuilder *parent, Ptr it, Ptr p_env) {  prot_ptrs(it, 
   auto env = compiler_env_get_subenv(vm, p_env, it);              prot_ptr(env);
   auto has_closure = cenv_has_closure(env);
   if (has_closure) {
+    #if STATS
+    vm->stats->closure_lambda_count++;
+    #endif
+
     auto closed = cenv_get_closed_over(env);                      prot_ptrs(closed);
     auto closed_count = xarray_used(closed);
-
 
     auto builder = new BCBuilder(vm);
 

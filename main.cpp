@@ -37,6 +37,9 @@
 #include "./stacktrace.h"
 #include "./macro_support.h"
 
+#define _ostream_prefix(x) << x
+#define dbg(...) std::cerr MAP(_ostream_prefix, __VA_ARGS__) << std::endl
+
 struct run_info {
   int argc; const char** argv;
 };
@@ -47,6 +50,8 @@ using std::string;
 #define PRIM_USE_GIANT_SWITCH 1
 #define INCLUDE_REPL 1
 #define DEBUG_IMAGE_SNAPSHOTS 0
+#define STATS 1
+
 /*
  latest perf reports on bouncers-2.
   
@@ -95,6 +100,20 @@ struct image_header {
   u64 heap_size;
   u64 static_region_size;
 };
+
+#if STATS
+
+struct stats {
+  u64 total_string_bytes_allocated;
+  u64 total_cons_bytes_allocated;
+};
+
+void report_stats(stats *s) {
+  dbg("total string bytes allocated: ", s->total_string_bytes_allocated);
+  dbg("total cons bytes allocated: ", s->total_cons_bytes_allocated);
+}
+
+#endif
 
 s64 current_time_ms() {
   auto now = std::chrono::system_clock::now();
@@ -607,6 +626,9 @@ struct VM {
   Ptr *curr_lits;
   bool suspended;
   s64 start_time_ms;
+  #if STATS
+  stats *stats;
+  #endif
 };
 
 inline void vm_refresh_frame_state(VM *vm){
@@ -658,14 +680,11 @@ inline u64 vm_heap_used(VM *vm) {
   return (u64)vm->heap_end - (u64)vm->heap_mem;
 }
 
-#define _ostream_prefix(x) << x
 #define die(...) do {                                         \
     print_stacktrace(stderr, 128);                            \
     std::cerr MAP(_ostream_prefix, __VA_ARGS__) << std::endl; \
     assert(false);                                            \
   } while(0)
-
-#define dbg(...) std::cerr MAP(_ostream_prefix, __VA_ARGS__) << std::endl
 
 void gc(VM *vm);
 
@@ -1118,6 +1137,9 @@ Ptr make_bytecode(VM *vm, u64 code_len) {
 }
 
 inline ByteArrayObject *alloc_string(VM *vm, s64 len) {
+  #if STATS
+  vm->stats->total_string_bytes_allocated += len;
+  #endif
   ByteArrayObject *obj = alloc_bao(vm, String, len);
   set_obj_tag(obj, String);
   return obj;
@@ -2617,6 +2639,9 @@ Ptr nth_or_nil(Ptr it, u64 idx) {
 }
 
 inline Ptr cons(VM *vm, Ptr car, Ptr cdr) {
+  #if STATS
+  vm->stats->total_cons_bytes_allocated += (sizeof(PtrArrayObject) + 3 * 8);
+  #endif
   return make_cons(vm, car, cdr);
 }
 
@@ -4505,6 +4530,9 @@ Ptr im_snapshot_to_path(VM *vm, ByteArrayObject* path) {
 
 Ptr im_snapshot_to_path_and_exit(VM *vm, ByteArrayObject *path) {
   im_snapshot_to_path(vm, path);
+  #if STATS
+  report_stats(vm->stats);
+  #endif
   exit(0);
   return Nil;
 }
@@ -6539,6 +6567,10 @@ VM *_vm_create() {
   VM *vm;
   vm = (VM *)calloc(sizeof(VM), 1);
 
+  #if STATS
+  vm->stats = (stats *)calloc(sizeof(stats), 1);
+  #endif
+
   vm->curr_thd = make_thread_ctx();
 
   auto heap_size_in_mb = 512;
@@ -7075,6 +7107,10 @@ void run_event_loop_with_display(VM *vm, int w, int h, bool from_image = false) 
   dbg(" average of ", ops_per_second, " ops per second, including sleep. ");
   dbg(" gc count: ", vm->gc_count);
   report_memory_usage(vm);
+  #if STATS
+  report_stats(vm->stats);
+  #endif
+
   SDL_Quit();
 }
 

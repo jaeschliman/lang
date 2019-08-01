@@ -50,7 +50,7 @@ using std::string;
 #define PRIM_USE_GIANT_SWITCH 1
 #define INCLUDE_REPL 1
 #define DEBUG_IMAGE_SNAPSHOTS 0
-#define STATS 1
+#define STATS 0
 
 /*
  latest perf reports on bouncers-2.

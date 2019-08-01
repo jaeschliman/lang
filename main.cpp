@@ -47,15 +47,22 @@ using std::string;
 #define PRIM_USE_GIANT_SWITCH 1
 #define INCLUDE_REPL 1
 #define DEBUG_IMAGE_SNAPSHOTS 0
-// with it on:  216533389 / 15 / 60 = ~240,600 instr / frame
-//              187983512 / 13.048 / 60 = ~240,117
-// with it off: 220863576 / 16.57 / 60 = ~222,150 instr / frame
-//              181965286 / 12.79 / 60 = ~237,119
-// 2.5Ghz chip. 2500000000 / 1 / 60 = ~41,700,000 ops / frame!
-// so roughly 170 ops / bc via wall clock.
-// with it on, and NDEBUG: 179763496 / 12.201 / 60 = 245,550 ops/frame
-// on a different workload (meta-1), saw over 400,000 instr / frame
-// on meta1-compiler, with the GC tuned up a bit: 1276176013 / 47 / 60 = ~450,000
+/*
+ latest perf reports on bouncers-2.
+  
+ GIANT_SWITCH OFF:
+ executed 1443278943 instructions over 29.156 seconds.
+ average of 49501953 ops per second, including sleep. 
+ gc count: 12
+ GIANT_SWITCH ON:
+ executed 1611884478 instructions over 31.383 seconds.
+ average of 51361707 ops per second, including sleep. 
+ gc count: 14
+ GIANT_SWITCH ON + NDEBUG:
+ executed 5182630820 instructions over 78.84 seconds.
+ average of 65736058 ops per second, including sleep. 
+ gc count: 43
+ */
 
 #define unused(x) (void)(x)
 #define maybe_unused(x) (void)(x)
@@ -598,6 +605,7 @@ struct VM {
   u64 *curr_code;
   StackFrameObject *curr_frame;
   bool suspended;
+  s64 start_time_ms;
 };
 
 inline void vm_refresh_frame_state(VM *vm){
@@ -4671,6 +4679,8 @@ void vm_interp(VM* vm, interp_params params) {
   ctx_switch_budget = params.thread_switch_instr_budget;
   spent_instructions = 0;
 
+  if (!vm->start_time_ms) vm->start_time_ms = current_time_ms();
+
  restart_interp:
 
   vm->suspended = false;
@@ -7054,8 +7064,11 @@ void run_event_loop_with_display(VM *vm, int w, int h, bool from_image = false) 
   unprot_ptrs(onkey, onmousedrag, onmousemove, onmousedown, onframe);
 
   SDL_DestroyWindow(window);
-  std::cerr << " executed " << vm->instruction_count << " instructions." << std::endl;
-  std::cerr << " gc count: " << vm->gc_count;
+  auto run_time = (current_time_ms() - vm->start_time_ms) / 1000.0;
+  s64 ops_per_second = vm->instruction_count / run_time;
+  dbg(" executed ", vm->instruction_count, " instructions over ", run_time, " seconds.");
+  dbg(" average of ", ops_per_second, " ops per second, including sleep. ");
+  dbg(" gc count: ", vm->gc_count);
   report_memory_usage(vm);
   SDL_Quit();
 }

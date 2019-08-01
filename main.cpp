@@ -6506,7 +6506,7 @@ VM *_vm_create() {
 
   vm->curr_thd = make_thread_ctx();
 
-  auto heap_size_in_mb = 250;
+  auto heap_size_in_mb = 512;
   auto heap_size_in_bytes = heap_size_in_mb * 1024 * 1024;
   auto heap_mem = calloc(heap_size_in_bytes, 1);
   vm->heap_mem = heap_mem;
@@ -6518,7 +6518,7 @@ VM *_vm_create() {
   vm->heap_size_in_bytes = heap_size_in_bytes;
   vm->allocation_count = 0;
   vm->gc_count = 0;
-  vm->gc_threshold_in_bytes = 15.0 * 1024 * 1024;
+  vm->gc_threshold_in_bytes = 100 * 1024 * 1024;
 
   vm->gc_protected = new std::unordered_map<Object **, u64>;
   vm->gc_protected_ptrs = new std::unordered_map<Ptr *, u64>;

@@ -83,6 +83,12 @@ typedef double f64;
 #define SYSTEM_OTHER_THREADS_KEY FIXNUM(2)
 #define SYSTEM_BUILTIN_CLASSES_KEY FIXNUM(3)
 
+// info that lives at the start of a snapshot image
+struct image_header {
+  u64 heap_size;
+  u64 static_region_size;
+};
+
 s64 current_time_ms() {
   auto now = std::chrono::system_clock::now();
   auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
@@ -4425,17 +4431,31 @@ Ptr im_snapshot_to_path(VM *vm, const char *path){
   dbg("writing file...");
   // write it out
   {
-    auto size = (u64)new_heap_end - (u64)new_heap;
+    image_header header;
+    auto heap_size = (u64)new_heap_end - (u64)new_heap;
+
+    header.heap_size = heap_size;
+    header.static_region_size = 0;
+
     FILE *out = fopen(path, "wb");
     if(out != NULL) {
-      auto data = (char*)new_heap;
-      s64 to_go = size;
-      while(to_go > 0) {
-        const size_t wrote = fwrite(data, 1, to_go, out);
-        if(wrote == 0) break;
-        to_go -= wrote;
-        data += wrote;
-        dbg("to go bytes: ", to_go, " wrote: ", wrote);
+      //write the header
+      {
+        auto data = (char*)&header;
+        fwrite(data, 1, sizeof(image_header), out);
+        dbg("wrote header");
+      }
+      //write the heap
+      {
+        auto data = (char*)new_heap;
+        s64 to_go = header.heap_size;
+        while(to_go > 0) {
+          const size_t wrote = fwrite(data, 1, to_go, out);
+          if(wrote == 0) break;
+          to_go -= wrote;
+          data += wrote;
+          dbg("to go bytes: ", to_go, " wrote: ", wrote);
+        }
       }
       fclose(out);
     }
@@ -6553,17 +6573,24 @@ VM *vm_create_from_image(const char *path, run_info info) {
 
   // read the image into heap memory
   {
-    struct stat info;
-    stat(path, &info);
-    auto size = info.st_size;
     FILE *in = fopen(path, "rb");
     assert(in != NULL);
-    auto data = (char*)vm->heap_mem;
-    auto amt_read = fread(data, 1, size, in);
-    assert(amt_read == size);
+
+    image_header header;
+    // read the header
+    {
+      fread((char *)&header, 1, sizeof(image_header), in);
+    }
+    // read the heap
+    {
+      auto data = (char*)vm->heap_mem;
+      auto amt_read = fread(data, 1, header.heap_size, in);
+      assert(amt_read == header.heap_size);
+    }
     fclose(in);
-    vm->heap_end = (void *)((u64)vm->heap_mem + size);
-    dbg("read size: ", (1.0 * size) / (1024 * 1024));
+
+    vm->heap_end = (void *)((u64)vm->heap_mem + header.heap_size);
+    dbg("read size: ", (1.0 * header.heap_size) / (1024 * 1024));
   }
 
   // fixup the pointers

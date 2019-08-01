@@ -406,6 +406,12 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   RE: conses, we /could/ allocate them on a separate heap to keep them compact
   but I want to keep the heap/gc relatively simple for now.
 * DONE get event input working again with bouncers-2
+* TODO eliminate uint from codebase
+  should always use explicitly sized types
+* TODO reduce use of unsigned types where it doesn't make sense
+  over/under flow bugs are a pain
+* TODO eliminate lint issues
+  flycheck is reporting some issues that -Wall is not
 
 * notes
 maybe have a stack of compilers? can push/pop...

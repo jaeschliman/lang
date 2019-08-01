@@ -38,9 +38,10 @@
 (let ((started-event-loop #f))
   (define (start-event-loop)
       (unless started-event-loop
-        (fork (forever (poll-for-pending-events))))
+        (fork-with-priority 10000 (forever (poll-for-pending-events))))
     (set! started-event-loop #t)))
 
+;; TODO this should no longer be needed
 (define (start-additional-event-loop)
     (fork-with-priority 20000 (forever (poll-for-pending-events))))
 

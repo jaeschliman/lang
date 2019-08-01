@@ -44,7 +44,7 @@
 * DONE identity hash function
 * DONE proper imap
 * DONE make cons a defstruct
-* TODO move stack memory into vm-managed heap
+* IGNORE move stack memory into vm-managed heap
 * DONE stack overlow detection
 * DONE continuations / exceptions
 * TODO signals
@@ -68,7 +68,7 @@
 * TODO rewrite the codegen in the lang itself 
 * DONE 'apply'
 * DONE basic 'event reactor' runloop -- start with keycodes
-* TODO optimize global calls for more arities
+* IGNORE optimize global calls for more arities
 * DONE point functions
 * DONE real 'built-in-classes' i.e. Cons Fixnum etc
 * DONE basic message definition, send facility
@@ -138,7 +138,7 @@ http://www.jezzamon.com/fourier/index.html
 * TODO CAS for object slots
 * DONE userspace print-object (requires output stream)
 * TODO a GUI
-* TODO a smalltalk-like
+* IN-PROGRESS a smalltalk-like
 * TODO an actor system
 * TODO a prolog
 * DONE fix special variable integration with continuations
@@ -217,8 +217,9 @@ e.g.
 * DONE snapshot support for graphics sessions
 * TODO window resizing
 * TODO BC level support for messaging
-* TODO think whether we should have inheritance
+* DONE think whether we should have inheritance
   I like the idea of object delegation a bit more, it seems more flexible
+  going to try mixins
 * TODO `proper` macroexpander that understands lexical scope
 * DONE support for command line args in image and boot
 * TODO call onshow when booting image as well

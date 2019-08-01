@@ -274,7 +274,7 @@ https://mrandri19.github.io/2019/07/18/modern-text-rendering-linux-ep1.html
   upwards through catch blocks, and stops when it finds the matching block
 * TODO maybe switch root package syntax to ~/ from #/
   `#/` is pretty ugly it turns out
-* IN-PROGRESS convert meta reader state to a class for better performance
+* DONE convert meta reader state to a class for better performance
   basically want a way to keep from allocating a hash table for every call to `any`
 * DONE looks like there's an occasional bug somewhere in ht_grow
 stack trace:
@@ -355,7 +355,9 @@ fixed an issue in ht_at_put that could possibly contribute to this
 https://www.cs.indiana.edu/~dyb/pubs/mrvs.pdf
 * TODO some way to iterate a list of thunks off the stack top
   could be a way to implement unwind-protect, by gathering handlers from stack frames
-  while popping them
+  while popping them.
+  could implement with vm_call_object() and a class with a list of thunks.
+  bootstrap with a class-set-applicator in 0.lisp
 * TODO maybe separate stack into value and control stacks?
   could this simplify reifying the control stack?
 * DONE per-thread stacks (maybe just value stacks?) -- can use xarray if value only

@@ -372,12 +372,6 @@ bool object_has_custom_class(Object *obj) {
 #define set_obj_tag(obj,name) object_set_custom_class(obj, BuiltinClassIndex_##name)
 
 
-// TODO: rename this function
-inline Ptr objToPtr(Object *ref) {
-  return (Ptr){ ((u64) ref) | 0b1 };
-}
-
-
 /* ---------------------------------------- */
 //          GC protection macros
 
@@ -775,6 +769,10 @@ struct StandardObject : Object {
     return (it.value & TAG_MASK) == type##_Tag; \
   }
 
+inline Ptr _ptr_creation_name(Ptr)(Object *it){
+  return (Ptr){ ((u64) it) | 0b1 };
+}
+
 unwrap_ptr_for(void, self) {
   return (void *)(self.value & EXTRACT_PTR_MASK);
 }
@@ -1008,7 +1006,7 @@ type_test(String, it) {
   return bao->bao_type == String;
 }
 create_ptr_for(String, ByteArrayObject *it) {
-  return objToPtr(it);
+  return to(Ptr, it);
 }
 unwrap_ptr_for(String, it) {
   return as(ByteArray, it);
@@ -1060,21 +1058,21 @@ Ptr load_image_from_path(VM *vm, string path) {
     }
   }
   SDL_FreeSurface(surface);
-  return objToPtr(img);
+  return to(Ptr, img);
 }
 
 Ptr gfx_load_image(VM *vm, ByteArrayObject *path) {
-  if (!is(String, objToPtr(path))) die("load_image takes a string");
+  if (!is(String, to(Ptr, path))) die("load_image takes a string");
   auto str = string(path->data, path->length);
   auto result = load_image_from_path(vm, str);
   return result;
 }
 Ptr gfx_make_image(VM *vm, s64 w, s64 h) {
-  return objToPtr(alloc_image(vm, w, h));
+  return to(Ptr, alloc_image(vm, w, h));
 }
 
 blit_surface image_blit_surface(ByteArrayObject *img) {
-  if (!is(Image, objToPtr(img))) die("image_blit_surface requires an image");
+  if (!is(Image, to(Ptr, img))) die("image_blit_surface requires an image");
   auto w = image_width(img), h = image_height(img);
   auto mem = image_data(img);
   auto pitch = w * 4;
@@ -1094,7 +1092,7 @@ type_test(Array, it) {
   return is(PtrArray, it) && (as(PtrArray, it))->pao_type == Array;
 }
 create_ptr_for(Array, PtrArrayObject *it) {
-  return objToPtr(it);
+  return to(Ptr, it);
 }
 unwrap_ptr_for(Array, it) {
   return as(PtrArray, it);
@@ -1147,7 +1145,7 @@ Ptr make_bytecode(VM *vm, u64 code_len) {
   auto code = alloc_u64ao(vm, code_len);
   gc_unprotect(bc);
   bc->code = code;
-  return objToPtr(bc);
+  return to(Ptr, bc);
 }
 
 inline ByteArrayObject *alloc_string(VM *vm, s64 len) {
@@ -1167,7 +1165,7 @@ Ptr make_string(VM *vm, const char* str) {
     *to = *from;
     to++; from++;
   }
-  return objToPtr(obj);
+  return to(Ptr, obj);
 }
 
 Ptr make_string_with_end(VM *vm, const char* str, const char* end) {
@@ -1179,7 +1177,7 @@ Ptr make_string_with_end(VM *vm, const char* str, const char* end) {
     *to = *from;
     to++; from++;
   }
-  return objToPtr(obj);
+  return to(Ptr, obj);
 }
 
 char string_byte_at(VM *vm, ByteArrayObject *str, s64 index) {
@@ -1251,7 +1249,7 @@ Ptr make_filled_string(VM *vm, s64 count, character ch) {
   for (auto i = 0; i < size; i+=width) {
     string_set_char_at(vm, s, i, ch);
   }
-  return objToPtr(s);
+  return to(Ptr, s);
 }
 
 Ptr string_substr_byte_range(VM *vm, ByteArrayObject *str, s64 start, s64 end) {
@@ -1286,7 +1284,7 @@ s64 string_char_count(ByteArrayObject *str){
 
 u32 hash_code(Ptr it);
 bool string_equal(ByteArrayObject *a, ByteArrayObject*b) {
-  if (hash_code(objToPtr(a)) != hash_code(objToPtr(b))) return false;
+  if (hash_code(to(Ptr, a)) != hash_code(to(Ptr, b))) return false;
   if (a->length != b->length) return false;
   return memcmp(a->data, b->data, a->length) == 0;
 }
@@ -1296,7 +1294,7 @@ inline Ptr make_number(s64 value) { return to(Fixnum, value); }
 Ptr make_zf_array(VM *vm, u64 len) {
   auto array = alloc_pao(vm, Array, len); // alloc is zf
   set_obj_tag(array, Array);
-  return objToPtr(array);
+  return to(Ptr, array);
 }
 
 
@@ -1304,7 +1302,7 @@ Ptr make_zf_struct(VM *vm, u64 len, Ptr tag) { prot_ptr(tag);
   auto array = alloc_pao(vm, Struct, len + 1); // alloc is zf
   array->data[0] = tag;
   unprot_ptr(tag);
-  return objToPtr(array);
+  return to(Ptr, array);
 }
 
 inline s64 array_length(PtrArrayObject *it) {
@@ -1365,7 +1363,7 @@ ByteArrayObject *string_from_array(VM *vm, PtrArrayObject *chars) { gc_protect(c
   }
   auto result = alloc_string(vm, size);
   {
-    auto array = objToPtr(chars);
+    auto array = to(Ptr, chars);
     auto write = 0;
     auto read = 0;
     while (read < chars->length) {
@@ -1606,7 +1604,7 @@ Ptr make_closure(VM *vm, Ptr code, Ptr env) { prot_ptrs(code, env);
   #if STATS
   vm->stats->total_closure_bytes_allocated += sizeof(PtrArrayObject) + 2 * 8;
   #endif
-  auto c = objToPtr(it);
+  auto c = to(Ptr, it);
   array_set(c, 0, code);
   array_set(c, 1, env);
   unprot_ptrs(code, env);
@@ -1671,7 +1669,7 @@ auto size_of(Ptr it) {
   if (is(BrokenHeart, it)) {
     auto ref = gc_forwarding_address(as(Object, it));
     dbg("broken heart in size_of, ", it);
-    dbg("forwarding to: ", objToPtr(ref));
+    dbg("forwarding to: ", to(Ptr, ref));
   }
   die("unexpected object type in size_of: ", (as(Object, it))->header.object_type);
 }
@@ -1689,15 +1687,15 @@ void bang_refs(StackFrameObject *it, BangPtrFn fn) {
   it->special_variables = fn(it->special_variables);
   it->closed_over = fn(it->closed_over);
   it->mark = fn(it->mark);
-  it->bc = (ByteCodeObject *)as(void, fn(objToPtr(it->bc)));
+  it->bc = (ByteCodeObject *)as(void, fn(to(Ptr, it->bc)));
   if (it->prev_frame) {
-    it->prev_frame = (StackFrameObject *)as(void, fn(objToPtr(it->prev_frame)));
+    it->prev_frame = (StackFrameObject *)as(void, fn(to(Ptr, it->prev_frame)));
   }
 }
 
 void bang_refs(ByteCodeObject *it, BangPtrFn fn) {
-  it->code = (U64ArrayObject *)as(void, fn(objToPtr(it->code)));
-  it->literals = (PtrArrayObject *)as(void, fn(objToPtr(it->literals)));
+  it->code = (U64ArrayObject *)as(void, fn(to(Ptr, it->code)));
+  it->literals = (PtrArrayObject *)as(void, fn(to(Ptr, it->literals)));
   it->name = fn(it->name);
 }
 void bang_refs(PtrArrayObject *it, BangPtrFn fn) {
@@ -1707,8 +1705,8 @@ void bang_refs(PtrArrayObject *it, BangPtrFn fn) {
 }
 
 void bang_refs(StandardObject *it, BangPtrFn fn) {
-  it->klass = (StandardObject *)as(void, fn(objToPtr(it->klass)));
-  it->slots = (PtrArrayObject *)as(void, fn(objToPtr(it->slots)));
+  it->klass = (StandardObject *)as(void, fn(to(Ptr, it->klass)));
+  it->slots = (PtrArrayObject *)as(void, fn(to(Ptr, it->slots)));
 }
 
 void scan_heap(void *start, void *end, PtrFn fn);
@@ -1739,13 +1737,13 @@ void obj_refs(StackFrameObject *it, PtrFn fn) {
   fn(it->special_variables);
   fn(it->closed_over);
   fn(it->mark);
-  fn(objToPtr(it->bc));
-  if (it->prev_frame) fn(objToPtr(it->prev_frame));
+  fn(to(Ptr, it->bc));
+  if (it->prev_frame) fn(to(Ptr, it->prev_frame));
 }
 
 void obj_refs(ByteCodeObject *it, PtrFn fn) {
-  fn(objToPtr(it->code));
-  fn(objToPtr(it->literals));
+  fn(to(Ptr, it->code));
+  fn(to(Ptr, it->literals));
   fn(it->name);
 }
 void obj_refs(PtrArrayObject *it, PtrFn fn) {
@@ -1755,8 +1753,8 @@ void obj_refs(PtrArrayObject *it, PtrFn fn) {
 }
 
 void obj_refs(StandardObject *it, PtrFn fn) {
-  fn(objToPtr(it->klass));
-  fn(objToPtr(it->slots));
+  fn(to(Ptr, it->klass));
+  fn(to(Ptr, it->slots));
 }
 
 void map_refs(Ptr it, PtrFn fn) {
@@ -1855,7 +1853,7 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
       auto index = as(Fixnum, vobj->data[0]);
       assert(index >= 0 && index < StructTag_End);
       auto fn = StructPrintTable[index];
-      if (fn) { fn(os, objToPtr(obj)); }
+      if (fn) { fn(os, to(Ptr, obj)); }
       else { os << "#<Struct[" << index << "] " << (void *)obj << ">" ;}
       return os;
     }
@@ -1965,7 +1963,7 @@ void debug_walk(VM *vm, Ptr it) {
 // @unsafe
 auto vm_map_thread_ctx_refs(VM *vm, thread_ctx *ctx, PtrFn fn) {
   fn(ctx->thread);
-  fn(objToPtr(ctx->bc));
+  fn(to(Ptr, ctx->bc));
   StackFrameObject *fr = ctx->frame;
   Ptr *stack = ctx->stack;
   while (fr) {
@@ -1977,7 +1975,7 @@ auto vm_map_thread_ctx_refs(VM *vm, thread_ctx *ctx, PtrFn fn) {
       auto arg = fr->argv[pad + i];
       fn(arg);
     }
-    if (fr->bc) fn(objToPtr(fr->bc));
+    if (fr->bc) fn(to(Ptr, fr->bc));
     auto on_stack = (Ptr*)(void *)fr; // go back 'up' the stack to get current args
     while (on_stack > stack) {
       on_stack--;
@@ -2043,7 +2041,7 @@ void vm_debug_print_stackframe_args(VM *vm, StackFrameObject *fr) {
 
 Ptr vm_print_debug_stack_trace(VM *vm) {
   StackFrameObject *fr = vm->curr_thd->frame;
-  debug_walk(vm, objToPtr(fr));
+  debug_walk(vm, to(Ptr, fr));
   std::cerr << "----------------------------------------" << std::endl;
   vm_map_stack_refs(vm, [&](Ptr it){
       std::cerr << "    " << it << std::endl;
@@ -2104,7 +2102,7 @@ struct Globals {
 // @cleanup this function shows that the object model is too complex IMO
 
 Ptr class_of(VM *vm, Ptr it) {
-#define builtin(name) objToPtr(vm->globals->classes._##name)
+#define builtin(name) to(Ptr, vm->globals->classes._##name)
 #define builtin_case(type, name) case type##_Tag: return builtin(name)
   PtrTag ptr_tag = (PtrTag)(it.value & TAG_MASK);
   switch (ptr_tag) {
@@ -2120,9 +2118,9 @@ Ptr class_of(VM *vm, Ptr it) {
     if (obj->header.custom_class) {
       u8 idx     = obj->header.custom_class & 0b01111111;
       auto klass = vm->globals->classes.builtins[idx];
-      return objToPtr(klass);
+      return to(Ptr, klass);
     } else {
-      return objToPtr(as(Standard, it)->klass);
+      return to(Ptr, as(Standard, it)->klass);
     }
   }
   }
@@ -2169,14 +2167,14 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
   recurse(vm->globals->lang_package);
   recurse(vm->globals->call1);
 
-#define handle_class(name) recurse(objToPtr(vm->globals->classes._##name));
+#define handle_class(name) recurse(to(Ptr, vm->globals->classes._##name));
 #define X(...) MAP(handle_class, __VA_ARGS__)
 #include "./primitive-classes.include"
 #undef X
 #undef handle_class
 
   for (auto i = 0; i < BuiltinClassIndexEnd; i++) {
-    recurse(objToPtr(vm->globals->classes.builtins[i]));
+    recurse(to(Ptr, vm->globals->classes.builtins[i]));
   }
 
 }
@@ -2192,7 +2190,7 @@ void scan_heap(void *start, void *end, PtrFn fn) {
   while(start < end) {
     assert(pointer_is_aligned(start));
     // we know it is an object because primitive values are stored inline in fields
-    auto it = objToPtr((Object *)start);
+    auto it = to(Ptr, (Object *)start);
     auto offset = size_of(it);
     if (offset == 0) {
       die("error while scanning heap");
@@ -2246,12 +2244,12 @@ auto gc_copy_object(VM *vm, Ptr it) {
   auto from  = as(Object, it);
   auto to    = (Object *)bytes;
   memcpy(to, from, count);
-  return objToPtr(to);
+  return to(Ptr, to);
 }
 
 Ptr gc_move_object(VM *vm, Object *obj) {
   assert(!gc_is_broken_heart(obj));
-  auto ptr = objToPtr(obj);
+  auto ptr = to(Ptr, obj);
   assert(size_of(ptr) > 0);
   auto new_ptr = gc_copy_object(vm, ptr);
   Object *addr = as(Object, new_ptr);
@@ -2273,7 +2271,7 @@ void gc_update_ptr(VM *vm, Ptr *p) {
   }
   auto new_addr = gc_forwarding_address(obj);
   // assert(gc_ptr_is_in_to_space(vm, new_addr));
-  auto new_ptr = objToPtr(new_addr);
+  auto new_ptr = to(Ptr, new_addr);
   *p = new_ptr;
 }
 
@@ -2282,12 +2280,12 @@ void gc_update_ptr(VM *vm, Ptr *p) {
 // StackFrameObject is handled specially.
 void gc_update(VM *vm, ByteCodeObject* it) {
   if (it->code) {
-    Ptr p = objToPtr(it->code);
+    Ptr p = to(Ptr, it->code);
     gc_update_ptr(vm, &p);
     it->code = as(U64Array, p);
   }
   if (it->literals) {
-    Ptr p = objToPtr(it->literals);
+    Ptr p = to(Ptr, it->literals);
     gc_update_ptr(vm, &p);
     it->literals = as(PtrArray, p);
   }
@@ -2302,12 +2300,12 @@ void gc_update(VM *vm, PtrArrayObject* it) {
 
 void gc_update(VM *vm, StandardObject* it) {
   if (it->klass){
-    Ptr p = objToPtr(it->klass);
+    Ptr p = to(Ptr, it->klass);
     gc_update_ptr(vm, &p);
     it->klass = as(Standard, p);
   }
   if (it->slots){
-    Ptr p = objToPtr(it->slots);
+    Ptr p = to(Ptr, it->slots);
     gc_update_ptr(vm, &p);
     it->slots = as(PtrArray, p);
   }
@@ -2321,12 +2319,12 @@ void gc_update(VM *vm, StackFrameObject *it) {
   gc_update_ptr(vm, &it->closed_over);
   gc_update_ptr(vm, &it->mark);
   if (it->prev_frame) {
-    Ptr p = objToPtr(it->prev_frame);
+    Ptr p = to(Ptr, it->prev_frame);
     gc_update_ptr(vm, &p);
     it->prev_frame = as(StackFrame, p);
   }
   if (it->bc) {
-    Ptr p = objToPtr(it->bc);
+    Ptr p = to(Ptr, it->bc);
     gc_update_ptr(vm, &p);
     it->bc = as(ByteCode, p);
   }
@@ -2346,7 +2344,7 @@ void gc_update_thread_ctx(VM *vm, thread_ctx* thd) {
 
   if (thd->bc) {
     ByteCodeObject **bytecode = &thd->bc;
-    Ptr bc = objToPtr(*bytecode);
+    Ptr bc = to(Ptr, *bytecode);
     gc_update_ptr(vm, &bc);
     *bytecode = as(ByteCode, bc);
   }
@@ -2362,7 +2360,7 @@ void gc_update_thread_ctx(VM *vm, thread_ctx* thd) {
       gc_update_ptr(vm, fr->argv + offs);
     }
     {
-      Ptr bc = objToPtr(fr->bc);
+      Ptr bc = to(Ptr, fr->bc);
       gc_update_ptr(vm, &bc);
       fr->bc = as(ByteCode, bc);
     }
@@ -2387,7 +2385,7 @@ void gc_update_stack(VM *vm) {
 }
 
 void gc_update_base_class(VM *vm, StandardObject **it) {
-  Ptr p = objToPtr(*it);
+  Ptr p = to(Ptr, *it);
   gc_update_ptr(vm, &p);
   *it = as(Standard, p);
 }
@@ -2433,7 +2431,7 @@ void gc_update_protected_references(VM *vm) {
   for (auto pair : *vm->gc_protected) {
     Object **ref = pair.first;
     auto obj = *ref;
-    auto ptr = objToPtr(obj);
+    auto ptr = to(Ptr, obj);
     gc_update_ptr(vm, &ptr);
     auto new_obj = as(Object, ptr);
     *ref = new_obj;
@@ -2470,7 +2468,7 @@ void im_offset_protected_references(VM *vm, s64 delta) {
   for (auto pair : *vm->gc_protected) {
     Object **ref = pair.first;
     auto obj = *ref;
-    auto ptr = im_offset_ptr(objToPtr(obj), delta);
+    auto ptr = im_offset_ptr(to(Ptr, obj), delta);
     auto new_obj = as(Object, ptr);
     *ref = new_obj;
   }
@@ -3053,10 +3051,10 @@ void initialize_classes(VM *vm)
 Ptr _built_in_classes_as_array(VM *vm) {
   auto result = make_xarray(vm);
   for (auto i = 0; i < BuiltinClassIndexEnd; i++) {
-    auto it = objToPtr(vm->globals->classes.builtins[i]); 
+    auto it = to(Ptr, vm->globals->classes.builtins[i]); 
     xarray_push(vm, result, it);
   }
-#define save_class(name) xarray_push(vm, result, objToPtr(builtin(name)));
+#define save_class(name) xarray_push(vm, result, to(Ptr, builtin(name)));
 #define builtin(name) vm->globals->classes._##name
 #define X(...) MAP(save_class, __VA_ARGS__)
 #include "./primitive-classes.include"
@@ -3100,11 +3098,11 @@ Ptr make_user_class(VM *vm, Ptr name, Ptr ivar_names) { prot_ptrs(name, ivar_nam
   auto result = make_standard_object(vm, superclass, slots);
   unprot_ptrs(name, method_dict, ivar_names, ivar_names_vector);
   mark_object_as_class(result);
-  return objToPtr(result);
+  return to(Ptr, result);
 }
 
 Ptr instantiate_user_class(VM *vm, StandardObject *klass) {
-  return objToPtr(make_standard_object(vm, klass, 0));
+  return to(Ptr, make_standard_object(vm, klass, 0));
 }
 
 Ptr class_get_metadata(StandardObject *klass, Ptr key) {
@@ -3714,7 +3712,7 @@ typedef std::function<bool(StackFrameObject*)> StackPred;
 void _debug_validate_stack_frame(StackFrameObject *fr){
   auto count = 0;
   while (fr) {
-    auto f = objToPtr(fr);
+    auto f = to(Ptr, fr);
     if (!is(StackFrame, f)) die("expecting stack frame got: ", f);
     fr = fr->prev_frame;
     count++;
@@ -3724,7 +3722,7 @@ void _debug_validate_stack_frame(StackFrameObject *fr){
 void _debug_validate_stack_frame(StackFrameObject *fr, thread_ctx *ctx){
   auto count = 0;
   while (fr) {
-    auto f = objToPtr(fr);
+    auto f = to(Ptr, fr);
     if (!is(StackFrame, f)) die("expecting stack frame got: ", f);
     assert((void*)fr >= (void*)ctx->stack_start && (void*)fr <= (void*)ctx->stack_end);
     assert(fr->argc < 100 && fr->argc >= 0);
@@ -3786,7 +3784,7 @@ Ptr snapshot_thread_ctx_with_predicate(VM *vm, thread_ctx *thd, StackPred fn) {
   while (fr && !fn(fr)) {
     #if DEBUG_IMAGE_SNAPSHOTS
     {
-     auto f = objToPtr(fr);
+     auto f = to(Ptr, fr);
      assert(is(StackFrame, f));
     }
     #endif
@@ -3811,7 +3809,7 @@ Ptr snapshot_thread_ctx_with_predicate(VM *vm, thread_ctx *thd, StackPred fn) {
       pf->prev_frame = nf; 
     }
 
-    prev_fr = objToPtr(nf);
+    prev_fr = to(Ptr, nf);
     assert(is(StackFrame, prev_fr));
     if (top_fr == Nil) top_fr = prev_fr;
     fr = fr->prev_frame;
@@ -3915,7 +3913,7 @@ void __vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
   if (!fr) return;
   #if DEBUG_IMAGE_SNAPSHOTS
   {
-    Ptr it = objToPtr(fr);
+    Ptr it = to(Ptr, fr);
     assert(is(StackFrame, it));
   }
   #endif
@@ -3947,7 +3945,7 @@ void __vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
 
   #if DEBUG_IMAGE_SNAPSHOTS
   {
-    Ptr it = objToPtr(thd->frame);
+    Ptr it = to(Ptr, thd->frame);
     assert(is(StackFrame, it));
   }
   #endif
@@ -4799,7 +4797,7 @@ void vm_interp(VM* vm, interp_params params) {
     }
     case PUSH_CLOSURE_ENV: {
       u64 count = vm_adv_instr(vm);
-      auto array = objToPtr(alloc_pao(vm, Array, count + 1));
+      auto array = to(Ptr, alloc_pao(vm, Array, count + 1));
       array_set(array, 0, vm->curr_frame->closed_over);
       while (count--) { //@speed
         auto it = vm_pop(vm);
@@ -4969,7 +4967,7 @@ void vm_interp(VM* vm, interp_params params) {
 
 #if GC_DEBUG
         if (is(BrokenHeart, fn)) {
-          auto other = objToPtr(gc_forwarding_address(as(Object, fn)));
+          auto other = to(Ptr, gc_forwarding_address(as(Object, fn)));
           dbg("attempted to call broken heart, fwd:", other);
         }
 #endif
@@ -5204,14 +5202,14 @@ private:
     // save source location as final slot in literals array
     {
       auto val = get_symbol_value(vm, KNOWN(Xsource_locationX));
-      xarray_push(vm, objToPtr(this->literals), val);
+      xarray_push(vm, to(Ptr, this->literals), val);
     }
 
     PtrArrayObject *array;
     {
-      auto literal_count = xarray_used(objToPtr(this->literals));
+      auto literal_count = xarray_used(to(Ptr, this->literals));
       array = alloc_pao(vm, Array, literal_count);
-      auto literal_mem = xarray_memory(objToPtr(this->literals));
+      auto literal_mem = xarray_memory(to(Ptr, this->literals));
       for (u64 i = 0; i < literal_count; i++) {
         array->data[i] = literal_mem[i];
       }
@@ -5281,7 +5279,7 @@ public:
     return this;
   }
   auto pushLit(Ptr literal) {
-    auto literals = objToPtr(this->literals);
+    auto literals = to(Ptr, this->literals);
     auto idx = xarray_index_of(literals, literal);
     if (idx == -1) {
       xarray_push(vm, literals, literal);
@@ -5696,7 +5694,7 @@ auto emit_flat_lambda(VM *vm, Ptr it, Ptr env) {
   auto body = cdr(cdr(cdr(it)));
   emit_lambda_body(vm, builder, body, env);
   builder->ret();
-  auto bc = objToPtr(builder->build());
+  auto bc = to(Ptr, builder->build());
   delete builder;
   unprot_ptrs(it, env);
   return make_closure(vm, bc, Nil);
@@ -5729,7 +5727,7 @@ void emit_lambda(VM *vm, BCBuilder *parent, Ptr it, Ptr p_env) {  prot_ptrs(it, 
     auto body = cdr(cdr(cdr(it)));
     emit_lambda_body(vm, builder, body, env);
     builder->ret();
-    parent->pushLit(objToPtr(builder->build()));
+    parent->pushLit(to(Ptr, builder->build()));
     delete builder;
     parent->buildClosure();
   } else {
@@ -6387,7 +6385,7 @@ Ptr gfx_blit_image_with_mask(ByteArrayObject *src_img,
 
 Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 deg_rot) {
   if (!vm->surface) return Nil;
-  if (!is(Image, objToPtr(img))) die("gfx_blit_image: not an image");
+  if (!is(Image, to(Ptr, img))) die("gfx_blit_image: not an image");
   auto src  = image_blit_surface(img);
   auto dst = vm->surface;
   vm->screen_dirty = true;
@@ -6402,8 +6400,8 @@ Ptr gfx_blit(ByteArrayObject *source_image, ByteArrayObject *dest_image,
              point src_lower_right,
              f32 scale,
              f32 degrees_rotation) {
-  if (!is(Image, objToPtr(source_image))) die("gfx_blit_image: not an image");
-  if (!is(Image, objToPtr(dest_image)))   die("gfx_blit_image: not an image");
+  if (!is(Image, to(Ptr, source_image))) die("gfx_blit_image: not an image");
+  if (!is(Image, to(Ptr, dest_image)))   die("gfx_blit_image: not an image");
   auto src = image_blit_surface(source_image);
   auto dst = image_blit_surface(dest_image);
   auto from = points_to_rect(src_upper_left, src_lower_right);
@@ -6418,7 +6416,7 @@ Ptr gfx_blit_from_screen(VM *vm, ByteArrayObject *dest_image,
                          point src_lower_right,
                          f32 scale,
                          f32 degrees_rotation) {
-  if (!is(Image, objToPtr(dest_image)))   die("gfx_blit_image: not an image");
+  if (!is(Image, to(Ptr, dest_image)))   die("gfx_blit_image: not an image");
   auto dst = image_blit_surface(dest_image);
   auto from = points_to_rect(src_upper_left, src_lower_right);
   return gfx_blit_image(vm->surface, &dst, &from, dst_location, scale, degrees_rotation);
@@ -6427,7 +6425,7 @@ Ptr gfx_blit_from_screen(VM *vm, ByteArrayObject *dest_image,
 /* -------------------------------------------------- */
 
 Ptr compile_to_closure(VM *vm, Ptr expr) {
-  auto bc = objToPtr(_compile_toplevel_expression(vm, expr, true));
+  auto bc = to(Ptr, _compile_toplevel_expression(vm, expr, true));
   auto closure = make_closure(vm, bc, Nil);
   return closure;
 }
@@ -6486,7 +6484,7 @@ void vm_init_from_heap_snapshot(VM *vm) {
   _vm_update_collection_limit(vm);
 
   // set system dictionary
-  vm->system_dictionary = objToPtr((Object *)(vm->heap_mem));
+  vm->system_dictionary = to(Ptr, (Object *)(vm->heap_mem));
   _debug_assert_in_heap(vm, vm->system_dictionary);
   dbg("loaded system dictionary: ", vm->system_dictionary);
   assert(is(ht, vm->system_dictionary));
@@ -6701,9 +6699,9 @@ Ptr vm_call_global(VM *vm, Ptr symbol, u64 argc, Ptr argv[]);
 Ptr compile_toplevel_expression_with_hooks(VM *vm, Ptr expr) {
   if (boundp(vm, KNOWN(compiler))) {
     Ptr new_expr = vm_call_global(vm, KNOWN(compiler), 1, (Ptr[]){expr});
-    return make_closure(vm, objToPtr(compile_toplevel_expression(vm, new_expr)), Nil);
+    return make_closure(vm, to(Ptr, compile_toplevel_expression(vm, new_expr)), Nil);
   } else {
-    return make_closure(vm, objToPtr(compile_toplevel_expression(vm, expr)), Nil);
+    return make_closure(vm, to(Ptr, compile_toplevel_expression(vm, expr)), Nil);
   }
 }
 
@@ -6931,7 +6929,7 @@ ByteCodeObject *build_call(VM *vm, Ptr symbol, u64 argc, Ptr argv[]) {
 
 // use with care. assumes bc is laid out properly for patching.
 void patch_bytecode_for_call(VM *vm, ByteCodeObject *bc, Ptr symbol, u64 argc, Ptr argv[]) {
-    auto lits = objToPtr(bc->literals);
+    auto lits = to(Ptr, bc->literals);
     for (u64 i = 0; i < argc; i++) {
       array_set(lits, i, argv[i]);
     }

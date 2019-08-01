@@ -395,6 +395,13 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   the idea is don't want to have to be copying all the symbol names around all the time...
   or images for that matter
 * TODO maybe reorganize the VM struct a bit into substructs
+* DONE start gathering allocation stats
+* TODO think about how to reduce more common allocations
+  right now it looks we allocate _alot_ of conses (not that surprising)
+  as well as quite a lot of closures
+  reducing closure allocation will likely be hard (requires writing a better compiler, I think)
+  RE: conses, we /could/ allocate them on a separate heap to keep them compact
+  but I want to keep the heap/gc relatively simple for now.
 
 * notes
 maybe have a stack of compilers? can push/pop...

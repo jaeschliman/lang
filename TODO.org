@@ -394,6 +394,7 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   could end up thrashing during parsing maybe, when we allocate many short lived strings
   the idea is don't want to have to be copying all the symbol names around all the time...
   or images for that matter
+* TODO maybe reorganize the VM struct a bit into substructs
 
 * notes
 maybe have a stack of compilers? can push/pop...

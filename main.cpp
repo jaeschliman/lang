@@ -1117,9 +1117,14 @@ Ptr make_bytecode(VM *vm, u64 code_len) {
   return objToPtr(bc);
 }
 
-Ptr make_string(VM *vm, const char* str) {
-  ByteArrayObject *obj = alloc_bao(vm, String, strlen(str));
+inline ByteArrayObject *alloc_string(VM *vm, s64 len) {
+  ByteArrayObject *obj = alloc_bao(vm, String, len);
   set_obj_tag(obj, String);
+  return obj;
+}
+
+Ptr make_string(VM *vm, const char* str) {
+  ByteArrayObject *obj = alloc_string(vm, strlen(str));
   const char *from = str;
   char *to = &(obj->data[0]);
   while(*from != 0) {
@@ -1131,8 +1136,7 @@ Ptr make_string(VM *vm, const char* str) {
 
 Ptr make_string_with_end(VM *vm, const char* str, const char* end) {
   // die(" make string with end: ", end - str);
-  ByteArrayObject *obj = alloc_bao(vm, String, end - str);
-  set_obj_tag(obj, String);
+  ByteArrayObject *obj = alloc_string(vm, end - str);
   const char *from = str;
   char *to = &(obj->data[0]);
   while(from < end) {
@@ -1205,8 +1209,7 @@ Ptr string_set_char_at(VM *vm, ByteArrayObject *str, s64 index, character ch) {
 Ptr make_filled_string(VM *vm, s64 count, character ch) {
   auto width = character_byte_width(ch);
   auto size = count * width;
-  auto s = alloc_bao(vm, String, size);
-  set_obj_tag(s, String);
+  auto s = alloc_string(vm, size);
   // memset(s->data, ch, size);
   // TODO this is slow
   for (auto i = 0; i < size; i+=width) {
@@ -1324,8 +1327,7 @@ ByteArrayObject *string_from_array(VM *vm, PtrArrayObject *chars) { gc_protect(c
       i++;
     }
   }
-  auto result = alloc_bao(vm, String, size);
-  set_obj_tag(result, String);
+  auto result = alloc_string(vm, size);
   {
     auto array = objToPtr(chars);
     auto write = 0;

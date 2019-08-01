@@ -604,6 +604,7 @@ struct VM {
   thread_ctx* curr_thd;
   u64 *curr_code;
   StackFrameObject *curr_frame;
+  Ptr *curr_lits;
   bool suspended;
   s64 start_time_ms;
 };
@@ -613,9 +614,11 @@ inline void vm_refresh_frame_state(VM *vm){
   if (thd) {
     vm->curr_frame = thd->frame;
     vm->curr_code  = thd->bc ? thd->bc->code->data : 0;
+    vm->curr_lits =  thd->bc ? thd->bc->literals->data : 0;
   } else {
     vm->curr_frame = 0;
     vm->curr_code  = 0;
+    vm->curr_lits  = 0;
   }
 }
 
@@ -4716,7 +4719,7 @@ void vm_interp(VM* vm, interp_params params) {
       break;
     case PUSHLIT: {
       u32 idx = data;
-      Ptr it = vm->curr_frame->bc->literals->data[idx];
+      Ptr it = vm->curr_lits[idx];
       vm_push(vm, it);
       break;
     }

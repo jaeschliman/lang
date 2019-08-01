@@ -402,6 +402,7 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   reducing closure allocation will likely be hard (requires writing a better compiler, I think)
   RE: conses, we /could/ allocate them on a separate heap to keep them compact
   but I want to keep the heap/gc relatively simple for now.
+* DONE get event input working again with bouncers-2
 
 * notes
 maybe have a stack of compilers? can push/pop...

@@ -19,7 +19,7 @@ function run_snapshot() {
     local status=$?
 
     if [ $status -eq 0 ]; then
-        diff $snap_name $out_file >/dev/null
+        diff $snap_name $out_file
         status=$? 
     fi
 

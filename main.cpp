@@ -51,6 +51,7 @@ using std::string;
 #define INCLUDE_REPL 1
 #define DEBUG_IMAGE_SNAPSHOTS 0
 #define STATS 0
+#define UNCHECKED_UNWRAP 0
 
 /*
  latest perf reports on bouncers-2.
@@ -792,6 +793,7 @@ type_test(NonNilObject, it) {
 type_test(any, it) { unused(it); return true; }
 unwrap_ptr_for(any, it) { return it; }
 
+#if UNCHECKED_UNWRAP
 #define object_type(type)                                               \
   type_test(type, it) {                                                 \
     return (is(NonNilObject, it) &&                                     \
@@ -802,6 +804,17 @@ unwrap_ptr_for(any, it) { return it; }
     assert(is(type, it));                                               \
     return (type##Object *)as(Object, it);                              \
   }
+#else
+  type_test(type, it) {                                                 \
+    return (is(NonNilObject, it) &&                                     \
+            (as(Object, it))->header.object_type == type##_ObjectType); \
+  };                                                                    \
+  unwrap_ptr_for(type, it) {                                            \
+    return (type##Object *)as(Object, it);                              \
+  }
+#endif
+
+
 
 prim_type(Fixnum)
 create_ptr_for(Fixnum, s64 value) {
@@ -1516,6 +1529,15 @@ u32 hash_code(Ptr it) {
       ptr_eq(to(Fixnum, StructTag_##tag), array_get(it, 0));    \
   }
 
+#if UNCHECKED_UNWRAP
+#define _define_structure_accessors(slot, name, idx)         \
+  inline Ptr name##_get_##slot(Ptr obj) {                    \
+    return as(PtrArray, obj)->data[idx + 1];                 \
+  }                                                          \
+  inline void name##_set_##slot(Ptr obj, Ptr value) {        \
+    as(PtrArray, obj)->data[idx + 1] = value;                \
+  }
+#else
 #define _define_structure_accessors(slot, name, idx)         \
   Ptr name##_get_##slot(Ptr obj) {                           \
     if (! is(name, obj)) { die("GOT ", #name, #slot, obj); } \
@@ -1527,6 +1549,7 @@ u32 hash_code(Ptr it) {
     assert(is(name, obj));                                   \
     array_set(obj, idx + 1, value);                          \
   }
+#endif
 
 #define defstruct(name, tag, ...)                                       \
   _define_structure_type_test(name, tag);                               \

@@ -79,7 +79,7 @@
       (aset box 4 nc)
       (aset box 5 sc)))
 
-(define (add-box p &opt (dx 1) (dy 1))
+(define (add-box p &opt (dx 1) (dy 1) (priority 0))
     (let ((box (make-array 6)))
       (aset box 0 (point-x p))
       (aset box 1 (point-y p))
@@ -88,9 +88,9 @@
       (aset box 4 colors)
       (aset box 5 0)
       (sync add-box-lock (set 'boxes (cons box boxes)))
-      (fork-with-priority 0 (forever
-                             (sleep-ms 32)
-                             (move-box box)))))
+      (fork-with-priority priority (forever
+                                    (sleep-ms 32)
+                                    (move-box box)))))
 
 (define (clear-screen)
     (fill-rect back-buffer 0@0 screen-size 0xffffffff))
@@ -109,13 +109,17 @@
       (fill-rect back-buffer a b color)))
 
 (define (draw-curr-boxes)
-    (forever
-     (clear-screen)
-     (dolist (box boxes)
-       (draw-one-box box))
-     (flip-buffer)
-     (update-display)
-     (sleep-ms 10)))
+    (let ((color colors))
+      (forever
+       (clear-screen)
+       (dolist (box boxes)
+         (draw-one-box box))
+       (when (nil? color) (set! color colors))
+       (fill-rect back-buffer 0@0 20@20 (car color))
+       (set! color (cdr color))
+       (flip-buffer)
+       (update-display)
+       (sleep-ms 5))))
 
 (define (onmousedown p) (add-box p))
 (define (add-some-boxes p)
@@ -130,7 +134,7 @@
   (add-box (point+ p -10@0) 1 2)
   (add-box (point+ p -20@0))
   (add-box (point+ p 10@10) -3 2)
-  (add-box (point+ p 20@20)))
+  (add-box (point+ p 20@20) 1 1))
 (define (onmousedrag p)
     (add-some-boxes p)
   ;; (add-some-boxes (point+ p -15@15))
@@ -138,7 +142,7 @@
   (set 'mouse-position p))
 (define (onmousemove p) (set 'mouse-position p))
 
-(fork-with-priority 10000 (draw-curr-boxes))
+(fork-with-priority 100000 (draw-curr-boxes))
 
 (define (make-source priority p &opt (dx 1) (dy 1))
     (let ((box (make-array 6)))

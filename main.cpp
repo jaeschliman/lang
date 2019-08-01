@@ -805,6 +805,7 @@ unwrap_ptr_for(any, it) { return it; }
     return (type##Object *)as(Object, it);                              \
   }
 #else
+#define object_type(type)                                               \
   type_test(type, it) {                                                 \
     return (is(NonNilObject, it) &&                                     \
             (as(Object, it))->header.object_type == type##_ObjectType); \

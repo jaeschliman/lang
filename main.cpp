@@ -106,11 +106,17 @@ struct image_header {
 struct stats {
   u64 total_string_bytes_allocated;
   u64 total_cons_bytes_allocated;
+  u64 total_object_bytes_allocated;
+  u64 total_closure_bytes_allocated;
+  u64 total_bytecode_bytes_allocated;
 };
 
 void report_stats(stats *s) {
   dbg("total string bytes allocated: ", s->total_string_bytes_allocated);
   dbg("total cons bytes allocated: ", s->total_cons_bytes_allocated);
+  dbg("total object bytes allocated (including slot vectors): ", s->total_object_bytes_allocated);
+  dbg("total closure bytes: ", s->total_closure_bytes_allocated);
+  dbg("total bytecode bytes: ", s->total_bytecode_bytes_allocated);
 }
 
 #endif
@@ -1108,6 +1114,10 @@ StandardObject *alloc_standard_object(VM *vm, StandardObject *klass, u64 ivar_co
   gc_protect(klass);
   auto slot_vector = make_zf_array(vm, ivar_count); prot_ptr(slot_vector);
   auto byte_count = sizeof(StandardObject);
+  #if STATS
+  vm->stats->total_object_bytes_allocated += sizeof(PtrArrayObject) + ivar_count * 8;
+  vm->stats->total_object_bytes_allocated += sizeof(StandardObject);
+  #endif
   auto result = (StandardObject *)vm_alloc(vm, byte_count);
   gc_unprotect(klass);
   unprot_ptr(slot_vector);
@@ -1128,6 +1138,10 @@ Ptr standard_object_set_ivar(StandardObject *object, u64 idx, Ptr value) {
 }
 
 Ptr make_bytecode(VM *vm, u64 code_len) {
+  #if STATS
+  vm->stats->total_bytecode_bytes_allocated += sizeof(ByteCodeObject) +
+    sizeof(U64ArrayObject) + code_len * 8;
+  #endif
   auto bc = alloc_bytecode(vm);
   gc_protect(bc);
   auto code = alloc_u64ao(vm, code_len);
@@ -1589,6 +1603,9 @@ Ptr make_closure(VM *vm, Ptr code, Ptr env) { prot_ptrs(code, env);
   assert(isNil(env) || is(PtrArray, env));
   auto it = alloc_pao(vm, Closure, 2);
   set_obj_tag(it, Closure);
+  #if STATS
+  vm->stats->total_closure_bytes_allocated += sizeof(PtrArrayObject) + 2 * 8;
+  #endif
   auto c = objToPtr(it);
   array_set(c, 0, code);
   array_set(c, 1, env);

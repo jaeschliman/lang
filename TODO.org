@@ -389,6 +389,11 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
 * TODO add vm_call_object(VM, Ptr) 
   pushes a stack frame and invokes the applicator of the Ptr with no arguments
 * DONE remove excessive indirection in vp_interp
+* IN-PROGRESS have a separate heap for u8 data?
+  can run garbage collection on it less frequently?
+  could end up thrashing during parsing maybe, when we allocate many short lived strings
+  the idea is don't want to have to be copying all the symbol names around all the time...
+  or images for that matter
 
 * notes
 maybe have a stack of compilers? can push/pop...

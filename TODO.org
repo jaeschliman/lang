@@ -276,7 +276,7 @@ https://mrandri19.github.io/2019/07/18/modern-text-rendering-linux-ep1.html
   `#/` is pretty ugly it turns out
 * IN-PROGRESS convert meta reader state to a class for better performance
   basically want a way to keep from allocating a hash table for every call to `any`
-* IN-PROGRESS looks like there's an occasional bug somewhere in ht_grow
+* DONE looks like there's an occasional bug somewhere in ht_grow
 stack trace:
   1   boot                                0x000000010febfb78 _Z12cons_get_car3Ptr + 136
   2   boot                                0x000000010fecfe4d _Z7do_listP2VM3PtrNSt3__18functionIFvS1_EEE + 125
@@ -367,7 +367,7 @@ then we could have a 'stack segment' object that just splats on/off the stack
 wouldn't have to worry as much about updating pointers?
 * TODO better error machinery for primitive calls
   this is a bit vague, but want to have resumable exceptions eventually etc
-* TODO some error when spawning a fresh thread occasionally
+* DONE some error when spawning a fresh thread occasionally
 stack trace:
   1   img                                 0x0000000100ec1e8a _Z18cont_get_stack_top3Ptr + 138
   2   img                                 0x0000000100ed8c4f _Z25vm_restore_stack_snapshotP2VM3Ptr + 31

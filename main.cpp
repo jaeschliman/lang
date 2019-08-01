@@ -1600,19 +1600,18 @@ Ptr make_symbol(VM *vm, const char* str) {
   return make_symbol(vm, str, strlen(str));
 }
 
-Ptr make_closure(VM *vm, Ptr code, Ptr env) { prot_ptrs(code, env);
-  assert(is(ByteCode, code));
-  assert(isNil(env) || is(PtrArray, env));
+inline Ptr make_closure(VM *vm, Ptr code, Ptr env) { prot_ptrs(code, env);
+  // assert(is(ByteCode, code));
+  // assert(isNil(env) || is(PtrArray, env));
   auto it = alloc_pao(vm, Closure, 2);
   set_obj_tag(it, Closure);
   #if STATS
   vm->stats->total_closure_bytes_allocated += sizeof(PtrArrayObject) + 2 * 8;
   #endif
-  auto c = to(Ptr, it);
-  array_set(c, 0, code);
-  array_set(c, 1, env);
+  it->data[0] = code;
+  it->data[1] = env;
   unprot_ptrs(code, env);
-  return c;
+  return to(Ptr, it);
 }
 
 type_test(Closure, it) {

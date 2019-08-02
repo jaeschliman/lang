@@ -351,7 +351,7 @@ fixed an issue in ht_at_put that could possibly contribute to this
 * TODO clear up the stack corruption bug that was occuring after restoring snapshots
   add a #define that runs stack validation tediously frequently and
   clear up what exactly is causing the issue
-* TODO some kind of simple game -- maybe a remake of the alien abduction from xmas
+* IN-PROGRESS some kind of simple game -- maybe a remake of the alien abduction from xmas
 * TODO read up on `thisContext` in the blue book
   dynamically reify the call stack onto the heap, and continue execution?
 * TODO read up more on metaclasses

@@ -66,13 +66,17 @@
 (define (flip-buffer)
     (blit-to-screen back-buffer 0@0 100 0))
 
+(define (draw-image-with-scale-and-rotation img at sc rot)
+    (blit img back-buffer at 0@0 (make-point (image-width img) (image-height img)) sc rot))
+
+
 (define (draw-one-box box)
     (let* ((x (aget box 0))
            (y (aget box 1))
            (sc (aget box 5)))
-      (blit ufo back-buffer (make-point x y) 0@0 500@500
-            (+ 0.15 (* 0.04 (cos (* 0.5 sc))))
-            (* 12.0 (cos sc)))))
+      (draw-image-with-scale-and-rotation ufo (make-point x y)
+                                          (+ 0.15 (* 0.02 (cos (* 0.5 sc))))
+                                          (* 12.0 (cos sc)))))
 
 (define (draw-curr-boxes)
     (forever

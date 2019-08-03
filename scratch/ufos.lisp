@@ -14,7 +14,14 @@
 (define screen-size (make-point screen-width screen-height))
 (define back-buffer (make-image screen-width screen-height))
 
-(define ufo (load-image "./res/ufo.png"))
+(define (scale-image s img)
+    (let* ((w (f->i (* s (image-width img))))
+           (h (f->i (* s (image-height img))))
+           (r (make-image w h)))
+      (blit img r 0@0 0@0 (make-point (image-width img) (image-height img)) s 0.0)
+      r))
+
+(define ufo (scale-image 0.25 (load-image "./res/ufo.png")))
 (define city (load-image "./res/buildings.png"))
 
 (define (point-angle p)
@@ -86,9 +93,9 @@
            (spd (/ (min 40 (aget box 3)) 40.0))
            (sc (aget box 5)))
       (draw-image-with-scale-and-rotation ufo (make-point x y)
-                                          (+ 0.05
-                                             (* 0.15 spd)
-                                             (* 0.02 (cos (* 0.5 sc))))
+                                          (* 4.0 (+ 0.05
+                                                    (* 0.15 spd)
+                                                    (* 0.02 (cos (* 0.5 sc)))))
                                           (* 12.0 (cos sc)))))
 
 (define (draw-curr-boxes)

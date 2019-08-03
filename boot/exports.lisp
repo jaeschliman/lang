@@ -37,7 +37,7 @@
  make-array aget aset array->list)
 
 (export
- make-point point-x point-y point+ point- point-rotate)
+ point? make-point point-x point-y point+ point- point-rotate)
 
 (export
  = < > <= >= * / % + - i->f f->i)

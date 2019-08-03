@@ -10,6 +10,7 @@
 (define boxes '())
 (define screen-width (f->i (* 1920 0.75)))
 (define screen-height (f->i (* 1080 0.75)))
+(define (somewhere-on-screen) (make-point (random screen-width) (random screen-height)))
 (define screen-size (make-point screen-width screen-height))
 (define back-buffer (make-image screen-width screen-height))
 
@@ -30,8 +31,9 @@
            (y (aget box 1))
            (angle (aget box 2))
            (speed (aget box 3))
+           (target (aget box 4))
            (accel 4)
-           (to-m (point- mouse-position (make-point x y)))
+           (to-m (point- target (make-point x y)))
            (sc (+i 1 (aget box 5)))
            (p  (point-rotate (make-point (f->i speed) 0) (* 57.2958 angle)))
            (dp (point-rotate (make-point accel 0) (* 57.2958 (point-angle to-m))))
@@ -40,6 +42,8 @@
            (dy (point-y np))
            (nx (+i x dx))
            (ny (+i y dy)))
+      (if (< (point-length (point- (make-point nx ny) target)) 10)
+          (aset box 4 (somewhere-on-screen)))
       (aset box 0 nx)
       (aset box 1 ny)
       (aset box 2 (point-angle  np))
@@ -48,11 +52,12 @@
 
 (define (add-box p &opt (angle 0.0) (speed 5.0) (priority 0))
     (let ((box (make-array 6)))
-      (aset box 0 (point-x p))
-      (aset box 1 (point-y p))
+      (aset box 0 (point-x p)) ;; x
+      (aset box 1 (point-y p)) ;; y
       (aset box 2 angle)
       (aset box 3 speed)
-      (aset box 5 0)
+      (aset box 4 (somewhere-on-screen)) ;; target
+      (aset box 5 0) ;; step count
       (sync add-box-lock (set 'boxes (cons box boxes)))
       (fork-with-priority priority (forever
                                     (sleep-ms 32)
@@ -101,8 +106,6 @@
 
 (fork-with-priority 100000 (draw-curr-boxes))
 
-(define (somewhere-on-screen)
-    (make-point (random screen-width) (random screen-height)))
 
 (fork-with-priority 200 (forever (add-box (somewhere-on-screen))
                                  (sleep-ms 1000)))

@@ -101,6 +101,12 @@
 
 (fork-with-priority 100000 (draw-curr-boxes))
 
+(define (somewhere-on-screen)
+    (make-point (random screen-width) (random screen-height)))
+
+(fork-with-priority 200 (forever (add-box (somewhere-on-screen))
+                                 (sleep-ms 1000)))
+
 (let ((pkg *package*))
   (fork-with-priority 50
    (binding ((*package* pkg))

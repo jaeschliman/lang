@@ -70,8 +70,13 @@
     (blit-to-screen back-buffer 0@0 100 0))
 
 (define (draw-image-with-scale-and-rotation img at sc rot)
-    (blit img back-buffer at 0@0 (make-point (image-width img) (image-height img)) sc rot))
-
+    (let* ((w (image-width img))
+           (h (image-height img))
+           (sw (* w sc))
+           (sh (* h sc))
+           (ofs (make-point (f->i (* sw -0.5)) (f->i (* sh -0.5)))))
+      (blit img back-buffer (point+ at ofs)
+            0@0 (make-point w h) sc rot)))
 
 (define (draw-one-box box)
     (let* ((x (aget box 0))

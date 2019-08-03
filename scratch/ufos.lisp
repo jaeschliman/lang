@@ -6,6 +6,8 @@
 
 (define add-box-lock (make-semaphore #t))
 
+(define (min a b) (if (<= a b) a b))
+
 (define mouse-position 0@0)
 (define boxes '())
 (define screen-width (f->i (* 1920 0.75)))
@@ -33,13 +35,18 @@
           (b (point-y p)))
       (sqrtf (i->f (+ (* a a) (* b b))))))
 
+(define (chance n)
+    (= 1 (random n)))
+
 (define (move-box box)
     (let* ((x (aget box 0))
            (y (aget box 1))
            (angle (aget box 2))
            (speed (aget box 3))
-           (target (aget box 4))
-           (accel 4)
+           (a-target (aget box 4))
+           (target (if (point? a-target) a-target
+                       (make-point (aget a-target 0) (aget a-target 1))))
+           (accel 5)
            (to-m (point- target (make-point x y)))
            (sc (+i 1 (aget box 5)))
            (p  (point-rotate (make-point (f->i speed) 0) (* 57.2958 angle)))
@@ -50,20 +57,25 @@
            (nx (+i x dx))
            (ny (+i y dy)))
       (if (< (point-length (point- (make-point nx ny) target)) 10)
-          (aset box 4 (somewhere-on-screen)))
+          (if (point? a-target)
+              (aset box 4 (somewhere-on-screen))))
       (aset box 0 nx)
       (aset box 1 ny)
       (aset box 2 (point-angle  np))
-      (aset box 3 (point-length np))
+      (aset box 3 (min 20.0 (point-length np)))
       (aset box 5 sc)))
 
-(define (add-box p &opt (angle 0.0) (speed 5.0) (priority 0))
-    (let ((box (make-array 6)))
+(define (random-angle) (* 0.01 (random 3141)))
+(define (random-speed) (+ 1.0 (random 10)))
+
+(define (add-box p &opt (angle (random-angle)) (speed (random-speed)) (priority 0))
+    (let ((box (make-array 6))
+          (other (car boxes)))
       (aset box 0 (point-x p)) ;; x
       (aset box 1 (point-y p)) ;; y
       (aset box 2 angle)
       (aset box 3 speed)
-      (aset box 4 (somewhere-on-screen)) ;; target
+      (aset box 4 (if (or (chance 5) (nil? other)) (somewhere-on-screen) other)) ;; target
       (aset box 5 0) ;; step count
       (sync add-box-lock (set 'boxes (cons box boxes)))
       (fork-with-priority priority (forever
@@ -85,7 +97,6 @@
       (blit img back-buffer (point+ at ofs)
             0@0 (make-point w h) sc rot)))
 
-(define (min a b) (if (<= a b) a b))
 
 (define (draw-one-box box)
     (let* ((x (aget box 0))

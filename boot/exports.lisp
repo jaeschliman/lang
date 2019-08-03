@@ -46,7 +46,7 @@
  +i -i +f -f /i /f %i %f *i *f >i >f <i <f)
 
 (export
- sin cos tan floor ceil rem pow log abs atan2f)
+ sin cos tan floor ceil rem pow log abs atan2f sqrtf)
 
 (export
  string-do-chars string-equal string->list

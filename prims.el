@@ -248,6 +248,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim sinf   FLT_SIN   ((n Float))              Float "sin(n)")
   (prim tanf   FLT_TAN   ((n Float))              Float "tan(n)")
   (prim atan2f FLT_A2F   ((y Float) (x Float))    Float "atan2f(y,x)" )
+  (prim sqrtf  FLT_SRT   ((a Float))              Float "sqrtf(a)")
 
   (prim list   LIST  list                   any  "list")
   (prim cons   CONS  ((a any) (b any))      any  "cons(vm, a, b)")

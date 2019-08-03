@@ -78,12 +78,17 @@
       (blit img back-buffer (point+ at ofs)
             0@0 (make-point w h) sc rot)))
 
+(define (min a b) (if (<= a b) a b))
+
 (define (draw-one-box box)
     (let* ((x (aget box 0))
            (y (aget box 1))
+           (spd (/ (min 40 (aget box 3)) 40.0))
            (sc (aget box 5)))
       (draw-image-with-scale-and-rotation ufo (make-point x y)
-                                          (+ 0.15 (* 0.02 (cos (* 0.5 sc))))
+                                          (+ 0.05
+                                             (* 0.15 spd)
+                                             (* 0.02 (cos (* 0.5 sc))))
                                           (* 12.0 (cos sc)))))
 
 (define (draw-curr-boxes)

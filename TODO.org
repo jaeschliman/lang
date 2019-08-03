@@ -141,6 +141,7 @@ http://www.jezzamon.com/fourier/index.html
 * IN-PROGRESS a smalltalk-like
 * TODO an actor system
 * TODO a prolog
+http://www.t3x.org/bits/prolog6.html
 * DONE fix special variable integration with continuations
 * DONE more thread manipulation functions
   (current-thread)

@@ -46,7 +46,7 @@
            (a-target (aget box 4))
            (target (if (point? a-target) a-target
                        (make-point (aget a-target 0) (aget a-target 1))))
-           (accel 5)
+           (accel (aget box 6))
            (to-m (point- target (make-point x y)))
            (sc (+i 1 (aget box 5)))
            (p  (point-rotate (make-point (f->i speed) 0) (* 57.2958 angle)))
@@ -67,9 +67,14 @@
 
 (define (random-angle) (* 0.01 (random 3141)))
 (define (random-speed) (+ 1.0 (random 10)))
+(define (random-accel) (+ 4 (random 10)))
 
-(define (add-box p &opt (angle (random-angle)) (speed (random-speed)) (priority 0))
-    (let ((box (make-array 6))
+(define (add-box p &opt
+                 (angle (random-angle))
+                 (speed (random-speed))
+                 (accel (random-accel))
+                 (priority 0))
+    (let ((box (make-array 7))
           (other (car boxes)))
       (aset box 0 (point-x p)) ;; x
       (aset box 1 (point-y p)) ;; y
@@ -77,6 +82,7 @@
       (aset box 3 speed)
       (aset box 4 (if (or (chance 5) (nil? other)) (somewhere-on-screen) other)) ;; target
       (aset box 5 0) ;; step count
+      (aset box 6 accel)
       (sync add-box-lock (set 'boxes (cons box boxes)))
       (fork-with-priority priority (forever
                                     (sleep-ms 32)

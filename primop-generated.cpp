@@ -138,6 +138,7 @@ enum PrimitiveOperation : u64 {
   PRIM_TIME_MS = ((135ULL << 32) | (255ULL << 16) | PrimOp_Tag),
   PRIM_CL_SRC_LOC = ((136ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_UPD_WIN = ((137ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_BLTQ = ((138ULL << 32) | (10ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -1314,6 +1315,23 @@ Ptr PRIM_UPD_WIN_impl(VM *vm, u32 argc) {
  return update_display(vm);
 }
 
+// Primitive 137
+Ptr PRIM_BLTQ_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("blitq",Point,dd);
+   VM_ARG("blitq",Point,dc);
+   VM_ARG("blitq",Point,db);
+   VM_ARG("blitq",Point,da);
+   VM_ARG("blitq",Point,sd);
+   VM_ARG("blitq",Point,sc);
+   VM_ARG("blitq",Point,sb);
+   VM_ARG("blitq",Point,sa);
+   VM_ARG("blitq",Image,d);
+   VM_ARG("blitq",Image,s);
+
+ return gfx_blit_image_into_quad(s,d, sa,sb,sc,sd,da,db,dc,dd);
+}
+
 
 PrimitiveFunction PrimLookupTable[] = {
   (PrimitiveFunction)(void *)0, // apply
@@ -1454,6 +1472,7 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_TIME_MS_impl,
   &PRIM_CL_SRC_LOC_impl,
   &PRIM_UPD_WIN_impl,
+  &PRIM_BLTQ_impl,
 
   (PrimitiveFunction)(void *)0
 };
@@ -1598,6 +1617,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "current-time-ms", to(PrimOp, PRIM_TIME_MS));
   set_global(vm, "closure-source-location", to(PrimOp, PRIM_CL_SRC_LOC));
   set_global(vm, "update-display", to(PrimOp, PRIM_UPD_WIN));
+  set_global(vm, "blitq", to(PrimOp, PRIM_BLTQ));
 
 }
 
@@ -2636,6 +2656,22 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
   case 137: {
 
     vm_push(vm, update_display(vm));
+    break;
+  }
+
+  case 138: {
+   VM_ARG("blitq",Point,dd);
+   VM_ARG("blitq",Point,dc);
+   VM_ARG("blitq",Point,db);
+   VM_ARG("blitq",Point,da);
+   VM_ARG("blitq",Point,sd);
+   VM_ARG("blitq",Point,sc);
+   VM_ARG("blitq",Point,sb);
+   VM_ARG("blitq",Point,sa);
+   VM_ARG("blitq",Image,d);
+   VM_ARG("blitq",Image,s);
+
+    vm_push(vm, gfx_blit_image_into_quad(s,d, sa,sb,sc,sd,da,db,dc,dd));
     break;
   }
 

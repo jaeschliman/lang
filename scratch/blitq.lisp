@@ -24,7 +24,7 @@
       (fill-rect back-buffer a b color)))
 
 (define (bq sr ds a b c d e f g h)
-  ;(blitq sr ds a b c d e f g h)
+  (blitq sr ds a b c d e f g h)
   (dp e)
   (dp f)
   (dp g)
@@ -37,10 +37,10 @@
     ;;     0@0 300@0 0@300 300@300)
   (bq sky back-buffer
       0@0 500@0 0@500 500@500
-      500@100 1000@0 500@300 1000@500)
-  (bq cow back-buffer
-      0@0 500@0 0@500 500@500
-      500@100 1000@0 500@300 1000@500)
+      500@100 1000@0 500@300 1050@500)
+  ;; (bq cow back-buffer
+  ;;     0@0 500@0 0@500 500@500
+  ;;     500@100 1000@0 500@300 1000@500)
   ;; (bq cow back-buffer
   ;;     0@0 500@0 0@500 500@500
   ;;     0@500 500@500 0@1000 500@1000)

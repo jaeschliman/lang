@@ -6459,14 +6459,89 @@ Ptr gfx_blit_from_screen(VM *vm, ByteArrayObject *dest_image,
    c d
 */
 
+f32 lerp_angle(f32 amt, f32 a, f32 b) {
+  if (a >= 0 && b >= 0) return a * (1.0 - amt) + amt * b;
+  if (a < 0 && b >= 0) {
+    auto mid = lerp_angle(amt, 0, a * -1 + b);
+    return mid + a;
+  }
+  auto mid = lerp_angle(amt, a+b, 0);
+  return mid + b;
+}
+
 f32 angle_between_points(point a, point b) {
-  return atan2f(a.y - b.y, b.x - a.x);
+  return atan2f(b.y - a.y, b.x - a.x);
 }
 
 point lerp_points(f32 amt, point a, point b) {
   s32 x = amt * a.x + (1.0 - amt) * b.x;
   s32 y = amt * a.y + (1.0 - amt) * b.y;
   return (point){x, y};
+}
+
+s64 point_distance(point pa, point pb) {
+  auto a = pb.x - pa.x;
+  auto b = pb.y - pa.y;
+  return sqrtf(a*a + b*b);
+}
+
+void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
+                               point s_a, point s_b, point s_c, point s_d,
+                               point d_a, point d_b, point d_c, point d_d
+                               ){
+  // auto source_height = s_c.y - s_a.y;
+  // auto source_width = s_b.x - s_a.x;
+  u64 line_count;
+  f32 left_height;
+  f32 right_height;
+  {
+    auto dleft = d_c.y - d_a.y;
+    auto dright = d_d.y - d_b.y;
+    line_count = std::max(dleft, dright);
+    left_height = dleft;
+    right_height = dright;
+  }
+  auto start_angle = angle_between_points(d_a, d_b);
+  auto end_angle  = angle_between_points(d_c, d_d);
+  auto start_len = d_b.x - d_a.x;
+  auto end_len = d_d.x - d_c.x;
+  auto start_x = d_a.x;
+  auto end_x = d_c.x;
+  auto offs_y = (f32)d_a.y;
+  auto step_y = std::min(1.0f, left_height / right_height);
+  for (auto line = 0; line < line_count; line++) {
+    auto l = (f32)line / (f32)line_count;
+    auto angle = lerp_angle(l, start_angle, end_angle);
+    s64 len = start_len * (1.0 - l) + l * end_len;
+    s64 offs_x = start_x * (1.0 - l) + l * end_x;
+    //    auto source_row = source_height * l;
+    // auto source_scale = (f32)len / (f32)source_width;
+    f32 dx = cosf(angle);
+    f32 dy = sinf(angle);
+    dy *= 1.0 / dx;
+    f32 this_y = (s64)offs_y;//(left_height * l);
+    for (auto x = 0; x < len; x++) {
+      auto dest_row = (s64)this_y * dst->pitch;
+      u8* under = dst->mem + dest_row + (offs_x + x) * 4;
+      under[0] = 128;
+      under[1] = 128;
+      under[2] = 128;
+      under[3] = 255;
+      this_y += dy;
+    }
+    offs_y += step_y;
+  }
+}
+Ptr gfx_blit_image_into_quad(ByteArrayObject *src, ByteArrayObject *dst,
+                             point s_a, point s_b, point s_c, point s_d,
+                             point d_a, point d_b, point d_c, point d_d
+                             ) {
+  auto src_s = image_blit_surface(src);
+  auto dst_s = image_blit_surface(dst);
+  _gfx_blit_image_into_quad(&src_s, &dst_s,
+                            s_a, s_b, s_c, s_d,
+                            d_a, d_b, d_c, d_d);
+  return Nil;
 }
 
 

@@ -402,6 +402,12 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim update-display UPD_WIN () any "update_display(vm)")
 
+  (prim blitq BLTQ ((s Image) (d Image)
+               (sa Point)(sb Point)(sc Point)(sd Point)
+               (da Point)(db Point)(dc Point)(dd Point))
+        any
+        "gfx_blit_image_into_quad(s,d, sa,sb,sc,sd,da,db,dc,dd)")
+
   (setf *prims* (reverse *prims*))
   (write-prims))
 

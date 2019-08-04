@@ -6273,7 +6273,6 @@ inline void blit_sampler_step_row(blit_sampler *s) {
   s->row_v += s->dv_row * s->iscale;
 }
 
-
 #define DEBUG_FILL 0
 Ptr gfx_blit_image(blit_surface *src, blit_surface *dst,
                    rect *from,
@@ -6454,6 +6453,22 @@ Ptr gfx_blit_from_screen(VM *vm, ByteArrayObject *dest_image,
   auto from = points_to_rect(src_upper_left, src_lower_right);
   return gfx_blit_image(vm->surface, &dst, &from, dst_location, scale, degrees_rotation);
 }
+
+/* 
+   a b
+   c d
+*/
+
+f32 angle_between_points(point a, point b) {
+  return atan2f(a.y - b.y, b.x - a.x);
+}
+
+point lerp_points(f32 amt, point a, point b) {
+  s32 x = amt * a.x + (1.0 - amt) * b.x;
+  s32 y = amt * a.y + (1.0 - amt) * b.y;
+  return (point){x, y};
+}
+
 
 /* -------------------------------------------------- */
 

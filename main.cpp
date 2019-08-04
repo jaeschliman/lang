@@ -6161,8 +6161,8 @@ void _gfx_fill_rect(blit_surface *dst, point a, point b, s64 color) {
       }
     }
   } else {
-    for (s64 y = a.y; y < max_y; y++) {
-      for (s64 x = a.x; x < max_x; x++) {
+    for (s64 y = min_y; y < max_y; y++) {
+      for (s64 x = min_x; x < max_x; x++) {
         auto idx = y * dst->pitch + x * 4;
         auto under = dst->mem + idx;
         // aA + (1-a)B = a(A-B)+B

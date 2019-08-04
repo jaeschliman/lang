@@ -122,9 +122,10 @@
     (let ((step 0))
       (forever
        (clear-screen)
-       (draw-image-with-scale-and-rotation sky (make-point (/ screen-width 2) (/ screen-height 2))
-                                           (/ screen-width 1.0 (image-width sky))
-                                           0.0)
+       (let ((s (/ screen-width 1.0 (image-width sky))))
+         (draw-image-with-scale-and-rotation sky (make-point (/ screen-width 2) (/ screen-height 2))
+                                             (+ s (* 0.22 (abs (sin (* step 0.01)))))
+                                             0.0))
        (let* ((scale (/ screen-width 2.0 (image-width city)))
               (w (f->i (* (image-width city) scale)))
               (offs (% step w))

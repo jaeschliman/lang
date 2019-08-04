@@ -8,6 +8,8 @@
 (export defmacro gensym intern & &opt macroexpand eval lambda-bind
         mark-symbol-as-special with-special-binding)
 
+(export dotimes)
+
 (export create-class class-set-applicator instance-get-ivar instance-set-ivar)
 
 (export defgeneric generic-function-add-method)

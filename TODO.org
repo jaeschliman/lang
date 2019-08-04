@@ -414,6 +414,9 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   over/under flow bugs are a pain
 * TODO eliminate lint issues
   flycheck is reporting some issues that -Wall is not
+* TODO blit flipped images
+* TODO blit arbitrary quad images
+* TODO blit with tint / blend modes
 
 * notes
 maybe have a stack of compilers? can push/pop...

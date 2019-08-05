@@ -6492,13 +6492,15 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
                                ){
   // auto source_height = s_c.y - s_a.y;
   // auto source_width = s_b.x - s_a.x;
+  auto fill_factor = 2.0;
+  auto i_fill_factor = 1.0 / fill_factor;
   u64 line_count;
   f32 left_height;
   f32 right_height;
   {
     auto dleft = d_c.y - d_a.y;
     auto dright = d_d.y - d_b.y;
-    line_count = std::max(dleft, dright);
+    line_count = (s64)roundf(std::max(dleft, dright) * fill_factor);
     left_height = dleft;
     right_height = dright;
   }
@@ -6511,7 +6513,7 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
   auto start_x = d_a.x;
   auto end_x = d_c.x;
   auto offs_y = (f32)d_a.y;
-  auto step_y = std::min(1.0f, left_height / right_height);
+  auto step_y = std::min(1.0f, left_height / right_height) * i_fill_factor;
   for (auto line = 0; line < line_count; line++) {
     auto l = (f32)line / (f32)line_count;
     // auto angle = lerp_angle(l, start_angle, end_angle);
@@ -6519,19 +6521,21 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
     s64 offs_x = start_x * (1.0 - l) + l * end_x;
     //    auto source_row = source_height * l;
     // auto source_scale = (f32)len / (f32)source_width;
-    f32 dx = lerp_angle(l, sdx, edx);
-    f32 dy = lerp_angle(l, sdy, edy);
+    f32 dx = lerp_angle(l, sdx, edx) * i_fill_factor;
+    f32 dy = lerp_angle(l, sdy, edy) * i_fill_factor;
     // dy *= 1.0 / dx;
     f32 this_y = offs_y;
-    for (f32 sx = 0; sx < len; sx+= dx) {
-      auto x = (s64)sx;
-      auto dest_row = (s64)roundf(this_y) * dst->pitch;
-      u8* under = dst->mem + dest_row + (offs_x + x) * 4;
-      under[0] = l * 255;
-      under[1] = l * 255;
-      under[2] = 0;
-      under[3] = 255;
-      this_y += dy;
+    if (dx > 0) {
+      for (f32 sx = 0; sx < len; sx+= dx) {
+        auto x = (s64)sx;
+        auto dest_row = (s64)roundf(this_y) * dst->pitch;
+        u8* under = dst->mem + dest_row + (offs_x + x) * 4;
+        under[0] = l * 255;
+        under[1] = l * 255;
+        under[2] = 0;
+        under[3] = 255;
+        this_y += dy;
+      }
     }
     offs_y += step_y;
   }

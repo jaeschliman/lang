@@ -6503,6 +6503,8 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
   }
   auto start_angle = angle_between_points(d_a, d_b);
   auto end_angle  = angle_between_points(d_c, d_d);
+  auto sdx = cosf(start_angle), sdy = sinf(start_angle);
+  auto edx = cosf(end_angle), edy = sinf(end_angle);
   auto start_len = d_b.x - d_a.x;
   auto end_len = d_d.x - d_c.x;
   auto start_x = d_a.x;
@@ -6511,21 +6513,22 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
   auto step_y = std::min(1.0f, left_height / right_height);
   for (auto line = 0; line < line_count; line++) {
     auto l = (f32)line / (f32)line_count;
-    auto angle = lerp_angle(l, start_angle, end_angle);
+    // auto angle = lerp_angle(l, start_angle, end_angle);
     s64 len = start_len * (1.0 - l) + l * end_len;
     s64 offs_x = start_x * (1.0 - l) + l * end_x;
     //    auto source_row = source_height * l;
     // auto source_scale = (f32)len / (f32)source_width;
-    f32 dx = cosf(angle);
-    f32 dy = sinf(angle);
-    dy *= 1.0 / dx;
-    f32 this_y = (s64)offs_y;//(left_height * l);
-    for (auto x = 0; x < len; x++) {
-      auto dest_row = (s64)this_y * dst->pitch;
+    f32 dx = lerp_angle(l, sdx, edx);
+    f32 dy = lerp_angle(l, sdy, edy);
+    // dy *= 1.0 / dx;
+    f32 this_y = offs_y;
+    for (f32 sx = 0; sx < len; sx+= dx) {
+      auto x = (s64)sx;
+      auto dest_row = (s64)roundf(this_y) * dst->pitch;
       u8* under = dst->mem + dest_row + (offs_x + x) * 4;
-      under[0] = 128;
-      under[1] = 128;
-      under[2] = 128;
+      under[0] = l * 255;
+      under[1] = l * 255;
+      under[2] = 0;
       under[3] = 255;
       this_y += dy;
     }

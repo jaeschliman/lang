@@ -6498,8 +6498,7 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
                                point s_a, point s_b, point s_c, point s_d,
                                point d_a, point d_b, point d_c, point d_d
                                ){
-  // auto source_height = s_c.y - s_a.y;
-  // auto source_width = s_b.x - s_a.x;
+
   auto fill_factor = 2.0;
   auto i_fill_factor = 1.0 / fill_factor;
   u64 line_count;
@@ -6542,12 +6541,13 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
       f32 src_x = s_a.x;
       auto src_row = (s64)roundf(src_y) * src->pitch;
       for (f32 dst_x = 0; dst_x < len; dst_x+= dx) {
-        auto x = (s64)dst_x;
+        auto x = offs_x + (s64)dst_x;
+        auto y = (s64)roundf(this_y);
         // @speed could jump to start edge with a couple multiplies
-        if (x >= 0 && x < dst->width && this_y >= 0 && this_y < dst->height) {
-          auto dest_row = (s64)roundf(this_y) * dst->pitch;
+        if (x >= 0 && x < dst->width && y >= 0 && y < dst->height) {
+          auto dest_row = y * dst->pitch;
 
-          u8* under = dst->mem + dest_row + (offs_x + x) * 4;
+          u8* under = dst->mem + dest_row + x * 4;
           u8* over = src->mem + src_row + (s64)roundf(src_x) * 4;
 
           u8 alpha  = over[3];

@@ -463,6 +463,9 @@ inline rect points_to_rect(point upper_left, point lower_right) {
       lower_right.y - upper_left.y
   };
 }
+std::ostream &operator<<(std::ostream &os, point p) {
+  return os << "{" << p.x << "@" << p.y << "}";
+}
 
 struct thread_ctx {
   void *stack_mem;
@@ -6572,11 +6575,19 @@ Ptr gfx_blit_image_into_quad(ByteArrayObject *src, ByteArrayObject *dst,
                              point d_a, point d_b, point d_c, point d_d
                              ) {
 
+  auto mid_point = (d_a + d_b + d_c + d_d) * 0.25;
+  std::vector<point> pts = {d_a, d_b, d_c, d_d};
+  std::sort(pts.begin(), pts.end(), [&](point a, point b) {
+                                      return angle_between_points(mid_point, a) < 
+                                        angle_between_points(mid_point, b);
+                                    });
+
   auto src_s = image_blit_surface(src);
   auto dst_s = image_blit_surface(dst);
   _gfx_blit_image_into_quad(&src_s, &dst_s,
                             s_a, s_b, s_c, s_d,
-                            d_a, d_b, d_c, d_d);
+                            pts[0], pts[1], pts[3], pts[2]);
+  
   return Nil;
 }
 

@@ -6524,34 +6524,38 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
 
   for (auto line = 0; line < line_count; line++) {
     auto l = (f32)line / (f32)line_count;
-    // auto angle = lerp_angle(l, start_angle, end_angle);
+
     s64 len = start_len * (1.0 - l) + l * end_len;
     s64 offs_x = start_x * (1.0 - l) + l * end_x;
-    //    auto source_row = source_height * l;
-    // auto source_scale = (f32)len / (f32)source_width;
+
     f32 dx = lerp_angle(l, sdx, edx) * i_fill_factor;
     f32 dy = lerp_angle(l, sdy, edy) * i_fill_factor;
-    // dy *= 1.0 / dx;
+
     f32 this_y = offs_y;
+
     if (dx > 0) {
       f32 src_dx = ((f32)(s_b.x - s_a.x)) / (len / dx);
       f32 src_x = s_a.x;
       auto src_row = (s64)roundf(src_y) * src->pitch;
       for (f32 dst_x = 0; dst_x < len; dst_x+= dx) {
         auto x = (s64)dst_x;
-        auto dest_row = (s64)roundf(this_y) * dst->pitch;
-        u8* under = dst->mem + dest_row + (offs_x + x) * 4;
-        u8* over = src->mem + src_row + (s64)roundf(src_x) * 4;
+        // @speed could jump to start edge with a couple multiplies
+        if (x >= 0 && x < dst->width && this_y >= 0 && this_y < dst->height) {
+          auto dest_row = (s64)roundf(this_y) * dst->pitch;
 
-        u8 alpha  = over[3];
+          u8* under = dst->mem + dest_row + (offs_x + x) * 4;
+          u8* over = src->mem + src_row + (s64)roundf(src_x) * 4;
 
-        // aA + (1-a)B = a(A-B)+B
-        under[0] = ((over[0] - under[0]) * alpha /  255)  + under[0];
-        under[1] = ((over[1] - under[1]) * alpha /  255)  + under[1];
-        under[2] = ((over[2] - under[2]) * alpha /  255)  + under[2];
-        u8 ualpha = under[3];
-        u8 calpha = alpha + ualpha;
-        under[3] = calpha < alpha ? 255 : calpha;
+          u8 alpha  = over[3];
+
+          // aA + (1-a)B = a(A-B)+B
+          under[0] = ((over[0] - under[0]) * alpha /  255)  + under[0];
+          under[1] = ((over[1] - under[1]) * alpha /  255)  + under[1];
+          under[2] = ((over[2] - under[2]) * alpha /  255)  + under[2];
+          u8 ualpha = under[3];
+          u8 calpha = alpha + ualpha;
+          under[3] = calpha < alpha ? 255 : calpha;
+        }
 
         this_y += dy;
         src_x += src_dx;

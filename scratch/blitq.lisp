@@ -19,17 +19,16 @@
     (blit-to-screen back-buffer 0@0 100 0))
 
 (define (dp a)
-    (let ((b (point+ a 15@15))
+    (let ((b (point+ a 5@5))
           (color 0xffff00ff))
-      (fill-rect back-buffer a b color)))
+      (fill-rect back-buffer (point+ a -5@-5) b color)))
 
 (define (bq sr ds a b c d e f g h)
     (blitq sr ds a b c d e f g h)
   (dp e)
   (dp f)
   (dp g)
-  (dp h)
-  )
+  (dp h))
 
 (define (draw-it b)
     (bq (aget b 0) back-buffer
@@ -45,7 +44,7 @@
                (make-one cow 0@0 300@0 0@300 300@300)
                (make-one sky 500@100 1000@0 500@300 1050@500)
                (make-one cow 500@100 1000@0 500@300 1000@500)
-               (make-one cow 0@500 500@500 0@800 500@800)))
+               (make-one cow 0@500 500@500 0@1000 500@800)))
 
 (define (drawq)
     (dolist (it items)

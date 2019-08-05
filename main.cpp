@@ -910,6 +910,7 @@ create_ptr_for(PrimOp, u64 raw_value) {
 
 point operator +(point a, point b) { return (point){a.x + b.x, a.y + b.y}; }
 point operator -(point a, point b) { return (point){a.x - b.x, a.y - b.y}; }
+point operator *(point a, float s) { return (point){(s32)(a.x * s), (s32)(a.y * s)}; }
 
 point rotate_point(point p, f32 degrees) {
   f32 angle = _deg_to_rad(fmod(degrees, 360.0));
@@ -6565,10 +6566,12 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
     src_y += src_dy;
   }
 }
+
 Ptr gfx_blit_image_into_quad(ByteArrayObject *src, ByteArrayObject *dst,
                              point s_a, point s_b, point s_c, point s_d,
                              point d_a, point d_b, point d_c, point d_d
                              ) {
+
   auto src_s = image_blit_surface(src);
   auto dst_s = image_blit_surface(dst);
   _gfx_blit_image_into_quad(&src_s, &dst_s,

@@ -6538,10 +6538,17 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
         auto dest_row = (s64)roundf(this_y) * dst->pitch;
         u8* under = dst->mem + dest_row + (offs_x + x) * 4;
         u8* over = src->mem + src_row + (s64)roundf(src_x) * 4;
-        under[0] = over[0];
-        under[1] = over[1];
-        under[2] = over[2];
-        under[3] = over[3];
+
+        u8 alpha  = over[3];
+
+        // aA + (1-a)B = a(A-B)+B
+        under[0] = ((over[0] - under[0]) * alpha /  255)  + under[0];
+        under[1] = ((over[1] - under[1]) * alpha /  255)  + under[1];
+        under[2] = ((over[2] - under[2]) * alpha /  255)  + under[2];
+        u8 ualpha = under[3];
+        u8 calpha = alpha + ualpha;
+        under[3] = calpha < alpha ? 255 : calpha;
+
         this_y += dy;
         src_x += src_dx;
       }

@@ -70,8 +70,6 @@
      (flip-buffer)
      (sleep-ms 30)))
 
-(print 'here)
-
 (define (dsq pa pb)
     (let ((a (- (point-x pa) (point-x pb)))
           (b (- (point-y pa) (point-y pb))))

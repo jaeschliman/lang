@@ -6514,6 +6514,10 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
   auto end_x = d_c.x;
   auto offs_y = (f32)d_a.y;
   auto step_y = std::min(1.0f, left_height / right_height) * i_fill_factor;
+
+  f32 src_dy = ((f32)s_c.y - s_a.y) / (f32)line_count;
+  f32 src_y = s_a.y;
+
   for (auto line = 0; line < line_count; line++) {
     auto l = (f32)line / (f32)line_count;
     // auto angle = lerp_angle(l, start_angle, end_angle);
@@ -6526,18 +6530,24 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
     // dy *= 1.0 / dx;
     f32 this_y = offs_y;
     if (dx > 0) {
-      for (f32 sx = 0; sx < len; sx+= dx) {
-        auto x = (s64)sx;
+      f32 src_dx = ((f32)(s_b.x - s_a.x)) / (len / dx);
+      f32 src_x = s_a.x;
+      auto src_row = (s64)roundf(src_y) * src->pitch;
+      for (f32 dst_x = 0; dst_x < len; dst_x+= dx) {
+        auto x = (s64)dst_x;
         auto dest_row = (s64)roundf(this_y) * dst->pitch;
         u8* under = dst->mem + dest_row + (offs_x + x) * 4;
-        under[0] = l * 255;
-        under[1] = l * 255;
-        under[2] = 0;
-        under[3] = 255;
+        u8* over = src->mem + src_row + (s64)roundf(src_x) * 4;
+        under[0] = over[0];
+        under[1] = over[1];
+        under[2] = over[2];
+        under[3] = over[3];
         this_y += dy;
+        src_x += src_dx;
       }
     }
     offs_y += step_y;
+    src_y += src_dy;
   }
 }
 Ptr gfx_blit_image_into_quad(ByteArrayObject *src, ByteArrayObject *dst,

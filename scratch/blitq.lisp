@@ -24,20 +24,36 @@
       (fill-rect back-buffer a b color)))
 
 (define (bq sr ds a b c d e f g h)
-  (blitq sr ds a b c d e f g h)
+    (blitq sr ds a b c d e f g h)
   (dp e)
   (dp f)
   (dp g)
   (dp h)
   )
 
+(define PE 500@100)
+(define PF 1000@0)
+(define PG 500@300)
+(define PH 1050@500)
+
 (define (drawq)
     ;; (bq cow back-buffer
     ;;     0@0 500@0 0@500 500@500
     ;;     0@0 300@0 0@300 300@300)
-  (bq sky back-buffer
-      0@0 500@0 0@500 500@500
-      500@100 1000@0 500@300 1050@500)
+
+    ;; (bq sky back-buffer
+    ;;     0@0 500@0 0@500 500@500
+    ;;     500@100 1000@0 500@300 1050@500
+    ;;     )
+
+    (bq sky back-buffer
+        0@0 500@0 0@500 500@500
+        PE
+        PF
+        PG
+        PH
+        )
+
   ;; (bq cow back-buffer
   ;;     0@0 500@0 0@500 500@500
   ;;     500@100 1000@0 500@300 1000@500)
@@ -52,9 +68,28 @@
      (clear-screen)
      (drawq)
      (flip-buffer)
-     (sleep-ms 300)))
+     (sleep-ms 30)))
 
-(fork-with-priority 100000 (update-screen!))
+(print 'here)
+
+(define (dsq pa pb)
+    (let ((a (- (point-x pa) (point-x pb)))
+          (b (- (point-y pa) (point-y pb))))
+      (+ (* a a) (* b b))))
+
+(define (maybe-move a b update)
+    (if (< (dsq a b) 100)
+        (let () (update a) #t)
+        #f))
+
+(define (onmousedrag p)
+    (or
+     (maybe-move p PE (lambda (p) (set 'PE p)))
+     (maybe-move p PF (lambda (p) (set 'PF p)))
+     (maybe-move p PG (lambda (p) (set 'PG p)))
+     (maybe-move p PH (lambda (p) (set 'PH p)))))
 
 
 (request-display screen-width screen-height)
+
+(fork-with-priority 1 (update-screen!))

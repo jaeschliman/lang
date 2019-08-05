@@ -38,17 +38,22 @@
 (define (make-one img e f g h)
     (vector img e f g h))
 
-
-
 (define items (list
                (make-one cow 0@0 300@0 0@300 300@300)
                (make-one sky 500@100 1000@0 500@300 1050@500)
                (make-one cow 500@100 1000@0 500@300 1000@500)
                (make-one cow 0@500 500@500 0@1000 500@800)))
 
+
+
 (define (drawq)
-    (dolist (it items)
-      (draw-it it)))
+    (blitq sky back-buffer 0@0 500@0 0@500 500@500
+           (somewhere-on-screen)
+           (somewhere-on-screen)
+           (somewhere-on-screen)
+           (somewhere-on-screen))
+  (dolist (it items)
+    (draw-it it)))
 
 (define (update-screen!)
     (forever

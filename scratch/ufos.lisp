@@ -29,11 +29,6 @@
 (define city (load-image "./res/buildings.png"))
 (define beam (load-image "./res/beam.png"))
 
-(define (draw-beam a b)
-    (blitq beam back-buffer
-           0@0 (make-point (image-width beam) 0)
-           (make-point 0 (image-height beam)) (make-point (image-width beam) (image-height beam))
-           a b (point+ a 10@10) (point+ b 10@10)))
 
 (define (point-angle p)
     (atan2f (i->f (point-y p))
@@ -46,6 +41,18 @@
 
 (define (chance n)
     (= 1 (random n)))
+
+(define (draw-beam a b)
+    (let* ((angle (point-angle (point- b a)))
+           (right (point-rotate (make-point -5 0) (+ angle 45)))
+           (left (point-rotate (make-point 5 0) (+ angle 45))))
+      (blitq beam back-buffer
+             0@0 (make-point (image-width beam) 0)
+             (make-point 0 (image-height beam)) (make-point (image-width beam) (image-height beam))
+             (point+ a right)
+             (point+ b right)
+             (point+ a left)
+             (point+ b left))))
 
 (define (move-box box)
     (let* ((x (aget box 0))

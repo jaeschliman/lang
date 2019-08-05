@@ -31,37 +31,25 @@
   (dp h)
   )
 
-(define PE 500@100)
-(define PF 1000@0)
-(define PG 500@300)
-(define PH 1050@500)
+(define (draw-it b)
+    (bq (aget b 0) back-buffer
+        0@0 500@0 0@500 500@500
+        (aget b 1) (aget b 2) (aget b 3) (aget b 4)))
+
+(define (make-one img e f g h)
+    (vector img e f g h))
+
+
+
+(define items (list
+               (make-one cow 0@0 300@0 0@300 300@300)
+               (make-one sky 500@100 1000@0 500@300 1050@500)
+               (make-one cow 500@100 1000@0 500@300 1000@500)
+               (make-one cow 0@500 500@500 0@800 500@800)))
 
 (define (drawq)
-    ;; (bq cow back-buffer
-    ;;     0@0 500@0 0@500 500@500
-    ;;     0@0 300@0 0@300 300@300)
-
-    ;; (bq sky back-buffer
-    ;;     0@0 500@0 0@500 500@500
-    ;;     500@100 1000@0 500@300 1050@500
-    ;;     )
-
-    (bq sky back-buffer
-        0@0 500@0 0@500 500@500
-        PE
-        PF
-        PG
-        PH
-        )
-
-  ;; (bq cow back-buffer
-  ;;     0@0 500@0 0@500 500@500
-  ;;     500@100 1000@0 500@300 1000@500)
-  ;; (bq cow back-buffer
-  ;;     0@0 500@0 0@500 500@500
-  ;;     0@500 500@500 0@1000 500@1000)
-
-  )
+    (dolist (it items)
+      (draw-it it)))
 
 (define (update-screen!)
     (forever
@@ -80,12 +68,20 @@
         (let () (update a) #t)
         #f))
 
-(define (onmousedrag p)
+(define (maybe-move-item item p)
     (or
-     (maybe-move p PE (lambda (p) (set 'PE p)))
-     (maybe-move p PF (lambda (p) (set 'PF p)))
-     (maybe-move p PG (lambda (p) (set 'PG p)))
-     (maybe-move p PH (lambda (p) (set 'PH p)))))
+     (maybe-move p (aget item 1) (lambda (p) (aset item 1 p)))
+     (maybe-move p (aget item 2) (lambda (p) (aset item 2 p)))
+     (maybe-move p (aget item 3) (lambda (p) (aset item 3 p)))
+     (maybe-move p (aget item 4) (lambda (p) (aset item 4 p)))))
+
+(define (onmousedrag p)
+    (let ((loop #f))
+      (set! loop (lambda (its)
+                   (unless (nil? its)
+                     (or (maybe-move-item (car its) p)
+                         (loop (cdr its))))))
+      (loop items)))
 
 
 (request-display screen-width screen-height)

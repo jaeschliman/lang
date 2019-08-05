@@ -6467,7 +6467,7 @@ f32 lerp_angle(f32 amt, f32 a, f32 b) {
     return mid + a;
   }
   auto mid = lerp_angle(amt, a+b, 0);
-  return mid + b;
+  return mid - b;
 }
 
 f32 angle_between_points(point a, point b) {

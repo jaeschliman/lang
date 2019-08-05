@@ -27,6 +27,13 @@
 (define cow (scale-image 0.25 (load-image "./res/cow.png")))
 (define sky (load-image "./res/sky.png"))
 (define city (load-image "./res/buildings.png"))
+(define beam (load-image "./res/beam.png"))
+
+(define (draw-beam a b)
+    (blitq beam back-buffer
+           0@0 (make-point (image-width beam) 0)
+           (make-point 0 (image-height beam)) (make-point (image-width beam) (image-height beam))
+           a b (point+ a 10@10) (point+ b 10@10)))
 
 (define (point-angle p)
     (atan2f (i->f (point-y p))
@@ -110,8 +117,15 @@
 (define (draw-one-box box)
     (let* ((x (aget box 0))
            (y (aget box 1))
+           (a-target (aget box 4))
+           (target (if (point? a-target) #f
+                       (make-point (aget a-target 0) (aget a-target 1))))
            (spd (/ (min 40 (aget box 3)) 40.0))
            (sc (aget box 5)))
+      (when target
+        (unless (or (= x (point-x target))
+                    (= y (point-y target)))
+          (draw-beam (make-point x y) target)))
       (draw-image-with-scale-and-rotation ufo (make-point x y)
                                           (* 4.0 (+ 0.05
                                                     (* 0.15 spd)

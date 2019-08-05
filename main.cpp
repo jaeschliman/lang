@@ -6462,9 +6462,13 @@ Ptr gfx_blit_from_screen(VM *vm, ByteArrayObject *dest_image,
 f32 lerp_angle(f32 amt, f32 a, f32 b) {
   if (a >= 0 && b >= 0) return a * (1.0 - amt) + amt * b;
   if (a <= 0 && b <= 0) return a * (1.0 - amt) + amt * b;
-  if (a < 0 && b >= 0) {
+  if (a <= 0 && b >= 0) {
     auto mid = lerp_angle(amt, 0, a * -1 + b);
     return mid + a;
+  }
+  if (a >= 0 && b < 0) {
+    auto mid = lerp_angle(amt, b * -1 + a, 0);
+    return mid + b;
   }
   auto mid = lerp_angle(amt, a+b, 0);
   return mid - b;

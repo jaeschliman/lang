@@ -72,7 +72,7 @@
 (export
  make-image load-image image-width image-height blit-to-screen screen-fill-rect fill-rect)
 
-(export blit)
+(export blit blitq)
 
 (export set-stack-mark snapshot-to-stack-mark resume-stack-snapshot)
 

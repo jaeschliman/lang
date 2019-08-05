@@ -417,7 +417,7 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
 * TODO blit flipped images
 * DONE blit arbitrary quad images
 * TODO blit from quad to quad images
-* TODO spatial point sort for quad blit
+* DONE spatial point sort for quad blit
 * TODO blit with tint / blend modes
 
 * notes

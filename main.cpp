@@ -5439,7 +5439,6 @@ public:
     pushOp(POP_CLOSURE_ENV);
   }
   ByteCodeObject *build() {
-    pushOp(END); // XXX off by one again
     pushOp(END);
     fixupJumpLocations();
     finalizeByteCode();

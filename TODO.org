@@ -348,7 +348,7 @@ fixed an issue in ht_at_put that could possibly contribute to this
   technically we only need two fields, but I like the flexibility of the three...
 * TODO exceptions are not being properly reported on stx errors in chitchat
   execution halts, but nothing is printed to the console
-* TODO is the off by one error at end of bytecode back? 
+* DONE is the off by one error at end of bytecode back? 
 * TODO clear up the stack corruption bug that was occuring after restoring snapshots
   add a #define that runs stack validation tediously frequently and
   clear up what exactly is causing the issue

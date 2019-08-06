@@ -50,6 +50,8 @@
 (export
  sin cos tan floor ceil rem pow log abs atan2f sqrtf random)
 
+(export ash)
+
 (export
  string-do-chars string-equal string->list
  string-byte-length string->char-array string-substr-bytes

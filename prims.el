@@ -251,6 +251,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim sqrtf  FLT_SRT   ((a Float))              Float "sqrtf(a)")
 
   (prim random RAND ((a Fixnum)) Fixnum "rand() % a")
+  (prim ash    ASH  ((n Fixnum) (shift Fixnum)) Fixnum "shift < 0 ? n >> abs(shift) : n << shift")
 
   (prim list   LIST  list                   any  "list")
   (prim cons   CONS  ((a any) (b any))      any  "cons(vm, a, b)")

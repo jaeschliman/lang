@@ -67,9 +67,10 @@
           (b (- (point-y pa) (point-y pb))))
       (+ (* a a) (* b b))))
 
+(define update-current-point #f)
 (define (maybe-move a b update)
     (if (< (dsq a b) 100)
-        (let () (update a) #t)
+        (let () (set 'update-current-point update) #t)
         #f))
 
 (define (maybe-move-item item p)
@@ -79,14 +80,17 @@
      (maybe-move p (aget item 3) (lambda (p) (aset item 3 p)))
      (maybe-move p (aget item 4) (lambda (p) (aset item 4 p)))))
 
-(define (onmousedrag p)
+(define (onmousedown p)
     (let ((loop #f))
       (set! loop (lambda (its)
-                   (unless (nil? its)
-                     (or (maybe-move-item (car its) p)
-                         (loop (cdr its))))))
+                   (if (nil? its)
+                       (set 'update-current-point #f)
+                       (or (maybe-move-item (car its) p)
+                           (loop (cdr its))))))
       (loop items)))
 
+(define (onmousedrag p)
+    (and update-current-point (update-current-point p)))
 
 (request-display screen-width screen-height)
 

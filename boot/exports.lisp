@@ -93,4 +93,6 @@
 
 (export start-additional-event-loop update-display)
 
+(export exit)
+
 'done

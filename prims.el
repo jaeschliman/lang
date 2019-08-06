@@ -411,6 +411,8 @@ void initialize_primitive_functions(VM *vm) {
         any
         "gfx_blit_image_into_quad(s,d, sa,sb,sc,sd,da,db,dc,dd)")
 
+  (prim exit EXIT ((status Fixnum)) any "(exit(status), Nil)")
+
   (setf *prims* (reverse *prims*))
   (write-prims))
 

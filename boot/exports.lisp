@@ -50,7 +50,7 @@
 (export
  sin cos tan floor ceil rem pow log abs atan2f sqrtf random)
 
-(export ash)
+(export ash bit-and bit-or)
 
 (export
  string-do-chars string-equal string->list

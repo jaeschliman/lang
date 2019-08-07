@@ -6556,15 +6556,17 @@ void quad_scan_state_init_reading(quad_scan_state *q,
 
   f32 left_height;
   f32 right_height;
+  f32 rows;
   {
     auto dleft  = q->c.y - q->a.y;
     auto dright = q->d.y - q->b.y;
     left_height = dleft;
     right_height = dright;
-    // q->rows = (s64)roundf(std::max(dleft, dright) * fill_factor);
+    rows = std::max(dleft, dright);
   }
   // q->step_y    = std::min(1.0f, left_height / right_height) * i_fill_factor;
   q->step_y = (f32)left_height / ((f32)w->rows / w->step_y);
+  // q->step_y = rows / ((f32)w->rows / w->step_y);
 
   auto start_angle = angle_between_points(q->a, q->b);
   auto end_angle  = angle_between_points(q->c, q->d);
@@ -6589,11 +6591,16 @@ void quad_scan_state_start_row(quad_scan_state *q, f32 l) {
 
 void quad_scan_state_start_row_reading(quad_scan_state *q, f32 l, quad_scan_state *w) {
   auto cols = q->start_len * (1.0 - l) + l * q->end_len;
-  f32 i_fill_factor = cols / w->cols;
+  // f32 i_fill_factor = 1.0 / (cols / w->cols);
   q->cols = w->cols;
   q->offs_x = q->start_x * (1.0 - l) + l * q->end_x;
-  q->dx = lerp_angle(l, q->sdx, q->edx) * i_fill_factor;
-  q->dy = lerp_angle(l, q->sdy, q->edy) * i_fill_factor;
+  q->dx = lerp_angle(l, q->sdx, q->edx);
+  q->dy = lerp_angle(l, q->sdy, q->edy);
+  f32 write_steps =  (f32)w->cols / w->dx;
+  f32 read_steps =  (f32)cols / q->dx; 
+  f32 scale = read_steps / write_steps;
+  q->dx *= scale; q->dy *= scale;
+  // dbg("ws = ", write_steps, " rs = ", read_steps, " scale = ", scale, " dx = ", q->dx, " dy = ", q->dy);
   q->this_y = q->offs_y;
   q->dst_x = 0;
 }
@@ -6628,9 +6635,9 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
 
     if (write->dx > 0 && read->dx > 0) {
 
-      while (quad_scan_state_start_col(write) &&
-             quad_scan_state_start_col(read)
-             ) {
+      while (quad_scan_state_start_col(write)) {
+        quad_scan_state_start_col(read);
+
         auto x = write->x; auto y = write->y;
         // @speed some way to eliminate this many checks per pixel
         if (x >= 0 && x < dst->width && y >= 0 && y < dst->height

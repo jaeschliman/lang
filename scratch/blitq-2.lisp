@@ -28,7 +28,11 @@
   (dp a)
   (dp b)
   (dp c)
-  (dp d))
+  (dp d)
+  (dp e)
+  (dp f)
+  (dp g)
+  (dp h))
 
 (define (draw-it b)
     (let ((p (aget b 1)))
@@ -38,10 +42,15 @@
     (let ((p (aget b 2)))
       (bq (aget b 0) back-buffer
           (aget b 3) (aget b 4) (aget b 5) (aget b 6)
-          (point+ p 0@0) (point+ p 500@0) (point+ p 0@500) (point+ p 500@500))))
+          (aget b 7) (aget b 8) (aget b 9) (aget b 10))))
 
 (define (make-one img src-origin dest-origin e f g h)
-    (vector img src-origin dest-origin e f g h))
+    (vector img src-origin dest-origin
+            e f g h
+            (point+ dest-origin e)
+            (point+ dest-origin f)
+            (point+ dest-origin g)
+            (point+ dest-origin h)))
 
 (define items (list (make-one cow 0@0 700@0 0@0 500@0 0@500 500@500)))
 
@@ -69,10 +78,14 @@
 
 (define (maybe-move-item item p)
     (or
-     (maybe-move p (aget item 3) (lambda (p) (aset item 3 p)))
-     (maybe-move p (aget item 4) (lambda (p) (aset item 4 p)))
-     (maybe-move p (aget item 5) (lambda (p) (aset item 5 p)))
-     (maybe-move p (aget item 6) (lambda (p) (aset item 6 p)))))
+     (maybe-move p (aget item  3) (lambda (p) (aset item  3 p)))
+     (maybe-move p (aget item  4) (lambda (p) (aset item  4 p)))
+     (maybe-move p (aget item  5) (lambda (p) (aset item  5 p)))
+     (maybe-move p (aget item  6) (lambda (p) (aset item  6 p)))
+     (maybe-move p (aget item  7) (lambda (p) (aset item  7 p)))
+     (maybe-move p (aget item  8) (lambda (p) (aset item  8 p)))
+     (maybe-move p (aget item  9) (lambda (p) (aset item  9 p)))
+     (maybe-move p (aget item 10) (lambda (p) (aset item 10 p)))))
 
 (define (onmousedown p)
     (let ((loop #f))

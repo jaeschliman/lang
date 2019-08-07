@@ -6564,9 +6564,9 @@ void quad_scan_state_init_reading(quad_scan_state *q,
     right_height = dright;
     rows = std::max(dleft, dright);
   }
-  // q->step_y    = std::min(1.0f, left_height / right_height) * i_fill_factor;
+
+  // FIXME: this is incorrect. we actually lerp to replace this later.
   q->step_y = (f32)left_height / ((f32)w->rows / w->step_y);
-  // q->step_y = rows / ((f32)w->rows / w->step_y);
 
   auto start_angle = angle_between_points(q->a, q->b);
   auto end_angle  = angle_between_points(q->c, q->d);
@@ -6590,23 +6590,30 @@ void quad_scan_state_start_row(quad_scan_state *q, f32 l) {
 }
 
 void quad_scan_state_start_row_reading(quad_scan_state *q, f32 l, quad_scan_state *w) {
-  auto cols = q->start_len * (1.0 - l) + l * q->end_len;
-  // f32 i_fill_factor = 1.0 / (cols / w->cols);
+
   q->cols = w->cols;
   q->offs_x = q->start_x * (1.0 - l) + l * q->end_x;
   q->dx = lerp_angle(l, q->sdx, q->edx);
   q->dy = lerp_angle(l, q->sdy, q->edy);
-  f32 write_steps =  (f32)w->cols / w->dx;
-  f32 read_steps =  (f32)cols / q->dx; 
+
+  auto cols = q->start_len * (1.0 - l) + l * q->end_len;
+  f32 write_steps = (f32)w->cols / w->dx;
+  f32 read_steps  = (f32)cols / q->dx; 
   f32 scale = read_steps / write_steps;
   q->dx *= scale; q->dy *= scale;
-  // dbg("ws = ", write_steps, " rs = ", read_steps, " scale = ", scale, " dx = ", q->dx, " dy = ", q->dy);
-  q->this_y = q->offs_y;
+
+  // FIXME: step_y is currently incorrect, forcing us to lerp
+  q->this_y = ((f32)q->c.y - (f32)q->a.y) * l;
+  // q->this_y = q->offs_y;
+
   q->dst_x = 0;
 }
 
 
 void quad_scan_state_end_row(quad_scan_state *q) {
+  q->offs_y += q->step_y;
+}
+void quad_scan_state_end_row_reading(quad_scan_state *q, quad_scan_state *w) {
   q->offs_y += q->step_y;
 }
 
@@ -6643,7 +6650,7 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
         if (x >= 0 && x < dst->width && y >= 0 && y < dst->height
             && read->x >= 0 && read->x < src->width && read->y >= 0 && read->x <= src->height) {
 
-          auto src_row = y * src->pitch;
+          auto src_row = read->y * src->pitch;
           auto dest_row = write->y * dst->pitch;
 
           u8* under = dst->mem + dest_row + x * 4;
@@ -6666,7 +6673,7 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
       }
     }
     quad_scan_state_end_row(write);
-    quad_scan_state_end_row(read);
+    quad_scan_state_end_row_reading(read, write);
   }
 }
 

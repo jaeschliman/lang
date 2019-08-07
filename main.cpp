@@ -6493,55 +6493,98 @@ s64 point_distance(point pa, point pb) {
   return sqrtf(a*a + b*b);
 }
 
-void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
-                               point s_a, point s_b, point s_c, point s_d,
-                               point d_a, point d_b, point d_c, point d_d
-                               ){
+struct quad_scan_state {
+  point a, b, c, d;
+  f32 dx, dy;
+  f32 offs_y, offs_x;
+  s64 rows, cols, x, y;
+
+  f32 sdx, edx, sdy, edy, start_len, end_len, start_x, end_x;
+  f32 this_y, step_y, dst_x;
+};
+
+void quad_scan_state_init(quad_scan_state *q, 
+                          point d_a, point d_b, point d_c, point d_d) {
+
+  auto mid_point = (d_a + d_b + d_c + d_d) * 0.25;
+  std::vector<point> pts = {d_a, d_b, d_c, d_d};
+  std::sort(pts.begin(), pts.end(), [&](point a, point b) {
+                                      return angle_between_points(mid_point, a) < 
+                                        angle_between_points(mid_point, b);
+                                    });
+
+  q->a = pts[0]; q->b = pts[1]; q->c = pts[3]; q->d = pts[2];
 
   auto fill_factor = 2.0;
   auto i_fill_factor = 1.0 / fill_factor;
-  u64 line_count;
+
   f32 left_height;
   f32 right_height;
   {
-    auto dleft = d_c.y - d_a.y;
-    auto dright = d_d.y - d_b.y;
-    line_count = (s64)roundf(std::max(dleft, dright) * fill_factor);
+    auto dleft  = q->c.y - q->a.y;
+    auto dright = q->d.y - q->b.y;
     left_height = dleft;
     right_height = dright;
+    q->rows = (s64)roundf(std::max(dleft, dright) * fill_factor);
   }
-  auto start_angle = angle_between_points(d_a, d_b);
-  auto end_angle  = angle_between_points(d_c, d_d);
-  auto sdx = cosf(start_angle), sdy = sinf(start_angle);
-  auto edx = cosf(end_angle), edy = sinf(end_angle);
-  auto start_len = d_b.x - d_a.x;
-  auto end_len = d_d.x - d_c.x;
-  auto start_x = d_a.x;
-  auto end_x = d_c.x;
-  auto offs_y = (f32)d_a.y;
-  auto step_y = std::min(1.0f, left_height / right_height) * i_fill_factor;
+  auto start_angle = angle_between_points(q->a, q->b);
+  auto end_angle  = angle_between_points(q->c, q->d);
+  q->sdx       = cosf(start_angle); q->sdy = sinf(start_angle);
+  q->edx       = cosf(end_angle); q->edy = sinf(end_angle);
+  q->start_len = q->b.x - q->a.x;
+  q->end_len   = q->d.x - q->c.x;
+  q->start_x   = q->a.x;
+  q->end_x     = q->c.x;
+  q->offs_y    = (f32)q->a.y;
+  q->step_y    = std::min(1.0f, left_height / right_height) * i_fill_factor;
+}
 
-  f32 src_dy = ((f32)s_c.y - s_a.y) / (f32)line_count;
+void quad_scan_state_start_row(quad_scan_state *q, f32 l) {
+  f32 i_fill_factor = 0.5;
+  q->cols = q->start_len * (1.0 - l) + l * q->end_len;
+  q->offs_x = q->start_x * (1.0 - l) + l * q->end_x;
+  q->dx = lerp_angle(l, q->sdx, q->edx) * i_fill_factor;
+  q->dy = lerp_angle(l, q->sdy, q->edy) * i_fill_factor;
+  q->this_y = q->offs_y;
+  q->dst_x = 0;
+}
+
+void quad_scan_state_end_row(quad_scan_state *q) {
+  q->offs_y += q->step_y;
+}
+
+bool quad_scan_state_start_col(quad_scan_state *q) {
+  q->dst_x += q->dx;
+  q->x = q->offs_x + (s64)q->dst_x;
+  q->y = (s64)roundf(q->this_y);
+  return q->dst_x < q->cols;
+}
+
+void quad_scan_state_end_col(quad_scan_state *q) {
+  q->this_y += q->dy;
+}
+
+void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
+                               point s_a, point s_b, point s_c, point s_d,
+                               quad_scan_state *write
+                               ){
+
+  auto line_count = write->rows;
+
+  f32 src_dy = ((f32)s_c.y - s_a.y) / (f32)write->rows;
   f32 src_y = s_a.y;
 
   for (auto line = 0; line < line_count; line++) {
     auto l = (f32)line / (f32)line_count;
+    quad_scan_state_start_row(write, l);
 
-    s64 len = start_len * (1.0 - l) + l * end_len;
-    s64 offs_x = start_x * (1.0 - l) + l * end_x;
-
-    f32 dx = lerp_angle(l, sdx, edx) * i_fill_factor;
-    f32 dy = lerp_angle(l, sdy, edy) * i_fill_factor;
-
-    f32 this_y = offs_y;
-
-    if (dx > 0) {
-      f32 src_dx = ((f32)(s_b.x - s_a.x)) / (len / dx);
+    if (write->dx > 0) {
+      f32 src_dx = ((f32)(s_b.x - s_a.x)) / (write->cols / write->dx);
       f32 src_x = s_a.x;
       auto src_row = (s64)roundf(src_y) * src->pitch;
-      for (f32 dst_x = 0; dst_x < len; dst_x+= dx) {
-        auto x = offs_x + (s64)dst_x;
-        auto y = (s64)roundf(this_y);
+
+      while (quad_scan_state_start_col(write)) {
+        auto x = write->x; auto y = write->y;
         // @speed could jump to start edge with a couple multiplies
         if (x >= 0 && x < dst->width && y >= 0 && y < dst->height) {
           auto dest_row = y * dst->pitch;
@@ -6560,11 +6603,11 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
           under[3] = calpha < alpha ? 255 : calpha;
         }
 
-        this_y += dy;
+        quad_scan_state_end_col(write);
         src_x += src_dx;
       }
     }
-    offs_y += step_y;
+    quad_scan_state_end_row(write);
     src_y += src_dy;
   }
 }
@@ -6574,18 +6617,14 @@ Ptr gfx_blit_image_into_quad(ByteArrayObject *src, ByteArrayObject *dst,
                              point d_a, point d_b, point d_c, point d_d
                              ) {
 
-  auto mid_point = (d_a + d_b + d_c + d_d) * 0.25;
-  std::vector<point> pts = {d_a, d_b, d_c, d_d};
-  std::sort(pts.begin(), pts.end(), [&](point a, point b) {
-                                      return angle_between_points(mid_point, a) < 
-                                        angle_between_points(mid_point, b);
-                                    });
+  quad_scan_state write;
+  quad_scan_state_init(&write, d_a, d_b, d_c, d_d);
 
   auto src_s = image_blit_surface(src);
   auto dst_s = image_blit_surface(dst);
   _gfx_blit_image_into_quad(&src_s, &dst_s,
                             s_a, s_b, s_c, s_d,
-                            pts[0], pts[1], pts[3], pts[2]);
+                            &write);
   
   return Nil;
 }

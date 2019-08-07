@@ -6565,8 +6565,7 @@ void quad_scan_state_init_reading(quad_scan_state *q,
     rows = std::max(dleft, dright);
   }
 
-  // FIXME: this is incorrect. we actually lerp to replace this later.
-  q->step_y = (f32)left_height / ((f32)w->rows / w->step_y);
+  q->step_y = (f32)left_height / (f32)w->rows;
 
   auto start_angle = angle_between_points(q->a, q->b);
   auto end_angle  = angle_between_points(q->c, q->d);
@@ -6601,10 +6600,8 @@ void quad_scan_state_start_row_reading(quad_scan_state *q, f32 l, quad_scan_stat
   f32 read_steps  = (f32)cols / q->dx; 
   f32 scale = read_steps / write_steps;
   q->dx *= scale; q->dy *= scale;
-
-  // FIXME: step_y is currently incorrect, forcing us to lerp
-  q->this_y = ((f32)q->c.y - (f32)q->a.y) * l;
-  // q->this_y = q->offs_y;
+  
+  q->this_y = q->offs_y;
 
   q->dst_x = 0;
 }

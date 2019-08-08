@@ -6495,173 +6495,99 @@ s64 point_distance(point pa, point pb) {
 
 struct quad_scan_state {
   point a, b, c, d;
-  f32 dx, dy;
-  f32 offs_y, offs_x;
-  s64 rows, cols, x, y;
 
-  f32 sdx, edx, sdy, edy, start_len, end_len, start_x, end_x;
-  f32 this_y, step_y, dst_x;
-  f32 row_end_x;
+  f32 ldx, ldy, rdx, rdy;
+  f32 lscale, rscale;
+  f32 clx, cly, crx, cry;
+  f32 cx, cy;
+  f32 step_count;
+  f32 width_remaining;
+
+  f32 dx, dy;
+  s64 x, y;
 };
 
 void quad_scan_state_init(quad_scan_state *q, 
                           point d_a, point d_b, point d_c, point d_d) {
 
-  // auto mid_point = (d_a + d_b + d_c + d_d) * 0.25;
+
+
   std::vector<point> pts = {d_a, d_b, d_d, d_c};
-  // std::sort(pts.begin(), pts.end(), [&](point a, point b) {
-  //                                     return angle_between_points(mid_point, a) < 
-  //                                       angle_between_points(mid_point, b);
-  //                                   });
 
   q->a = pts[0]; q->b = pts[1]; q->c = pts[3]; q->d = pts[2];
   if (q->a.x == q->b.x) q->b.x++;
 
-  auto fill_factor = 2.0;
-  auto i_fill_factor = 1.0 / fill_factor;
-
-  f32 left_height;
-  f32 right_height;
   {
-    auto dleft  = q->c.y - q->a.y;
-    auto dright = q->d.y - q->b.y;
-    left_height = dleft;
-    right_height = dright;
-    q->rows = (s64)roundf(std::max(dleft, dright) * fill_factor);
+    f32 dleft       = point_distance(q->c , q->a);
+    f32 dright      = point_distance(q->d , q->b);
+    f32 left_angle  = angle_between_points(q->a, q->c);
+    f32 right_angle = angle_between_points(q->b, q->d);
+    q->ldx = cosf(left_angle) * 0.5; q->ldy = sinf(left_angle) * 0.5;
+    q->rdx = cosf(right_angle) * 0.5; q->rdy = sinf(right_angle) * 0.5;
+
+    if (dleft > dright) {
+      q->lscale = 1.0;
+      q->rscale = dright / dleft; 
+      q->step_count = dleft * 2.0;
+    } else {
+      q->lscale = dleft / dright;
+      q->rscale = 1.0;
+      q->step_count = dright * 2.0;
+    }
+
+    q->clx = q->a.x; q->cly = q->a.y;
+    q->crx = q->b.x; q->cry = q->b.y;
   }
-  auto start_angle = angle_between_points(q->a, q->b);
-  auto end_angle  = angle_between_points(q->c, q->d);
-  // dbg("start angle = ", start_angle, "  end angle = ", end_angle);
-  q->sdx       = cosf(start_angle); q->sdy = sinf(start_angle);
-  q->edx       = cosf(end_angle); q->edy = sinf(end_angle);
-  q->start_len = q->b.x - q->a.x;
-  q->end_len   = q->d.x - q->c.x;
-  q->start_x   = q->a.x;
-  q->end_x     = q->c.x;
-  q->offs_y    = (f32)q->a.y;
-  q->step_y    = std::min(1.0f, left_height / right_height) * i_fill_factor;
 }
 
 void quad_scan_state_init_reading(quad_scan_state *q, 
                                   point d_a, point d_b, point d_c, point d_d,
                                   quad_scan_state *w) {
 
-  // auto mid_point = (d_a + d_b + d_c + d_d) * 0.25;
-  std::vector<point> pts = {d_a, d_b, d_d, d_c};
-  // std::sort(pts.begin(), pts.end(), [&](point a, point b) {
-  //                                     return angle_between_points(mid_point, a) < 
-  //                                       angle_between_points(mid_point, b);
-  //                                   });
-
-  q->a = pts[0]; q->b = pts[1]; q->c = pts[3]; q->d = pts[2];
-  if (q->a.x == q->b.x) q->b.x++;
-
-  q->rows = w->rows;
-
-  f32 left_height;
-  f32 right_height;
-  f32 rows;
-  {
-    auto dleft  = q->c.y - q->a.y;
-    auto dright = q->d.y - q->b.y;
-    left_height = dleft;
-    right_height = dright;
-    rows = std::max(dleft, dright);
-  }
-
-  q->step_y = (f32)left_height / (f32)w->rows;
-
-  auto start_angle = angle_between_points(q->a, q->b);
-  auto end_angle  = angle_between_points(q->c, q->d);
-  q->sdx       = cosf(start_angle); q->sdy = sinf(start_angle);
-  q->edx       = cosf(end_angle); q->edy = sinf(end_angle);
-  q->start_len = q->b.x - q->a.x;
-  q->end_len   = q->d.x - q->c.x;
-  q->start_x   = q->a.x;
-  q->end_x     = q->c.x;
-  q->offs_y    = (f32)q->a.y;
+  quad_scan_state_init(q, d_a, d_b, d_c, d_d);
+  q->lscale *= q->step_count / w->step_count;
+  q->rscale *= q->step_count / w->step_count;
+  q->step_count = w->step_count;
 }
 
-void quad_scan_state_start_row(quad_scan_state *q, f32 l) {
-  f32 i_fill_factor = 0.5;
-  f32 eps = 0.0015;
-  if (1)
-  {
-    auto left = lerp_points(l, q->c, q->a);
-    auto right = lerp_points(l, q->d, q->b);
-    q->row_end_x = left.x < right.x ? right.x : left.x;
-    auto len = point_distance(left, right);
-    q->cols = len * (right.x > left.x ? 1 : -1);
-    auto angle = angle_between_points(left, right);
-    q->dx = cosf(angle) * i_fill_factor;
-    q->dy = sinf(angle) * i_fill_factor;
-    q->offs_x = left.x < right.x ? left.x : right.x;
-  } else {
-    q->cols = lerp_angle(l, q->start_len, q->end_len);
-    q->offs_x = q->start_x * (1.0 - l) + l * q->end_x;
-    q->dx = lerp_angle(l, q->sdx, q->edx) * i_fill_factor;
-    q->dy = lerp_angle(l, q->sdy, q->edy) * i_fill_factor;
-    q->row_end_x = q->offs_x + q->cols;
-  }
-  if (fabs(q->dx) < eps) q->dx = 0;
-  if (fabs(q->cols) < eps) q->cols = 0;
-  if (q->dx < 0) q->dst_x = q->row_end_x - q->offs_x;
-  else q->dst_x = 0;
-  q->this_y = q->offs_y;
+void quad_scan_state_start_row(quad_scan_state *q) {
+  q->clx += q->ldx * q->lscale;
+  q->cly += q->ldy * q->lscale;
+  q->crx += q->rdx * q->rscale;
+  q->cry += q->rdy * q->rscale;
+  f32 a = q->cry - q->cly;
+  f32 b = q->crx - q->clx;
+  f32 angle = atan2f(a, b);
+  f32 dist = sqrtf(a*a + b*b);
+  q->dx = cosf(angle) * 0.5;
+  q->dy = sinf(angle) * 0.5;
+  q->cx = q->clx;
+  q->cy = q->cly;
+  q->width_remaining = dist * 2.0;
 }
 
-void quad_scan_state_start_row_reading(quad_scan_state *q, f32 l, quad_scan_state *w) {
-
-  q->cols = fabs(w->cols);
-  q->offs_x = q->start_x * (1.0 - l) + l * q->end_x;
-  q->dx = lerp_angle(l, q->sdx, q->edx);
-  q->dy = lerp_angle(l, q->sdy, q->edy);
-
-  auto cols = q->start_len * (1.0 - l) + l * q->end_len;
-  f32 write_steps = w->dx && w->cols ?  (f32)w->cols / w->dx : 0; 
-  f32 read_steps  = q->dx ? (f32)cols / q->dx : 0; 
-  f32 scale = fabs(write_steps ? read_steps / write_steps : 0.0);
-  q->dx *= scale; q->dy *= scale;
-  f32 eps = 0.0015;
-  if (fabs(q->dx) < eps) q->dx = 0;
-  
-  q->this_y = q->offs_y;
-
-  q->dst_x = 0;
-}
-
-
-void quad_scan_state_end_row(quad_scan_state *q) {
-  q->offs_y += q->step_y;
-}
-void quad_scan_state_end_row_reading(quad_scan_state *q, quad_scan_state *w) {
-  q->offs_y += q->step_y;
+void quad_scan_state_start_row_reading(quad_scan_state *q, quad_scan_state *w) {
+  quad_scan_state_start_row(q);
+  q->dx *= q->width_remaining / w->width_remaining;
+  q->dy *= q->width_remaining / w->width_remaining;
+  q->width_remaining = w->width_remaining;
 }
 
 bool quad_scan_state_start_col(quad_scan_state *q) {
-  q->dst_x += q->dx;
-  q->x = q->offs_x + (s64)q->dst_x;
-  q->y = (s64)roundf(q->this_y);
-  // auto in_bounds = q->dx > 0 ? q->dst_x + q->offs_x < q->row_end_x : q->dst_x >= 0;
-  auto in_bounds = q->x >= q->offs_x && q->x <= q->row_end_x;
-  return in_bounds;
-}
-
-void quad_scan_state_end_col(quad_scan_state *q) {
-  q->this_y += q->dy;
+  q->width_remaining--;
+  q->x = (s64)roundf(q->cx); q->y = (s64)roundf(q->cy);
+  q->cx += q->dx; q->cy += q->dy;
+  return q->width_remaining > 0.9999999999;
 }
 
 void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
-                               quad_scan_state *read,
-                               quad_scan_state *write
-                               ){
+                               quad_scan_state *read, quad_scan_state *write){
 
-  auto line_count = write->rows;
+  auto line_count = write->step_count;
 
   for (auto line = 0; line < line_count; line++) {
-    auto l = (f32)line / (f32)line_count;
-    quad_scan_state_start_row(write, l);
-    quad_scan_state_start_row_reading(read, l, write);
+    quad_scan_state_start_row(write);
+    quad_scan_state_start_row_reading(read, write);
 
     if (write->dx != 0 && read->dx != 0) {
 
@@ -6688,17 +6614,11 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
           u8 ualpha = under[3];
           u8 calpha = alpha + ualpha;
           under[3] = calpha < alpha ? 255 : calpha;
-          // under[0] = under[1] = under[2] = 0;
+          // under[0] = under[1] = under[2] = l * 255;
           // under[3] = 255;
-
         }
-
-        quad_scan_state_end_col(write);
-        quad_scan_state_end_col(read);
       }
     }
-    quad_scan_state_end_row(write);
-    quad_scan_state_end_row_reading(read, write);
   }
 }
 

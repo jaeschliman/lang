@@ -6501,6 +6501,7 @@ struct quad_scan_state {
 
   f32 sdx, edx, sdy, edy, start_len, end_len, start_x, end_x;
   f32 this_y, step_y, dst_x;
+  f32 row_end_x;
 };
 
 void quad_scan_state_init(quad_scan_state *q, 
@@ -6530,6 +6531,7 @@ void quad_scan_state_init(quad_scan_state *q,
   }
   auto start_angle = angle_between_points(q->a, q->b);
   auto end_angle  = angle_between_points(q->c, q->d);
+  dbg("start angle = ", start_angle, "  end angle = ", end_angle);
   q->sdx       = cosf(start_angle); q->sdy = sinf(start_angle);
   q->edx       = cosf(end_angle); q->edy = sinf(end_angle);
   q->start_len = q->b.x - q->a.x;
@@ -6583,21 +6585,34 @@ void quad_scan_state_init_reading(quad_scan_state *q,
 void quad_scan_state_start_row(quad_scan_state *q, f32 l) {
   f32 i_fill_factor = 0.5;
   f32 eps = 0.015;
-  q->cols = fabs(lerp_angle(l, q->start_len, q->end_len));
-  q->offs_x = q->start_x * (1.0 - l) + l * q->end_x;
-  q->dx = lerp_angle(l, q->sdx, q->edx) * i_fill_factor;
-  q->dy = lerp_angle(l, q->sdy, q->edy) * i_fill_factor;
+  if (1)
+  {
+    auto left = lerp_points(l, q->c, q->a);
+    auto right = lerp_points(l, q->d, q->b);
+    q->row_end_x = right.x;
+    auto len = point_distance(left, right);
+    q->cols = len;
+    auto angle = angle_between_points(left, right);
+    q->dx = cosf(angle) * i_fill_factor;
+    q->dy = sinf(angle) * i_fill_factor;
+    q->offs_x = left.x;
+  } else {
+    q->cols = lerp_angle(l, q->start_len, q->end_len);
+    q->offs_x = q->start_x * (1.0 - l) + l * q->end_x;
+    q->dx = lerp_angle(l, q->sdx, q->edx) * i_fill_factor;
+    q->dy = lerp_angle(l, q->sdy, q->edy) * i_fill_factor;
+    q->row_end_x = q->offs_x + q->cols;
+  }
   if (fabs(q->dx) < eps) q->dx = 0;
   if (fabs(q->cols) < eps) q->cols = 0;
-
-  if (q->dx < 0) q->dst_x = q->cols;
+  if (q->dx < 0) q->dst_x = fabs(q->cols);
   else q->dst_x = 0;
   q->this_y = q->offs_y;
 }
 
 void quad_scan_state_start_row_reading(quad_scan_state *q, f32 l, quad_scan_state *w) {
 
-  q->cols = w->cols;
+  q->cols = fabs(w->cols);
   q->offs_x = q->start_x * (1.0 - l) + l * q->end_x;
   q->dx = lerp_angle(l, q->sdx, q->edx);
   q->dy = lerp_angle(l, q->sdy, q->edy);
@@ -6627,7 +6642,7 @@ bool quad_scan_state_start_col(quad_scan_state *q) {
   q->dst_x += q->dx;
   q->x = q->offs_x + (s64)q->dst_x;
   q->y = (s64)roundf(q->this_y);
-  auto in_bounds = q->dx > 0 ? q->dst_x < q->cols : q->dst_x > q->offs_x;
+  auto in_bounds = q->dx > 0 ? q->dst_x + q->offs_x < q->row_end_x: q->dst_x > q->offs_x;
   return in_bounds;
 }
 
@@ -6655,23 +6670,25 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
         auto x = write->x; auto y = write->y;
         // @speed some way to eliminate this many checks per pixel
         if (x >= 0 && x < dst->width && y >= 0 && y < dst->height
-            && read->x >= 0 && read->x < src->width && read->y >= 0 && read->x <= src->height) {
+            ){//&& read->x >= 0 && read->x < src->width && read->y >= 0 && read->x <= src->height) {
 
-          auto src_row = read->y * src->pitch;
+          // auto src_row = read->y * src->pitch;
           auto dest_row = write->y * dst->pitch;
 
           u8* under = dst->mem + dest_row + x * 4;
-          u8* over = src->mem + src_row + read->x * 4;
+          // u8* over = src->mem + src_row + read->x * 4;
 
-          u8 alpha  = over[3];
+          // u8 alpha  = over[3];
 
-          // aA + (1-a)B = a(A-B)+B
-          under[0] = ((over[0] - under[0]) * alpha /  255)  + under[0];
-          under[1] = ((over[1] - under[1]) * alpha /  255)  + under[1];
-          under[2] = ((over[2] - under[2]) * alpha /  255)  + under[2];
-          u8 ualpha = under[3];
-          u8 calpha = alpha + ualpha;
-          under[3] = calpha < alpha ? 255 : calpha;
+          // // aA + (1-a)B = a(A-B)+B
+          // under[0] = ((over[0] - under[0]) * alpha /  255)  + under[0];
+          // under[1] = ((over[1] - under[1]) * alpha /  255)  + under[1];
+          // under[2] = ((over[2] - under[2]) * alpha /  255)  + under[2];
+          // u8 ualpha = under[3];
+          // u8 calpha = alpha + ualpha;
+          // under[3] = calpha < alpha ? 255 : calpha;
+          under[0] = under[1] = under[2] = 0;
+          under[3] = 255;
 
         }
 

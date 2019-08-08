@@ -6506,14 +6506,15 @@ struct quad_scan_state {
 void quad_scan_state_init(quad_scan_state *q, 
                           point d_a, point d_b, point d_c, point d_d) {
 
-  auto mid_point = (d_a + d_b + d_c + d_d) * 0.25;
-  std::vector<point> pts = {d_a, d_b, d_c, d_d};
-  std::sort(pts.begin(), pts.end(), [&](point a, point b) {
-                                      return angle_between_points(mid_point, a) < 
-                                        angle_between_points(mid_point, b);
-                                    });
+  // auto mid_point = (d_a + d_b + d_c + d_d) * 0.25;
+  std::vector<point> pts = {d_a, d_b, d_d, d_c};
+  // std::sort(pts.begin(), pts.end(), [&](point a, point b) {
+  //                                     return angle_between_points(mid_point, a) < 
+  //                                       angle_between_points(mid_point, b);
+  //                                   });
 
   q->a = pts[0]; q->b = pts[1]; q->c = pts[3]; q->d = pts[2];
+  if (q->a.x == q->b.x) q->b.x++;
 
   auto fill_factor = 2.0;
   auto i_fill_factor = 1.0 / fill_factor;
@@ -6543,14 +6544,15 @@ void quad_scan_state_init_reading(quad_scan_state *q,
                                   point d_a, point d_b, point d_c, point d_d,
                                   quad_scan_state *w) {
 
-  auto mid_point = (d_a + d_b + d_c + d_d) * 0.25;
-  std::vector<point> pts = {d_a, d_b, d_c, d_d};
-  std::sort(pts.begin(), pts.end(), [&](point a, point b) {
-                                      return angle_between_points(mid_point, a) < 
-                                        angle_between_points(mid_point, b);
-                                    });
+  // auto mid_point = (d_a + d_b + d_c + d_d) * 0.25;
+  std::vector<point> pts = {d_a, d_b, d_d, d_c};
+  // std::sort(pts.begin(), pts.end(), [&](point a, point b) {
+  //                                     return angle_between_points(mid_point, a) < 
+  //                                       angle_between_points(mid_point, b);
+  //                                   });
 
   q->a = pts[0]; q->b = pts[1]; q->c = pts[3]; q->d = pts[2];
+  if (q->a.x == q->b.x) q->b.x++;
 
   q->rows = w->rows;
 
@@ -6580,12 +6582,17 @@ void quad_scan_state_init_reading(quad_scan_state *q,
 
 void quad_scan_state_start_row(quad_scan_state *q, f32 l) {
   f32 i_fill_factor = 0.5;
-  q->cols = q->start_len * (1.0 - l) + l * q->end_len;
+  f32 eps = 0.015;
+  q->cols = fabs(lerp_angle(l, q->start_len, q->end_len));
   q->offs_x = q->start_x * (1.0 - l) + l * q->end_x;
   q->dx = lerp_angle(l, q->sdx, q->edx) * i_fill_factor;
   q->dy = lerp_angle(l, q->sdy, q->edy) * i_fill_factor;
+  if (fabs(q->dx) < eps) q->dx = 0;
+  if (fabs(q->cols) < eps) q->cols = 0;
+
+  if (q->dx < 0) q->dst_x = q->cols;
+  else q->dst_x = 0;
   q->this_y = q->offs_y;
-  q->dst_x = 0;
 }
 
 void quad_scan_state_start_row_reading(quad_scan_state *q, f32 l, quad_scan_state *w) {
@@ -6596,10 +6603,12 @@ void quad_scan_state_start_row_reading(quad_scan_state *q, f32 l, quad_scan_stat
   q->dy = lerp_angle(l, q->sdy, q->edy);
 
   auto cols = q->start_len * (1.0 - l) + l * q->end_len;
-  f32 write_steps = (f32)w->cols / w->dx;
-  f32 read_steps  = (f32)cols / q->dx; 
-  f32 scale = read_steps / write_steps;
+  f32 write_steps = w->dx && w->cols ?  (f32)w->cols / w->dx : 0; 
+  f32 read_steps  = q->dx ? (f32)cols / q->dx : 0; 
+  f32 scale = fabs(write_steps ? read_steps / write_steps : 0.0);
   q->dx *= scale; q->dy *= scale;
+  f32 eps = 0.015;
+  if (fabs(q->dx) < eps) q->dx = 0;
   
   q->this_y = q->offs_y;
 
@@ -6618,7 +6627,8 @@ bool quad_scan_state_start_col(quad_scan_state *q) {
   q->dst_x += q->dx;
   q->x = q->offs_x + (s64)q->dst_x;
   q->y = (s64)roundf(q->this_y);
-  return q->dst_x < q->cols;
+  auto in_bounds = q->dx > 0 ? q->dst_x < q->cols : q->dst_x > q->offs_x;
+  return in_bounds;
 }
 
 void quad_scan_state_end_col(quad_scan_state *q) {
@@ -6637,7 +6647,7 @@ void _gfx_blit_image_into_quad(blit_surface *src, blit_surface *dst,
     quad_scan_state_start_row(write, l);
     quad_scan_state_start_row_reading(read, l, write);
 
-    if (write->dx > 0 && read->dx > 0) {
+    if (write->dx != 0 && read->dx != 0) {
 
       while (quad_scan_state_start_col(write)) {
         quad_scan_state_start_col(read);

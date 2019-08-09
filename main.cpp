@@ -444,7 +444,7 @@ struct PtrArrayObject : Object {
 };
 
 struct ByteCodeObject : Object {
-  U32ArrayObject *code;
+  U16ArrayObject *code;
   PtrArrayObject *literals;
   Ptr name;
   bool is_varargs;
@@ -642,7 +642,7 @@ struct VM {
   bool screen_dirty;
   thdq *threads;
   thread_ctx* curr_thd;
-  u32 *curr_code;
+  u16 *curr_code;
   StackFrameObject *curr_frame;
   Ptr *curr_lits;
   bool suspended;
@@ -1193,11 +1193,11 @@ Ptr standard_object_set_ivar(StandardObject *object, u64 idx, Ptr value) {
 Ptr make_bytecode(VM *vm, u64 code_len) {
   #if STATS
   vm->stats->total_bytecode_bytes_allocated += sizeof(ByteCodeObject) +
-    sizeof(U32ArrayObject) + code_len * 4;
+    sizeof(U16ArrayObject) + code_len * 2;
   #endif
   auto bc = alloc_bytecode(vm);
   gc_protect(bc);
-  auto code = alloc_u32ao(vm, code_len);
+  auto code = alloc_u16ao(vm, code_len);
   gc_unprotect(bc);
   bc->code = code;
   return to(Ptr, bc);
@@ -1763,7 +1763,7 @@ void bang_refs(StackFrameObject *it, BangPtrFn fn) {
 }
 
 void bang_refs(ByteCodeObject *it, BangPtrFn fn) {
-  it->code = (U32ArrayObject *)as(void, fn(to(Ptr, it->code)));
+  it->code = (U16ArrayObject *)as(void, fn(to(Ptr, it->code)));
   it->literals = (PtrArrayObject *)as(void, fn(to(Ptr, it->literals)));
   it->name = fn(it->name);
 }
@@ -2365,7 +2365,7 @@ void gc_update(VM *vm, ByteCodeObject* it) {
   if (it->code) {
     Ptr p = to(Ptr, it->code);
     gc_update_ptr(vm, &p);
-    it->code = as(U32Array, p);
+    it->code = as(U16Array, p);
   }
   if (it->literals) {
     Ptr p = to(Ptr, it->literals);
@@ -4734,13 +4734,13 @@ inline u8 instr_code(u32 bc) {
   return ((u8*)&bc)[0];
 }
 inline u8 instr_data(u32 bc) {
-  return ((u16*)&bc)[1];
+  return ((u8*)&bc)[1];
 }
 
-inline u32 build_instr(u8 op, u16 data) {
-  u32 res = 0;
+inline u16 build_instr(u8 op, u16 data) {
+  u16 res = 0;
   ((u8*)&res)[0] = op;
-  ((u16*)&res)[1] = data;
+  ((u8*)&res)[1] = data;
   return res;
 }
 
@@ -5216,12 +5216,12 @@ void vm_interp(VM* vm, interp_params params) {
 #undef vm_adv_instr
 
 
-typedef std::tuple<u32*, string> branch_entry;
+typedef std::tuple<u16*, string> branch_entry;
 
 class BCBuilder {
 private:
   VM* vm;
-  u32* bc_mem;
+  u16* bc_mem;
   u32 bc_index;
   u64 bc_capacity;
   u32 lit_index;
@@ -5234,30 +5234,30 @@ private:
   std::vector<u64> *labelContextStack;
   u64 labelContext;
 
-  u32 *temp_count;
+  u16 *temp_count;
   Object *literals; // xarray[any]
   Ptr name;
 
   void _reserveInstruction() {
     if (bc_index - 1 >= bc_capacity) {
       bc_capacity *= 2;
-      bc_mem = (u32 *)realloc(bc_mem, bc_capacity * sizeof(u32));
+      bc_mem = (u16 *)realloc(bc_mem, bc_capacity * sizeof(u16));
     }
   }
   BCBuilder* pushPair(u8 op, u16 data) {
-    return pushU32(build_instr(op, data));
+    return pushU16(build_instr(op, data));
   }
   BCBuilder* pushOp(u8 op) {
-    return pushU32(build_instr(op, 0));
+    return pushU16(build_instr(op, 0));
   }
-  BCBuilder* pushU32(u32 it) {
+  BCBuilder* pushU16(u16 it) {
     _reserveInstruction();
     bc_mem[bc_index++] = it;
     return this;
   }
-  u32* pushEmptyRef() {
+  u16* pushEmptyRef() {
     auto location = bc_mem + bc_index;
-    pushU32(0);
+    pushU16(0);
     return location;
   }
   string labelify(const char * raw_name) {
@@ -5323,7 +5323,7 @@ public:
     bc_index            = 0;
     lit_index           = 0;
     bc_capacity         = 1024;
-    bc_mem              = (u32 *)calloc(bc_capacity, sizeof(u32));
+    bc_mem              = (u16 *)calloc(bc_capacity, sizeof(u16));
     labelsMap           = new std::map<string, u64>;
     branchLocations     = new std::vector<branch_entry>;
     labelContextCounter = 0;
@@ -5339,7 +5339,7 @@ public:
 
     pushOp(STACK_RESERVE);
     temp_count = &bc_mem[bc_index];
-    pushU32(0);
+    pushU16(0);
     assert(*temp_count == 0);
   }
   ~BCBuilder() {
@@ -5375,12 +5375,12 @@ public:
   }
   auto loadFrameRel(u64 idx) {
     pushOp(LOAD_FRAME_RELATIVE);
-    pushU32(idx);
+    pushU16(idx);
     return this;
   }
   auto storeFrameRel(u64 idx) {
     pushOp(STORE_FRAME_RELATIVE);
-    pushU32(idx);
+    pushU16(idx);
     return this;
   }
   auto pushLabelContext() {
@@ -5468,24 +5468,24 @@ public:
   auto popSpecialBinding() {
     pushOp(POP_SPECIAL_BINDING);
   }
-  auto loadClosure(u32 slot, u32 depth) {
+  auto loadClosure(u16 slot, u16 depth) {
     pushOp(LOAD_CLOSURE);
-    pushU32(slot);
-    pushU32(depth);
+    pushU16(slot);
+    pushU16(depth);
     return this;
   }
-  auto storeClosure(u32 slot, u32 depth) {
+  auto storeClosure(u16 slot, u16 depth) {
     pushOp(STORE_CLOSURE);
-    pushU32(slot);
-    pushU32(depth);
+    pushU16(slot);
+    pushU16(depth);
     return this;
   }
   auto buildClosure() {
     pushOp(BUILD_CLOSURE);
   }
-  auto pushClosureEnv(u32 count) {
+  auto pushClosureEnv(u16 count) {
     pushOp(PUSH_CLOSURE_ENV);
-    pushU32(count);
+    pushU16(count);
   }
   auto popClosureEnv() {
     pushOp(POP_CLOSURE_ENV);

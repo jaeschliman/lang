@@ -53,7 +53,7 @@
 * DONE write reader in the language itself
 * DONE basic sdl integration
 * DONE single floats
-* TODO U32 Array etc
+* DONE U32 Array etc
 * DONE more prim instrs
 * TODO maybe expose bytecode prims as special forms? %push %call etc...
 * TODO growable heap
@@ -124,7 +124,7 @@ http://www.cs.utah.edu/plt/scope-sets/
 * TODO read this dissertation on implmentation of scheme
 https://www.cs.indiana.edu/~dyb/papers/3imp.pdf
 * DONE simple userspace structs (StandardObject)
-* TODO convert BC to 32 bit so we can assemble from user space
+* DONE convert BC to 32 bit so we can assemble from user space
 * TODO adaptons? (see will byrd miniAdapton)
 http://adapton.org/
 * TODO bezier + fourier transforms is cool!

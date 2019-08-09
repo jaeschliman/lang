@@ -4830,13 +4830,15 @@ void vm_interp(VM* vm, interp_params params) {
       break;
     }
     case LOAD_FRAME_RELATIVE: {
-      u64 idx = vm_adv_instr(vm);
+      u32 idx = data;
+      if (idx == 255) idx = vm_adv_instr(vm);
       Ptr *stack_bottom = ((Ptr *)(void *)vm->curr_frame) - 1;
       vm_push(vm, *(stack_bottom - idx));
       break;
     }
     case STORE_FRAME_RELATIVE: {
-      u64 idx = vm_adv_instr(vm);
+      u32 idx = data;
+      if (idx == 255) idx = vm_adv_instr(vm);
       Ptr it = vm_pop(vm);
       Ptr *stack_bottom = ((Ptr *)(void *)vm->curr_frame) - 1;
       *(stack_bottom - idx) = it;
@@ -5379,14 +5381,12 @@ public:
     }
     return this;
   }
-  auto loadFrameRel(u64 idx) {
-    pushOp(LOAD_FRAME_RELATIVE);
-    pushU16(idx);
+  auto loadFrameRel(u16 idx) {
+    pushPair(LOAD_FRAME_RELATIVE, idx);
     return this;
   }
-  auto storeFrameRel(u64 idx) {
-    pushOp(STORE_FRAME_RELATIVE);
-    pushU16(idx);
+  auto storeFrameRel(u16 idx) {
+    pushPair(STORE_FRAME_RELATIVE, idx);
     return this;
   }
   auto pushLabelContext() {

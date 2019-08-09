@@ -102,9 +102,10 @@
       (aset box 4 colors)
       (aset box 5 0)
       (sync add-box-lock (set 'boxes (cons box boxes)))
-      (fork-with-priority priority (forever
-                                    (sleep-ms 128)
-                                    (move-box box)))))
+      (fork-with-priority priority
+                          (forever
+                           (sleep-ms 16)
+                           (move-box box)))))
 
 (define (clear-screen)
     (fill-rect back-buffer 0@0 screen-size 0xffffffff))

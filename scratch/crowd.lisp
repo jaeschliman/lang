@@ -13,8 +13,8 @@
                                (* 2 (- (random y) m))))
 
 (define items '())
-(dotimes (y 20)
-  (dotimes (x 20)
+(dotimes (y 10)
+  (dotimes (x 10)
     (let ((sul (make-point (* x 25) (* y 25)))
           (dul (make-point (f->i (* screen-width (/ x 10.0)))
                            (f->i (* screen-height (/ y 10.0))))))

@@ -424,6 +424,11 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   not only are we doing a lot of unneeded drawing, (to eliminate
   artifacts), but we are also making three (!) trig calls per row
   drawn. insane.
+* TODO expose fns for creating/manipulating U32Array to prep for writing assembler
+  will also need some sort of xarray like functionality
+* TODO write a compiler/assembler in userspace 
+  after initial feature parity, main goal will be to support e.g. named let
+  without creating spurious closures, and support use of direct recursion in `define`
 
 * notes
 maybe have a stack of compilers? can push/pop...

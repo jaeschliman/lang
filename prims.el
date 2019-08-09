@@ -413,6 +413,8 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim exit EXIT ((status Fixnum)) any "(exit(status), Nil)")
 
+  (prim prefetch PF ((it any)) any "prefetch(it)")
+
   (setf *prims* (reverse *prims*))
   (write-prims))
 

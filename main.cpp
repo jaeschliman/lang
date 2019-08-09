@@ -8,6 +8,7 @@
 
 // #define NDEBUG
 
+#include <xmmintrin.h>
 #include <locale.h>
 #include <SDL2/SDL.h>
 #include <SDL2_image/SDL_image.h>
@@ -995,6 +996,13 @@ type_test(BrokenHeart, it) {
 
 #undef prim_type
 #undef object_type
+
+inline Ptr prefetch(Ptr p) {
+  if (is(NonNilObject, p)) {
+    _mm_prefetch((char *)as(Object, p), _MM_HINT_T0);
+  }
+  return p;
+}
 
 #define VM_ARG(fname, type, name)                                       \
   Ptr _##name = vm_pop(vm);                                             \

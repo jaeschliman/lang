@@ -143,6 +143,7 @@ enum PrimitiveOperation : u64 {
   PRIM_UPD_WIN = ((140ULL << 32) | (255ULL << 16) | PrimOp_Tag),
   PRIM_BLTQ = ((141ULL << 32) | (10ULL << 16) | PrimOp_Tag),
   PRIM_EXIT = ((142ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PF = ((143ULL << 32) | (1ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -1371,6 +1372,14 @@ Ptr PRIM_EXIT_impl(VM *vm, u32 argc) {
  return (exit(status), Nil);
 }
 
+// Primitive 142
+Ptr PRIM_PF_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("prefetch",any,it);
+
+ return prefetch(it);
+}
+
 
 PrimitiveFunction PrimLookupTable[] = {
   (PrimitiveFunction)(void *)0, // apply
@@ -1516,6 +1525,7 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_UPD_WIN_impl,
   &PRIM_BLTQ_impl,
   &PRIM_EXIT_impl,
+  &PRIM_PF_impl,
 
   (PrimitiveFunction)(void *)0
 };
@@ -1665,6 +1675,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "update-display", to(PrimOp, PRIM_UPD_WIN));
   set_global(vm, "blitq", to(PrimOp, PRIM_BLTQ));
   set_global(vm, "exit", to(PrimOp, PRIM_EXIT));
+  set_global(vm, "prefetch", to(PrimOp, PRIM_PF));
 
 }
 
@@ -2750,6 +2761,13 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("exit",Fixnum,status);
 
     vm_push(vm, (exit(status), Nil));
+    break;
+  }
+
+  case 143: {
+   VM_ARG("prefetch",any,it);
+
+    vm_push(vm, prefetch(it));
     break;
   }
 

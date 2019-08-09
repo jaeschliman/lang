@@ -4766,7 +4766,7 @@ typedef struct {
 } interp_params;
 
 //absurdly low for testing
-#define CTX_SWITCH 1000
+#define CTX_SWITCH 2000
 #define RUN_QUICK 10000
 #define RUN_AWHILE 1000000
 #define RUN_INDEFINITELY 0

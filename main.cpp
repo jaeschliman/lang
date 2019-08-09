@@ -6535,10 +6535,8 @@ void quad_scan_state_init(quad_scan_state *q,
                           point d_a, point d_b, point d_c, point d_d) {
 
 
+  q->a = d_a; q->b = d_b; q->c = d_c; q->d = d_d;
 
-  std::vector<point> pts = {d_a, d_b, d_d, d_c};
-
-  q->a = pts[0]; q->b = pts[1]; q->c = pts[3]; q->d = pts[2];
   if (q->a.x == q->b.x) q->b.x++;
 
   {

@@ -414,12 +414,16 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   over/under flow bugs are a pain
 * TODO eliminate lint issues
   flycheck is reporting some issues that -Wall is not
-* TODO blit flipped images
+* DONE blit flipped images
 * DONE blit arbitrary quad images
 * TODO blit from quad to quad images
 * DONE spatial point sort for quad blit
 * TODO blit with tint / blend modes
-* TODO handle more edge cases in quad blit
+* DONE handle more edge cases in quad blit
+* IN-PROGRESS think about how to optimize blitq (it is super slow)
+  not only are we doing a lot of unneeded drawing, (to eliminate
+  artifacts), but we are also making three (!) trig calls per row
+  drawn. insane.
 
 * notes
 maybe have a stack of compilers? can push/pop...

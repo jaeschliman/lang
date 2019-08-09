@@ -331,6 +331,7 @@ enum ObjectType : u8 {
   ByteArray_ObjectType,
   U64Array_ObjectType,
   U32Array_ObjectType,
+  U16Array_ObjectType,
   PtrArray_ObjectType,
   Standard_ObjectType,
   StackFrame_ObjectType,
@@ -423,6 +424,12 @@ struct U32ArrayObject : Object {
   u64 length;
   u32 data[];
 };
+
+struct U16ArrayObject : Object {
+  u64 length;
+  u16 data[];
+};
+
 
 enum PAOType : u32 {
   Array,
@@ -976,6 +983,7 @@ type_test(Object, it) { return is(NonNilObject, it); }
 object_type(ByteCode)
 object_type(ByteArray)
 object_type(U32Array)
+object_type(U16Array)
 object_type(U64Array)
 object_type(PtrArray)
 object_type(Standard)
@@ -1001,6 +1009,15 @@ type_test(BrokenHeart, it) {
 // TODO: convert this to type-test
 inline bool isNil(Ptr self) {
   return self.value == Object_Tag;
+}
+
+U16ArrayObject *alloc_u16ao(VM *vm, uint len) {
+  auto byte_count = sizeof(U16ArrayObject) + (len * sizeof(u16));
+  U16ArrayObject* obj = (U16ArrayObject *)vm_alloc(vm, byte_count);
+  obj->header.object_type = U16Array_ObjectType;
+  set_obj_tag(obj, U16Array);
+  obj->length = len;
+  return obj;
 }
 
 U32ArrayObject *alloc_u32ao(VM *vm, uint len) {
@@ -1693,6 +1710,7 @@ bool file_output_stream_write_char(Ptr os, character ch) {
 // size of object in bytes
 // note that obj_size of stack frame does not take into account temporaries.
 
+u64 obj_size(U16ArrayObject *it)  { return sizeof(U16ArrayObject) + it->length * 2;    }
 u64 obj_size(U32ArrayObject *it)  { return sizeof(U32ArrayObject) + it->length * 4;    }
 u64 obj_size(U64ArrayObject *it)  { return sizeof(U64ArrayObject) + it->length * 8;    }
 u64 obj_size(ByteCodeObject *)    { return sizeof(ByteCodeObject) + 0;                 }
@@ -1707,6 +1725,8 @@ Object *gc_forwarding_address(Object *obj);
 
 auto size_of(Ptr it) {
   if (isNil(it) || !is(Object, it)) return (u64)0;
+  // TODO: switch off of header object type
+  if (is(U16Array, it))   return obj_size(as(U16Array, it));
   if (is(U32Array, it))   return obj_size(as(U32Array, it));
   if (is(U64Array, it))   return obj_size(as(U64Array, it));
   if (is(ByteCode, it))   return obj_size(as(ByteCode, it));
@@ -1763,6 +1783,8 @@ void scan_heap(void *start, void *end, PtrFn fn);
 void bang_heap(void *start, void *end, BangPtrFn fn) {
   scan_heap(start, end, [&](Ptr it) {
       if (isNil(it) || !is(Object, it)) return;
+      // TODO: switch off header object type
+      if (is(U16Array, it))   return; // no refs
       if (is(U32Array, it))   return; // no refs
       if (is(U64Array, it))   return; // no refs
       if (is(ByteArray, it))  return; // no refs
@@ -1809,6 +1831,8 @@ void obj_refs(StandardObject *it, PtrFn fn) {
 
 void map_refs(Ptr it, PtrFn fn) {
   if (isNil(it) || !is(Object, it)) return;
+  // TODO: switch off object header type
+  if (is(U16Array, it))   return; // no refs
   if (is(U32Array, it))   return; // no refs
   if (is(U64Array, it))   return; // no refs
   if (is(ByteArray, it))  return; // no refs
@@ -1938,6 +1962,10 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
     auto bc = (ByteCodeObject *)obj;
     std::cout << "#<ByteCode " << bc->name << " " << (void*)obj << ">";
     return os;
+  }
+  case U16Array_ObjectType: {
+    auto len = ((const U16ArrayObject *)obj)->length;
+    return os << "#<U16Array (" << len << ") "<< (void*)obj << ">";
   }
   case U32Array_ObjectType: {
     auto len = ((const U32ArrayObject *)obj)->length;

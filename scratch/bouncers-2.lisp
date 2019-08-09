@@ -41,12 +41,10 @@
 (define colors rainbow-colors)
 
 (define (move-box box)
-    (let* ((x (aget box 0))
-           (y (aget box 1))
-           (dx (aget box 2))
+    (let* ((dx (aget box 2))
            (dy (aget box 3))
-           (nx (+i x dx))
-           (ny (+i y dy))
+           (nx (+i (aget box 0) dx))
+           (ny (+i (aget box 1) dy))
            (sw (point-x screen-size))
            (sh (point-y screen-size))
            (mx (point-x mouse-position))
@@ -89,7 +87,7 @@
       (aset box 5 0)
       (sync add-box-lock (set 'boxes (cons box boxes)))
       (fork-with-priority priority (forever
-                                    (sleep-ms 32)
+                                    (sleep-ms 128)
                                     (move-box box)))))
 
 (define (clear-screen)

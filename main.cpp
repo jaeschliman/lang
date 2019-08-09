@@ -4847,6 +4847,7 @@ void vm_interp(VM* vm, interp_params params) {
       break;
     case PUSHLIT: {
       u32 idx = data;
+      if (idx == 255) idx = vm_adv_instr(vm);
       Ptr it = vm->curr_lits[idx];
       vm_push(vm, it);
       break;
@@ -5244,7 +5245,12 @@ private:
       bc_mem = (u16 *)realloc(bc_mem, bc_capacity * sizeof(u16));
     }
   }
+  // FIXME: audit all uses of pushPair
   BCBuilder* pushPair(u8 op, u16 data) {
+    if (data >= 255) {
+      pushU16(build_instr(op, 255));
+      return pushU16(data);
+    }
     return pushU16(build_instr(op, data));
   }
   BCBuilder* pushOp(u8 op) {

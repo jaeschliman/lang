@@ -18,21 +18,37 @@
 
 (define rainbow-colors
     '(0xffff0000
+      0xffff8800
       0xffffaa00
+      0xffffdd00
       0xffffff00
+      0xff88ff00
       0xffaaff00
+      0xffddff00
       0xff00ff00
+      0xff00ff88
       0xff00ffaa
+      0xff00ffdd
       0xff00ffff
+      0xff0088ff
       0xff00aaff
+      0xff00ddff
       0xff0000ff
+      0xff8800ff
       0xffaa00ff
+      0xffdd00ff
       0xffff00ff
+      0xffff88ff
       0xffffaaff
+      0xffffddff
       0xffffffff
+      0xff888888
       0xffaaaaaa
+      0xffdddddd
       0xff000000
-      0xffaa0000))
+      0xff880000
+      0xffaa0000
+      0xffdd0000))
 
 (define alternate-colors
     '(0xff0000ff

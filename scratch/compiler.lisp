@@ -34,6 +34,8 @@
 
 (defparameter *code* #f)
 (defparameter *lits* #f)
+(defparameter *labels* #f)
+(defparameter *jump-locations* #f)
 
 (define Aggregator (create-class 'Aggregator '(count list)))
 
@@ -54,6 +56,24 @@
 (define (emit-lit it) (agg-push *lits* it) (- (agg-count *lits*) 1)) 
 (define (emit-pair a b) (emit-u16 (bit-or (ash b 8) a)))
 
+(define (label name)
+    (ht-at-put *labels* name (agg-count *code*)))
+
+(define (save-jump-location label)
+  (emit-u16 0) ;; to be filled in by fixup-jump-locations
+  (set '*jump-locations* (cons (cons label (- (agg-count *code*) 1)) *jump-locations*)))
+
+(define (jump label)
+    (emit-u16 JUMP)
+  (save-jump-location label))
+
+(define (fixup-jump-locations code)
+    (dolist (pair *jump-locations*)
+      (let* ((label (car pair))
+             (code-location (cdr pair))
+             (jump-target (ht-at *labels* label)))
+        (aset-u16 code code-location jump-target))))
+
 (define (finalize-bytecode name varargs)
     (let ((code (make-array-u16 (agg-count *code*)))
           (lits (make-array (agg-count *lits*))))
@@ -65,10 +85,11 @@
         (dolist (it (agg-items *lits*))
           (set! i (+ 1 i))
           (aset lits i it)))
+      (fixup-jump-locations code)
       (make-bytecode varargs name code lits)))
 
 (defmacro with-output-to-bytecode (_ & body)
-  `(binding ((*code* (make-agg)) (*lits* (make-agg)))
+  `(binding ((*code* (make-agg)) (*lits* (make-agg)) (*labels* (make-ht)) (*jump-locations* '()))
             ,@body
             (finalize-bytecode 'anon #f)))
 
@@ -82,5 +103,22 @@
                        (emit-u16 END))))
 
 (hello-world)
+
+(define goodbye-world (bytecode->closure
+                     (with-output-to-bytecode ()
+                       (jump 'goodbye)
+                       (emit-pair PUSHLIT (emit-lit "hello, world"))
+                       (emit-pair PUSHLIT (emit-lit 'print))
+                       (emit-u16 LOAD_GLOBAL)
+                       (emit-pair CALL 1)
+                       (label 'goodbye)
+                       (emit-pair PUSHLIT (emit-lit "goodbye, world"))
+                       (emit-pair PUSHLIT (emit-lit 'print))
+                       (emit-u16 LOAD_GLOBAL)
+                       (emit-pair CALL 1)
+                       (emit-u16 RET)
+                       (emit-u16 END))))
+
+(goodbye-world)
 
 (print 'done)

@@ -51,9 +51,9 @@
 (define (expr-meta e k)
     (%expr-meta *expr-context* e k))
 
-(define (declare-local-binding symbol)
-    (when (nil? (ht-at (cdr *expr-context*) symbol))
-      (ht-at-put (cdr *expr-context*) symbol (make-ht))))
+(define (declare-local-binding thing)
+    (when (nil? (ht-at (cdr *expr-context*) thing))
+      (ht-at-put (cdr *expr-context*) thing (make-ht))))
 
 (define %expr-set-meta #f)
 (define (%expr-set-meta ctx e k v)
@@ -67,6 +67,13 @@
 (define (expr-set-meta e k v)
     (%expr-set-meta *expr-context* e k v))
 
+(define (ctx-annot-put k v)
+    (declare-local-binding '())
+  (expr-set-meta '() k v))
+
+(define (ctx-annot-read ctx k)
+    (ht-at (ht-at (cdr ctx) '()) k))
+
 (define (%ensure-expression-context e)
     (when (nil? (ht-at *context-table* e))
       (ht-at-put *context-table* e (cons *expr-context* (make-ht))))
@@ -76,6 +83,31 @@
   (let ((e (car opts)))
     `(binding ((*expr-context* (%ensure-expression-context ,e)))
               ,@body)))
+
+(define %binding-depth #f)
+(define (%binding-depth ctx e acc)
+    (if (nil? ctx) -1
+        (let ((ht (ht-at (cdr ctx) e)))
+          (if (nil? ht)
+              (%binding-depth (car ctx) e (+ 1 acc))
+              acc))))
+
+(define (binding-depth sym)
+    (%binding-depth *expr-context* sym 0))
+
+(define %binding-crosses-lambda #f)
+(define (%binding-crosses-lambda ctx e saw-lambda)
+    (if (nil? ctx) #f
+        (let* ((type (ctx-annot-read ctx 'type))
+               (ht (ht-at (cdr ctx) e))
+               (not-here (nil? ht))
+               (crossed-lambda (and (eq type 'lambda) not-here)))
+          (if not-here
+              (%binding-crosses-lambda (car ctx) e (or saw-lambda crossed-lambda))
+              saw-lambda))))
+
+(define (binding-crosses-lambda symbol)
+    (%binding-crosses-lambda *expr-context* symbol #f))
 
 (define Aggregator (create-class 'Aggregator '(count list)))
 
@@ -186,6 +218,7 @@
     (let ((binds (cadr e))
           (body (cddr e)))
       (with-expression-context (body)
+        (ctx-annot-put 'type 'let)
         (dolist (pair binds)
           (let ((sym (car pair)))
             (declare-local-binding sym)
@@ -196,6 +229,7 @@
     (let* ((args (cadr e))
            (body (cddr e)))
       (with-expression-context (body)
+        (ctx-annot-put 'type 'lambda)
         (let ((idx 0))
           (dolist (arg args)
             (declare-local-binding arg)
@@ -205,13 +239,17 @@
           (dolist (e body) (mark-variables e))))))
 
 (define (mark-variables e)
-    (when (pair? e)
-      (case (car e)
-        (quote)
-        (if (dolist (e (cdr e)) (mark-variables e)))
-        (let (mark-let e))
-        (lambda (mark-lambda e))
-        (#t (dolist (e e) (mark-variables e))))))
+    (cond
+      ((symbol? e)
+       (when (binding-crosses-lambda e)
+         (throw `(closures not yet implemented: ,e))))
+      ((pair? e)
+       (case (car e)
+         (quote)
+         (if (dolist (e (cdr e)) (mark-variables e)))
+         (let (mark-let e))
+         (lambda (mark-lambda e))
+         (#t (dolist (e e) (mark-variables e)))))))
 
 (define emit-expr #f)
 
@@ -313,5 +351,11 @@
 (dbg `(print ((lambda (arg) arg) "returned an argument")))
 (dbg `(print ((lambda (arg) (list arg)) "used an arg")))
 (dbg `(print (list (list 'list '1 '2) '= ((lambda (x y) (list x y)) 1 2))))
+(print "expecting error:")
+(dbg `(let ((x 10)) (lambda () x)))
+(dbg `(print ((let ((x 10)) (lambda () (let ((x 20)) x))))))
+(print "expecting error:")
+(dbg `(print ((let ((x 10)) (lambda () (let ((y 20)) x))))))
+(dbg `(print ((let ((x 10)) (lambda () (let ((y 20)) y))))))
 
 (print 'done)

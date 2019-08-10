@@ -95,6 +95,27 @@
 (define (binding-depth sym)
     (%binding-depth *expr-context* sym 0))
 
+(define %binding-context #f)
+(define (%binding-context ctx e)
+    (if (nil? ctx) '()
+        (let ((ht (ht-at (cdr ctx) e)))
+          (if (nil? ht)
+              (%binding-context (car ctx) e)
+              ctx))))
+
+(define (binding-context sym)
+    (%binding-context *expr-context* sym))
+
+(define (binding-context-annot sym k v)
+    (let ((ctx (binding-context sym)))
+      (ht-at-put (ht-at (cdr ctx) '()) k v)))
+
+(define binding-context-is-closed-over #f)
+(define (binding-context-is-closed-over ctx)
+    (if (nil? ctx) #f
+        (or (eq #t (ctx-annot-read ctx 'closed-over))
+            (binding-context-is-closed-over (car ctx)))))
+
 (define %binding-crosses-lambda #f)
 (define (%binding-crosses-lambda ctx e saw-lambda)
     (if (nil? ctx) #f
@@ -242,7 +263,8 @@
     (cond
       ((symbol? e)
        (when (binding-crosses-lambda e)
-         (throw `(closures not yet implemented: ,e))))
+         (binding-context-annot e 'closed-over #t)
+         (expr-set-meta e 'type 'closure)))
       ((pair? e)
        (case (car e)
          (quote)
@@ -312,6 +334,8 @@
             (load-tmp (expr-meta it 'index)))
            (argument
             (load-arg (expr-meta it 'index)))
+           (closure
+            (throw `(closures not yet implemented: ,it)))
            (#t (throw `(bad type for symbol ,it ,type))))))
       ((pair? it)
        (let ((head (car it)))

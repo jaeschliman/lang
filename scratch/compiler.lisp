@@ -315,24 +315,28 @@
     (let* ((binds (cadr it))
            (body (cddr it))
            (count (length binds)))
-      ;; TODO: only close over those vars that require it
       (if (expression-context-is-closed-over body)
           (let* ((idx 0)
-                 (start (reserve-tmps count)))
+                 (closure-idx 0)
+                 ;; this is wasteful -- we are reserving stack space for items
+                 ;; which wind up stored in the closure
+                 (start (reserve-tmps count))) 
             (dolist (pair binds)
-              ;; this is wasteful (for now).
-              ;; when closed over we are loading all into frame relative,
-              ;; and then then loading all into a closure env.
               (let ((sym (car pair)))
                 (emit-expr (second pair) env)
-                (store-tmp (+ idx start))
-                (load-tmp  (+ idx start))
                 (with-expression-context (body)
-                  (expr-set-meta sym 'closure-index idx)
-                  (expr-set-meta sym 'index (+ idx start)))
+                  (case (expr-meta sym 'type)
+                    (local
+                     (store-tmp (+ idx start))
+                     (expr-set-meta sym 'index (+ idx start)))
+                    (closure
+                     ;; leave on stack to be picked up by push-closure
+                     (expr-set-meta sym 'closure-index closure-idx)
+                     (set! closure-idx (+ 1 closure-idx))))
+                  (expr-set-meta sym 'closure-index idx))
                 (set! idx (+ 1 idx))))
             (with-expression-context (body)
-              (push-closure (length binds))
+              (push-closure closure-idx)
               (dolist (e body) (emit-expr e env))
               (pop-closure)))
           (let* ((start (reserve-tmps count))
@@ -377,7 +381,6 @@
     (cond
       ((symbol? it)
        (let ((type (expr-meta it 'type)))
-         (print `(emitting load ,it ,type))
          (case type
            (()
             (emit-pair PUSHLIT (emit-lit it))

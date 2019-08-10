@@ -118,6 +118,7 @@
 
 (define (store-tmp idx) (emit-pair STORE_FRAME_RELATIVE idx))
 (define (load-tmp idx)  (emit-pair LOAD_FRAME_RELATIVE idx))
+(define (load-arg idx)  (emit-pair LOAD_ARG idx))
 
 (define (fixup-jump-locations code)
     (dolist (pair *jump-locations*)
@@ -150,6 +151,9 @@
             (emit-u16 STACK_RESERVE)
             (emit-u16 0)
             ,@body
+            (emit-u16 RET)
+            (emit-u16 END)
+            (emit-lit '())
             (finalize-bytecode 'anon #f)))
 
 (define hello-world (bytecode->closure
@@ -157,9 +161,7 @@
                        (emit-pair PUSHLIT (emit-lit "hello, world"))
                        (emit-pair PUSHLIT (emit-lit 'print))
                        (emit-u16 LOAD_GLOBAL)
-                       (emit-pair CALL 1)
-                       (emit-u16 RET)
-                       (emit-u16 END))))
+                       (emit-pair CALL 1))))
 
 (hello-world)
 
@@ -174,9 +176,7 @@
                          (emit-pair PUSHLIT (emit-lit "goodbye, world"))
                          (emit-pair PUSHLIT (emit-lit 'print))
                          (emit-u16 LOAD_GLOBAL)
-                         (emit-pair CALL 1)
-                         (emit-u16 RET)
-                         (emit-u16 END))))
+                         (emit-pair CALL 1))))
 
 (goodbye-world)
 
@@ -211,17 +211,31 @@
           (emit-expr (second pair) env)
           (store-tmp idx)
           (set! idx (+ 1 idx)))
-        ;; TODO: mark vars
         (with-expression-context (body)
           (set! idx start)
           (dolist (pair binds)
             (let ((sym (car pair)))
               (declare-local-binding sym)
-              (expr-set-meta sym 'type 'argument)
+              (expr-set-meta sym 'type 'local)
               (expr-set-meta sym 'index idx)
               (set! idx (+ 1 idx))))
           (dolist (e body)
             (emit-expr e env))))))
+
+(define (emit-flat-lambda it env)
+    (let* ((args (cadr it))
+           (body (cddr it))
+           (bc (with-output-to-bytecode ()
+                 (with-expression-context (body)
+                   (let ((idx 0))
+                     (dolist (arg args)
+                       (declare-local-binding arg)
+                       (expr-set-meta arg 'type 'argument)
+                       (expr-set-meta arg 'index idx)
+                       (set! idx (+ 1 idx))))
+                   (dolist (e body)
+                     (emit-expr e env))))))
+      (emit-pair PUSHLIT (emit-lit (bytecode->closure bc)))))
 
 (define (emit-expr it env)
     (cond
@@ -231,15 +245,19 @@
            (()
             (emit-pair PUSHLIT (emit-lit it))
             (emit-u16 LOAD_GLOBAL))
-           (argument
+           (local
             (load-tmp (expr-meta it 'index)))
+           (argument
+            (load-arg (expr-meta it 'index)))
            (#t (throw `(bad type for symbol ,it ,type))))))
       ((pair? it)
        (let ((head (car it)))
          (case head
-           (if (emit-if it env))
-           (let (emit-let it env))
-           (#t (emit-call it env)))))
+           (quote  (emit-pair PUSHLIT (emit-lit (cadr it))))
+           (if     (emit-if it env))
+           (let    (emit-let it env))
+           (lambda (emit-flat-lambda it env))
+           (#t     (emit-call it env)))))
       (#t
        (emit-pair PUSHLIT (emit-lit it)))))
 
@@ -249,9 +267,7 @@
                         (binding ((*context-table* (make-ht)))
                                  (bytecode->closure (with-output-to-bytecode ()
                                                       (with-expression-context (expr)
-                                                        (emit-expr expr '()))
-                                                      (emit-u16 RET)
-                                                      (emit-u16 END))))))
+                                                        (emit-expr expr '())))))))
                    (r)))
                (lambda (ex)
                  (print `(exception in dbg: ,ex)))))
@@ -264,5 +280,12 @@
 (dbg `(let ((x 10)) (print "compiled a let without body refs")))
 (dbg `(let ((message "compiled a let with a body ref"))
         (print message)))
+
+(dbg `(print (closure? (lambda () "does nothing"))))
+(dbg `(print ((lambda () "returned a value"))))
+(dbg `(print (closure? (lambda (arg) arg))))
+(dbg `(print ((lambda (arg) arg) "returned an argument")))
+(dbg `(print ((lambda (arg) (list arg)) "used an arg")))
+(dbg `(print (list (list 'list '1 '2) '= ((lambda (x y) (list x y)) 1 2))))
 
 (print 'done)

@@ -37,6 +37,46 @@
 (defparameter *labels* #f)
 (defparameter *jump-locations* #f)
 (defparameter *tmp-count* #f)
+(defparameter *expr-context* '())
+(defparameter *context-table* #f)
+
+(define %expr-meta #f)
+(define (%expr-meta ctx e k)
+    (if (nil? ctx) '()
+        (let ((ht (ht-at (cdr ctx) e)))
+          (if (nil? ht)
+              (%expr-meta (car ctx) e k)
+              (ht-at ht k)))))
+
+(define (expr-meta e k)
+    (%expr-meta *expr-context* e k))
+
+(define (declare-local-binding symbol)
+    (when (nil? (ht-at (cdr *expr-context*) symbol))
+      (ht-at-put (cdr *expr-context*) symbol (make-ht))))
+
+(define %expr-set-meta #f)
+(define (%expr-set-meta ctx e k v)
+    (if (nil? ctx)
+        (print `(bad call to %expr-set-meta ,e ,k ,v))
+        (let ((ht (ht-at (cdr ctx) e)))
+          (if (nil? ht)
+              (%expr-set-meta (car ctx) e k v)
+              (ht-at-put ht k v)))))
+
+(define (expr-set-meta e k v)
+    (%expr-set-meta *expr-context* e k v))
+
+(define (%ensure-expression-context e)
+    (when (nil? (ht-at *context-table* e))
+      (ht-at-put *context-table* e (cons *expr-context* (make-ht))))
+  (ht-at *context-table* e))
+
+(defmacro with-expression-context (opts & body)
+  (let ((e (car opts)))
+    `(binding ((*expr-context* (%ensure-expression-context ,e)))
+              ,@body)))
+
 
 (define Aggregator (create-class 'Aggregator '(count list)))
 
@@ -174,10 +214,13 @@
        (emit-pair PUSHLIT (emit-lit it)))))
 
 (define (dbg expr)
-    (let ((r (bytecode->closure (with-output-to-bytecode ()
-                                  (emit-expr expr '())
-                                  (emit-u16 RET)
-                                  (emit-u16 END)))))
+    (let ((r
+           (binding ((*context-table* (make-ht)))
+                    (bytecode->closure (with-output-to-bytecode ()
+                                         (with-expression-context (expr)
+                                           (emit-expr expr '()))
+                                         (emit-u16 RET)
+                                         (emit-u16 END))))))
       (r)))
 
 (dbg '(print "hello again, world!"))

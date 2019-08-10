@@ -315,13 +315,21 @@
     (let* ((binds (cadr it))
            (body (cddr it))
            (count (length binds)))
+      ;; TODO: only close over those vars that require it
       (if (expression-context-is-closed-over body)
-          (let* ((idx 0))
+          (let* ((idx 0)
+                 (start (reserve-tmps count)))
             (dolist (pair binds)
+              ;; this is wasteful (for now).
+              ;; when closed over we are loading all into frame relative,
+              ;; and then then loading all into a closure env.
               (let ((sym (car pair)))
                 (emit-expr (second pair) env)
+                (store-tmp (+ idx start))
+                (load-tmp  (+ idx start))
                 (with-expression-context (body)
-                  (expr-set-meta sym 'index idx))
+                  (expr-set-meta sym 'closure-index idx)
+                  (expr-set-meta sym 'index (+ idx start)))
                 (set! idx (+ 1 idx))))
             (with-expression-context (body)
               (push-closure (length binds))
@@ -352,7 +360,7 @@
 
 (define (emit-lambda it env)
     (if (expression-context-is-closed-over (cddr it))
-        ;; TODO allow arguments to be closed over etc
+        ;; TODO: only close over those args that require it
         (let* ((args (cadr it))
                (body (cddr it))
                (bc (with-output-to-bytecode ()
@@ -369,6 +377,7 @@
     (cond
       ((symbol? it)
        (let ((type (expr-meta it 'type)))
+         (print `(emitting load ,it ,type))
          (case type
            (()
             (emit-pair PUSHLIT (emit-lit it))
@@ -379,7 +388,7 @@
             (load-arg (expr-meta it 'index)))
            (closure
             (let ((depth (binding-depth it))
-                  (slot  (expr-meta it 'index)))
+                  (slot  (expr-meta it 'closure-index)))
               (load-closure slot depth)))
            (#t (throw `(bad type for symbol ,it ,type))))))
       ((pair? it)
@@ -424,5 +433,13 @@
 (dbg `(print ((let ((x 10)) (lambda () (let ((x 20)) x))))))
 (dbg `(print ((let ((x 10)) (lambda () (let ((y 20)) x))))))
 (dbg `(print ((let ((x 10)) (lambda () (let ((y 20)) y))))))
+(print '(expecting 20 and 10))
+(dbg `(print ((let ((x 10) (y 20))
+                (print y)
+                (lambda () x)))))
+(print '(expecting 20))
+(dbg `(let ((x 10) (y 20))
+        (lambda () x)
+        (print y)))
 
 (print 'done)

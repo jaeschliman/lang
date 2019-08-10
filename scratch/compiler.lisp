@@ -189,7 +189,8 @@
         (dolist (pair binds)
           (let ((sym (car pair)))
             (declare-local-binding sym)
-            (expr-set-meta sym 'type 'local))))))
+            (expr-set-meta sym 'type 'local)))
+        (dolist (e body) (mark-variables e)))))
 
 (define (mark-lambda e)
     (let* ((args (cadr e))
@@ -200,7 +201,8 @@
             (declare-local-binding arg)
             (expr-set-meta arg 'type 'argument)
             (expr-set-meta arg 'index idx)
-            (set! idx (+ 1 idx)))))))
+            (set! idx (+ 1 idx)))
+          (dolist (e body) (mark-variables e))))))
 
 (define (mark-variables e)
     (when (pair? e)

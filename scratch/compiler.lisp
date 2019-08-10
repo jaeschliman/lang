@@ -36,6 +36,7 @@
 (defparameter *lits* #f)
 (defparameter *labels* #f)
 (defparameter *jump-locations* #f)
+(defparameter *tmp-count* #f)
 
 (define Aggregator (create-class 'Aggregator '(count list)))
 
@@ -67,6 +68,11 @@
     (emit-u16 JUMP)
   (save-jump-location label))
 
+(define (reserve-tmps count)
+    (let ((r *tmp-count*))
+      (set '*tmp-count* (+ count *tmp-count*))
+      r))
+
 (define (fixup-jump-locations code)
     (dolist (pair *jump-locations*)
       (let* ((label (car pair))
@@ -86,10 +92,17 @@
           (set! i (+ 1 i))
           (aset lits i it)))
       (fixup-jump-locations code)
+      (aset-u16 code 1 *tmp-count*)
       (make-bytecode varargs name code lits)))
 
 (defmacro with-output-to-bytecode (_ & body)
-  `(binding ((*code* (make-agg)) (*lits* (make-agg)) (*labels* (make-ht)) (*jump-locations* '()))
+  `(binding ((*code* (make-agg))
+             (*lits* (make-agg))
+             (*labels* (make-ht))
+             (*jump-locations* '())
+             (*tmp-count* 0))
+            (emit-u16 STACK_RESERVE)
+            (emit-u16 0)
             ,@body
             (finalize-bytecode 'anon #f)))
 

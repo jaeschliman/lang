@@ -1211,6 +1211,22 @@ Ptr make_bytecode(VM *vm, u64 code_len) {
   return to(Ptr, bc);
 }
 
+Ptr create_bytecode(VM* vm, bool varargs, Ptr name, U16ArrayObject *code, PtrArrayObject *literals) {
+  // TODO: stats
+  prot_ptr(name);
+  gc_protect(code); gc_protect(literals);
+  auto bc = alloc_bytecode(vm);
+  bc->is_varargs = varargs;
+  bc->name       = name;
+  bc->code       = code;
+  bc->literals   = literals;
+  gc_unprotect(code);
+  gc_unprotect(literals);
+  unprot_ptr(name);
+  return to(Ptr, bc);
+}
+  
+
 inline ByteArrayObject *alloc_string(VM *vm, s64 len) {
   #if STATS
   vm->stats->total_string_bytes_allocated += len;

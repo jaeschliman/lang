@@ -420,6 +420,10 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim prefetch PF ((it any)) any "prefetch(it)")
 
+  (prim bytecode->closure BCTOCLS ((it any)) any "make_closure(vm, it, Nil)")
+  (prim make-bytecode MKBTC ((varargs Bool) (name any) (code U16Array) (literals PtrArray)) any
+        "create_bytecode(vm, varargs, name, code, literals)")
+
   (setf *prims* (reverse *prims*))
   (write-prims))
 

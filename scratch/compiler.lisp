@@ -255,6 +255,7 @@
 (define (mark-let e)
     (let ((binds (cadr e))
           (body (cddr e)))
+      (dolist (pair binds) (mark-variables (cadr pair)))
       (with-expression-context (body)
         (ctx-annot-put 'type 'let)
         (dolist (pair binds)

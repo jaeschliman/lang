@@ -10,7 +10,8 @@
 
 (export dotimes)
 
-(export create-class class-set-applicator instance-get-ivar instance-set-ivar)
+(export
+ create-class instantiate-class class-set-applicator instance-get-ivar instance-set-ivar)
 
 (export defgeneric generic-function-add-method)
 

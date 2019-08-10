@@ -77,7 +77,6 @@
     `(binding ((*expr-context* (%ensure-expression-context ,e)))
               ,@body)))
 
-
 (define Aggregator (create-class 'Aggregator '(count list)))
 
 (define (make-agg)
@@ -202,9 +201,12 @@
 (define (emit-expr it env)
     (cond
       ((symbol? it)
-       (let ()
-         (emit-pair PUSHLIT (emit-lit it))
-         (emit-u16 LOAD_GLOBAL)))
+       (let ((type (expr-meta it)))
+         (case type
+           (()
+            (emit-pair PUSHLIT (emit-lit it))
+            (emit-u16 LOAD_GLOBAL))
+           (#t (throw `(bad type for symbol ,it ,type))))))
       ((pair? it)
        (let ((head (car it)))
          (case head
@@ -214,14 +216,17 @@
        (emit-pair PUSHLIT (emit-lit it)))))
 
 (define (dbg expr)
-    (let ((r
-           (binding ((*context-table* (make-ht)))
-                    (bytecode->closure (with-output-to-bytecode ()
-                                         (with-expression-context (expr)
-                                           (emit-expr expr '()))
-                                         (emit-u16 RET)
-                                         (emit-u16 END))))))
-      (r)))
+    (try-catch (lambda ()
+                 (let ((r
+                        (binding ((*context-table* (make-ht)))
+                                 (bytecode->closure (with-output-to-bytecode ()
+                                                      (with-expression-context (expr)
+                                                        (emit-expr expr '()))
+                                                      (emit-u16 RET)
+                                                      (emit-u16 END))))))
+                   (r)))
+               (lambda (ex)
+                 (print `(exception in dbg: ,ex)))))
 
 (dbg '(print "hello again, world!"))
 

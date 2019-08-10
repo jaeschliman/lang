@@ -4868,6 +4868,7 @@ void vm_interp(VM* vm, interp_params params) {
       u32 idx = data;
       if (idx == 255) idx = vm_adv_instr(vm);
       Ptr *stack_bottom = ((Ptr *)(void *)vm->curr_frame) - 1;
+      assert(stack_bottom - idx >= vm->curr_thd->stack);
       vm_push(vm, *(stack_bottom - idx));
       break;
     }

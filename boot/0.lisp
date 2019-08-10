@@ -268,7 +268,12 @@
   (let* ((name (gensym))
          (xform '()))
     `(let ((,name ,subj))
-       (cond ,@(mapcar (lambda (it) `((eq ,name (quote ,(car it))) ,@(cdr it))) tests)))))
+       (cond ,@(mapcar (lambda (it)
+                         (let ((thing (car it)))
+                           (if (eq thing #t) ;; TODO: should only be allowed for final clause
+                               `(#t ,@(cdr it))
+                               `((eq ,name (quote ,thing)) ,@(cdr it)))))
+                       tests)))))
 
 (define (caar x) (car (car x)))
 (define (cadr x) (car (cdr x)))

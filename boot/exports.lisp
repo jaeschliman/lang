@@ -28,7 +28,7 @@
 
 (export
  list cons append nil? nth
- first second third
+ first second third fourth
  mapcar reverse-list list-every
  dolist
  list->array

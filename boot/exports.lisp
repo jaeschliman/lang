@@ -8,6 +8,10 @@
 (export defmacro gensym intern & &opt macroexpand eval lambda-bind
         mark-symbol-as-special with-special-binding)
 
+(export
+ class? bool? closure? primop? float? fixnum? pair? nil? ht? array? symbol? char?
+ image? point? continuation? string? semaphore? thread? package?)
+
 (export dotimes)
 
 (export

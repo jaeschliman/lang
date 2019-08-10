@@ -237,11 +237,13 @@
            ,@body))))
 
 (defmacro cond (& clauses)
-  (let ((clause (car clauses))
-        (rest (cdr clauses)))
+  (let* ((clause (car clauses))
+         (test (car clause))
+         (body `(let () ,@(cdr clause)))
+         (rest (cdr clauses)))
     (if (nil? rest)
-        (cons 'if clause)
-        `(if ,@clause (cond ,@rest)))))
+        (list 'if test body)
+        `(if ,test ,body (cond ,@rest)))))
 
 (define (reverse-list lst)
     (let ((helper #f))

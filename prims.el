@@ -271,6 +271,11 @@ void initialize_primitive_functions(VM *vm) {
   (prim aset         ASET  ((a PtrArray) (idx Fixnum) (val any)) any    "aset(a, idx, val)")
   (prim array-length ALEN  ((a PtrArray))                        Fixnum "array_length(a)")
 
+  (prim make-array-u16   MKARYU16 ((len Fixnum)) any "to(Ptr, alloc_u16ao(vm, len))")
+  (prim aget-u16         AGETU16  ((a U16Array) (idx Fixnum))            Fixnum "aget(a, idx)")
+  (prim aset-u16         ASETU16  ((a U16Array) (idx Fixnum) (v Fixnum)) any    "aset(a, idx, v)")
+  (prim array-length-u16 ALENU16  ((a U16Array))                         Fixnum "a->length")
+
   (prim make-ht   MK_HT     ()                             any "ht(vm)")
   (prim make-st   MK_ST     ()                             any "string_table(vm)")
   (prim ht-at     HT_AT     ((ht any) (key any))           any "ht_at(ht, key)")

@@ -39,6 +39,9 @@
  make-array aget aset array->list)
 
 (export
+ make-array-u16 aget-u16 aset-u16 array-length-u16)
+
+(export
  point? make-point point-x point-y point+ point- point-rotate)
 
 (export

@@ -1378,7 +1378,12 @@ Ptr array_get(Ptr array, u64 index) {
   return a->data[index];
 }
 
-Ptr aget(PtrArrayObject *a, u64 index) {
+inline Ptr aget(PtrArrayObject *a, u64 index) {
+  assert(index < a->length);
+  return a->data[index];
+}
+
+inline u16 aget(U16ArrayObject *a, u64 index) {
   assert(index < a->length);
   return a->data[index];
 }
@@ -1389,7 +1394,13 @@ void array_set(Ptr array, u64 index, Ptr value) {
   a->data[index] = value;
 }
 
-Ptr aset(PtrArrayObject *a, u64 index, Ptr value) {
+inline Ptr aset(PtrArrayObject *a, u64 index, Ptr value) {
+  assert(index < a->length);
+  a->data[index] = value;
+  return Nil;
+}
+
+inline Ptr aset(U16ArrayObject *a, u64 index, s64 value) {
   assert(index < a->length);
   a->data[index] = value;
   return Nil;

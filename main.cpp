@@ -1220,8 +1220,8 @@ Ptr create_bytecode(VM* vm, bool varargs, Ptr name, U16ArrayObject *code, PtrArr
   bc->name       = name;
   bc->code       = code;
   bc->literals   = literals;
-  gc_unprotect(code);
   gc_unprotect(literals);
+  gc_unprotect(code);
   unprot_ptr(name);
   return to(Ptr, bc);
 }

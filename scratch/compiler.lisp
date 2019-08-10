@@ -134,4 +134,41 @@
 
 (goodbye-world)
 
+(define emit-expr #f)
+
+(define (emit-if it env)
+    ;;TODO
+    )
+
+(define (emit-call it env)
+    (let ((argc 0))
+      (dolist (e (cdr it))
+        (set! argc (+ 1 argc))
+        (emit-expr e env))
+      (emit-expr (car it) env)
+      (emit-pair CALL argc)))
+
+(define (emit-expr it env)
+    (cond
+      ((symbol? it)
+       (let ()
+         (emit-pair PUSHLIT (emit-lit it))
+         (emit-u16 LOAD_GLOBAL)))
+      ((pair? it)
+       (let ((head (car it)))
+         (case head
+           (if (emit-if it env))
+           (#t (emit-call it env)))))
+      (#t
+       (emit-pair PUSHLIT (emit-lit it)))))
+
+(define (dbg expr)
+    (let ((r (bytecode->closure (with-output-to-bytecode ()
+                                  (emit-expr expr '())
+                                  (emit-u16 RET)
+                                  (emit-u16 END)))))
+      (r)))
+
+(dbg '(print "hello again, world!"))
+
 (print 'done)

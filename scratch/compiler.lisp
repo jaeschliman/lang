@@ -68,6 +68,10 @@
     (emit-u16 JUMP)
   (save-jump-location label))
 
+(define (jump-if-false label)
+    (emit-u16 BR_IF_False)
+  (save-jump-location label))
+
 (define (reserve-tmps count)
     (let ((r *tmp-count*))
       (set '*tmp-count* (+ count *tmp-count*))
@@ -137,8 +141,15 @@
 (define emit-expr #f)
 
 (define (emit-if it env)
-    ;;TODO
-    )
+    (let ((done (gensym))
+          (false (gensym)))
+      (emit-expr (second it))
+      (jump-if-false false)
+      (emit-expr (third it))
+      (jump done)
+      (label false)
+      (emit-expr (fourth it))
+      (label done)))
 
 (define (emit-call it env)
     (let ((argc 0))
@@ -170,5 +181,9 @@
       (r)))
 
 (dbg '(print "hello again, world!"))
+
+(dbg `(if (= 3 3) (print "3 equals 3") (print "3 does not equal 3")))
+(dbg `(if (= 4 3) (print "4 equals 3") (print "4 does not equal 3")))
+
 
 (print 'done)

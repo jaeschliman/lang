@@ -116,6 +116,9 @@
       (set '*tmp-count* (+ count *tmp-count*))
       r))
 
+(define (store-tmp idx) (emit-pair STORE_FRAME_RELATIVE idx))
+(define (load-tmp idx)  (emit-pair LOAD_FRAME_RELATIVE idx))
+
 (define (fixup-jump-locations code)
     (dolist (pair *jump-locations*)
       (let* ((label (car pair))
@@ -198,19 +201,44 @@
       (emit-expr (car it) env)
       (emit-pair CALL argc)))
 
+(define (emit-let it env)
+    (let* ((binds (cadr it))
+           (body (cddr it))
+           (count (length binds)))
+      (let* ((start (reserve-tmps count))
+             (idx start))
+        (dolist (pair binds)
+          (emit-expr (second pair) env)
+          (store-tmp idx)
+          (set! idx (+ 1 idx)))
+        ;; TODO: mark vars
+        (with-expression-context (body)
+          (set! idx start)
+          (dolist (pair binds)
+            (let ((sym (car pair)))
+              (declare-local-binding sym)
+              (expr-set-meta sym 'type 'argument)
+              (expr-set-meta sym 'index idx)
+              (set! idx (+ 1 idx))))
+          (dolist (e body)
+            (emit-expr e env))))))
+
 (define (emit-expr it env)
     (cond
       ((symbol? it)
-       (let ((type (expr-meta it)))
+       (let ((type (expr-meta it 'type)))
          (case type
            (()
             (emit-pair PUSHLIT (emit-lit it))
             (emit-u16 LOAD_GLOBAL))
+           (argument
+            (load-tmp (expr-meta it 'index)))
            (#t (throw `(bad type for symbol ,it ,type))))))
       ((pair? it)
        (let ((head (car it)))
          (case head
            (if (emit-if it env))
+           (let (emit-let it env))
            (#t (emit-call it env)))))
       (#t
        (emit-pair PUSHLIT (emit-lit it)))))
@@ -233,5 +261,8 @@
 (dbg `(if (= 3 3) (print "3 equals 3") (print "3 does not equal 3")))
 (dbg `(if (= 4 3) (print "4 equals 3") (print "4 does not equal 3")))
 
+(dbg `(let ((x 10)) (print "compiled a let without body refs")))
+(dbg `(let ((message "compiled a let with a body ref"))
+        (print message)))
 
 (print 'done)

@@ -242,6 +242,8 @@
 
 (forward mark-variables)
 
+(define (mark-expressions es) (dolist (e es) (mark-variables e)))
+
 (define (mark-let e)
     (let ((binds (cadr e))
           (body (cddr e)))
@@ -252,7 +254,7 @@
           (let ((sym (car pair)))
             (declare-local-binding sym)
             (expr-set-meta sym 'type 'local)))
-        (dolist (e body) (mark-variables e)))))
+        (mark-expressions body))))
 
 (define (mark-lambda e)
     (let* ((args (caddr e))
@@ -265,25 +267,30 @@
             (expr-set-meta arg 'type 'argument)
             (expr-set-meta arg 'index idx)
             (set! idx (+ 1 idx)))
-          (dolist (e body) (mark-variables e))))))
+          (mark-expressions body)))))
 
-(define (mark-expressions es) (dolist (e es) (mark-variables e)))
+(defparameter *in-call-position* #f)
 
 (define (mark-variables e)
     (cond
       ((symbol? e)
+       (unless (nil? (expr-meta e 'type))
+         (expr-set-meta e 'used #t)
+         (expr-set-meta e (if *in-call-position* 'called 'value-taken) #t))
        (when (binding-crosses-lambda e)
          (binding-context-annot e 'closed-over #t)
          (expr-set-meta e 'type 'closure)))
       ((pair? e)
-       (case (car e)
-         (quote) ;; do nothing
-         (if (mark-expressions (cdr e)))
-         (set! (mark-expressions (cdr e)))
-         (#/lang/%let (mark-let e))
-         (#/lang/%nlambda  (mark-lambda e))
-         (with-special-binding (mark-expressions (cddr e)))
-         (#t (mark-expressions e))))))
+       (binding ((*in-call-position* #f))
+          (case (car e)
+            (quote) ;; do nothing
+            (if (mark-expressions (cdr e)))
+            (set! (mark-expressions (cdr e)))
+            (#/lang/%let (mark-let e))
+            (#/lang/%nlambda  (mark-lambda e))
+            (with-special-binding (mark-expressions (cddr e)))
+            (#t (binding ((*in-call-position* #t)) (mark-variables (car e)))
+                (mark-expressions (cdr e))))))))
 
 (forward emit-expr)
 
@@ -420,6 +427,10 @@
     (cond
       ((symbol? it)
        (let ((type (expr-meta it 'type)))
+         ;; (unless (nil? type)
+         ;;   (when (and (eq #t (expr-meta it 'called))
+         ;;              (not (eq #t (expr-meta it 'value-taken))))
+         ;;     (print `(expr ,it of type ,type called only))))
          (case type
            (()
             (emit-pair PUSHLIT (emit-lit it))

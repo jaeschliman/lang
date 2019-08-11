@@ -278,6 +278,8 @@
             (set! idx (+ 1 idx)))
           (dolist (e body) (mark-variables e))))))
 
+(define (mark-expressions es) (dolist (e es) (mark-variables e)))
+
 (define (mark-variables e)
     (cond
       ((symbol? e)
@@ -286,12 +288,13 @@
          (expr-set-meta e 'type 'closure)))
       ((pair? e)
        (case (car e)
-         (quote)
-         (if (dolist (e (cdr e)) (mark-variables e)))
+         (quote) ;; do nothing
+         (if (mark-expressions (cdr e)))
+         (set! (mark-expressions (cdr e)))
          (let (mark-let e))
          (#/lang/%nlambda (mark-lambda e))
-         (with-special-binding (mark-variables (third e)) (mark-variables (fourth e)))
-         (#t (dolist (e e) (mark-variables e)))))))
+         (with-special-binding (mark-expressions (cddr e)))
+         (#t (mark-expressions e))))))
 
 (define emit-expr #f)
 
@@ -325,6 +328,7 @@
         (emit-expr e env))
       (set! idx (+ 1 idx)))))
 
+;; TODO: this feels too long for what it does.
 (define (emit-let it env)
     (let* ((binds (cadr it))
            (body (cddr it))
@@ -405,6 +409,22 @@
       (binding ((*tail-position* #f)) (emit-expr exp env))
       (emit-u16 POP_SPECIAL_BINDING)))
 
+(define (emit-set! it env)
+    (let* ((sym (second it))
+           (val (third it))
+           (type (expr-meta sym 'type)))
+      (binding ((*tail-position* #f)) (emit-expr val env))
+      (emit-u16 DUP) ;; return the result
+      (case type
+        (() (throw `(cannot set! to global variable)))
+        (argument (throw `(cannot set! to argument)))
+        (local
+         (emit-pair STORE_FRAME_RELATIVE (expr-meta sym 'index)))
+        (closure
+         (emit-u16 STORE_CLOSURE)
+         (emit-u16 (expr-meta sym 'closure-index))
+         (emit-u16 (binding-depth sym))))))
+
 (define (emit-expr it env)
     (cond
       ((symbol? it)
@@ -428,6 +448,7 @@
            (quote  (emit-pair PUSHLIT (emit-lit (cadr it))))
            (if     (emit-if it env))
            (let    (emit-let it env))
+           (set!   (emit-set! it env))
            (#/lang/%nlambda (emit-lambda it env))
            (with-special-binding (emit-with-special-binding it env))
            (#t     (emit-call it env)))))
@@ -486,5 +507,13 @@
 (defparameter *test-var* 10)
 (print `(expecting 20))
 (dbg `(print (with-special-binding *test-var* 20 *test-var*)))
+
+(print `(expecting 20))
+(dbg `(let ((x 8)) (set! x 20) (print x)))
+(print `(expecting 20))
+(dbg `(let* ((shared 0)
+             (store (lambda (x) (set! shared x))))
+        (store 20)
+        (print shared)))
 
 (print 'done)

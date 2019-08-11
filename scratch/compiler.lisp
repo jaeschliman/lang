@@ -354,8 +354,7 @@
                     (closure
                      ;; leave on stack to be picked up by push-closure
                      (expr-set-meta sym 'closure-index closure-idx)
-                     (set! closure-idx (+ 1 closure-idx))))
-                  (expr-set-meta sym 'closure-index idx))
+                     (set! closure-idx (+ 1 closure-idx)))))
                 (set! idx (+ 1 idx))))
             (with-expression-context (body)
               (push-closure closure-idx)
@@ -527,5 +526,13 @@
 (dbg `(let ((vararg (lambda xs (cons 'got xs))))
         (print (vararg 1 2 3))))
 (print *varargs*)
+
+(dbg `(let ((init 0)
+            (myloop #f))
+        (set! myloop (lambda (it)
+                       (unless (nil? it)
+                         (myloop (cdr it)))))
+        (myloop '(1 2 3 4))
+        (print "ran myloop")))
 
 (print 'done)

@@ -288,6 +288,8 @@ void initialize_primitive_functions(VM *vm) {
         "set_symbol_value(vm, a, b)")
   (prim mark-symbol-as-special SET_SYM_SPECIAL ((a any)) any
         "mark_symbol_as_special(vm, a)")
+  (prim special-symbol? SYM_SPECIAL_P ((a any)) Bool
+        "is_special_symbol(vm, a)")
   (prim package-extern-symbol PKG_EXT_SYM ((a any) (b any)) any
         "package_extern_symbol(vm, a, b)")
   (prim make-user-package MK_USR_PKG ((name any)) any

@@ -3104,7 +3104,8 @@ Ptr mark_symbol_as_special(VM *vm, Ptr sym) {
 void initialize_known_symbols(VM *vm) {
 
   auto globals = vm->globals;
-  _init_symbols(quote, let, if, fixnum, cons, string, array, character, boolean, quasiquote, unquote, compiler, exception);
+  _init_symbols(quote, if, fixnum, cons, string, array, character, boolean, quasiquote, unquote, compiler, exception);
+  globals->known._let = root_intern(vm, "%let");
   globals->known._lambda = root_intern(vm, "%nlambda");
   globals->known._unquote_splicing = root_intern(vm, "unquote-splicing");
   globals->known._set_bang = root_intern(vm, "set!");

@@ -59,7 +59,7 @@
 (set 'qq-unq-form
      (%nlambda () (form lvl)
        (if (pair? form)
-           (let ((sym (car form)))
+           (%let ((sym (car form)))
              (if (qq-is-unq-sym sym)
                  (qq-unq-form-unq form lvl sym)
                  (list 'list (qq-xform form lvl))))
@@ -110,7 +110,7 @@
 (set 'qq-process
      (%nlambda () (expr)
        (if (pair? expr)
-           (let ((sym (car expr)))
+           (%let ((sym (car expr)))
              (if (eq sym 'quote) expr
                  (if (eq sym 'quasiquote) (qq-xform (car (cdr expr)) 0)
                      (mapcar qq-process expr))))
@@ -132,7 +132,7 @@
 
 (set 'mx-process-let
      (%nlambda () (expr)
-       `(let ,(mapcar mx-process-let-binding (car (cdr expr)))
+       `(%let ,(mapcar mx-process-let-binding (car (cdr expr)))
           ,@(mapcar macroexpand (cdr (cdr expr))))))
 
 (set 'mx-process-lambda
@@ -144,13 +144,13 @@
      (%nlambda () (expr)
        ;; (print `(expanding: ,expr))
        (if (pair? expr)
-           (let ((sym (car expr)))
+           (%let ((sym (car expr)))
              (if (eq sym 'quote) expr
-                 (if (eq sym 'let) (mx-process-let expr)
+                 (if (eq sym '%let) (mx-process-let expr)
                      (if (eq sym 'lambda) (mx-process-lambda expr)
-                         (let ((expander (ht-at macro-functions sym)))
+                         (%let ((expander (ht-at macro-functions sym)))
                            (if (not (nil? expander))
-                               (let ((expansion (expander expr)))
+                               (%let ((expansion (expander expr)))
                                  (macroexpand expansion))
                                (mapcar macroexpand expr)))))))
            expr)))
@@ -166,6 +166,9 @@
  (%nlambda () (expr)
            `(%nlambda () ,(car (cdr (cdr expr)))
                       ,@(cdr (cdr (cdr expr))))))
+
+;; simple rewrite of let for now
+(set-macro-function 'let (lambda (expr) (cons '%let (cdr expr))))
 
 (set-macro-function
  'and

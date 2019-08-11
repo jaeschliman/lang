@@ -2,7 +2,7 @@
 
 (set-symbol-value 'lambda->continuation (%nlambda lambda->continuation (fn)
                                           (set-stack-mark 'helper)
-                                          (let ((r ((%nlambda () ()
+                                          (%let ((r ((%nlambda () ()
                                                       (snapshot-to-stack-mark 'helper '())
                                                       (fn)))))
                                             r)))

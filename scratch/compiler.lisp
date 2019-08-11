@@ -379,9 +379,9 @@
     (let* ((args (caddr it))
            (body (cdddr it))
            (bc (with-output-to-bytecode ()
+                 (set '*varargs* (symbol? args))
                  (with-expression-context (body)
                    (binding ((*tail-position* #t)) (emit-body body))))))
-      (set '*varargs* (symbol? args))
       (emit-pair PUSHLIT (emit-lit (bytecode->closure bc)))))
 
 (define (emit-lambda it env)
@@ -391,6 +391,7 @@
                (closure-idx 0)
                (arg-idx 0)
                (bc (with-output-to-bytecode ()
+                     (set '*varargs* (symbol? args))
                      (with-expression-context (body)
                        (dolist (a (ensure-list args))
                          (when (eq 'closure (expr-meta a 'type))
@@ -401,7 +402,6 @@
                        (push-closure closure-idx)
                        (binding ((*tail-position* #t)) (emit-body body))
                        (pop-closure)))))
-          (set '*varargs* (symbol? args))
           (emit-pair PUSHLIT (emit-lit bc))
           (emit-u16 BUILD_CLOSURE))
         (emit-flat-lambda it env)))
@@ -526,5 +526,6 @@
 (print `(expecting (got 1 2 3)))
 (dbg `(let ((vararg (lambda xs (cons 'got xs))))
         (print (vararg 1 2 3))))
+(print *varargs*)
 
 (print 'done)

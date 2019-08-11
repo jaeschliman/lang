@@ -44,7 +44,7 @@
 (defparameter *tail-position* #t)
 (defparameter *varargs* #f)
 
-(define %expr-meta #f)
+(forward %expr-meta)
 (define (%expr-meta ctx e k)
     (if (nil? ctx) '()
         (let ((ht (ht-at (cdr ctx) e)))
@@ -59,7 +59,7 @@
     (when (nil? (ht-at (cdr *expr-context*) thing))
       (ht-at-put (cdr *expr-context*) thing (make-ht))))
 
-(define %expr-set-meta #f)
+(forward %expr-set-meta)
 (define (%expr-set-meta ctx e k v)
     (if (nil? ctx)
         (throw `(bad call to %expr-set-meta ,e ,k ,v))
@@ -88,7 +88,7 @@
     `(binding ((*expr-context* (%ensure-expression-context ,e)))
               ,@body)))
 
-(define %binding-depth #f)
+(forward %binding-depth)
 (define (%binding-depth ctx e acc)
     (if (nil? ctx) -1
         (let ((ht (ht-at (cdr ctx) e)))
@@ -99,7 +99,7 @@
 (define (binding-depth sym)
     (%binding-depth *expr-context* sym 0))
 
-(define %binding-context #f)
+(forward %binding-context)
 (define (%binding-context ctx e)
     (if (nil? ctx) '()
         (let ((ht (ht-at (cdr ctx) e)))
@@ -114,7 +114,7 @@
     (let ((ctx (binding-context sym)))
       (ht-at-put (ht-at (cdr ctx) '()) k v)))
 
-(define binding-context-is-closed-over #f)
+(forward binding-context-is-closed-over)
 (define (binding-context-is-closed-over ctx)
     (if (nil? ctx) #f
         (or (eq #t (ctx-annot-read ctx 'closed-over))
@@ -124,7 +124,7 @@
     (with-expression-context (e)
       (binding-context-is-closed-over *expr-context*)))
 
-(define %binding-crosses-lambda #f)
+(forward %binding-crosses-lambda)
 (define (%binding-crosses-lambda ctx e saw-lambda)
     (if (nil? ctx) #f
         (let* ((type (ctx-annot-read ctx 'type))
@@ -255,7 +255,7 @@
 
 (goodbye-world)
 
-(define mark-variables #f)
+(forward mark-variables)
 
 (define (mark-let e)
     (let ((binds (cadr e))
@@ -300,7 +300,7 @@
          (with-special-binding (mark-expressions (cddr e)))
          (#t (mark-expressions e))))))
 
-(define emit-expr #f)
+(forward emit-expr)
 
 (define (emit-if it env)
     (let ((done (gensym))

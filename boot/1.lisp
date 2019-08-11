@@ -13,9 +13,9 @@
   ;; load the new compiler
   (let ((%l (lambda (f) (print `(loading file ,f)) (%load f)))) 
     (%l "./scratch/compiler.lisp") 
-    (%l "./scratch/compiler.lisp") ;; compiler, compile thyself
 
     (binding ((*recompiling* #t))
+             (%l "./scratch/compiler.lisp") ;; compiler, compile thyself
              ;; reload everything with the new compiler
              ;; (%load  "./boot/built-in-classes.lisp")
              (%l  "./boot/0.lisp")

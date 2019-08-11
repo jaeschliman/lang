@@ -435,7 +435,7 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
 * DONE asm: emit bodies properly
 * DONE asm: tail calls
 * DONE asm: special variables
-* TODO asm: %nlambda
+* DONE asm: %nlambda
 * TODO asm: %let
 * TODO asm: recursive definitions (define, named let)
   keep TCO local loops from allocating

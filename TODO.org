@@ -439,6 +439,9 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
 * DONE asm: %let
 * TODO asm: recursive definitions (define, named let)
   keep TCO local loops from allocating
+  will be a little tricker to do a full lambda -> loop conversion,
+  as it will require examining all uses of the binding form, and ensuring that
+  it is only used in the tail-call position (not passed as an arg anywhere, not mutated)
 * TODO asm: looping contruct
 * TODO asm: tagbody
 * TODO asm: dedupe lits
@@ -447,13 +450,14 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   some auxilary data structure? point being it would be good to not
   scan all threads all the time
 * TODO asm: proper names and sourcelocations for %nlambda
-* TODO asm: optimize self tail calls into banging on args and a jump
+* IN-PROGRESS asm: optimize self tail calls into banging on args and a jump
 * TODO asm: provide compiler notes and warnings
-* IN-PROGRESS eventually swap in the new compiler
+* DONE eventually swap in the new compiler
   - replace let #f -> set! with letrec macro
   - make the boot files reentrant
   - load the compiler, then reload the boot files
   - _then_ dump the image.
+* TODO clean up the compiler swap mess
 * TODO some bug in qq support with `(expr a b c ,@d e f g (x `(y)))
   y is unquoted when it shouldn't be
 * TODO review this smalltalk paper:

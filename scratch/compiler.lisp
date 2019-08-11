@@ -536,3 +536,12 @@
         (print "ran myloop")))
 
 (print 'done)
+
+(define (eval expr)
+    (let* ((expanded (macroexpand (quasiquote-expand expr)))
+           (thunk (binding ((*context-table* (make-ht)))
+                     (mark-variables expanded)
+                     (bytecode->closure (with-output-to-bytecode ()
+                                          (with-expression-context (expanded)
+                                            (emit-expr expanded '())))))))
+      (thunk)))

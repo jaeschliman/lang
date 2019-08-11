@@ -290,7 +290,7 @@
          (if (dolist (e (cdr e)) (mark-variables e)))
          (let (mark-let e))
          (lambda (mark-lambda e))
-         (with-special-binding (mark-variables (fourth e)))
+         (with-special-binding (mark-variables (third e)) (mark-variables (fourth e)))
          (#t (dolist (e e) (mark-variables e)))))))
 
 (define emit-expr #f)

@@ -416,7 +416,7 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   flycheck is reporting some issues that -Wall is not
 * DONE blit flipped images
 * DONE blit arbitrary quad images
-* TODO blit from quad to quad images
+* DONE blit from quad to quad images
 * DONE spatial point sort for quad blit
 * TODO blit with tint / blend modes
 * DONE handle more edge cases in quad blit

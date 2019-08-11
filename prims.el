@@ -283,6 +283,7 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim symbol-name SYM_NAME ((a any)) any "Symbol_get_name(a)")
   (prim symbol-package SYM_PKG ((a any)) any "Symbol_get_package(a)")
+  (prim symbol-bound? SYM_BND ((a any)) Bool "boundp(vm, a)")
 
   (prim set-symbol-value SET_SYM_VAL ((a any) (b any)) any
         "set_symbol_value(vm, a, b)")

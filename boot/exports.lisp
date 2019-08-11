@@ -6,7 +6,7 @@
         *package* defparameter symbol-package)
 
 (export defmacro gensym intern & &opt quasiquote-expand macroexpand eval lambda-bind
-        special-symbol? mark-symbol-as-special with-special-binding)
+        special-symbol? mark-symbol-as-special with-special-binding symbol-bound?)
 
 (export
  class? bool? closure? primop? float? fixnum? pair? nil? ht? array? symbol? char?

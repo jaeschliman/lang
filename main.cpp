@@ -4694,6 +4694,7 @@ enum OpCode : u8 {
   CALL                 ,
   TAIL_CALL            ,
   LOAD_ARG             ,
+  STORE_ARG            ,
   LOAD_GLOBAL          ,
   LOAD_SPECIAL         ,
   LOAD_CLOSURE         ,
@@ -4740,6 +4741,13 @@ inline Ptr vm_load_arg(VM *vm, u32 idx) {
   u64 argc = fr->argc;
   u64 ofs  = fr->pad_count;
   return fr->argv[ofs + (argc - (idx + 1))];
+}
+
+inline void vm_store_arg(VM *vm, u32 idx, Ptr it) {
+  auto fr = vm->curr_frame;
+  u64 argc = fr->argc;
+  u64 ofs  = fr->pad_count;
+  fr->argv[ofs + (argc - (idx + 1))] = it;
 }
 
 // N.B. must not double-prot the ptrs on the stack to avoid double-copy
@@ -5166,6 +5174,12 @@ void vm_interp(VM* vm, interp_params params) {
       vm_push(vm, it);
       // cout << " loading arg "<< idx << ": " << it << endl;
       // vm_dump_args(vm);
+      break;
+    }
+    case STORE_ARG: {
+      u64 idx = data;
+      auto it = vm_pop(vm);
+      vm_store_arg(vm, idx, it);
       break;
     }
     case PUSH_SPECIAL_BINDING: {

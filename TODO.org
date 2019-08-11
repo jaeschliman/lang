@@ -429,9 +429,10 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
 * IN-PROGRESS write a compiler/assembler in userspace 
   after initial feature parity, main goal will be to support e.g. named let
   without creating spurious closures, and support use of direct recursion in `define`
-* TODO consider a better way of emitting side-effectful calls
+* IN-PROGRESS consider a better way of emitting side-effectful calls
   would be better if there was a CALL instr that did not push the result, rather
   than popping them off every time. may require reworking the prim machinery as well.
+  -- probably need a dissasembler first, spent an hour on this and had trouble debugging it
 * DONE asm: emit bodies properly
 * DONE asm: tail calls
 * DONE asm: special variables

@@ -110,7 +110,8 @@
     (let ((pkg (symbol-package it)))
       (if (eq pkg %keyword-package)
           (stream-write-string stream ":")
-          (%write-relative-package-name it pkg *package* stream))
+          ;; TODO: prefix for package-less symbols
+          (unless (nil? pkg) (%write-relative-package-name it pkg *package* stream)))
       (stream-write-string stream (symbol-name it))))
 
 (generic-function-add-method

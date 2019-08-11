@@ -9,9 +9,7 @@
 (define onframe ignore1)
 
 (defmacro forever (& forms)
-  `(let ((loop #f))
-     (set! loop (lambda () ,@forms (loop)))
-     (loop)))
+  `(let loop () ,@forms (loop)))
 
 (at-boot (define wants-display #f))
 

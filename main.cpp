@@ -1776,6 +1776,7 @@ auto size_of(Ptr it) {
     dbg("forwarding to: ", to(Ptr, ref));
   }
   die("unexpected object type in size_of: ", (as(Object, it))->header.object_type);
+  exit(1);
 }
 /* ---------------------------------------- */
 // bang on object references
@@ -2258,11 +2259,13 @@ auto _debug_heap_report(void *start, void *end, s64 delta = 0) {
   auto ref_count = 0;
   auto fn = [&](Ptr it) {
     if (it == Nil || !is(Object, it)) return;
+    ref_count++;
+    #ifndef NDEBUG
     auto ptr = as(Object, it);
     auto ptr_val = (u64)ptr;
     auto where = ptr_val + delta;
-    ref_count++;
     assert((void*)where >= start && (void*)where < end);
+    #endif
   };
   scan_heap(start, end, [&](Ptr it) {
       count++;
@@ -3775,11 +3778,16 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   assert(((u64)top & TAG_MASK) == 0);
 
   if ((Ptr *)top < thd->stack_end) {
+    #ifndef NDEBUG
     auto ct = thd->curr_size;
     grow_thread_ctx(vm, thd);
     assert(ct * 2 == vm->curr_thd->curr_size);
     assert(thd->stack_start - thd->stack_end > (ct / sizeof(Ptr)));
     vm_push_stack_frame(vm, argc, fn, closed_over);
+    #else
+    grow_thread_ctx(vm, thd);
+    vm_push_stack_frame(vm, argc, fn, closed_over);
+    #endif
     return;
   }
 
@@ -3875,9 +3883,11 @@ void _debug_validate_background_threads(VM *vm) {
 }
 
 void _assert_ptr_in_heap(void *start, void *end, Ptr it) {
+  #ifndef NDEBUG
   if (it == Nil || ! is(Object, it)) return;
   auto addr = as(Object, it);
   assert(addr >= start && addr < end);
+  #endif
 }
 
 Ptr snapshot_thread_ctx_with_predicate(VM *vm, thread_ctx *thd, StackPred fn) {
@@ -6784,8 +6794,10 @@ void _vm_poke_arguments(VM *vm, run_info info) {
 void load_file(VM *vm, const char* path);
 void _debug_assert_in_heap(VM *vm, Ptr p) {
   if (p == Nil || ! is(Object, p)) return;
+  #ifndef NDEBUG
   auto it = as(Object, p);
   assert(it >= vm->heap_mem && it < vm->heap_end);
+  #endif
 }
 
 void vm_init_from_heap_snapshot(VM *vm) {
@@ -6957,6 +6969,10 @@ VM *vm_create_from_image(const char *path, run_info info) {
       auto data = (char*)vm->heap_mem;
       auto amt_read = fread(data, 1, header.heap_size, in);
       assert(amt_read == header.heap_size);
+      if (amt_read != header.heap_size) {
+        dbg("failed to read full heap image.");
+        exit(1);
+      }
     }
     fclose(in);
 
@@ -6977,8 +6993,10 @@ VM *vm_create_from_image(const char *path, run_info info) {
   {
     scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it) {
         if (it == Nil || !is(Object, it)) return;
+        #ifndef NDEBUG
         auto where = as(Object, it);
         assert(vm->heap_mem <= where && vm->heap_end > where);
+        #endif 
       });
   }
 

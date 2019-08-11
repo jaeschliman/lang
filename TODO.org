@@ -442,6 +442,7 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
 * TODO asm: looping contruct
 * TODO asm: tagbody
 * TODO asm: dedupe lits
+* TODO asm: set!
 
 * notes
 maybe have a stack of compilers? can push/pop...

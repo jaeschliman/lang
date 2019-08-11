@@ -8,12 +8,12 @@
            (div (pow base (-i offs 1))))
       (%i (/i n div) base)))
 
-(define *digit-table* (string->char-array "0123456789abcdefghijklmnopqrstuvwxyz"))
+(at-boot (define *digit-table* (string->char-array "0123456789abcdefghijklmnopqrstuvwxyz")))
 
 (define (digit-to-character n)
     (aget *digit-table* n))
 
-(defparameter *print-base* 10)
+(at-boot (defparameter *print-base* 10))
 
 (define (%print-integer int stream base)
   (when (<i int 0) (stream-write-char stream #\-))

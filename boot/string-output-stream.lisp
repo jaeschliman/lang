@@ -1,4 +1,4 @@
-(define StringOutputStream (create-class 'StringOutputStream '(list byte-count)))
+(at-boot (define StringOutputStream (create-class 'StringOutputStream '(list byte-count))))
 
 (define (make-string-output-stream)
     (let ((result (instantiate-class StringOutputStream)))

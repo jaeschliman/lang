@@ -1,5 +1,5 @@
-(define GenericFunction1 (create-class 'GenericFunction1 '(table arity)))
-(define GenericFunction2 (create-class 'GenericFunction2 '(table arity)))
+(at-boot (define GenericFunction1 (create-class 'GenericFunction1 '(table arity))))
+(at-boot (define GenericFunction2 (create-class 'GenericFunction2 '(table arity))))
 
 (define (gf-lookup-1 ht class)
   (let ((r (ht-at ht class)))

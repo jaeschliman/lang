@@ -304,9 +304,6 @@
 
 (define (identity x) x)
 
-;;; eval
-(define (eval x) ((compile-to-closure (compiler x))))
-
 ;;; more utils
 
 (defmacro when (test & body)
@@ -406,10 +403,15 @@
      ',var))
 
 (defparameter *command-line-args*)
-(defparameter *recompiling* #f)
+(maybe-set '*recompiling* #f)
+(mark-symbol-as-special '*recompiling*)
 
 (defmacro at-boot (& forms)
   (if *recompiling* '() `(let () ,@forms)))
+
+;;; eval
+
+(at-boot (define (eval x) ((compile-to-closure (compiler x)))))
 
 ;;  basic threading support -------------------------------------------------------
 

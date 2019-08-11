@@ -1,16 +1,17 @@
 ;; it is a list so we can push/pop on it, but only the first element
 ;; is used to look things up.
 (at-boot (defparameter *meta-context* (list 'Base)))
-(defparameter *match-start*)
-(defparameter *match-end*)
-(defparameter *current-rule-name*)
+(at-boot (defparameter *match-start*))
+(at-boot (defparameter *match-end*))
+(at-boot (defparameter *current-rule-name*))
 
 (defmacro trace (form)
   `(let ((_res ,form))
      (print (list ',form '= _res))
      _res))
 
-(define MetaInputStream (create-class 'MetaInputStream '(pos str line memo)))
+(at-boot (define MetaInputStream (create-class 'MetaInputStream '(pos str line memo))))
+
 (define (make-meta-input-stream pos str line)
     (let ((r (instantiate-class MetaInputStream)))
       (instance-set-ivar r 0 pos)
@@ -101,7 +102,7 @@
 (defparameter *meta-memo* #t)
 
 ;; to be defined later
-(define (stream-write-string))
+(forward stream-write-string)
 (define (%meta-print-indent)
     (stream-write-string *standard-output* (make-string *meta-trace-indent* #\Space)))
 
@@ -389,31 +390,35 @@
 
 ;;;;  base rules ----------------------------
 
-(define-rule space
-  (set! x any)
+(defmacro define-base-rule (name & body)
+  `(binding ((*meta-context* (list 'Base)))
+            (define-rule ,name ,@body)))
+
+(define-base-rule space
+    (set! x any)
   (where (whitespace-char? x))
   (return x)) 
 
-(define-rule constituent
+(define-base-rule constituent
     (not (or space #\( #\) #\[ #\] #\{ #\})) any)
 
-(define-rule non-space
+(define-base-rule non-space
     (not space) any)
 
-(define-rule ws (* space))
+(define-base-rule ws (* space))
 
-(define-rule alpha
+(define-base-rule alpha
   (set! x any)
   (where (or (char-between x #\a #\z)
              (char-between x #\A #\Z)))
   (return x))
 
-(define-rule digit
+(define-base-rule digit
   (set! x any)
   (where (char-between x #\0 #\9))
   (return (-i (char-code x) (char-code #\0))))
 
-(define-rule ident
+(define-base-rule ident
     (set! x (+ alpha))
   (return (implode x)))
 

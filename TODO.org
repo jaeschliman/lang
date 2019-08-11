@@ -436,25 +436,30 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
 * DONE asm: tail calls
 * DONE asm: special variables
 * DONE asm: %nlambda
-* TODO asm: %let
+* DONE asm: %let
 * TODO asm: recursive definitions (define, named let)
   keep TCO local loops from allocating
 * TODO asm: looping contruct
 * TODO asm: tagbody
 * TODO asm: dedupe lits
-* TODO asm: set!
+* DONE asm: set!
 * TODO some more efficient way of getting thread minimum sleep time
   some auxilary data structure? point being it would be good to not
   scan all threads all the time
 * TODO asm: proper names and sourcelocations for %nlambda
 * TODO asm: optimize self tail calls into banging on args and a jump
-* TODO eventually swap in the new compiler
+* TODO asm: provide compiler notes and warnings
+* IN-PROGRESS eventually swap in the new compiler
   - replace let #f -> set! with letrec macro
   - make the boot files reentrant
   - load the compiler, then reload the boot files
   - _then_ dump the image.
 * TODO some bug in qq support with `(expr a b c ,@d e f g (x `(y)))
   y is unquoted when it shouldn't be
+* TODO review this smalltalk paper:
+http://stephane.ducasse.free.fr/FreeBooks/CollectiveNBlueBook/Rowledge-Final.pdf
+* TODO review of VMMaker from 2011
+https://www.youtube.com/watch?v=FJQmjhOvjUs&list=PL843D1D545F9F52B6&index=7
 
 * notes
 maybe have a stack of compilers? can push/pop...

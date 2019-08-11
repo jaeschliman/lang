@@ -535,13 +535,20 @@
         (myloop '(1 2 3 4))
         (print "ran myloop")))
 
+(dbg `(set 'mapcar (#/lang/%nlambda () (f lst)
+                        (if (nil? lst) lst
+                            (cons (f (car lst)) (mapcar f (cdr lst)))))))
+
 (print 'done)
 
 (define (eval expr)
-    (let* ((expanded (macroexpand (quasiquote-expand expr)))
-           (thunk (binding ((*context-table* (make-ht)))
+    ;; (when #/lang/*recompiling* (print `(expanding: ,expr)))
+    (let ((expanded (macroexpand (quasiquote-expand expr))))
+      ;; (when #/lang/*recompiling* (print `(compiling: ,expr)))
+      (let ((thunk (binding ((*context-table* (make-ht)))
                      (mark-variables expanded)
                      (bytecode->closure (with-output-to-bytecode ()
                                           (with-expression-context (expanded)
                                             (emit-expr expanded '())))))))
-      (thunk)))
+        ;; (when #/lang/*recompiling* (print `(evaluating: ,expr)))
+        (thunk))))

@@ -147,15 +147,23 @@
       (instance-set-ivar r 1 '())
       r))
 
+(define (agg-count agg) (instance-get-ivar agg 0))
+(define (agg-items agg) (reverse-list (instance-get-ivar agg 1)))
+
 (define (agg-push agg it)
     (instance-set-ivar agg 0 (+ 1 (instance-get-ivar agg 0)))
   (instance-set-ivar agg 1 (cons it (instance-get-ivar agg 1))))
 
-(define (agg-count agg) (instance-get-ivar agg 0))
-(define (agg-items agg) (reverse-list (instance-get-ivar agg 1)))
+(define (agg-push-uniq agg it)
+    (let ((items (agg-items agg)))
+      (let loop ((idx 0) (rem items))
+           (if (nil? rem)
+               (let () (agg-push agg it) (- (agg-count agg) 1))
+               (if (eq it (car rem)) idx
+                   (loop (+ 1 idx) (cdr rem)))))))
 
 (define (emit-u16 it) (agg-push *code* it) (- (agg-count *code*) 1))
-(define (emit-lit it) (agg-push *lits* it) (- (agg-count *lits*) 1))
+(define (emit-lit it) (agg-push-uniq *lits* it))
 (define (emit-pair a b) (emit-u16 (bit-or (ash b 8) a)))
 
 (define (label name)

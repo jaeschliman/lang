@@ -444,7 +444,7 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   it is only used in the tail-call position (not passed as an arg anywhere, not mutated)
 * TODO asm: looping contruct
 * TODO asm: tagbody
-* TODO asm: dedupe lits
+* DONE asm: dedupe lits
 * DONE asm: set!
 * TODO some more efficient way of getting thread minimum sleep time
   some auxilary data structure? point being it would be good to not

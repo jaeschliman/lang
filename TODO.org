@@ -443,6 +443,9 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
 * TODO asm: tagbody
 * TODO asm: dedupe lits
 * TODO asm: set!
+* TODO some more efficient way of getting thread minimum sleep time
+  some auxilary data structure? point being it would be good to not
+  scan all threads all the time
 
 * notes
 maybe have a stack of compilers? can push/pop...

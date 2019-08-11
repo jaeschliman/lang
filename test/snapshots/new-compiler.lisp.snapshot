@@ -1,0 +1,37 @@
+"hello, world"
+"goodbye, world"
+"hello again, world!"
+"3 equals 3"
+"4 does not equal 3"
+"compiled a let without body refs"
+"compiled a let with a body ref"
+#t
+"returned a value"
+#t
+"returned an argument"
+("used an arg")
+((list 1 2) = (1 2))
+#t
+20
+10
+20
+(expecting 20 and 10)
+20
+10
+(expecting 20)
+20
+(expecting 5)
+5
+iota-done
+iota-done
+(expecting 20)
+20
+(expecting 20)
+20
+(expecting 20)
+20
+(expecting (got 1 2 3))
+(got 1 2 3)
+#f
+"ran myloop"
+done

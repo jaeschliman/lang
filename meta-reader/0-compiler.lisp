@@ -1,6 +1,6 @@
 ;; it is a list so we can push/pop on it, but only the first element
 ;; is used to look things up.
-(defparameter *meta-context* (list 'Base))
+(at-boot (defparameter *meta-context* (list 'Base)))
 (defparameter *match-start*)
 (defparameter *match-end*)
 (defparameter *current-rule-name*)
@@ -25,9 +25,9 @@
 (define (meta-stream-memo it) (instance-get-ivar it 3))
 
 
-(define fail '(fail fail fail))
+(at-boot (define fail '(fail fail fail)))
 (define (failure? state) (eq state fail))
-(define nothing '(nothing))
+(at-boot (define nothing '(nothing)))
 (define (nothing? result) (eq result nothing))
 
 (define (make-initial-state stream) (list stream nothing))
@@ -81,9 +81,10 @@
     (if (nothing? (state-result state)) state
         (state+result state (reverse-list (state-result state)))))
 
-(define sentinel (list 'sentinel))
+(at-boot (define sentinel (list 'sentinel)))
 
-(define applicators (make-ht))
+(at-boot (define applicators (make-ht)))
+
 (defmacro define-apply (defn & body)
   (lambda-bind
    (name & params) defn
@@ -131,7 +132,8 @@
                    (%print `(,rule => ,(state-result applied) ,failed-from-recursion ,cache-hit)))
                  (next applied)))))
 
-(define compilers-table (make-ht))
+(at-boot (define compilers-table (make-ht)))
+
 (defmacro define-compile (defn & body)
   (lambda-bind
    (name & params) defn
@@ -213,11 +215,10 @@
     `(set-rule ',name (lambda (_state_) ,(compile-rule xform '_state_ 'identity)))))
 
 (define (make-meta parent) (list parent (make-ht)))
-(define meta-by-name (make-ht))
+(at-boot (define meta-by-name (make-ht)))
 (define (find-meta x) (if (symbol? x) (ht-at meta-by-name x) x))
 
-(ht-at-put meta-by-name 'Base (make-meta '()))
-
+(at-boot (ht-at-put meta-by-name 'Base (make-meta '())))
 
 (define (push-meta-context meta)
     (set-symbol-value '*meta-context* (cons meta *meta-context*)))

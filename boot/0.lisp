@@ -121,7 +121,8 @@
 ;;; ----------------------------------------
 ;;; macro support
 
-(set 'macro-functions (make-ht))
+(if (not (symbol-bound? 'macro-functions)) (set 'macro-functions (make-ht)))
+
 (set 'set-macro-function (%nlambda () (sym fn) (ht-at-put macro-functions sym fn)))
 
 (set 'macroexpand #f)
@@ -401,6 +402,10 @@
      ',var))
 
 (defparameter *command-line-args*)
+(defparameter *recompiling* #f)
+
+(defmacro at-boot (& forms)
+  (if *recompiling* '() `(let () ,@forms)))
 
 ;;  basic threading support -------------------------------------------------------
 

@@ -5034,11 +5034,22 @@ void vm_interp(VM* vm, interp_params params) {
           } else if (idx == 3) { // SEM_WAIT
             auto semaphore = vm_pop(vm);
             vm_push(vm, Nil);
-            auto ct = as(Fixnum, semaphore_get_count(semaphore));
-            // dbg("in semaphore-wait, count is: ", ct);
-            if (ct > 0) {
-              semaphore_set_count(semaphore, to(Fixnum, ct - 1));
+            auto status = semaphore_get_count(semaphore);
+            auto available = false;
+            if (is(Bool, status)) {
+              if (status == True) {
+                available = true;
+                semaphore_set_count(semaphore, False);
+              }
             } else {
+              auto ct = as(Fixnum, status);
+              // dbg("in semaphore-wait, count is: ", ct);
+              if (ct > 0) {
+                available = true;
+                semaphore_set_count(semaphore, to(Fixnum, ct - 1));
+              }
+            } 
+            if (!available) {
               vm->curr_frame->pc++;
               if (!vm_sem_wait_current_thread(vm, semaphore)) {
                 // if we failed to resume another thread, we are suspended

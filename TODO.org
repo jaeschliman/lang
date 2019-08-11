@@ -446,6 +446,13 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
 * TODO some more efficient way of getting thread minimum sleep time
   some auxilary data structure? point being it would be good to not
   scan all threads all the time
+* TODO asm: proper names and sourcelocations for %nlambda
+* TODO asm: optimize self tail calls into banging on args and a jump
+* TODO eventually swap in the new compiler
+  - replace let #f -> set! with letrec macro
+  - make the boot files reentrant
+  - load the compiler, then reload the boot files
+  - _then_ dump the image.
 
 * notes
 maybe have a stack of compilers? can push/pop...

@@ -171,7 +171,8 @@
                       ,@(cdr (cdr (cdr expr))))))
 
 ;; simple rewrite of let for now
-(set-macro-function 'let (lambda (expr) (cons '%let (cdr expr))))
+(if (nil? (ht-at macro-functions 'let))
+    (set-macro-function 'let (lambda (expr) (cons '%let (cdr expr)))))
 
 (set-macro-function
  'and
@@ -412,6 +413,22 @@
 ;;; eval
 
 (at-boot (define (eval x) ((compile-to-closure (compiler x)))))
+
+;;  primitive named-let support ---------------------------------------------------
+
+
+(at-boot
+ (defmacro let (bindings & body)
+   (if (symbol? bindings)
+       (let* ((symbol bindings)
+              (bindings (car body))
+              (body (cdr body))
+              (args (mapcar car bindings))
+              (inits (mapcar cadr bindings)))
+         `(%let ((,symbol #f))
+                (set! ,symbol (lambda ,args ,@body))
+                (,symbol ,@inits)))
+       `(%let ,bindings ,@body))))
 
 ;;  basic threading support -------------------------------------------------------
 

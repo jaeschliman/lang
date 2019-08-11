@@ -317,12 +317,10 @@
   (let ((var (car binding))
         (max (gensym))
         (loop (gensym)))
-    `(let ((,loop #f))
-       (set! ,loop (lambda (,var ,max)
-                     (when (<i ,var ,max)
-                       ,@body
-                       (,loop (+i 1 ,var) ,max))))
-       (,loop 0 ,(cadr binding)))))
+    `(let ,loop ((,var 0) (,max ,(cadr binding)))
+          (when (<i ,var ,max)
+            ,@body
+            (,loop (+i 1 ,var) ,max)))))
 
 (defmacro dolist (binding & body)
   (let ((loop (gensym))

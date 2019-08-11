@@ -5083,7 +5083,7 @@ void vm_interp(VM* vm, interp_params params) {
 
         // cerr << " calling prim at idx: " << idx << " arg count = " << argc << endl;
 #if PRIM_USE_GIANT_SWITCH
-        giant_switch(vm, argc, idx);
+        vm_push(vm, giant_switch(vm, argc, idx));
 #else
         PrimitiveFunction fn = PrimLookupTable[idx];
         Ptr result = (*fn)(vm, argc);

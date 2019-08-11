@@ -77,8 +77,8 @@
 (defun emit-inline-body (body return-type)
   "Emit BODY and RETURN-TYPE."
   (if (eq return-type 'any)
-      (tmpl " vm_push(vm, " body ");")
-    (tmpl "  vm_push(vm, to("return-type",("body")));")))
+      (tmpl " return(" body ");")
+    (tmpl "  return(to("return-type",("body")));")))
 
 (defun emit-prim-impl-inline (prim)
   "Emits PRIM inline for switch statement."

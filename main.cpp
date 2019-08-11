@@ -2734,8 +2734,8 @@ void gc(VM *vm) {
 
 
   memset(vm->alt_heap_mem, 0, byte_count);
-  // cerr << " protected Object count : " << vm->gc_protected->size() << endl;
-  // cerr << " protected ptr    count : " << vm->gc_protected_ptrs->size() << endl;
+  // dbg(" protected Object count : ", vm->gc_protected->size());
+  // dbg(" protected ptr    count : ", vm->gc_protected_ptrs->size());
 
   vm_refresh_frame_state(vm);
 
@@ -5139,6 +5139,7 @@ void vm_interp(VM* vm, interp_params params) {
         vm_suspend_current_thread(vm);
         if (vm->error) { dbg("error suspending: ", vm->error); }
         // dbg("suspended.");
+        unprot_ptr(init_thread);
         return;
       }
       if (params.thread_switch_instr_budget && ctx_switch_budget <= 0) {

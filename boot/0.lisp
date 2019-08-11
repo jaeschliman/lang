@@ -1,20 +1,22 @@
 (set-symbol-value 'set set-symbol-value)
 
+(set 'maybe-set (%nlambda () (s v) (if (not (symbol-bound? s)) (set s v))))
+
 ;; helper functions
 
-(set 'mapcar #f)
+(maybe-set 'mapcar #f)
 (set 'mapcar (%nlambda () (f lst)
                (if (nil? lst) lst
                    (cons (f (car lst)) (mapcar f (cdr lst))))))
 
-(set 'list-every #f)
+(maybe-set 'list-every #f)
 (set 'list-every
      (%nlambda () (pred lst)
        (if (nil? lst) #t
            (if (pred (car lst)) (list-every pred (cdr lst))
                #f))))
 
-(set 'append3 #f)
+(maybe-set 'append3 #f)
 (set 'append3 (%nlambda () (a b cs)
                 (if (nil? a)
                     (if (nil? cs) b
@@ -27,8 +29,8 @@
 ;;; nested quasiquote support
 ;;; nested support not yet well-tested
 
-(set 'qq-process #f) ;; entry point for quasiquoting (toplevel function)
-(set 'qq-xform #f)   ;; fn that begins qq-transforming a given form at lvl
+(maybe-set 'qq-process #f) ;; entry point for quasiquoting (toplevel function)
+(maybe-set 'qq-xform #f)   ;; fn that begins qq-transforming a given form at lvl
 
 (set 'qq-is-unq-sym (%nlambda () (sym)
                       (if (eq sym 'unquote) #t
@@ -43,7 +45,7 @@
                                      (qq-has-unq-level (car (cdr form)) (-i lvl 1)))))))
 
 
-(set 'qq-unq-form #f)
+(maybe-set 'qq-unq-form #f)
 (set 'qq-unq-form-unq
      (%nlambda () (form lvl sym)
        (if (eq lvl 0)
@@ -125,7 +127,7 @@
 
 (set 'set-macro-function (%nlambda () (sym fn) (ht-at-put macro-functions sym fn)))
 
-(set 'macroexpand #f)
+(maybe-set 'macroexpand #f)
 
 (set 'mx-process-let-binding
      (%nlambda () (bind)
@@ -339,9 +341,11 @@
 
 (defmacro if-nil? (test & rest) `(if (nil? ,test) ,@rest))
 
+(defmacro forward (symbol) `(maybe-set ',symbol #f))
+
 ;;; test helpers
 
-(define deep-eq? #f)
+(forward deep-eq?)
 (define (deep-eq? a b)
   (if (eq a b) #t
       (if (and (pair? a) (pair? b))
@@ -351,7 +355,7 @@
 
 ;;; shift/reset exception support
 
-(define run-reset #f)
+(forward run-reset)
 (define (run-reset tag fn)
     (set-stack-mark tag)
   (let ((it (fn)))

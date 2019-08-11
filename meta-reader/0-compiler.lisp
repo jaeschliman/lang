@@ -152,7 +152,7 @@
     (cons (append (xf-vars a) (xf-vars b))
           (append (xf-form a) (xf-form b))))
 
-(define xf-rule #f)
+(forward xf-rule)
 (define xf-acc (lambda (acc r) (xf+ acc (xf-rule r))))
 
 (define (xf-un-vars xf)

@@ -3,7 +3,7 @@
     `(let () ,@exports)))
 
 (export apply let lambda let* define set-symbol-value binding set set!
-        *package* defparameter symbol-package)
+        *package* defparameter symbol-package forward)
 
 (export defmacro gensym intern & &opt quasiquote-expand macroexpand eval lambda-bind
         special-symbol? mark-symbol-as-special with-special-binding symbol-bound?)

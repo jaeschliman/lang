@@ -13,10 +13,10 @@
      (set! loop (lambda () ,@forms (loop)))
      (loop)))
 
-(define wants-display #f)
+(at-boot (define wants-display #f))
 
-(define event-ready-semaphore (make-semaphore #f))
-(define pending-events '())
+(at-boot (define event-ready-semaphore (make-semaphore #f)))
+(at-boot (define pending-events '()))
 
 (define (handle-event e)
     (let ((name (car e))
@@ -35,11 +35,12 @@
       (set 'pending-events '())
       (mapcar handle-event (reverse-list found)))))
 
-(let ((started-event-loop #f))
-  (define (start-event-loop)
-      (unless started-event-loop
-        (fork-with-priority 30000 (forever (poll-for-pending-events))))
-    (set! started-event-loop #t)))
+(at-boot
+ (let ((started-event-loop #f))
+   (define (start-event-loop)
+       (unless started-event-loop
+         (fork-with-priority 30000 (forever (poll-for-pending-events))))
+     (set! started-event-loop #t))))
 
 ;; TODO this should no longer be needed
 (define (start-additional-event-loop)

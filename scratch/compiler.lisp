@@ -270,13 +270,18 @@
           (mark-expressions body)))))
 
 (defparameter *in-call-position* #f)
+(defparameter *being-set* #f)
+(defparameter *binding-name* '())
 
 (define (mark-variables e)
     (cond
       ((symbol? e)
        (unless (nil? (expr-meta e 'type))
          (expr-set-meta e 'used #t)
-         (expr-set-meta e (if *in-call-position* 'called 'value-taken) #t))
+         (expr-set-meta e (cond (*in-call-position* 'called)
+                                (*being-set* 'mutated)
+                                (#t 'value-taken))
+                        #t))
        (when (binding-crosses-lambda e)
          (binding-context-annot e 'closed-over #t)
          (expr-set-meta e 'type 'closure)))
@@ -285,7 +290,9 @@
           (case (car e)
             (quote) ;; do nothing
             (if (mark-expressions (cdr e)))
-            (set! (mark-expressions (cdr e)))
+            (set!
+             (binding ((*being-set* #t)) (mark-variables (second e)))
+             (mark-variables (third e)))
             (#/lang/%let (mark-let e))
             (#/lang/%nlambda  (mark-lambda e))
             (with-special-binding (mark-expressions (cddr e)))
@@ -305,14 +312,32 @@
       (emit-expr (fourth it))
       (label done)))
 
+;; FIXME: this isn't quite correct, although it works for (all of 4) calls in the current
+;;        codebase.
+;; 
+;; will break if we have mutually recursive set!-bound closures
+;; will be fixed by only applying this transform from named-let, when that is ready.
+;; will also be applied to recursive define, when that is ready
+(define (call-can-be-jump-optimized? it env)
+    (and *tail-position*
+         (if (symbol? (car it))
+             (let* ((it (car it))
+                    (type (expr-meta it 'type)))
+               (and (not (nil? type))
+                    (and (eq type 'closure)
+                         (eq (binding-depth it) 1))))
+             #f)))
+
 (define (emit-call it env)
-    (let ((argc 0))
-      (binding ((*tail-position* #f))
-        (dolist (e (cdr it))
-          (set! argc (+ 1 argc))
-          (emit-expr e env))
-        (emit-expr (car it) env))
-      (emit-pair (if *tail-position* TAIL_CALL CALL) argc)))
+    (if (call-can-be-jump-optimized? it env)
+        (print `(could jump-optimize call: ,it ,(binding-depth (car it)) ,(expr-meta it 'type))))
+  (let ((argc 0))
+    (binding ((*tail-position* #f))
+             (dolist (e (cdr it))
+               (set! argc (+ 1 argc))
+               (emit-expr e env))
+             (emit-expr (car it) env))
+    (emit-pair (if *tail-position* TAIL_CALL CALL) argc)))
 
 (define (emit-body it env)
     (emit-pair PUSHLIT (emit-lit '()))
@@ -336,7 +361,7 @@
              (start (reserve-tmps count)))
         (dolist (pair binds)
           (let ((sym (car pair)))
-            (binding ((*tail-position* #f)) (emit-expr (second pair) env))
+            (binding ((*tail-position* #f) (*binding-name* sym)) (emit-expr (second pair) env))
             (with-expression-context (body)
               (case (expr-meta sym 'type)
                 (local
@@ -413,10 +438,6 @@
     (cond
       ((symbol? it)
        (let ((type (expr-meta it 'type)))
-         ;; (unless (nil? type)
-         ;;   (when (and (eq #t (expr-meta it 'called))
-         ;;              (not (eq #t (expr-meta it 'value-taken))))
-         ;;     (print `(expr ,it of type ,type called only))))
          (case type
            (()
             (emit-pair PUSHLIT (emit-lit it))

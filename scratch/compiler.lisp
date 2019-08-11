@@ -324,47 +324,33 @@
         (emit-expr e env))
       (set! idx (+ 1 idx)))))
 
-;; TODO: this feels too long for what it does.
 (define (emit-let it env)
     (let* ((binds (cadr it))
            (body (cddr it))
-           (count (length binds)))
-      (if (expression-context-is-closed-over body)
-          (let* ((idx 0)
-                 (closure-idx 0)
-                 ;; this is wasteful -- we are reserving stack space for items
-                 ;; which wind up stored in the closure
-                 (start (reserve-tmps count)))
-            (dolist (pair binds)
-              (let ((sym (car pair)))
-                (binding ((*tail-position* #f)) (emit-expr (second pair) env))
-                (with-expression-context (body)
-                  (case (expr-meta sym 'type)
-                    (local
-                     (store-tmp (+ idx start))
-                     (expr-set-meta sym 'index (+ idx start)))
-                    (closure
-                     ;; leave on stack to be picked up by push-closure
-                     (expr-set-meta sym 'closure-index closure-idx)
-                     (set! closure-idx (+ 1 closure-idx)))))
-                (set! idx (+ 1 idx))))
+           (count (length binds))
+           (closed? (expression-context-is-closed-over body)))
+      (let* ((idx 0)
+             (closure-idx 0)
+             ;; this is wasteful -- we are reserving stack space for items
+             ;; which wind up stored in the closure
+             (start (reserve-tmps count)))
+        (dolist (pair binds)
+          (let ((sym (car pair)))
+            (binding ((*tail-position* #f)) (emit-expr (second pair) env))
             (with-expression-context (body)
-              (push-closure closure-idx)
-              (emit-body body env)
-              (pop-closure)))
-          (let* ((start (reserve-tmps count))
-                 (idx start))
-            (dolist (pair binds)
-              (binding ((*tail-position* #f)) (emit-expr (second pair) env))
-              (store-tmp idx)
-              (set! idx (+ 1 idx)))
-            (with-expression-context (body)
-              (set! idx start)
-              (dolist (pair binds)
-                (let ((sym (car pair)))
-                  (expr-set-meta sym 'index idx)
-                  (set! idx (+ 1 idx))))
-              (emit-body body))))))
+              (case (expr-meta sym 'type)
+                (local
+                 (store-tmp (+ idx start))
+                 (expr-set-meta sym 'index (+ idx start)))
+                (closure
+                 ;; leave on stack to be picked up by push-closure
+                 (expr-set-meta sym 'closure-index closure-idx)
+                 (set! closure-idx (+ 1 closure-idx)))))
+            (set! idx (+ 1 idx))))
+        (with-expression-context (body)
+          (when closed? (push-closure closure-idx))
+          (emit-body body env)
+          (when closed? (pop-closure))))))
 
 (define (emit-flat-lambda it env)
     (let* ((args (caddr it))

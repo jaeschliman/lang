@@ -1,3 +1,5 @@
+(define (ensure-list x) (if (or (nil? x) (pair? x)) x (list x)))
+
 (defmacro define-bytecodes (& codes)
   (let ((counter -1))
     `(let ()
@@ -40,6 +42,7 @@
 (defparameter *expr-context* '())
 (defparameter *context-table* #f)
 (defparameter *tail-position* #t)
+(defparameter *varargs* #f)
 
 (define %expr-meta #f)
 (define (%expr-meta ctx e k)
@@ -151,7 +154,7 @@
 (define (agg-items agg) (reverse-list (instance-get-ivar agg 1)))
 
 (define (emit-u16 it) (agg-push *code* it) (- (agg-count *code*) 1))
-(define (emit-lit it) (agg-push *lits* it) (- (agg-count *lits*) 1)) 
+(define (emit-lit it) (agg-push *lits* it) (- (agg-count *lits*) 1))
 (define (emit-pair a b) (emit-u16 (bit-or (ash b 8) a)))
 
 (define (label name)
@@ -218,6 +221,7 @@
              (*lits* (make-agg))
              (*labels* (make-ht))
              (*jump-locations* '())
+             (*varargs* #f)
              (*tmp-count* 0))
             (emit-u16 STACK_RESERVE)
             (emit-u16 0)
@@ -225,7 +229,7 @@
             (emit-u16 RET)
             (emit-u16 END)
             (emit-lit '())
-            (finalize-bytecode 'anon #f)))
+            (finalize-bytecode 'anon *varargs*)))
 
 (define hello-world (bytecode->closure
                      (with-output-to-bytecode ()
@@ -271,7 +275,7 @@
       (with-expression-context (body)
         (ctx-annot-put 'type 'lambda)
         (let ((idx 0))
-          (dolist (arg args)
+          (dolist (arg (ensure-list args))
             (declare-local-binding arg)
             (expr-set-meta arg 'type 'argument)
             (expr-set-meta arg 'index idx)
@@ -338,7 +342,7 @@
                  (closure-idx 0)
                  ;; this is wasteful -- we are reserving stack space for items
                  ;; which wind up stored in the closure
-                 (start (reserve-tmps count))) 
+                 (start (reserve-tmps count)))
             (dolist (pair binds)
               (let ((sym (car pair)))
                 (binding ((*tail-position* #f)) (emit-expr (second pair) env))
@@ -372,10 +376,12 @@
               (emit-body body))))))
 
 (define (emit-flat-lambda it env)
-    (let* ((body (cdddr it))
+    (let* ((args (caddr it))
+           (body (cdddr it))
            (bc (with-output-to-bytecode ()
                  (with-expression-context (body)
                    (binding ((*tail-position* #t)) (emit-body body))))))
+      (set '*varargs* (symbol? args))
       (emit-pair PUSHLIT (emit-lit (bytecode->closure bc)))))
 
 (define (emit-lambda it env)
@@ -386,7 +392,7 @@
                (arg-idx 0)
                (bc (with-output-to-bytecode ()
                      (with-expression-context (body)
-                       (dolist (a args)
+                       (dolist (a (ensure-list args))
                          (when (eq 'closure (expr-meta a 'type))
                            (expr-set-meta a 'closure-index closure-idx)
                            (set! closure-idx (+ 1 closure-idx))
@@ -395,8 +401,9 @@
                        (push-closure closure-idx)
                        (binding ((*tail-position* #t)) (emit-body body))
                        (pop-closure)))))
+          (set '*varargs* (symbol? args))
           (emit-pair PUSHLIT (emit-lit bc))
-          (emit-u16 BUILD_CLOSURE))   
+          (emit-u16 BUILD_CLOSURE))
         (emit-flat-lambda it env)))
 
 (define (emit-with-special-binding it env)
@@ -515,5 +522,9 @@
              (store (lambda (x) (set! shared x))))
         (store 20)
         (print shared)))
+
+(print `(expecting (got 1 2 3)))
+(dbg `(let ((vararg (lambda xs (cons 'got xs))))
+        (print (vararg 1 2 3))))
 
 (print 'done)

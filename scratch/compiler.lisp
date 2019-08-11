@@ -295,8 +295,8 @@
          (quote) ;; do nothing
          (if (mark-expressions (cdr e)))
          (set! (mark-expressions (cdr e)))
-         (let (mark-let e))
-         (#/lang/%nlambda (mark-lambda e))
+         (#/lang/%let (mark-let e))
+         (#/lang/%nlambda  (mark-lambda e))
          (with-special-binding (mark-expressions (cddr e)))
          (#t (mark-expressions e))))))
 
@@ -453,9 +453,9 @@
          (case head
            (quote  (emit-pair PUSHLIT (emit-lit (cadr it))))
            (if     (emit-if it env))
-           (let    (emit-let it env))
            (set!   (emit-set! it env))
-           (#/lang/%nlambda (emit-lambda it env))
+           (#/lang/%let (emit-let it env))
+           (#/lang/%nlambda  (emit-lambda it env))
            (with-special-binding (emit-with-special-binding it env))
            (#t     (emit-call it env)))))
       (#t

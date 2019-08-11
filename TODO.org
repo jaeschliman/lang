@@ -434,13 +434,14 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   than popping them off every time. may require reworking the prim machinery as well.
 * DONE asm: emit bodies properly
 * DONE asm: tail calls
-* TODO asm: special variables
+* DONE asm: special variables
 * TODO asm: %nlambda
 * TODO asm: %let
 * TODO asm: recursive definitions (define, named let)
   keep TCO local loops from allocating
 * TODO asm: looping contruct
 * TODO asm: tagbody
+* TODO asm: dedupe lits
 
 * notes
 maybe have a stack of compilers? can push/pop...

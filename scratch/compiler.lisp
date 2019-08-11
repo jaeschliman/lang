@@ -290,6 +290,7 @@
          (if (dolist (e (cdr e)) (mark-variables e)))
          (let (mark-let e))
          (lambda (mark-lambda e))
+         (with-special-binding (mark-variables (fourth e)))
          (#t (dolist (e e) (mark-variables e)))))))
 
 (define emit-expr #f)
@@ -394,6 +395,16 @@
           (emit-u16 BUILD_CLOSURE))   
         (emit-flat-lambda it env)))
 
+(define (emit-with-special-binding it env)
+    (let ((sym (second it))
+          (val (third it))
+          (exp (fourth it)))
+      (emit-pair PUSHLIT (emit-lit sym))
+      (binding ((*tail-position* #f)) (emit-expr val env))
+      (emit-u16 PUSH_SPECIAL_BINDING)
+      (binding ((*tail-position* #f)) (emit-expr exp env))
+      (emit-u16 POP_SPECIAL_BINDING)))
+
 (define (emit-expr it env)
     (cond
       ((symbol? it)
@@ -401,7 +412,7 @@
          (case type
            (()
             (emit-pair PUSHLIT (emit-lit it))
-            (emit-u16 LOAD_GLOBAL))
+            (emit-u16 (if (special-symbol? it) LOAD_SPECIAL LOAD_GLOBAL)))
            (local
             (load-tmp (expr-meta it 'index)))
            (argument
@@ -418,6 +429,7 @@
            (if     (emit-if it env))
            (let    (emit-let it env))
            (lambda (emit-lambda it env))
+           (with-special-binding (emit-with-special-binding it env))
            (#t     (emit-call it env)))))
       (#t
        (emit-pair PUSHLIT (emit-lit it)))))
@@ -469,5 +481,9 @@
 
 (print (iota 10))
 (print (iota 10000))
+
+(defparameter *test-var* 10)
+(print `(expecting 20))
+(dbg `(print (with-special-binding *test-var* 20 *test-var*)))
 
 (print 'done)

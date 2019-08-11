@@ -46,14 +46,14 @@
        (string-output-stream-get-string ,var))))
 
 
-(define stream-write-char (make-generic-function 2))
+(at-boot (define stream-write-char (make-generic-function 2)))
 
 (generic-function-add-method stream-write-char (list StringOutputStream #t)
                              %string-output-stream-write-char)
 (generic-function-add-method stream-write-char (list FileOutputStream #t)
                              %file-output-stream-write-char)
 
-(define stream-write-string (make-generic-function 2))
+(at-boot (define stream-write-string (make-generic-function 2)))
 
 (generic-function-add-method stream-write-string (list StringOutputStream #t)
                              %string-output-stream-write-string)

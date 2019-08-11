@@ -39,7 +39,7 @@
       (dotimes (_ leading-zeroes) (stream-write-char stream #\0))
       (%print-integer rem stream 10))))
 
-(define print-object (make-generic-function 2))
+(at-boot (define print-object (make-generic-function 2)))
 
 (define (%print-object-address object stream)
     (let ((hi (%obj-high-bits object))
@@ -66,7 +66,7 @@
 (generic-function-add-method
  print-object (list Float #t) print-float)
 
-(define %print-list-loop #f)
+(forward %print-list-loop)
 (define (%print-list-loop first cons stream)
     (unless first (stream-write-char stream #\Space))
     (if (or (nil? (cdr cons)) (pair? (cdr cons)))

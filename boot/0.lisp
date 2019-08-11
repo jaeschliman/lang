@@ -156,6 +156,7 @@
            expr)))
 
 (set 'compiler (%nlambda () (expr) (macroexpand (qq-process expr))))
+(set 'quasiquote-expand qq-process)
 
 ;;; ----------------------------------------
 ;;; basic macros

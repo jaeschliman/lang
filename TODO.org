@@ -432,8 +432,8 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
 * TODO consider a better way of emitting side-effectful calls
   would be better if there was a CALL instr that did not push the result, rather
   than popping them off every time. may require reworking the prim machinery as well.
-* TODO asm: emit bodies properly
-* TODO asm: tail calls
+* DONE asm: emit bodies properly
+* DONE asm: tail calls
 * TODO asm: special variables
 * TODO asm: %nlambda
 * TODO asm: %let

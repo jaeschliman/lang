@@ -327,13 +327,11 @@
         (remaining (gensym))
         (var (car binding))
         (form (cadr binding)))
-    `(let ((,loop #f))
-       (set! ,loop (lambda (,remaining)
-                     (unless (nil? ,remaining)
-                       (let ((,var (car ,remaining)))
-                         ,@body)
-                       (,loop (cdr ,remaining)))))
-       (,loop ,form))))
+    `(let ,loop ((,remaining ,form))
+          (unless (nil? ,remaining)
+            (let ((,var (car ,remaining)))
+              ,@body)
+            (,loop (cdr ,remaining))))))
 
 (defmacro if-nil? (test & rest) `(if (nil? ,test) ,@rest))
 

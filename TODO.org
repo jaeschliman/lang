@@ -445,6 +445,10 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   it is only used in the tail-call position (not passed as an arg anywhere, not mutated)
 * TODO asm: looping contruct
 * TODO asm: tagbody
+  this will be trickier than initially anticipated, because of the way
+  closures and special bindings are implemented (with push/pop in the
+  bytecode). exiting from a closed over let or a special binding will
+  have to undo the pushes or we will wind up in a bad place
 * DONE asm: dedupe lits
 * DONE asm: set!
 * TODO some more efficient way of getting thread minimum sleep time

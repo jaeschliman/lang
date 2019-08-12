@@ -427,6 +427,8 @@ void initialize_primitive_functions(VM *vm) {
   (prim make-bytecode MKBTC ((varargs Bool) (name any) (code U16Array) (literals PtrArray)) any
         "create_bytecode(vm, varargs, name, code, literals)")
 
+  (prim %stack-depth STKDPTH () Fixnum "vm->curr_thd->stack_depth")
+
   (setf *prims* (reverse *prims*))
   (write-prims))
 

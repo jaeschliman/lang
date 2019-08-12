@@ -152,6 +152,7 @@ enum PrimitiveOperation : u64 {
   PRIM_PF = ((149ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_BCTOCLS = ((150ULL << 32) | (1ULL << 16) | PrimOp_Tag),
   PRIM_MKBTC = ((151ULL << 32) | (4ULL << 16) | PrimOp_Tag),
+  PRIM_STKDPTH = ((152ULL << 32) | (255ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -1458,6 +1459,13 @@ Ptr PRIM_MKBTC_impl(VM *vm, u32 argc) {
  return create_bytecode(vm, varargs, name, code, literals);
 }
 
+// Primitive 151
+Ptr PRIM_STKDPTH_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+
+  return to(Fixnum,(vm->curr_thd->stack_depth));
+}
+
 
 PrimitiveFunction PrimLookupTable[] = {
   (PrimitiveFunction)(void *)0, // apply
@@ -1612,6 +1620,7 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_PF_impl,
   &PRIM_BCTOCLS_impl,
   &PRIM_MKBTC_impl,
+  &PRIM_STKDPTH_impl,
 
   (PrimitiveFunction)(void *)0
 };
@@ -1770,6 +1779,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "prefetch", to(PrimOp, PRIM_PF));
   set_global(vm, "bytecode->closure", to(PrimOp, PRIM_BCTOCLS));
   set_global(vm, "make-bytecode", to(PrimOp, PRIM_MKBTC));
+  set_global(vm, "%stack-depth", to(PrimOp, PRIM_STKDPTH));
 
 }
 
@@ -2924,6 +2934,12 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("make-bytecode",Bool,varargs);
 
     return(create_bytecode(vm, varargs, name, code, literals));
+    break;
+  }
+
+  case 152: {
+
+     return(to(Fixnum,(vm->curr_thd->stack_depth)));
     break;
   }
 

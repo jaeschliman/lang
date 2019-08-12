@@ -173,15 +173,16 @@
                 (add-some-boxes (make-point (aget box 0) (aget box 1)))
                 (sleep-ms 200)))))
 
-(make-source 50 (make-point (/ screen-width 2) (/ screen-height 5)) 4 5)
-(make-source 50 (make-point (/ screen-width 3) (/ screen-height 2)) 2 -1)
-(make-source 50 (make-point (/ screen-width 4) (/ screen-height 2)))
-(make-source 50 (make-point (/ screen-width 6) (/ screen-height 3)) 1 -3)
-(make-source 50 (make-point (/ screen-width 5) (/ screen-height 2)))
-(make-source 250 (make-point (/ screen-width 6) (/ screen-height 3)) -1 -1)
-(make-source 250 (make-point (/ screen-width 5) (/ screen-height 2)) -2 -3)
-(make-source 250 (make-point (/ screen-width 6) (/ screen-height 3)) -2 1)
-(make-source 250 (make-point (/ screen-width 5) (/ screen-height 2)) -3 2)
+(define (onshow)
+    (make-source 50 (make-point (/ screen-width 2) (/ screen-height 5)) 4 5)
+  (make-source 50 (make-point (/ screen-width 3) (/ screen-height 2)) 2 -1)
+  (make-source 50 (make-point (/ screen-width 4) (/ screen-height 2)))
+  (make-source 50 (make-point (/ screen-width 6) (/ screen-height 3)) 1 -3)
+  (make-source 50 (make-point (/ screen-width 5) (/ screen-height 2)))
+  (make-source 250 (make-point (/ screen-width 6) (/ screen-height 3)) -1 -1)
+  (make-source 250 (make-point (/ screen-width 5) (/ screen-height 2)) -2 -3)
+  (make-source 250 (make-point (/ screen-width 6) (/ screen-height 3)) -2 1)
+  (make-source 250 (make-point (/ screen-width 5) (/ screen-height 2)) -3 2))
 
 
 

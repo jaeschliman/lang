@@ -141,6 +141,18 @@
 (define (binding-crosses-lambda symbol)
     (%binding-crosses-lambda *expr-context* symbol #f))
 
+(forward %enclosing-lambda-count)
+(define (enclosing-lambda-count symbol) (%enclosing-lambda-count *expr-context* symbol 0))
+(define (%enclosing-lambda-count ctx e acc)
+    (if (nil? ctx) acc
+        (let* ((type (ctx-annot-read ctx 'type))
+               (ht (ht-at (cdr ctx) e))
+               (not-here (nil? ht))
+               (crossed-lambda (and (eq type 'lambda) not-here)))
+          (if not-here
+              (%enclosing-lambda-count (car ctx) e (if crossed-lambda (+ 1 acc) acc))
+              acc))))
+
 (define Aggregator (create-class 'Aggregator '(count list)))
 
 (define (make-agg)
@@ -323,12 +335,12 @@
 (define (call-can-be-jump-optimized? it env)
     (and *tail-position*
          (if (symbol? (car it))
-             (or (eq (car it) *binding-name*)
-                 (let* ((it (car it))
-                        (type (expr-meta it 'type)))
-                   (and (not (nil? type))
-                        (and (eq type 'closure)
-                             (eq (binding-depth it) 1)))))
+             (let ((sym (car it)))
+               (or (and (eq sym *binding-name*)
+                        (eq 1 (enclosing-lambda-count sym)))
+                   (let ((type (expr-meta sym 'type)))
+                     (and (eq 'closure type)
+                          (eq 1 (binding-depth sym))))))
              #f)))
 
 (define (%call-get-binding-name it)

@@ -131,28 +131,27 @@
 ;;        thought it was stack _frames_ but it looks like it may
 ;;        be stack _values_
 
-(let ((max 0))
-  (define (actually-draw-them)
-      (dolist (box boxes)
-        (when (> (#/lang/%stack-depth) max)
-          (set! max (#/lang/%stack-depth))
-          (print `(--> ,max)))
-        (draw-one-box box))))
+(define (actually-draw-them)
+    (dolist (box boxes)
+      (draw-one-box box)))
 
 ;; (set '#/lang/*enable-jump-opts* #f)
 
 (forward draw-curr-boxes)
-(let ((color colors))
+(let ((color colors)
+      (max 0))
   (define (draw-curr-boxes)
-      ;; (print (#/lang/%stack-depth))
-      (sleep-ms 5)
+    (sleep-ms 5)
     (clear-screen)
-    (actually-draw-them)
+    ;; (actually-draw-them)
     (when (nil? color) (set! color colors))
     (fill-rect back-buffer 0@0 20@20 (car color))
     (set! color (cdr color))
     (flip-buffer)
     (update-display)
+      (when (> (#/lang/%stack-depth-in-bytes) max)
+        (set! max (#/lang/%stack-depth-in-bytes))
+        (print `(--> ,max)))
     (draw-curr-boxes)))
 
 (set '#/lang/*enable-jump-opts* previous-jump-opt)
@@ -194,16 +193,17 @@
                 (add-some-boxes (make-point (aget box 0) (aget box 1)))
                 (sleep-ms 200)))))
 
-(define (onshow)
-    (make-source 50 (make-point (/ screen-width 2) (/ screen-height 5)) 4 5)
-  (make-source 50 (make-point (/ screen-width 3) (/ screen-height 2)) 2 -1)
-  (make-source 50 (make-point (/ screen-width 4) (/ screen-height 2)))
-  (make-source 50 (make-point (/ screen-width 6) (/ screen-height 3)) 1 -3)
-  (make-source 50 (make-point (/ screen-width 5) (/ screen-height 2)))
-  (make-source 250 (make-point (/ screen-width 6) (/ screen-height 3)) -1 -1)
-  (make-source 250 (make-point (/ screen-width 5) (/ screen-height 2)) -2 -3)
-  (make-source 250 (make-point (/ screen-width 6) (/ screen-height 3)) -2 1)
-  (make-source 250 (make-point (/ screen-width 5) (/ screen-height 2)) -3 2))
+(when #f
+  (define (onshow)
+      (make-source 50 (make-point (/ screen-width 2) (/ screen-height 5)) 4 5)
+    (make-source 50 (make-point (/ screen-width 3) (/ screen-height 2)) 2 -1)
+    (make-source 50 (make-point (/ screen-width 4) (/ screen-height 2)))
+    (make-source 50 (make-point (/ screen-width 6) (/ screen-height 3)) 1 -3)
+    (make-source 50 (make-point (/ screen-width 5) (/ screen-height 2)))
+    (make-source 250 (make-point (/ screen-width 6) (/ screen-height 3)) -1 -1)
+    (make-source 250 (make-point (/ screen-width 5) (/ screen-height 2)) -2 -3)
+    (make-source 250 (make-point (/ screen-width 6) (/ screen-height 3)) -2 1)
+    (make-source 250 (make-point (/ screen-width 5) (/ screen-height 2)) -3 2)))
 
 
 (when #f

@@ -1,3 +1,4 @@
+
 (defmacro sync (sem & body)
   `(let ()
      (semaphore-wait ,sem)
@@ -123,6 +124,12 @@
            (b (point+ a (make-point d d))))
       (fill-rect back-buffer a b color)))
 
+
+(define previous-jump-opt #/lang/*enable-jump-opts*)
+(set '#/lang/*enable-jump-opts* #f)
+;; FIXME: something is causing the the stack to grow here
+;;        when jump-opts are turned on
+
 (define (draw-curr-boxes)
     (let ((color colors))
       (forever
@@ -135,6 +142,23 @@
        (flip-buffer)
        (update-display)
        (sleep-ms 5))))
+
+(forward draw-curr-boxes)
+(let ((color colors))
+  (define (draw-curr-boxes)
+    (sleep-ms 5)
+      (clear-screen)
+    (dolist (box boxes)
+      (draw-one-box box))
+    (when (nil? color) (set! color colors))
+    (fill-rect back-buffer 0@0 20@20 (car color))
+    (set! color (cdr color))
+    (flip-buffer)
+    (update-display)
+    (draw-curr-boxes)))
+
+
+(set '#/lang/*enable-jump-opts* previous-jump-opt)
 
 (define (onmousedown p) (add-box p))
 (define (add-some-boxes p)
@@ -183,7 +207,6 @@
   (make-source 250 (make-point (/ screen-width 5) (/ screen-height 2)) -2 -3)
   (make-source 250 (make-point (/ screen-width 6) (/ screen-height 3)) -2 1)
   (make-source 250 (make-point (/ screen-width 5) (/ screen-height 2)) -3 2))
-
 
 
 (let ((pkg *package*))

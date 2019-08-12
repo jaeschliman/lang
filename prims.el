@@ -428,6 +428,7 @@ void initialize_primitive_functions(VM *vm) {
         "create_bytecode(vm, varargs, name, code, literals)")
 
   (prim %stack-depth STKDPTH () Fixnum "vm->curr_thd->stack_depth")
+  (prim %stack-depth-in-bytes STKDPTHB () Fixnum "(vm->curr_thd->stack_start - vm->curr_thd->stack) * 8")
 
   (setf *prims* (reverse *prims*))
   (write-prims))

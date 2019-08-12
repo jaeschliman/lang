@@ -126,37 +126,34 @@
 
 
 (define previous-jump-opt #/lang/*enable-jump-opts*)
-(set '#/lang/*enable-jump-opts* #f)
 ;; FIXME: something is causing the the stack to grow here
 ;;        when jump-opts are turned on
+;;        thought it was stack _frames_ but it looks like it may
+;;        be stack _values_
 
-(define (draw-curr-boxes)
-    (let ((color colors))
-      (forever
-       (clear-screen)
-       (dolist (box boxes)
-         (draw-one-box box))
-       (when (nil? color) (set! color colors))
-       (fill-rect back-buffer 0@0 20@20 (car color))
-       (set! color (cdr color))
-       (flip-buffer)
-       (update-display)
-       (sleep-ms 5))))
+(let ((max 0))
+  (define (actually-draw-them)
+      (dolist (box boxes)
+        (when (> (#/lang/%stack-depth) max)
+          (set! max (#/lang/%stack-depth))
+          (print `(--> ,max)))
+        (draw-one-box box))))
+
+;; (set '#/lang/*enable-jump-opts* #f)
 
 (forward draw-curr-boxes)
 (let ((color colors))
   (define (draw-curr-boxes)
-    (sleep-ms 5)
-      (clear-screen)
-    (dolist (box boxes)
-      (draw-one-box box))
+      ;; (print (#/lang/%stack-depth))
+      (sleep-ms 5)
+    (clear-screen)
+    (actually-draw-them)
     (when (nil? color) (set! color colors))
     (fill-rect back-buffer 0@0 20@20 (car color))
     (set! color (cdr color))
     (flip-buffer)
     (update-display)
     (draw-curr-boxes)))
-
 
 (set '#/lang/*enable-jump-opts* previous-jump-opt)
 
@@ -209,10 +206,11 @@
   (make-source 250 (make-point (/ screen-width 5) (/ screen-height 2)) -3 2))
 
 
-(let ((pkg *package*))
-  (fork-with-priority 50
-   (binding ((*package* pkg))
-            (forever (sleep-ms 2000)
-                     (print (thread-count))))))
+(when #f
+  (let ((pkg *package*))
+    (fork-with-priority 50
+                        (binding ((*package* pkg))
+                                 (forever (sleep-ms 2000)
+                                          (print (thread-count)))))))
 
 (request-display screen-width screen-height)

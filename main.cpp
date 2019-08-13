@@ -4926,7 +4926,6 @@ void vm_interp(VM* vm, interp_params params) {
       u64 depth = vm_adv_instr(vm);
       auto value = vm_pop(vm);
       vm_store_closure_value(vm, slot, depth, value);
-      vm_push(vm, value);
       break;
     }
     case BUILD_CLOSURE: {

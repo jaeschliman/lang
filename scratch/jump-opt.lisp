@@ -24,7 +24,7 @@
 
 (print (iota 10))
 
-;; FIXME: can only support one binding at a time for now.
+;; FIXME: can only support one binding at a time for now, which is almost completely useless
 (define (emit-letrec it env)
     (let* ((binds (cadr it))
            (body (cddr it))
@@ -43,7 +43,6 @@
                 (closure (expr-set-meta sym 'closure-index closure-idx)
                          (set! closure-idx (+ 1 closure-idx))
                          ;; set initial closure value as nil (picked up by push-closure)
-                         (print `(setting initial nil))
                          (emit-pair PUSHLIT (emit-lit '())))))
             (set! idx (+ 1 idx))))
         (with-expression-context (body)
@@ -51,13 +50,11 @@
                    (when closed? (push-closure closure-idx))
                    (dolist (pair binds)
                      (let ((sym (car pair)))
-                       (print `(emitting expr for binding: ,(second pair)))
                        (binding ((*tail-position* #f)) (emit-expr (second pair) env))
                        (case (expr-meta sym 'type)
-                         (local (store-tmp (+ idx start)))
-                         (closure
-                          (print `(storing at: ,(expr-meta sym 'closure-index)))
-                          (store-closure (expr-meta sym 'closure-index) *closure-depth*)))))
+                         (local (store-tmp (expr-meta sym 'index)))
+                         (closure (store-closure (expr-meta sym 'closure-index)
+                                                 (binding-depth sym))))))
                    (emit-body body env)
                    (when closed? (pop-closure)))))))
 
@@ -74,7 +71,6 @@
       `(#/lang/%let ,bindings ,@body)))
 
 
-(print 'here)
 (binding ((*enable-jump-opts* #t) (*trace-eval* #t))
          (eval `(define (iota2 n)
                     (let -iota ((n n))

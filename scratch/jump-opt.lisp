@@ -24,53 +24,6 @@
 
 (print (iota 10))
 
-;; FIXME: can only support one binding at a time for now, which is almost completely useless
-(define (emit-letrec it env)
-    (let* ((binds (cadr it))
-           (body (cddr it))
-           (count (length binds))
-           (closed? (expression-context-is-closed-over body)))
-      (let* ((idx 0)
-             (closure-idx 0)
-             ;; this is wasteful -- we are reserving stack space for items
-             ;; which wind up stored in the closure
-             (start (reserve-tmps count)))
-        (with-expression-context (body)
-          (dolist (pair binds)
-            (let ((sym (car pair)))
-              (case (expr-meta sym 'type)
-                (local (expr-set-meta sym 'index (+ idx start)))
-                (closure (expr-set-meta sym 'closure-index closure-idx)
-                         (set! closure-idx (+ 1 closure-idx))
-                         ;; set initial closure value as nil (picked up by push-closure)
-                         (emit-pair PUSHLIT (emit-lit '())))))
-            (set! idx (+ 1 idx))))
-        (with-expression-context (body)
-          (binding ((*closure-depth* (+ (if closed? 1 0) *closure-depth*)))
-                   (when closed? (push-closure closure-idx))
-                   (dolist (pair binds)
-                     (let ((sym (car pair)))
-                       (binding ((*tail-position* #f)) (emit-expr (second pair) env))
-                       (case (expr-meta sym 'type)
-                         (local (store-tmp (expr-meta sym 'index)))
-                         (closure (store-closure (expr-meta sym 'closure-index)
-                                                 (binding-depth sym))))))
-                   (emit-body body env)
-                   (when closed? (pop-closure)))))))
-
-
-(defmacro let (bindings & body)
-  (if (symbol? bindings)
-      (let* ((symbol bindings)
-             (bindings (car body))
-             (body (cdr body))
-             (args (mapcar car bindings))
-             (inits (mapcar cadr bindings)))
-        `(#/lang/%letrec ((,symbol (lambda ,args ,@body)))
-                  (,symbol ,@inits)))
-      `(#/lang/%let ,bindings ,@body)))
-
-
 (binding ((*enable-jump-opts* #t) (*trace-eval* #t))
          (eval `(define (iota2 n)
                     (let -iota ((n n))
@@ -81,5 +34,14 @@
 
 (print (iota2 10))
 
+(define (sub1 n) (- n 1))
+(define (zero? n) (eq n 0))
+(print (%letrec ((is-even? (lambda (n)
+                             (or (zero? n)
+                                 (is-odd? (sub1 n)))))
+                 (is-odd? (lambda (n)
+                            (and (not (zero? n))
+                                 (is-even? (sub1 n))))))
+                (is-odd? 11)))
 
 (print 'done)

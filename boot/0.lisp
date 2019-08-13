@@ -412,7 +412,6 @@
 
 ;;  primitive named-let support ---------------------------------------------------
 
-
 (at-boot
  (defmacro let (bindings & body)
    (if (symbol? bindings)

@@ -382,9 +382,9 @@
           (binding ((*binding-name* binding-name)) (%emit-call it env)))))
 
 (define (emit-body it env)
-    (emit-pair PUSHLIT (emit-lit '()))
   (let ((last (- (length it) 1))
         (idx 0))
+    (emit-pair PUSHLIT (emit-lit '()))
     (dolist (e it)
       (emit-u16 POP)
       (binding ((*tail-position* (and *tail-position* (= idx last))))

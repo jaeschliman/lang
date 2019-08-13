@@ -124,37 +124,26 @@
            (b (point+ a (make-point d d))))
       (fill-rect back-buffer a b color)))
 
-
-(define previous-jump-opt #/lang/*enable-jump-opts*)
-;; FIXME: something is causing the the stack to grow here
-;;        when jump-opts are turned on
-;;        thought it was stack _frames_ but it looks like it may
-;;        be stack _values_
-
-(define (actually-draw-them)
-    (dolist (box boxes)
-      (draw-one-box box)))
-
-;; (set '#/lang/*enable-jump-opts* #f)
+(let ((max 0))
+  (define (check-stack)
+      (when (> (#/lang/%stack-depth-in-bytes) max)
+        (set! max (#/lang/%stack-depth-in-bytes))
+        (print `(--> ,max))) ))
 
 (forward draw-curr-boxes)
-(let ((color colors)
-      (max 0))
+(let ((color colors))
   (define (draw-curr-boxes)
-    (sleep-ms 5)
+      (sleep-ms 10)
     (clear-screen)
-    ;; (actually-draw-them)
+    (dolist (box boxes)
+      (draw-one-box box))
     (when (nil? color) (set! color colors))
     (fill-rect back-buffer 0@0 20@20 (car color))
     (set! color (cdr color))
     (flip-buffer)
     (update-display)
-      (when (> (#/lang/%stack-depth-in-bytes) max)
-        (set! max (#/lang/%stack-depth-in-bytes))
-        (print `(--> ,max)))
+    (check-stack)
     (draw-curr-boxes)))
-
-(set '#/lang/*enable-jump-opts* previous-jump-opt)
 
 (define (onmousedown p) (add-box p))
 (define (add-some-boxes p)
@@ -193,7 +182,7 @@
                 (add-some-boxes (make-point (aget box 0) (aget box 1)))
                 (sleep-ms 200)))))
 
-(when #f
+(when #t
   (define (onshow)
       (make-source 50 (make-point (/ screen-width 2) (/ screen-height 5)) 4 5)
     (make-source 50 (make-point (/ screen-width 3) (/ screen-height 2)) 2 -1)
@@ -206,11 +195,11 @@
     (make-source 250 (make-point (/ screen-width 5) (/ screen-height 2)) -3 2)))
 
 
-(when #f
-  (let ((pkg *package*))
-    (fork-with-priority 50
-                        (binding ((*package* pkg))
-                                 (forever (sleep-ms 2000)
-                                          (print (thread-count)))))))
+
+(let ((pkg *package*))
+  (fork-with-priority 50
+     (binding ((*package* pkg))
+       (forever (sleep-ms 2000)
+                (print (thread-count))))))
 
 (request-display screen-width screen-height)

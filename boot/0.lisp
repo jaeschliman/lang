@@ -138,6 +138,11 @@
        `(%let ,(mapcar mx-process-let-binding (car (cdr expr)))
           ,@(mapcar macroexpand (cdr (cdr expr))))))
 
+(set 'mx-process-letrec
+     (%nlambda () (expr)
+       `(%letrec ,(mapcar mx-process-let-binding (car (cdr expr)))
+          ,@(mapcar macroexpand (cdr (cdr expr))))))
+
 (set 'mx-process-lambda
      (%nlambda () (expr)
        `(%nlambda () ,(car (cdr expr))
@@ -150,12 +155,13 @@
            (%let ((sym (car expr)))
              (if (eq sym 'quote) expr
                  (if (eq sym '%let) (mx-process-let expr)
-                     (if (eq sym 'lambda) (mx-process-lambda expr)
-                         (%let ((expander (ht-at macro-functions sym)))
-                           (if (not (nil? expander))
-                               (%let ((expansion (expander expr)))
-                                 (macroexpand expansion))
-                               (mapcar macroexpand expr)))))))
+                     (if (eq sym '%letrec) (mx-process-letrec expr)
+                         (if (eq sym 'lambda) (mx-process-lambda expr)
+                             (%let ((expander (ht-at macro-functions sym)))
+                                   (if (not (nil? expander))
+                                       (%let ((expansion (expander expr)))
+                                             (macroexpand expansion))
+                                       (mapcar macroexpand expr))))))))
            expr)))
 
 (set 'compiler (%nlambda () (expr) (macroexpand (qq-process expr))))

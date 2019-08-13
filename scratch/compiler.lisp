@@ -258,6 +258,19 @@
 
 (define (mark-expressions es) (dolist (e es) (mark-variables e)))
 
+(define (mark-letrec e)
+    (let ((binds (cadr e))
+          (body (cddr e)))
+      (with-expression-context (body)
+        (ctx-annot-put 'type 'let)
+        (dolist (pair binds)
+          (let ((sym (car pair)))
+            (declare-local-binding sym)
+            (expr-set-meta sym 'type 'local)))
+        (dolist (pair binds)
+          (mark-variables (cadr pair)))
+        (mark-expressions body))))
+
 (define (mark-let e)
     (let ((binds (cadr e))
           (body (cddr e)))
@@ -307,6 +320,7 @@
             (set!
              (binding ((*being-set* #t)) (mark-variables (second e)))
              (mark-variables (third e)))
+            (#/lang/%letrec (mark-letrec e))
             (#/lang/%let (mark-let e))
             (#/lang/%nlambda  (mark-lambda e))
             (with-special-binding (mark-expressions (cddr e)))
@@ -420,6 +434,9 @@
             (emit-body body env)
             (when closed? (pop-closure)))))))
 
+;; [WIP] -- impl underway in jump-opt.lisp
+(forward emit-letrec)
+
 (define (emit-flat-lambda it env)
     (let* ((args (caddr it))
            (body (cdddr it))
@@ -504,6 +521,7 @@
            (quote  (emit-pair PUSHLIT (emit-lit (cadr it))))
            (if     (emit-if it env))
            (set!   (emit-set! it env))
+           (#/lang/%letrec (emit-letrec it env))
            (#/lang/%let (emit-let it env))
            (#/lang/%nlambda  (emit-lambda it env))
            (with-special-binding (emit-with-special-binding it env))
@@ -511,14 +529,19 @@
       (#t
        (emit-pair PUSHLIT (emit-lit it)))))
 
+(defparameter *trace-eval* #f)
+
 (define (eval expr)
-    ;; (when #/lang/*recompiling* (print `(expanding: ,expr)))
-    (let ((expanded (macroexpand (quasiquote-expand expr))))
-      ;; (when #/lang/*recompiling* (print `(compiling: ,expr)))
-      (let ((thunk (binding ((*context-table* (make-ht)))
-                     (mark-variables expanded)
-                     (bytecode->closure (with-output-to-bytecode ()
-                                          (with-expression-context (expanded)
-                                            (emit-expr expanded '())))))))
-        ;; (when #/lang/*recompiling* (print `(evaluating: ,expr)))
-        (thunk))))
+    (when *trace-eval* (print `(expanding: ,expr)))
+  (let ((expanded (macroexpand (quasiquote-expand expr))))
+    (when *trace-eval* (print `(compiling: ,expanded)))
+    (let ((thunk (binding ((*context-table* (make-ht)))
+                          (when *trace-eval* (print `(analysing forms)))
+                          (mark-variables expanded)
+                          (when *trace-eval* (print `(emitting bytecode)))
+                          (bytecode->closure (with-output-to-bytecode ()
+                                               (with-expression-context (expanded)
+                                                 (emit-expr expanded '())))))))
+      (when *trace-eval* (print `(evaluating: ,thunk)))
+      (thunk))))
+

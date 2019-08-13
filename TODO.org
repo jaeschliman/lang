@@ -426,7 +426,7 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   drawn. insane.
 * DONE expose fns for creating/manipulating U16Array to prep for writing assembler
   will also need some sort of xarray like functionality
-* IN-PROGRESS write a compiler/assembler in userspace 
+* DONE write a compiler/assembler in userspace 
   after initial feature parity, main goal will be to support e.g. named let
   without creating spurious closures, and support use of direct recursion in `define`
 * IN-PROGRESS consider a better way of emitting side-effectful calls
@@ -438,7 +438,7 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
 * DONE asm: special variables
 * DONE asm: %nlambda
 * DONE asm: %let
-* TODO asm: recursive definitions (define, named let)
+* IN-PROGRESS asm: recursive definitions (define, named let, letrec)
   keep TCO local loops from allocating
   will be a little tricker to do a full lambda -> loop conversion,
   as it will require examining all uses of the binding form, and ensuring that
@@ -474,6 +474,7 @@ https://www.youtube.com/watch?v=FJQmjhOvjUs&list=PL843D1D545F9F52B6&index=7
   see defns below `common-lisp-indent-function`
   can copy indentation of existing form using
   (put a 'common-lisp-indent-function (get b 'common-lisp-indent-function))
+* TODO asm: inline lambdas where possible
 
 * notes
 maybe have a stack of compilers? can push/pop...

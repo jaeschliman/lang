@@ -48,15 +48,16 @@
 (defparameter *enable-jump-opts* #f)
 
 (forward %expr-meta)
-(define (%expr-meta ctx e k)
+(define (%expr-meta ctx e k d)
     (if (nil? ctx) '()
         (let ((ht (ht-at (cdr ctx) e)))
           (if (nil? ht)
-              (%expr-meta (car ctx) e k)
-              (ht-at ht k)))))
+              (%expr-meta (car ctx) e k d)
+              (let ((found (ht-at ht k)))
+                (if (nil? found) d found))))))
 
-(define (expr-meta e k)
-    (%expr-meta *expr-context* e k))
+(define (expr-meta e k &opt (default '()))
+    (%expr-meta *expr-context* e k default))
 
 (define (declare-local-binding thing)
     (when (nil? (ht-at (cdr *expr-context*) thing))

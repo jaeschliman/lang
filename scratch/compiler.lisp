@@ -306,6 +306,7 @@
       ((symbol? e)
        (unless (nil? (expr-meta e 'type))
          (expr-set-meta e 'used #t)
+         (expr-set-meta e 'reference-count (+ 1 (expr-meta e 'reference-count 0)))
          (expr-set-meta e (cond (*in-call-position* 'called)
                                 (*being-set* 'mutated)
                                 (#t 'value-taken))

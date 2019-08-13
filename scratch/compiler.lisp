@@ -340,21 +340,13 @@
       (emit-expr (fourth it))
       (label done)))
 
-;; FIXME: this isn't quite correct, although it works for (all of 4) calls in the current
-;;        codebase.
-;; 
-;; will break if we have mutually recursive set!-bound closures
-;; will be fixed by only applying this transform from named-let, when that is ready.
-;; will also be applied to recursive define, when that is ready
+;; should be true iff it is a self tail-call
 (define (call-can-be-jump-optimized? it env)
     (and *tail-position*
          (if (symbol? (car it))
              (let ((sym (car it)))
-               (or (and (eq sym *binding-name*)
-                        (eq 1 (enclosing-lambda-count sym)))
-                   (let ((type (expr-meta sym 'type)))
-                     (and (eq 'closure type)
-                          (eq 1 (binding-depth sym))))))
+               (and (eq sym *binding-name*)
+                    (eq 1 (enclosing-lambda-count sym))))
              #f)))
 
 (define (%call-get-binding-name it)
@@ -368,16 +360,16 @@
 (define (%emit-call it env)
     (if (and *enable-jump-opts* (call-can-be-jump-optimized? it env))
         (binding ((*tail-position* #f))
-                 (print `(jumping to start: ,it))
+                 ;; (print `(jumping to start: ,it))
                  (let ((idx 0))
                    (dolist (e (cdr it))
                      (emit-expr e env)
                      (set! idx (+ 1 idx)))
                    (dolist (e (cdr it))
                      (set! idx (- idx 1))
-                     (print `(saving expr ,e as arg ,idx))
+                     ;; (print `(saving expr ,e as arg ,idx))
                      (emit-pair STORE_ARG idx)))
-                 (print `(exiting from ,*closure-depth* closures))
+                 ;; (print `(exiting from ,*closure-depth* closures))
                  (dotimes (_ *closure-depth*)
                    (pop-closure))
                  (jump 'start))
@@ -459,7 +451,8 @@
                    (when closed? (push-closure closure-idx))
                    (dolist (pair binds)
                      (let ((sym (car pair)))
-                       (binding ((*tail-position* #f)) (emit-expr (second pair) env))
+                       (binding ((*tail-position* #f) (*binding-name* sym))
+                                (emit-expr (second pair) env))
                        (case (expr-meta sym 'type)
                          (local (store-tmp (expr-meta sym 'index)))
                          (closure (store-closure (expr-meta sym 'closure-index)

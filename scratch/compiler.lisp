@@ -275,14 +275,17 @@
 (define (mark-let e)
     (let ((binds (cadr e))
           (body (cddr e)))
-      (dolist (pair binds) (mark-variables (cadr pair)))
-      (with-expression-context (body)
-        (ctx-annot-put 'type 'let)
-        (dolist (pair binds)
-          (let ((sym (car pair)))
-            (declare-local-binding sym)
-            (expr-set-meta sym 'type 'local)))
-        (mark-expressions body))))
+      (cond ((nil? binds)
+             (mark-expressions body))
+            (#t
+             (dolist (pair binds) (mark-variables (cadr pair)))
+             (with-expression-context (body)
+               (ctx-annot-put 'type 'let)
+               (dolist (pair binds)
+                 (let ((sym (car pair)))
+                   (declare-local-binding sym)
+                   (expr-set-meta sym 'type 'local)))
+               (mark-expressions body))))))
 
 (define (mark-lambda e)
     (let* ((args (caddr e))
@@ -401,32 +404,34 @@
 
 (define (emit-let it env)
     (let* ((binds (cadr it))
-           (body (cddr it))
-           (count (length binds))
-           (closed? (expression-context-is-closed-over body)))
-      (let* ((idx 0)
-             (closure-idx 0)
-             ;; this is wasteful -- we are reserving stack space for items
-             ;; which wind up stored in the closure
-             (start (reserve-tmps count)))
-        (dolist (pair binds)
-          (let ((sym (car pair)))
-            (binding ((*tail-position* #f)) (emit-expr (second pair) env))
-            (with-expression-context (body)
-              (case (expr-meta sym 'type)
-                (local
-                 (store-tmp (+ idx start))
-                 (expr-set-meta sym 'index (+ idx start)))
-                (closure
-                 ;; leave on stack to be picked up by push-closure
-                 (expr-set-meta sym 'closure-index closure-idx)
-                 (set! closure-idx (+ 1 closure-idx)))))
-            (set! idx (+ 1 idx))))
-        (with-expression-context (body)
-          (binding ((*closure-depth* (+ (if closed? 1 0) *closure-depth*)))
-            (when closed? (push-closure closure-idx))
-            (emit-body body env)
-            (when closed? (pop-closure)))))))
+           (body (cddr it)))
+      (cond
+        ((nil? binds) (emit-body body env))
+        (#t (let* ((count (length binds))
+                   (closed? (expression-context-is-closed-over body)))
+              (let* ((idx 0)
+                     (closure-idx 0)
+                     ;; this is wasteful -- we are reserving stack space for items
+                     ;; which wind up stored in the closure
+                     (start (reserve-tmps count)))
+                (dolist (pair binds)
+                  (let ((sym (car pair)))
+                    (binding ((*tail-position* #f)) (emit-expr (second pair) env))
+                    (with-expression-context (body)
+                      (case (expr-meta sym 'type)
+                        (local
+                         (store-tmp (+ idx start))
+                         (expr-set-meta sym 'index (+ idx start)))
+                        (closure
+                         ;; leave on stack to be picked up by push-closure
+                         (expr-set-meta sym 'closure-index closure-idx)
+                         (set! closure-idx (+ 1 closure-idx)))))
+                    (set! idx (+ 1 idx))))
+                (with-expression-context (body)
+                  (binding ((*closure-depth* (+ (if closed? 1 0) *closure-depth*)))
+                           (when closed? (push-closure closure-idx))
+                           (emit-body body env)
+                           (when closed? (pop-closure))))))))))
 
 (define (emit-letrec it env)
     (let* ((binds (cadr it))

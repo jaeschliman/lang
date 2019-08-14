@@ -457,6 +457,8 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
 * TODO asm: proper names and sourcelocations for %nlambda
 * IN-PROGRESS asm: optimize self tail calls into banging on args and a jump
 * TODO asm: provide compiler notes and warnings
+* DONE asm: optimize bindless lets
+  no need to introduce a new scope
 * DONE eventually swap in the new compiler
   - replace let #f -> set! with letrec macro
   - make the boot files reentrant

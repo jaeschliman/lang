@@ -431,6 +431,27 @@
                (expr-set-meta sym 'index idx)
                (set! idx (+ 1 idx))))))))
 
+(define (%mark-reference-counts e)
+    (walk-variables
+     e (lambda (e)
+         (unless (nil? (expr-meta e 'type))
+           (expr-set-meta e 'used #t)
+           (expr-set-meta e 'reference-count (+ 1 (expr-meta e 'reference-count 0)))
+           (expr-set-meta e (cond (*in-call-position* 'called)
+                                  (*being-set* 'mutated)
+                                  (#t 'value-taken))
+                          #t)))))
+
+(define (%note-inlineable-let-bound-lambdas e)
+    (walk-scopes
+     e (lambda (name binds body)
+         (when (and (eq name 'let) (eq 1 (length binds)))
+           (when (and (eq 1 (expr-meta (caar binds) 'reference-count))
+                      (eq #t (expr-meta (caar binds) 'called))
+                      (pair? (cadar binds))
+                      (eq '%nlambda (car (cadar binds))))
+             (print `(could inline let-bound lambda: ,(car binds))))))))
+
 (define (%mark-closed-over-bindings e)
     (walk-variables
      e (lambda (e)
@@ -441,6 +462,8 @@
 (define (analyse-forms e)
     (%mark-scopes e)
   (%mark-bindings e)
+  (%mark-reference-counts e)
+  (%note-inlineable-let-bound-lambdas e)
   (%mark-closed-over-bindings e))
 
 (forward emit-expr)

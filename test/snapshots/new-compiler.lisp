@@ -30,7 +30,7 @@
                  (let* ((expanded (macroexpand (quasiquote-expand expr)))
                         (r
                          (binding ((*context-table* (make-ht)))
-                            (mark-variables expanded)
+                            (analyse-forms expanded)
                             (bytecode->closure (with-output-to-bytecode ()
                                                   (with-expression-context (expanded)
                                                     (emit-expr expanded '())))))))

@@ -79,8 +79,8 @@
     (declare-local-binding '())
   (expr-set-meta '() k v))
 
-(define (ctx-annot-read ctx k)
-    (ht-at (ht-at (cdr ctx) '()) k))
+(define (ctx-annot-read ctx k) (ht-at (ht-at (cdr ctx) '()) k))
+(define (ctx-annot k) (ctx-annot-read *expr-context* k))
 
 (define (%ensure-expression-context e)
     (when (nil? (ht-at *context-table* e))
@@ -255,6 +255,65 @@
             (emit-lit '())
             (finalize-bytecode 'anon *varargs*)))
 
+(defparameter *in-call-position* #f)
+(defparameter *being-set* #f)
+(defparameter *binding-name* '())
+
+(forward walk-form)
+
+(define (walk-exprs es expr-fn special-fn)
+    (dolist (e es) (walk-form e expr-fn special-fn)))
+
+(define (walk-letrec e efn sfn)
+    (let ((binds (cadr e))
+          (body (cddr e)))
+      (with-expression-context (body)
+        (sfn 'letrec binds body)
+        (dolist (pair binds)
+          (walk-form (cadr pair) efn sfn))
+        (walk-exprs body efn sfn))))
+
+(define (walk-let e efn sfn)
+    (let ((binds (cadr e))
+          (body (cddr e)))
+      (cond ((nil? binds) (walk-exprs body efn sfn))
+            (#t (dolist (pair binds) (walk-form (cadr pair) efn sfn))
+                (with-expression-context (body)
+                  (sfn 'let binds body)
+                  (walk-exprs body efn sfn))))))
+
+(define (walk-lambda e efn sfn)
+    (let* ((args (caddr e))
+           (body (cdddr e))
+           (inline? '()))
+      (with-expression-context (body)
+        (set! inline? (or *in-call-position* (eq #t (ctx-annot 'inline)))))
+      (cond
+        ((and inline? (nil? args)) (walk-exprs body efn sfn))
+        (inline? (with-expression-context (body)
+                   (sfn 'inline-lambda args body)
+                   (walk-exprs body efn sfn)))
+        (#t (with-expression-context (body)
+              (sfn 'lambda args body)
+              (walk-exprs body efn sfn))))))
+
+(define (walk-form e efn sfn)
+    (cond ((symbol? e) (efn e))
+          ((pair? e)
+           (binding ((*in-call-position* #f))
+                    (case (car e)
+                      (quote) ;; do nothing
+                      (if (walk-exprs (cdr e) efn sfn))
+                      (set! (binding ((*being-set* #t)) (walk-form (second e) efn sfn))
+                            (walk-form (third e) efn sfn))
+                      (%letrec (walk-letrec e efn sfn))
+                      (%let (walk-let e efn sfn))
+                      (%nlambda (walk-lambda e efn sfn))
+                      (with-special-binding (walk-exprs (cddr e) efn sfn))
+                      (#t (binding ((*in-call-position* #t)) (walk-form (car e) efn sfn))
+                          (walk-exprs (cdr e) efn sfn)))))))
+
+
 (forward mark-variables)
 
 (define (mark-expressions es) (dolist (e es) (mark-variables e)))
@@ -319,10 +378,6 @@
                    (expr-set-meta arg 'index idx)
                    (set! idx (+ 1 idx)))
                  (mark-expressions body)))))))
-
-(defparameter *in-call-position* #f)
-(defparameter *being-set* #f)
-(defparameter *binding-name* '())
 
 (define (mark-variables e)
     (cond

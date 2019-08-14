@@ -318,6 +318,9 @@
                             (walk-exprs (cdr e) efn sfn))))))))
 
 
+(define (walk-variables e fn) (walk-form e fn (lambda (a b c))))
+(define (walk-scopes e fn) (walk-form e (lambda (a)) fn))
+
 (forward mark-variables)
 
 (define (mark-expressions es) (dolist (e es) (mark-variables e)))
@@ -414,32 +417,26 @@
 
 
 (define (%mark-scopes e)
-    (walk-form
-     e
-     (lambda (s) )
-     (lambda (name binds body) (ctx-annot-put 'type name))))
+    (walk-scopes
+     e (lambda (name binds body) (ctx-annot-put 'type name))))
 
 (define (%mark-bindings e)
-    (walk-form
-     e
-     (lambda (s) )
-     (lambda (name binds body)
-       (let ((idx 0))
-         (dolist (b (ensure-list binds))
-           (let ((sym (car (ensure-list b))))
-             (declare-local-binding sym)
-             (expr-set-meta sym 'type (if (eq name 'lambda) 'argument 'local))
-             (expr-set-meta sym 'index idx)
-             (set! idx (+ 1 idx))))))))
+    (walk-scopes
+     e (lambda (name binds body)
+         (let ((idx 0))
+           (dolist (b (ensure-list binds))
+             (let ((sym (car (ensure-list b))))
+               (declare-local-binding sym)
+               (expr-set-meta sym 'type (if (eq name 'lambda) 'argument 'local))
+               (expr-set-meta sym 'index idx)
+               (set! idx (+ 1 idx))))))))
 
 (define (%mark-closed-over-bindings e)
-    (walk-form
-     e
-     (lambda (e)
-       (when (binding-crosses-lambda e)
-         (binding-context-annot e 'closed-over #t)
-         (expr-set-meta e 'type 'closure)))
-     (lambda (a b c) )))
+    (walk-variables
+     e (lambda (e)
+         (when (binding-crosses-lambda e)
+           (binding-context-annot e 'closed-over #t)
+           (expr-set-meta e 'type 'closure)))))
 
 (define (analyse-forms e)
     (%mark-scopes e)

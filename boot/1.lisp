@@ -14,16 +14,18 @@
   (let ((%l (lambda (f) (print `(loading file ,f)) (%load f)))) 
     (%l "./scratch/compiler.lisp") 
 
-    (binding ((*recompiling* #t) (*trace-eval* #f)
-              )
+    ;; reload (almost) everything with the new compiler
+    (binding ((*recompiling* #t) (*trace-eval* #f))
              (%l "./scratch/compiler.lisp") ;; compiler, compile thyself
-             ;; reload everything with the new compiler
+
              ;; (%load  "./boot/built-in-classes.lisp")
              (%l  "./boot/0.lisp")
              (%l  "./boot/0-package.lisp")
              (%l  "./meta-reader/0-compiler.lisp")
-             ;; (%l  "./meta-reader/1-lisp-handwritten.lisp") ;; already using meta reader
-             ;; (%l  "./meta-reader/1-meta-handwritten.lisp")
+             ;; no need to load the handwritten readers, as we've
+             ;; already bootstrapped out of them
+             ;; (%l"./meta-reader/1-lisp-handwritten.lisp")
+             ;; (%l "./meta-reader/1-meta-handwritten.lisp")
              (%l  "./meta-reader/2-bootstrap.lisp")
              ;; (%l  "./boot/1.lisp") ;; infinite loop
              (%l "./boot/better-define.lisp")

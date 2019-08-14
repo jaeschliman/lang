@@ -408,6 +408,40 @@
              (#t (binding ((*in-call-position* #t)) (mark-variables (car e)))
                  (mark-expressions (cdr e)))))))))
 
+
+(define (%mark-scopes e)
+    (walk-form
+     e
+     (lambda (s) )
+     (lambda (name binds body) (ctx-annot-put 'type name))))
+
+(define (%mark-bindings e)
+    (walk-form
+     e
+     (lambda (s) )
+     (lambda (name binds body)
+       (let ((idx 0))
+         (dolist (b binds)
+           (let ((name (car (ensure-list b))))
+             (declare-local-binding name)
+             (expr-set-meta name 'type (if (eq name 'lambda) 'argument 'local))
+             (expr-set-meta name 'index idx)
+             (set! idx (+ 1 idx))))))))
+
+(define (%mark-closed-over-bindings e)
+    (walk-form
+     e
+     (lambda (e)
+       (when (binding-crosses-lambda e)
+         (binding-context-annot e 'closed-over #t)
+         (expr-set-meta e 'type 'closure)))
+     (lambda (a b c) )))
+
+(define (analyse-forms e)
+    (%mark-scopes e)
+  (%mark-bindings e)
+  (%mark-closed-over-bindings))
+
 (forward emit-expr)
 
 (define (emit-if it env)
@@ -664,6 +698,7 @@
     (when *trace-eval* (print `(compiling: ,expanded)))
     (let ((thunk (binding ((*context-table* (make-ht)))
                           (when *trace-eval* (print `(analysing forms)))
+                          ;; (analyse-forms expanded)
                           (mark-variables expanded)
                           (when *trace-eval* (print `(emitting bytecode)))
                           (bytecode->closure (with-output-to-bytecode ()

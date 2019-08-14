@@ -265,7 +265,7 @@
       `(let ((,s ,state))
          (let ((result (binding ((*match-start* ,s)
                                  (*current-rule-name* ',symbol))
-                          (apply-rule ',symbol ,s ,identity))))
+                          (apply-rule ',symbol ,s identity))))
            (if (failure? result) result (,next result))))))
 
 (define-apply (%base state symbol next)

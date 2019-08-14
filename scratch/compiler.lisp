@@ -46,7 +46,7 @@
 (defparameter *varargs* #f)
 (defparameter *closure-depth* 0)
 (defparameter *enable-jump-opts* #t)
-(defparameter *enable-new-analyser* #f)
+(defparameter *enable-new-analyser* #t)
 
 (forward %expr-meta)
 (define (%expr-meta ctx e k d)

@@ -601,7 +601,7 @@
       (#t
        (emit-pair PUSHLIT (emit-lit it)))))
 
-(defparameter *trace-eval* #f)
+(at-boot (defparameter *trace-eval* #f))
 
 (define (eval expr)
     (when *trace-eval* (print `(expanding: ,expr)))

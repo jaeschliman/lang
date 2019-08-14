@@ -464,7 +464,7 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   - make the boot files reentrant
   - load the compiler, then reload the boot files
   - _then_ dump the image.
-* TODO clean up the compiler swap mess
+* IN-PROGRESS clean up the compiler swap mess
 * TODO some bug in qq support with `(expr a b c ,@d e f g (x `(y)))
   y is unquoted when it shouldn't be
 * TODO review this smalltalk paper:
@@ -476,7 +476,11 @@ https://www.youtube.com/watch?v=FJQmjhOvjUs&list=PL843D1D545F9F52B6&index=7
   see defns below `common-lisp-indent-function`
   can copy indentation of existing form using
   (put a 'common-lisp-indent-function (get b 'common-lisp-indent-function))
-* TODO asm: inline lambdas where possible
+* IN-PROGRESS asm: inline lambdas where possible
+* TODO asm: remove the old analyser
+* TODO rework the definitions in boot/0 to be amenable to TL jump opts
+  right now we special-case forms with `set-symbol-value` in the call position,
+  not `set`
 
 * notes
 maybe have a stack of compilers? can push/pop...

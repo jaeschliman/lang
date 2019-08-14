@@ -477,7 +477,7 @@ https://www.youtube.com/watch?v=FJQmjhOvjUs&list=PL843D1D545F9F52B6&index=7
   can copy indentation of existing form using
   (put a 'common-lisp-indent-function (get b 'common-lisp-indent-function))
 * IN-PROGRESS asm: inline lambdas where possible
-* TODO asm: remove the old analyser
+* DONE asm: remove the old analyser
 * TODO rework the definitions in boot/0 to be amenable to TL jump opts
   right now we special-case forms with `set-symbol-value` in the call position,
   not `set`

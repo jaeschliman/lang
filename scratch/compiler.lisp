@@ -80,7 +80,9 @@
   (expr-set-meta '() k v))
 
 (define (ctx-annot-read ctx k) (ht-at (ht-at (cdr ctx) '()) k))
-(define (ctx-annot k) (ctx-annot-read *expr-context* k))
+(define (ctx-annot k)
+    (declare-local-binding '())
+    (ctx-annot-read *expr-context* k))
 
 (define (%ensure-expression-context e)
     (when (nil? (ht-at *context-table* e))
@@ -422,10 +424,10 @@
      (lambda (name binds body)
        (let ((idx 0))
          (dolist (b binds)
-           (let ((name (car (ensure-list b))))
-             (declare-local-binding name)
-             (expr-set-meta name 'type (if (eq name 'lambda) 'argument 'local))
-             (expr-set-meta name 'index idx)
+           (let ((sym (car (ensure-list b))))
+             (declare-local-binding sym)
+             (expr-set-meta sym 'type (if (eq name 'lambda) 'argument 'local))
+             (expr-set-meta sym 'index idx)
              (set! idx (+ 1 idx))))))))
 
 (define (%mark-closed-over-bindings e)
@@ -440,7 +442,7 @@
 (define (analyse-forms e)
     (%mark-scopes e)
   (%mark-bindings e)
-  (%mark-closed-over-bindings))
+  (%mark-closed-over-bindings e))
 
 (forward emit-expr)
 

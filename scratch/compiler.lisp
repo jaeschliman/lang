@@ -423,7 +423,7 @@
      (lambda (s) )
      (lambda (name binds body)
        (let ((idx 0))
-         (dolist (b binds)
+         (dolist (b (ensure-list binds))
            (let ((sym (car (ensure-list b))))
              (declare-local-binding sym)
              (expr-set-meta sym 'type (if (eq name 'lambda) 'argument 'local))

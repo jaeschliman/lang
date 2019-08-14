@@ -45,7 +45,8 @@
 (defparameter *tail-position* #t)
 (defparameter *varargs* #f)
 (defparameter *closure-depth* 0)
-(defparameter *enable-jump-opts* #f)
+(defparameter *enable-jump-opts* #t)
+(defparameter *enable-new-analyser* #f)
 
 (forward %expr-meta)
 (define (%expr-meta ctx e k d)
@@ -699,9 +700,10 @@
   (let ((expanded (macroexpand (quasiquote-expand expr))))
     (when *trace-eval* (print `(compiling: ,expanded)))
     (let ((thunk (binding ((*context-table* (make-ht)))
-                          (when *trace-eval* (print `(analysing forms)))
-                          ;; (analyse-forms expanded)
-                          (mark-variables expanded)
+                          (when *trace-eval* (print `(analysing forms ,*enable-new-analyser*)))
+                          (if *enable-new-analyser*
+                              (analyse-forms expanded)
+                              (mark-variables expanded))
                           (when *trace-eval* (print `(emitting bytecode)))
                           (bytecode->closure (with-output-to-bytecode ()
                                                (with-expression-context (expanded)

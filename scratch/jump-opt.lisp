@@ -5,7 +5,9 @@
      (print xxx)
      xxx))
 
-(binding ((*enable-jump-opts*))
+(set '*trace-eval* #t)
+
+(binding ((*enable-jump-opts* #t))
          (eval `(define (my-reverse-list lst)
                     (let ((helper #f))
                       (set! helper (lambda (rem acc)
@@ -15,7 +17,7 @@
 
 (print (my-reverse-list '(1 2 3 4 5 6 7 8 9 10)))
 
-(binding ((*enable-jump-opts*))
+(binding ((*enable-jump-opts* #t))
          (eval `(define (iota n)
                     (if (< n 0) 'done
                         (let ()
@@ -43,5 +45,25 @@
                             (and (not (zero? n))
                                  (is-even? (sub1 n))))))
                 (is-odd? 11)))
+
+
+(try-catch (lambda ()
+             (binding ((*enable-inline-let-bound-lambdas* #t) (*trace-eval* #f))
+                      (eval '(let ((should-inline (lambda () (print "this ran!") 42)))
+                              (print 'before-inline)
+                              (should-inline)
+                              (print 'after-inline)))))
+           (lambda (ex)
+             (print ex)))
+
+(when #f
+  (try-catch (lambda ()
+               (binding ((*enable-inline-let-bound-lambdas* #t))
+                        (eval '(let ((should-inline (lambda (x) (+ x x))))
+                                (print 'before-inline)
+                                (print `(two plus two is ,(should-inline 2)))
+                                (print 'after-inline)))))
+             (lambda (ex)
+               (print ex))))
 
 (print 'done)

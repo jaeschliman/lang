@@ -508,15 +508,20 @@
 (define (emit-inline-lambda it env)
     (print `(inlining lambda: ,it))
   (let* ((args (caddr it))
-         (body (cdddr it)))
+         (body (cdddr it))
+         (hop (gensym)))
     ;; save initial arg index
     (context-write body 'initial-arg-index *tmp-count*)
+    ;; jump over inlined code
+    (jump hop)
     ;; write entry label
     (label (context-read body 'entry-label))
     ;; emit body
     (emit-inline-lambda-body env args body)
     ;; jump to exit label
-    (jump (context-read body 'exit-label))))
+    (jump (context-read body 'exit-label))
+    ;; end of inline code
+    (label hop)))
 
 (define (emit-call-to-inlined-lambda it env)
     (print `(emitting inlined call: ,it))

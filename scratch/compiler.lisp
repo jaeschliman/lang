@@ -16,6 +16,7 @@
   BR_IF_ZERO
   BR_IF_NOT_ZERO
   DUP
+  SWAP
   CALL
   TAIL_CALL
   LOAD_ARG
@@ -28,6 +29,8 @@
   PUSH_CLOSURE_ENV
   BR_IF_False
   JUMP
+  PUSH_JUMP
+  POP_JUMP
   STACK_RESERVE
   LOAD_FRAME_RELATIVE
   STORE_FRAME_RELATIVE
@@ -370,22 +373,17 @@
              (when (and (pair? form)
                         (eq '%nlambda (car form))
                         (expr-meta sym 'called #f)
-                        (eq 1 (expr-meta sym 'reference-count))
                         (not (expr-meta sym 'crosses-lambda-in-initial-pass #f))
-                        ;; TODO: the below will become relevant when we can inline a lambda
-                        ;;       that is called multiple times
-                        ;; (not (expr-meta sym 'value-taken #f))
-                        ;; (not (expr-meta sym 'mutated #f))
-                        )
-               (print `(could inline let-bound lambda: ,b))
+                        (not (expr-meta sym 'value-taken #f))
+                        (not (expr-meta sym 'mutated #f)))
+               (print `(could inline let-bound lambda: (,(expr-meta sym 'reference-count)) ,b))
                (let ((lambda-body (cdddr form)))
                  (expr-set-meta sym 'type 'inline)
                  (expr-set-meta sym 'body lambda-body)
                  (with-expression-context (lambda-body)
                    (ctx-annot-put 'type 'inline-lambda)
                    (ctx-annot-put 'inline #t)
-                   (ctx-annot-put 'entry-label (list 'entry-label))
-                   (ctx-annot-put 'exit-label (list 'exit-label)))))))))))
+                   (ctx-annot-put 'entry-label (list 'entry-label)))))))))))
 
 (define (%mark-closed-over-bindings e)
     (walk-variables
@@ -522,7 +520,8 @@
     ;; emit body
     (emit-inline-lambda-body env args body)
     ;; jump to exit label
-    (jump (context-read body 'exit-label))
+    (emit-u16 SWAP)
+    (emit-u16 POP_JUMP)
     ;; end of inline code
     (label hop)))
 
@@ -538,10 +537,14 @@
         (store-tmp idx)
         (print `(wrote ,arg to idx: ,idx))
         (set! idx (+ 1 idx)))
-      ;; jump to entry label
-      (jump (context-read body 'entry-label))
-      ;; write return label
-      (label (context-read body 'exit-label))))
+      ;; push pc of return label
+      (let ((return-label (list 'return-label)))
+        (emit-u16 PUSH_JUMP)
+        (save-jump-location return-label)
+        ;; jump to entry label
+        (jump (context-read body 'entry-label))
+        ;; write return label
+        (label return-label))))
 
 (define (emit-letrec it env)
     (let* ((binds (cadr it))

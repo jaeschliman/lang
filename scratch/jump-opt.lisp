@@ -66,4 +66,15 @@
            (lambda (ex)
              (print ex)))
 
+(try-catch (lambda ()
+             (binding ((*enable-inline-let-bound-lambdas* #t) (*trace-eval* #f))
+                      (eval '(let ((should-inline (lambda (x) (+ x x))))
+                              (print 'before-inline)
+                              (print `(two plus two is ,(should-inline 2)))
+                              (let ((x 3))
+                                (print `(three plus three is ,(should-inline x))))
+                              (print 'after-inline)))))
+           (lambda (ex)
+             (print ex)))
+
 (print 'done)

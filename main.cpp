@@ -4691,6 +4691,7 @@ enum OpCode : u8 {
   BR_IF_ZERO           ,
   BR_IF_NOT_ZERO       ,
   DUP                  ,
+  SWAP                 ,
   CALL                 ,
   TAIL_CALL            ,
   LOAD_ARG             ,
@@ -4703,6 +4704,8 @@ enum OpCode : u8 {
   PUSH_CLOSURE_ENV     ,
   BR_IF_False          ,
   JUMP                 ,
+  PUSH_JUMP            ,
+  POP_JUMP             ,
   STACK_RESERVE        ,
   LOAD_FRAME_RELATIVE  ,
   STORE_FRAME_RELATIVE ,
@@ -4986,10 +4989,27 @@ void vm_interp(VM* vm, interp_params params) {
       vm->curr_frame->pc = jump - 1; //-1 to acct for pc advancing
       break;
     }
+    case PUSH_JUMP: {
+      s64 jump = vm_adv_instr(vm);
+      vm_push(vm,to(Fixnum, jump));
+      break;
+    }
+    case POP_JUMP: {
+      u64 jump = from(Fixnum, vm_pop(vm));
+      vm->curr_frame->pc = jump - 1; //-1 to acct for pc advancing
+      break;
+    }
     case DUP: {
       auto it = vm_pop(vm);
       vm_push(vm, it);
       vm_push(vm, it);
+      break;
+    }
+    case SWAP: {
+      auto a = vm_pop(vm);
+      auto b = vm_pop(vm);
+      vm_push(vm, a);
+      vm_push(vm, b);
       break;
     }
     case TAIL_CALL: {

@@ -526,6 +526,8 @@
          (hop (gensym)))
     ;; save initial arg index
     (context-write body 'initial-arg-index *tmp-count*)
+    ;; push something to take our place in the let bindings
+    (emit-pair PUSHLIT (emit-lit '()))
     ;; jump over inlined code
     (jump hop)
     ;; write entry label

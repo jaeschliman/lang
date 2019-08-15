@@ -93,24 +93,38 @@
            (lambda (ex)
              (print ex)))
 
-(try-catch (lambda ()
-             (binding ((*enable-inline-let-bound-lambdas* #t) (*trace-eval* #f))
-                      (eval '(let ((forty-two 42))
-                              (let ((closure (lambda ()
-                                               (let ((outer-inline
-                                                      (lambda (x)
-                                                        (let ((should-inline (lambda (x) (+ x forty-two))))
-                                                          (print 'before-inline)
-                                                          (print `(two plus forty-two is ,(should-inline 2)))
-                                                          (let ((x 3))
-                                                            (print `(three plus forty-two is ,(should-inline x))))
-                                                          (print `(x = ,x))
-                                                          (print 'after-inline)))))
-                                                 (let ((y 20))
-                                                   (outer-inline 311))))))
-                                closure
-                                (closure))))))
-           (lambda (ex)
-             (print ex)))
+(when #f
+  (try-catch (lambda ()
+               (binding ((*enable-inline-let-bound-lambdas* #t) (*trace-eval* #f))
+                        (eval '(let ((forty-two 42))
+                                (let ((closure (lambda ()
+                                                 (let ((outer-inline
+                                                        (lambda (x)
+                                                          (let ((should-inline (lambda (x) (+ x forty-two))))
+                                                            (print 'before-inline)
+                                                            (print `(two plus forty-two is ,(should-inline 2)))
+                                                            (let ((x 3))
+                                                              (print `(three plus forty-two is ,(should-inline x))))
+                                                            (print `(x = ,x))
+                                                            (print 'after-inline)))))
+                                                   (let ((y 20))
+                                                     (outer-inline 311))))))
+                                  closure
+                                  (closure))))))
+             (lambda (ex)
+               (print ex))))
+
+(try-catch
+ (lambda ()
+   (binding ((*enable-inline-let-bound-lambdas* #t) (*trace-eval* #f))
+            (eval '(let* ((inner 41)
+                          (do-it (lambda ()
+                                   (let ((should-inline (lambda (x) (print '(here comes trouble))
+                                                                (+ 1 inner))))
+                                     (print (should-inline))))))
+                    do-it ;; to force closure
+                    (do-it)))))
+ (lambda (ex)
+   (print ex)))
 
 (print 'done)

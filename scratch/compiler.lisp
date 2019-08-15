@@ -255,6 +255,10 @@
           (aset lits i it)))
       (fixup-jump-locations code)
       (aset-u16 code 1 *tmp-count*)
+      (when *trace-eval*
+        (print `(bytecode length: ,(array-length-u16 code)))
+        (print `(literal count: ,(array-length lits)))
+        (print `(temporary count: ,*tmp-count*)))
       (make-bytecode varargs name code lits)))
 
 (defmacro with-output-to-bytecode (_ & body)

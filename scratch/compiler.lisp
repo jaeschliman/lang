@@ -261,8 +261,11 @@
         (print `(temporary count: ,*tmp-count*)))
       (make-bytecode varargs name code lits)))
 
+(defparameter *lambda-name* '())
+
 (defmacro with-output-to-bytecode (_ & body)
-  `(binding ((*code* (make-agg))
+  `(binding ((*lambda-name* '())
+             (*code* (make-agg))
              (*lits* (make-agg))
              (*labels* (make-ht))
              (*jump-locations* '())
@@ -274,7 +277,7 @@
             (emit-u16 RET)
             (emit-u16 END)
             (emit-lit '())
-            (finalize-bytecode 'anon *varargs*)))
+            (finalize-bytecode *lambda-name* *varargs*)))
 
 (defparameter *in-call-position* #f)
 (defparameter *being-set* #f)
@@ -591,6 +594,7 @@
            (body (cdddr it))
            (bc (with-output-to-bytecode ()
                  (set '*varargs* (symbol? args))
+                 (set '*lambda-name* (cadr it))
                  (label 'start)
                  (with-expression-context (body)
                    (binding ((*tail-position* #t) (*closure-depth* 0)) (emit-body body))))))
@@ -606,6 +610,7 @@
                     (arg-idx 0)
                     (bc (with-output-to-bytecode ()
                           (set '*varargs* (symbol? args))
+                          (set '*lambda-name* (cadr it))
                           (label 'start)
                           (with-expression-context (body)
                             (dolist (a (ensure-list args))

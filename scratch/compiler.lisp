@@ -38,6 +38,10 @@
   PUSH_SPECIAL_BINDING
   POP_SPECIAL_BINDING)
 
+(at-boot (defparameter *trace-eval* #t))
+(at-boot (defparameter *enable-jump-opts* #t))
+(at-boot (defparameter *enable-inline-let-bound-lambdas* #t))
+
 (defparameter *code* #f)
 (defparameter *lits* #f)
 (defparameter *labels* #f)
@@ -48,8 +52,6 @@
 (defparameter *tail-position* #t)
 (defparameter *varargs* #f)
 (defparameter *closure-depth* 0)
-(defparameter *enable-jump-opts* #t)
-(defparameter *enable-inline-let-bound-lambdas* #f)
 
 (forward %expr-meta)
 (define (%expr-meta ctx e k d)
@@ -725,8 +727,6 @@
            (#t     (emit-call it env)))))
       (#t
        (emit-pair PUSHLIT (emit-lit it)))))
-
-(at-boot (defparameter *trace-eval* #f))
 
 (define (eval expr)
     (when *trace-eval* (print `(expanding: ,expr)))

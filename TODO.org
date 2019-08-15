@@ -481,6 +481,12 @@ https://www.youtube.com/watch?v=FJQmjhOvjUs&list=PL843D1D545F9F52B6&index=7
 * TODO rework the definitions in boot/0 to be amenable to TL jump opts
   right now we special-case forms with `set-symbol-value` in the call position,
   not `set`
+* TODO rewrite meta `seq` to use if failure?
+* TODO asm: we are probably creating more closures than needed.
+  e.g. if the parent contains closed over, but (this) child does /not/, then
+  do not allocate/push closures in this child.
+* TODO asm: eliminate closures from letrec where possible
+  (include the self-tail-call optimization as well)
 
 * notes
 maybe have a stack of compilers? can push/pop...

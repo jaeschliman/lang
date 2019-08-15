@@ -1,5 +1,7 @@
 (set '*package* (symbol-package 'define))
 
+(%load "./scratch/compiler.lisp")
+
 (defmacro trc (x)
   `(let ((xxx ,x))
      (print xxx)
@@ -114,9 +116,6 @@
 
 (print 'done)
 
-
-
-(print " 0 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
 (when #t
   (try-catch (lambda ()
                (binding ((*enable-inline-let-bound-lambdas* #t) (*trace-eval* #f))
@@ -139,6 +138,22 @@
                                   (print "starting up")
                                   (outer-inline 311)
                                   (print "ending it"))))))
+             (lambda (ex)
+               (print ex))))
+
+
+(print " 0 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+(when #t
+  (try-catch (lambda ()
+               (binding ((*enable-inline-let-bound-lambdas* #t) (*trace-eval* #f))
+                        (eval '(let* ((force-closure 23)
+                                      (outer-inline (lambda (x)
+                                                      force-closure
+                                                      x)))
+                                (print "starting up")
+                                (outer-inline 311)
+                                (print "ending it")
+                                (lambda () force-closure)))))
              (lambda (ex)
                (print ex))))
 (print " 1 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")

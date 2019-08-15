@@ -89,7 +89,7 @@
 (defmacro define-apply (defn & body)
   (lambda-bind
    (name & params) defn
-   `(ht-at-put applicators ',name (lambda ,params ,@body))))
+   `(ht-at-put applicators ',name (%nlambda (applicator for ,name) ,params ,@body))))
 
 (define (applicator form)
     (cond
@@ -213,7 +213,7 @@
 
 (defmacro define-rule (name & forms)
   (let ((xform (xf-tl (cons 'seq forms))))
-    `(set-rule ',name (lambda (_state_) ,(compile-rule xform '_state_ 'identity)))))
+    `(set-rule ',name (%nlambda (meta rule for ,name) (_state_) ,(compile-rule xform '_state_ 'identity)))))
 
 (define (make-meta parent) (list parent (make-ht)))
 (at-boot (define meta-by-name (make-ht)))

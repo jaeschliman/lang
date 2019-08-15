@@ -40,7 +40,7 @@
 
 (at-boot (defparameter *trace-eval* #t))
 (at-boot (defparameter *enable-jump-opts* #t))
-(at-boot (defparameter *enable-inline-let-bound-lambdas* #t))
+(at-boot (defparameter *enable-inline-let-bound-lambdas* #f))
 
 (defparameter *code* #f)
 (defparameter *lits* #f)
@@ -501,6 +501,9 @@
                (#t (let* ((start (reserve-tmps (length args)))
                           (closed? (expression-context-is-closed-over body)))
                      (let* ((idx 0))
+                       (if closed?
+                           (print `(emitting closed over inline body: ,body))
+                           (print `(emitting inline body: ,body)))
                        (with-expression-context (body)
                          (dolist (arg args)
                            (cond (closed?
@@ -535,11 +538,11 @@
     (label hop)))
 
 (define (emit-call-to-inlined-lambda it env)
-    (print `(emitting inlined call: ,it))
     (let* ((sym (car it))
            (args (cdr it))
            (body (expr-meta sym 'body))
            (idx (context-read body 'initial-arg-index)))
+      (print `(emitting inlined call: ,it for: ,(expr-meta sym 'body)))
       ;; write args to temp slots
       (dolist (arg args)
         (binding ((*tail-position* #f)) (emit-expr arg env))
@@ -553,7 +556,8 @@
         ;; jump to entry label
         (jump (context-read body 'entry-label))
         ;; write return label
-        (label return-label))))
+        (label return-label))
+      (print `(finished call))))
 
 (define (emit-letrec it env)
     (let* ((binds (cadr it))

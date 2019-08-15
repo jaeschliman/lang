@@ -5717,6 +5717,23 @@ Ptr thread_get_debug_info(VM *vm, Ptr thread) {
   return Nil;
 }
 
+void _print_debug_frame(StackFrameObject *fr) {
+  std::cerr << "   " << fr->bc->name;
+  for (auto i = 0; i < ((s32)fr->argc); i++) {
+    std::cerr << " " << _stack_frame_load_arg(fr, i);
+  }
+  std::cerr << std::endl;
+}
+void _print_debug_stacktrace(thread_ctx *thd) {
+  // auto thread = thd->thread;
+  auto fr = thd->frame;
+  dbg("userpace stacktrace:");
+  while (fr) {
+    _print_debug_frame(fr);
+    fr = fr->prev_frame;
+  }
+}
+
 
 /* -------------------------------------------------- */
 

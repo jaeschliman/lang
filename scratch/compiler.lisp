@@ -496,9 +496,12 @@
                      (let* ((idx 0))
                        (with-expression-context (body)
                          (dolist (arg args)
-                           (if closed?
-                               (expr-set-meta arg 'closure-index idx)
-                               (expr-set-meta arg 'index (+ idx start)))
+                           (cond (closed?
+                                  (expr-set-meta arg 'type 'closure)
+                                  (expr-set-meta arg 'closure-index idx))
+                                 (#t
+                                  (expr-set-meta arg 'type 'local)
+                                  (expr-set-meta arg 'index (+ idx start))))
                            (set! idx (+ 1 idx)))
                          (binding ((*closure-depth* (+ (if closed? 1 0) *closure-depth*)))
                                   (when closed? (push-closure idx))
@@ -531,7 +534,7 @@
            (idx (context-read body 'initial-arg-index)))
       ;; write args to temp slots
       (dolist (arg args)
-        (emit-expr arg env)
+        (binding ((*tail-position* #f)) (emit-expr arg env))
         (store-tmp idx)
         (print `(wrote ,arg to idx: ,idx))
         (set! idx (+ 1 idx)))

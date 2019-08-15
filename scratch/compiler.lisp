@@ -456,13 +456,15 @@
             (let* ((idx 0)
                    (closure-idx 0)
                    ;; this is wasteful -- we are reserving stack space for items
-                   ;; which wind up stored in the closure
+                   ;; which wind up stored in the closure or inlined
                    (start (reserve-tmps count)))
               (dolist (pair binds)
                 (let ((sym (car pair)))
                   (binding ((*tail-position* #f)) (emit-expr (second pair) env))
                   (with-expression-context (body)
                     (case (expr-meta sym 'type)
+                      ;; do nothing
+                      (inline)
                       (local
                        (store-tmp (+ idx start))
                        (expr-set-meta sym 'index (+ idx start)))
@@ -498,7 +500,7 @@
                ((nil? args)
                 (print `(emitting simple inline body: ,body))
                 (emit-body body env))
-               (#t (let* ((start (reserve-tmps (length args)))
+               (#t (let* ((start (context-read body 'initial-arg-index))
                           (closed? (expression-context-is-closed-over body)))
                      (let* ((idx 0))
                        (if closed?
@@ -525,7 +527,7 @@
          (body (cdddr it))
          (hop (gensym)))
     ;; save initial arg index
-    (context-write body 'initial-arg-index *tmp-count*)
+    (context-write body 'initial-arg-index (reserve-tmps (length args)))
     ;; jump over inlined code
     (jump hop)
     ;; write entry label
@@ -536,11 +538,7 @@
     (emit-u16 SWAP)
     (emit-u16 POP_JUMP)
     ;; end of inline code
-    (label hop)
-    ;; push something to take our place in the let bindings
-    (emit-expr `(print "this ran"))
-    (emit-u16 POP)
-    (emit-pair PUSHLIT (emit-lit '()))))
+    (label hop)))
 
 (define (emit-call-to-inlined-lambda it env)
     (let* ((sym (car it))

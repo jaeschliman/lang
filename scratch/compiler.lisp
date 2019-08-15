@@ -507,6 +507,7 @@
                        (with-expression-context (body)
                          (dolist (arg args)
                            (cond (closed?
+                                  (load-tmp (+ idx start))
                                   (expr-set-meta arg 'type 'closure)
                                   (expr-set-meta arg 'closure-index idx))
                                  (#t

@@ -77,22 +77,6 @@
            (lambda (ex)
              (print ex)))
 
-(try-catch (lambda ()
-             (binding ((*enable-inline-let-bound-lambdas* #t) (*trace-eval* #f))
-                      (eval '(let ((outer-inline
-                                    (lambda (x)
-                                      (let ((should-inline (lambda (x) (+ x x))))
-                                        (print 'before-inline)
-                                        (print `(two plus two is ,(should-inline 2)))
-                                        (let ((x 3))
-                                          (print `(three plus three is ,(should-inline x))))
-                                        (print `(x = ,x))
-                                        (print 'after-inline)))))
-                              (let ((y 20))
-                                (outer-inline 311))))))
-           (lambda (ex)
-             (print ex)))
-
 (when #f
   (try-catch (lambda ()
                (binding ((*enable-inline-let-bound-lambdas* #t) (*trace-eval* #f))
@@ -114,17 +98,47 @@
              (lambda (ex)
                (print ex))))
 
-(try-catch
- (lambda ()
-   (binding ((*enable-inline-let-bound-lambdas* #t) (*trace-eval* #f))
-            (eval '(let* ((inner 41)
-                          (do-it (lambda ()
-                                   (let ((should-inline (lambda (x) (print '(here comes trouble))
-                                                                (+ 1 inner))))
-                                     (print (should-inline))))))
-                    do-it ;; to force closure
-                    (do-it)))))
- (lambda (ex)
-   (print ex)))
+(when #f
+  (try-catch
+   (lambda ()
+     (binding ((*enable-inline-let-bound-lambdas* #t) (*trace-eval* #f))
+              (eval '(let* ((inner 41)
+                            (do-it (lambda ()
+                                     (let ((should-inline (lambda (x) (print '(here comes trouble))
+                                                                  (+ 1 inner))))
+                                       (print (should-inline))))))
+                      do-it ;; to force closure
+                      (do-it)))))
+   (lambda (ex)
+     (print ex))))
 
 (print 'done)
+
+
+
+(print " 0 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+(when #t
+  (try-catch (lambda ()
+               (binding ((*enable-inline-let-bound-lambdas* #t) (*trace-eval* #f))
+                        (eval '(let* ((unused (print "first thing"))
+                                      (outer-inline
+                                       (lambda (x)
+                                         (let ((should-inline
+                                                (lambda (x)
+                                                  (print 'before-inner-inline)
+                                                  (let ((r (+ x x)))
+                                                    (print 'after-inner-inline)
+                                                    r))))
+                                           (print 'before-inline)
+                                           (print `(two plus two is ,(should-inline 2)))
+                                           ;; (let ((x 3))
+                                           ;;   (print `(three plus three is ,(should-inline x))))
+                                           (print `(x = ,x))
+                                           (print 'after-inline)))))
+                                (let ((y 20))
+                                  (print "starting up")
+                                  (outer-inline 311)
+                                  (print "ending it"))))))
+             (lambda (ex)
+               (print ex))))
+(print " 1 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")

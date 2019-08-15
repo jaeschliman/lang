@@ -38,7 +38,7 @@
   PUSH_SPECIAL_BINDING
   POP_SPECIAL_BINDING)
 
-(at-boot (defparameter *trace-eval* #t))
+(at-boot (defparameter *trace-eval* #f))
 (at-boot (defparameter *enable-jump-opts* #t))
 (at-boot (defparameter *enable-inline-let-bound-lambdas* #f))
 
@@ -526,8 +526,6 @@
          (hop (gensym)))
     ;; save initial arg index
     (context-write body 'initial-arg-index *tmp-count*)
-    ;; push something to take our place in the let bindings
-    (emit-pair PUSHLIT (emit-lit '()))
     ;; jump over inlined code
     (jump hop)
     ;; write entry label
@@ -538,7 +536,11 @@
     (emit-u16 SWAP)
     (emit-u16 POP_JUMP)
     ;; end of inline code
-    (label hop)))
+    (label hop)
+    ;; push something to take our place in the let bindings
+    (emit-expr `(print "this ran"))
+    (emit-u16 POP)
+    (emit-pair PUSHLIT (emit-lit '()))))
 
 (define (emit-call-to-inlined-lambda it env)
     (let* ((sym (car it))

@@ -380,10 +380,13 @@ bool object_has_custom_class(Object *obj) {
 #define set_obj_tag(obj,name) object_set_custom_class(obj, BuiltinClassIndex_##name)
 
 
+struct VM;
+// XXX want to get rid of this (don't want any global VM refs)
+VM *DEBUG_VM;
+
 /* ---------------------------------------- */
 //          GC protection macros
 
-struct VM;
 inline void gc_protect_ptr(VM *vm, Ptr *ref);
 inline void gc_unprotect_ptr(VM *vm, Ptr *ref);
 inline void gc_protect_ptr_vector(VM *vm, Ptr *ref, u64 count);
@@ -1611,9 +1614,12 @@ u32 hash_code(Ptr it) {
     as(PtrArray, obj)->data[idx + 1] = value;                \
   }
 #else
+void _print_debug_stacktrace(thread_ctx *);
 #define _define_structure_accessors(slot, name, idx)         \
   Ptr name##_get_##slot(Ptr obj) {                           \
-    if (! is(name, obj)) { die("GOT ", #name, #slot, obj); } \
+    if (! is(name, obj)) { \
+      _print_debug_stacktrace(DEBUG_VM->curr_thd);           \
+      die("GOT ", #name, #slot, obj); }                      \
                                                              \
     assert(is(name, obj));                                   \
     return array_get(obj, idx + 1);                          \
@@ -6965,6 +6971,7 @@ inline void _vm_update_collection_limit(VM *vm) {
 VM *_vm_create() {
   VM *vm;
   vm = (VM *)calloc(sizeof(VM), 1);
+  DEBUG_VM = vm;
 
   #if STATS
   vm->stats = (stats *)calloc(sizeof(stats), 1);

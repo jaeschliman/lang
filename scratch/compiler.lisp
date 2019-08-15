@@ -724,8 +724,8 @@
            (argument
             (load-arg (expr-meta it 'index)))
            (closure
-            (let ((depth (binding-depth it))
-                  (slot  (expr-meta it 'closure-index)))
+            (let ((slot  (expr-meta it 'closure-index))
+                  (depth (binding-depth it)))
               (load-closure slot depth)))
            (#t (throw `(bad type for symbol ,it ,type))))))
       ((pair? it)

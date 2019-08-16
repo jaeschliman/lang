@@ -142,7 +142,6 @@
                (print ex))))
 
 
-(print " 0 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
 (when #t
   (try-catch (lambda ()
                (binding ((*enable-inline-let-bound-lambdas* #t) (*trace-eval* #f))
@@ -156,4 +155,13 @@
                                 (lambda () force-closure)))))
              (lambda (ex)
                (print ex))))
+
+(print " 0 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+
+(try-catch (lambda ()
+             (eval `(dolist (a '(a b c d e f))
+                      (print a))))
+           (lambda (ex)
+             (print ex)))
+
 (print " 1 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")

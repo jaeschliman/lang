@@ -408,14 +408,7 @@
      e (lambda (e)
          (when (binding-crosses-lambda e)
            (binding-context-annot e 'closed-over #t)
-           (expr-set-meta e 'type 'closure))))
-  (walk-scopes
-   e (lambda (name binds body)
-       (when (and (eq 'inline-lambda (ctx-annot 'type))
-                  (eq #t (ctx-annot 'closed-over)))
-         (print `(closing over all inline-lambda args))
-         (dolist (arg binds)
-           (expr-set-meta e 'type 'closure))))))
+           (expr-set-meta e 'type 'closure)))))
 
 (define (analyse-forms e)
     (%mark-scopes e)

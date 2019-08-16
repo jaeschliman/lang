@@ -1978,10 +1978,10 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
     case Closure:
       os << "[";
       if (vobj->length > 0) {
-        std::cout << vobj->data[0];
+        os << vobj->data[0];
       }
       for (uint i = 1; i < vobj->length; i++) {
-        std::cout << " " << vobj->data[i];
+        os << " " << vobj->data[i];
       }
       os << "]";
     }
@@ -1993,16 +1993,16 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
     auto is_class = is_object_class(sobj);
     if (is_class) {
       auto name = standard_object_get_ivar(sobj, BaseClassName);
-      std::cout << "#<Class " << as(Object, name) << " " << (void*)obj << ">";
+      os << "#<Class " << as(Object, name) << " " << (void*)obj << ">";
     } else {
       auto name = standard_object_get_ivar(klass, BaseClassName);
-      std::cout << "#<A " << as(Object, name) << " " << (void*)obj << ">";
+      os << "#<A " << as(Object, name) << " " << (void*)obj << ">";
     }
     return os;
   }
   case ByteCode_ObjectType: {
     auto bc = (ByteCodeObject *)obj;
-    std::cout << "#<ByteCode " << bc->name << " " << (void*)obj << ">";
+    os << "#<ByteCode " << bc->name << " " << (void*)obj << ">";
     return os;
   }
   case U16Array_ObjectType: {

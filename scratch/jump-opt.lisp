@@ -49,8 +49,11 @@
                 (is-odd? 11)))
 
 
+(print "0 **********")
 (try-catch (lambda ()
-             (binding ((*enable-inline-let-bound-lambdas* #t) (*trace-eval* #f))
+             (binding ((*enable-inline-let-bound-lambdas* #t)
+                       (*enable-inline-letrec-bound-lambdas* #f)
+                       (*trace-eval* #t))
                       (eval '(let ((should-inline (lambda () (print "this ran!") 42)))
                               (print 'before-before-inline)
                               (print 'before-inline)
@@ -59,6 +62,7 @@
            (lambda (ex)
              (print ex)))
 
+(print "1 **********")
 (try-catch (lambda ()
              (binding ((*enable-inline-let-bound-lambdas* #t) (*trace-eval* #f))
                       (eval '(let ((should-inline (lambda (x) (+ x x))))
@@ -68,6 +72,7 @@
            (lambda (ex)
              (print ex)))
 
+(print "2 **********")
 (try-catch (lambda ()
              (binding ((*enable-inline-let-bound-lambdas* #t) (*trace-eval* #f))
                       (eval '(let ((should-inline (lambda (x) (+ x x))))

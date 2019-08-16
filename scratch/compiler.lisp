@@ -519,14 +519,14 @@
       (emit-let '() env binds body)))
 
 (define (emit-inline-lambda-body env args body)
-    (binding ((*tail-position* #f))
-             (cond
-               ((nil? args) (emit-body body env))
-               (#t (let* ((start (context-read body 'initial-arg-index))
-                          (closed? (expression-context-is-closed-over body)))
-                     (context-write body 'closure-depth *closure-depth*)
-                     (context-write body 'closed closed?)
-                     (let* ((idx 0))
+    (let ((closed? (expression-context-is-closed-over body)))
+      (context-write body 'closure-depth *closure-depth*)
+      (context-write body 'closed closed?)
+      (binding ((*tail-position* #f))
+               (cond
+                 ((nil? args) (emit-body body env))
+                 (#t (let* ((start (context-read body 'initial-arg-index))
+                            (idx 0))
                        ;; (if closed?
                        ;;     (print `(emitting closed over inline body: ,body))
                        ;;     (print `(emitting inline body: ,body)))

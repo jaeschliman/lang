@@ -491,6 +491,8 @@ https://www.youtube.com/watch?v=FJQmjhOvjUs&list=PL843D1D545F9F52B6&index=7
 * IN-PROGRESS asm: eliminate closures from letrec where possible
   (include the self-tail-call optimization as well)
   e.g. the even/odd example should allocate 0 closures
+* TODO watch lecture on HAProxy scheduler
+https://www.infoq.com/presentations/ebtree-design/
 
 * notes
 maybe have a stack of compilers? can push/pop...

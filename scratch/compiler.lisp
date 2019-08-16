@@ -42,7 +42,7 @@
 
 (at-boot (defparameter *trace-eval* #f))
 (at-boot (defparameter *enable-jump-opts* #t))
-(at-boot (defparameter *enable-inline-let-bound-lambdas* #f))
+(at-boot (defparameter *enable-inline-let-bound-lambdas* #t))
 
 (defparameter *code* #f)
 (defparameter *lits* #f)

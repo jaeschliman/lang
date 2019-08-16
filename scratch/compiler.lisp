@@ -445,12 +445,12 @@
 (define (emit-if it env)
     (let ((done (gensym))
           (false (gensym)))
-      (binding ((*tail-position* #f)) (emit-expr (second it)))
+      (binding ((*tail-position* #f)) (emit-expr (second it) env))
       (jump-if-false false)
-      (emit-expr (third it))
+      (emit-expr (third it) env)
       (jump done)
       (label false)
-      (emit-expr (fourth it))
+      (emit-expr (fourth it) env)
       (label done)))
 
 
@@ -636,7 +636,7 @@
                  (set '*lambda-name* (cadr it))
                  (label 'start)
                  (with-expression-context (body)
-                   (binding ((*tail-position* #t) (*closure-depth* 0)) (emit-body body))))))
+                   (binding ((*tail-position* #t) (*closure-depth* 0)) (emit-body body env))))))
       (emit-pair PUSHLIT (emit-lit (bytecode->closure bc)))))
 
 (define (emit-lambda it env)

@@ -3996,6 +3996,7 @@ Ptr vm_return_from_mark(VM *vm, Ptr mark, Ptr value) {
 }
 
 bool vm_handle_error(VM *vm) {
+  _print_debug_stacktrace(vm->curr_thd);
   Ptr ex = make_string(vm, vm->error); // TODO: signal better errors than just strings
   vm->error = 0;
   vm_unwind_to_mark(vm, KNOWN(exception));

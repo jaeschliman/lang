@@ -383,6 +383,10 @@
                  (form (cadr b)))
              (when (and (pair? form)
                         (eq '%nlambda (car form))
+                        ;; not varargs?
+                        (not (symbol? (car (cddr form))))
+                        ;; XXX hack not optional args?
+                        (not (eq (car (cdddr form)) '%%has-optionals))
                         (expr-meta sym 'called #f)
                         (not (expr-meta sym 'crosses-lambda-in-initial-pass #f))
                         (not (expr-meta sym 'value-taken #f))

@@ -32,7 +32,12 @@
                (opts (second args)))
           (if (nil? opts) `(set-symbol-value ',name (%nlambda ,name ,norms ,@body))
               (let ((opt-bindings (%prepare-optional-arg-bindings opts (list-length norms))))
-                `(set-symbol-value ',name (%nlambda ,name ,norms (let* ,opt-bindings ,@body))))))))
+                `(set-symbol-value ',name (%nlambda ,name ,norms
+                                                    ;; XXX hack to identify lambdas with optional
+                                                    ;; arguments. this method won't last, since
+                                                    ;; we'll eventually optimize this out.
+                                                    '%%has-optionals
+                                                    (let* ,opt-bindings ,@body))))))))
 
 (defmacro define (head & body) (%transform-define head body))
 

@@ -296,7 +296,8 @@
       (with-expression-context (body)
         (sfn 'letrec binds body)
         (dolist (pair binds)
-          (walk-form (cadr pair) efn sfn))
+          (binding ((*binding-name* (car pair)))
+                   (walk-form (cadr pair) efn sfn)))
         (walk-exprs body efn sfn))))
 
 (define (walk-let e efn sfn)
@@ -370,38 +371,54 @@
                                   (#t 'value-taken))
                           #t)))))
 
+(define (%binding-is-inlineable-lambda? b)
+    (let ((sym (first b)) (form (second b)))
+      (and (pair? form)
+           (eq '%nlambda (car form))
+           ;; not varargs?
+           (not (symbol? (car (cddr form))))
+           ;; XXX hack not optional args?
+           (not (eq (car (cdddr form)) '%%has-optionals))
+           (expr-meta sym 'called #f)
+           (not (expr-meta sym 'crosses-lambda-in-initial-pass #f))
+           (not (expr-meta sym 'value-taken #f))
+           (not (expr-meta sym 'mutated #f)))))
+
+(define (%symbol-is-in-jump-position sym)
+    (and *enable-jump-opts*
+         ;; *tail-position* ;; support for this in walk-form is not ready yet
+         *in-call-position*
+         (eq sym *binding-name*)
+         (eq 1 (enclosing-lambda-count sym))))
+
 (define (%note-inlineable-let-bound-lambdas e)
     (walk-variables
      e (lambda (e)
-         (unless (nil? (expr-meta e 'type))
+         (unless (or (nil? (expr-meta e 'type))
+                     (%symbol-is-in-jump-position e))
            (when (binding-crosses-lambda e) (expr-set-meta e 'crosses-lambda-in-initial-pass #t)))))
   (walk-scopes
    e (lambda (name binds body)
-       (when (and (eq name 'let) (eq 1 (length binds)))
-         (dolist (b binds)
-           (let ((sym (car b))
-                 (form (cadr b)))
-             (when (and (pair? form)
-                        (eq '%nlambda (car form))
-                        ;; not varargs?
-                        (not (symbol? (car (cddr form))))
-                        ;; XXX hack not optional args?
-                        (not (eq (car (cdddr form)) '%%has-optionals))
-                        (expr-meta sym 'called #f)
-                        (not (expr-meta sym 'crosses-lambda-in-initial-pass #f))
-                        (not (expr-meta sym 'value-taken #f))
-                        (not (expr-meta sym 'mutated #f)))
-               ;; (print `(could inline let-bound lambda: (,(expr-meta sym 'reference-count)) ,b))
-               (let ((lambda-body (cdddr form))
-                     (lambda-args (caddr form)))
-                 (expr-set-meta sym 'type 'inline)
-                 (expr-set-meta sym 'body lambda-body)
-                 (with-expression-context (lambda-body)
-                   (ctx-annot-put 'type 'inline-lambda)
-                   (ctx-annot-put 'inline #t)
-                   ;; FIXME: right idea, but the test is not quite right
-                   (ctx-annot-put 'fully-inlined (nil? lambda-args))
-                   (ctx-annot-put 'entry-label (list 'entry-label)))))))))))
+       (cond
+         ((and (eq name 'letrec) (eq 1 (length binds)))
+          (when (%binding-is-inlineable-lambda? (first binds))
+            (print `(could inline letrec-bound lambda: ,(first binds)))))
+         ((and (eq name 'let) (eq 1 (length binds)))
+          (dolist (b binds)
+            (let ((sym (car b))
+                  (form (cadr b)))
+              (when (%binding-is-inlineable-lambda? b)
+                ;; (print `(could inline let-bound lambda: (,(expr-meta sym 'reference-count)) ,b))
+                (let ((lambda-body (cdddr form))
+                      (lambda-args (caddr form)))
+                  (expr-set-meta sym 'type 'inline)
+                  (expr-set-meta sym 'body lambda-body)
+                  (with-expression-context (lambda-body)
+                    (ctx-annot-put 'type 'inline-lambda)
+                    (ctx-annot-put 'inline #t)
+                    ;; FIXME: right idea, but the test is not quite right
+                    (ctx-annot-put 'fully-inlined (nil? lambda-args))
+                    (ctx-annot-put 'entry-label (list 'entry-label))))))))))))
 
 (define (%mark-closed-over-bindings e)
     (walk-variables

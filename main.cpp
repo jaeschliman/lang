@@ -4707,6 +4707,8 @@ enum OpCode : u8 {
   LOAD_CLOSURE         ,
   STORE_CLOSURE        ,
   BUILD_CLOSURE        ,
+  SAVE_CLOSURE_ENV     ,
+  RESTORE_CLOSURE_ENV  ,
   PUSH_CLOSURE_ENV     ,
   BR_IF_False          ,
   JUMP                 ,
@@ -4944,6 +4946,21 @@ void vm_interp(VM* vm, interp_params params) {
       vm_push(vm, closure);
       break;
     }
+    case SAVE_CLOSURE_ENV: {
+      s64 count = vm_adv_instr(vm);
+      // dbg("SAVE: ", count);
+      auto top = vm->curr_frame->closed_over;
+      vm_push(vm, top);
+      while (count--) {
+        vm->curr_frame->closed_over = array_get(vm->curr_frame->closed_over, 0);
+      }
+      break;
+    }
+    case RESTORE_CLOSURE_ENV: {
+      vm->curr_frame->closed_over = vm_pop(vm);
+      // dbg("RESTORE: ", vm->curr_frame->closed_over);
+      break;
+    }
     case PUSH_CLOSURE_ENV: {
       u64 count = vm_adv_instr(vm);
       auto array = to(Ptr, alloc_pao(vm, Array, count + 1));
@@ -4997,11 +5014,13 @@ void vm_interp(VM* vm, interp_params params) {
     }
     case PUSH_JUMP: {
       s64 jump = vm_adv_instr(vm);
+      // dbg("PUSH_JUMP: ", jump);
       vm_push(vm,to(Fixnum, jump));
       break;
     }
     case POP_JUMP: {
-      u64 jump = from(Fixnum, vm_pop(vm));
+      s64 jump = from(Fixnum, vm_pop(vm));
+      // dbg("POP JUMP: ", jump);
       vm->curr_frame->pc = jump - 1; //-1 to acct for pc advancing
       break;
     }

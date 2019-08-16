@@ -105,17 +105,17 @@
 (define (context-read form k) (with-expression-context (form) (ctx-annot-read *expr-context* k)))
 (define (context-write form k v) (with-expression-context (form) (ctx-annot-put k v)))
 
-(define (%ctx-will-be-inlined? ctx)
+(define (%ctx-will-be-fully-inlined? ctx)
     (let ((ht (ht-at (cdr ctx) '())))
       (if (nil? ht) #f
-          (eq #t (ht-at ht 'inline)))))
+          (eq #t (ht-at ht 'fully-inlined)))))
 
 (forward %binding-depth)
 (define (%binding-depth ctx e acc)
     (if (nil? ctx) -1
         (let ((ht (ht-at (cdr ctx) e)))
           (if (nil? ht)
-              (%binding-depth (car ctx) e (+ acc (if (%ctx-will-be-inlined? ctx) 0 1)))
+              (%binding-depth (car ctx) e (+ acc (if (%ctx-will-be-fully-inlined? ctx) 0 1)))
               acc))))
 
 (define (binding-depth sym)
@@ -387,13 +387,16 @@
                         (not (expr-meta sym 'crosses-lambda-in-initial-pass #f))
                         (not (expr-meta sym 'value-taken #f))
                         (not (expr-meta sym 'mutated #f)))
-               (print `(could inline let-bound lambda: (,(expr-meta sym 'reference-count)) ,b))
-               (let ((lambda-body (cdddr form)))
+               ;; (print `(could inline let-bound lambda: (,(expr-meta sym 'reference-count)) ,b))
+               (let ((lambda-body (cdddr form))
+                     (lambda-args (caddr form)))
                  (expr-set-meta sym 'type 'inline)
                  (expr-set-meta sym 'body lambda-body)
                  (with-expression-context (lambda-body)
                    (ctx-annot-put 'type 'inline-lambda)
                    (ctx-annot-put 'inline #t)
+                   ;; FIXME: right idea, but the test is not quite right
+                   (ctx-annot-put 'fully-inlined (nil? lambda-args))
                    (ctx-annot-put 'entry-label (list 'entry-label)))))))))))
 
 (define (%mark-closed-over-bindings e)
@@ -499,15 +502,15 @@
 (define (emit-inline-lambda-body env args body)
     (binding ((*tail-position* #f))
              (cond
-               ((nil? args)
-                (print `(emitting simple inline body: ,body))
-                (emit-body body env))
+               ((nil? args) (emit-body body env))
                (#t (let* ((start (context-read body 'initial-arg-index))
                           (closed? (expression-context-is-closed-over body)))
+                     (context-write body 'closure-depth *closure-depth*)
+                     (context-write body 'closed closed?)
                      (let* ((idx 0))
-                       (if closed?
-                           (print `(emitting closed over inline body: ,body))
-                           (print `(emitting inline body: ,body)))
+                       ;; (if closed?
+                       ;;     (print `(emitting closed over inline body: ,body))
+                       ;;     (print `(emitting inline body: ,body)))
                        (with-expression-context (body)
                          (dolist (arg args)
                            (cond (closed?
@@ -546,23 +549,31 @@
     (let* ((sym (car it))
            (args (cdr it))
            (body (expr-meta sym 'body))
+           (closure-diff (- *closure-depth* (context-read body 'closure-depth)))
+           (closed? (context-read body 'closed))
            (idx (context-read body 'initial-arg-index)))
-      (print `(emitting inlined call: ,it for: ,(expr-meta sym 'body)))
+      ;; (print `(emitting inlined call: ,it for: ,(expr-meta sym 'body)))
       ;; write args to temp slots
       (dolist (arg args)
         (binding ((*tail-position* #f)) (emit-expr arg env))
         (store-tmp idx)
-        (print `(wrote ,arg to idx: ,idx))
         (set! idx (+ 1 idx)))
+      ;; prepare closure depth for inlined env
+      (when closed?
+        (emit-u16 SAVE_CLOSURE_ENV)
+        (emit-u16 closure-diff))
       ;; push pc of return label
-      (let ((return-label (list 'return-label)))
+      (let ((return-label (list 'return-label it)))
         (emit-u16 PUSH_JUMP)
         (save-jump-location return-label)
         ;; jump to entry label
         (jump (context-read body 'entry-label))
         ;; write return label
         (label return-label))
-      (print `(finished call))))
+      ;; restore closure (now beneath call's return value)
+      (when closed?
+        (emit-u16 SWAP)
+        (emit-u16 RESTORE_CLOSURE_ENV))))
 
 (define (emit-letrec it env)
     (let* ((binds (cadr it))

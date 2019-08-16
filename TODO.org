@@ -454,8 +454,9 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
 * TODO some more efficient way of getting thread minimum sleep time
   some auxilary data structure? point being it would be good to not
   scan all threads all the time
-* TODO asm: proper names and sourcelocations for %nlambda
+* DONE asm: proper names and sourcelocations for %nlambda
 * IN-PROGRESS asm: optimize self tail calls into banging on args and a jump
+  need to properly handle special bindings still
 * TODO asm: provide compiler notes and warnings
 * DONE asm: optimize bindless lets
   no need to introduce a new scope
@@ -476,17 +477,20 @@ https://www.youtube.com/watch?v=FJQmjhOvjUs&list=PL843D1D545F9F52B6&index=7
   see defns below `common-lisp-indent-function`
   can copy indentation of existing form using
   (put a 'common-lisp-indent-function (get b 'common-lisp-indent-function))
-* IN-PROGRESS asm: inline lambdas where possible
+* DONE asm: inline lambdas where possible
 * DONE asm: remove the old analyser
 * TODO rework the definitions in boot/0 to be amenable to TL jump opts
   right now we special-case forms with `set-symbol-value` in the call position,
   not `set`
-* TODO rewrite meta `seq` to use if failure?
+* TODO rewrite meta `seq` to use `if` for failure?
 * TODO asm: we are probably creating more closures than needed.
   e.g. if the parent contains closed over, but (this) child does /not/, then
   do not allocate/push closures in this child.
+  -- can add new method, similar to `binding-depth`, `closure-binding-depth`
+     count the # of crossed binding contexts that require closure
 * TODO asm: eliminate closures from letrec where possible
   (include the self-tail-call optimization as well)
+  e.g. the even/odd example should allocate 0 closures
 
 * notes
 maybe have a stack of compilers? can push/pop...

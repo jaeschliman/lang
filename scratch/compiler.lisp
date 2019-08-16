@@ -527,7 +527,7 @@
                                   (when closed? (pop-closure))))))))))
 
 (define (emit-inline-lambda it env)
-    (print `(inlining lambda: ,it))
+    ;; (print `(inlining lambda: ,it))
   (let* ((args (caddr it))
          (body (cdddr it))
          (hop (gensym)))
@@ -730,6 +730,8 @@
     (cond
       ((symbol? it)
        (let ((type (expr-meta it 'type)))
+         ;; (when *enable-inline-let-bound-lambdas*
+         ;;   (print `(loading symbol ,it of type ,type)))
          (case type
            (()
             (emit-pair PUSHLIT (emit-lit it))
@@ -741,6 +743,8 @@
            (closure
             (let ((slot  (expr-meta it 'closure-index))
                   (depth (binding-depth it)))
+              ;; (when *enable-inline-let-bound-lambdas*
+              ;;   (print `(loading closure ,it ,slot ,depth)))
               (load-closure slot depth)))
            (#t (throw `(bad type for symbol ,it ,type))))))
       ((pair? it)

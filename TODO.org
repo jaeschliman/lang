@@ -488,7 +488,7 @@ https://www.youtube.com/watch?v=FJQmjhOvjUs&list=PL843D1D545F9F52B6&index=7
   do not allocate/push closures in this child.
   -- can add new method, similar to `binding-depth`, `closure-binding-depth`
      count the # of crossed binding contexts that require closure
-* TODO asm: eliminate closures from letrec where possible
+* IN-PROGRESS asm: eliminate closures from letrec where possible
   (include the self-tail-call optimization as well)
   e.g. the even/odd example should allocate 0 closures
 

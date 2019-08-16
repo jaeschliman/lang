@@ -724,7 +724,7 @@
 
 (define (%emit-call it env)
     (cond
-      ((call-is-jump-to-inlined-lambda? it env)
+      ((and *enable-inline-letrec-bound-lambdas* (call-is-jump-to-inlined-lambda? it env))
        (emit-call-to-inlined-lambda it env))
       ((call-is-to-inlined-lambda? it env)
        (emit-call-to-inlined-lambda it env))

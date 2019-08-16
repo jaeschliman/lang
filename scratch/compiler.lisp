@@ -43,6 +43,7 @@
 (at-boot (defparameter *trace-eval* #f))
 (at-boot (defparameter *enable-jump-opts* #t))
 (at-boot (defparameter *enable-inline-let-bound-lambdas* #t))
+(at-boot (defparameter *enable-inline-letrec-bound-lambdas* #f))
 
 (defparameter *code* #f)
 (defparameter *lits* #f)
@@ -371,6 +372,13 @@
                                   (#t 'value-taken))
                           #t)))))
 
+(define (%symbol-is-in-jump-position sym)
+    (and *enable-jump-opts*
+         ;; *tail-position* ;; XXX support for this in walk-form is not ready yet
+         *in-call-position*
+         (eq sym *binding-name*)
+         (eq 1 (enclosing-lambda-count sym))))
+
 (define (%binding-is-inlineable-lambda? b)
     (let ((sym (first b)) (form (second b)))
       (and (pair? form)
@@ -384,12 +392,19 @@
            (not (expr-meta sym 'value-taken #f))
            (not (expr-meta sym 'mutated #f)))))
 
-(define (%symbol-is-in-jump-position sym)
-    (and *enable-jump-opts*
-         ;; *tail-position* ;; support for this in walk-form is not ready yet
-         *in-call-position*
-         (eq sym *binding-name*)
-         (eq 1 (enclosing-lambda-count sym))))
+(define (%binding-prepare-for-lambda-inlining b)
+    (let* ((sym (car b))
+           (form (cadr b))
+           (lambda-body (cdddr form))
+           (lambda-args (caddr form)))
+      (expr-set-meta sym 'type 'inline)
+      (expr-set-meta sym 'body lambda-body)
+      (with-expression-context (lambda-body)
+        (ctx-annot-put 'type 'inline-lambda)
+        (ctx-annot-put 'inline #t)
+        ;; FIXME: right idea, but the test is not quite right?
+        (ctx-annot-put 'fully-inlined (nil? lambda-args))
+        (ctx-annot-put 'entry-label (list 'entry-label)))))
 
 (define (%note-inlineable-let-bound-lambdas e)
     (walk-variables
@@ -400,25 +415,15 @@
   (walk-scopes
    e (lambda (name binds body)
        (cond
-         ((and (eq name 'letrec) (eq 1 (length binds)))
+         ((and *enable-inline-letrec-bound-lambdas* (eq name 'letrec) (eq 1 (length binds)))
           (when (%binding-is-inlineable-lambda? (first binds))
-            (print `(could inline letrec-bound lambda: ,(first binds)))))
-         ((and (eq name 'let) (eq 1 (length binds)))
+            ;; (print `(could inline letrec-bound lambda: ,(first binds)))
+            (%binding-prepare-for-lambda-inlining (first binds))))
+         ((and *enable-inline-let-bound-lambdas* (eq name 'let) (eq 1 (length binds)))
           (dolist (b binds)
-            (let ((sym (car b))
-                  (form (cadr b)))
-              (when (%binding-is-inlineable-lambda? b)
-                ;; (print `(could inline let-bound lambda: (,(expr-meta sym 'reference-count)) ,b))
-                (let ((lambda-body (cdddr form))
-                      (lambda-args (caddr form)))
-                  (expr-set-meta sym 'type 'inline)
-                  (expr-set-meta sym 'body lambda-body)
-                  (with-expression-context (lambda-body)
-                    (ctx-annot-put 'type 'inline-lambda)
-                    (ctx-annot-put 'inline #t)
-                    ;; FIXME: right idea, but the test is not quite right
-                    (ctx-annot-put 'fully-inlined (nil? lambda-args))
-                    (ctx-annot-put 'entry-label (list 'entry-label))))))))))))
+            (when (%binding-is-inlineable-lambda? b)
+              ;; (print `(could inline let-bound lambda: (,(expr-meta sym 'reference-count)) ,b))
+              (%binding-prepare-for-lambda-inlining b))))))))
 
 (define (%mark-closed-over-bindings e)
     (walk-variables
@@ -431,7 +436,7 @@
     (%mark-scopes e)
   (%mark-bindings e)
   (%mark-reference-counts e)
-  (when *enable-inline-let-bound-lambdas*
+  (when (or *enable-inline-let-bound-lambdas* *enable-inline-letrec-bound-lambdas*)
     (%note-inlineable-let-bound-lambdas e))
   (%mark-closed-over-bindings e))
 
@@ -705,8 +710,22 @@
     (and (symbol? (car it))
          (eq 'inline (expr-meta (car it) 'type))))
 
+(define (call-is-jump-to-inlined-lambda? it env)
+    ;; XXX hack need to remove this binding
+    ;;     doing it for now as all use sites of this are known
+    ;;     for the moment, but need a way to
+    ;;     determine if we are in tail position
+    ;;     and avoid emitting tail calls (in inline lambda case)
+    ;;     will likely just add another dynamic var
+    (binding ((*tail-position* #t))
+             (and
+              (call-can-be-jump-optimized? it env)
+              (call-is-to-inlined-lambda? it env))))
+
 (define (%emit-call it env)
     (cond
+      ((call-is-jump-to-inlined-lambda? it env)
+       (emit-call-to-inlined-lambda it env))
       ((call-is-to-inlined-lambda? it env)
        (emit-call-to-inlined-lambda it env))
       ((call-is-inlineable-lambda? it env)

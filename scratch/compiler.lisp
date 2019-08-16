@@ -137,11 +137,17 @@
     (let ((ctx (binding-context sym)))
       (ht-at-put (ht-at (cdr ctx) '()) k v)))
 
-(forward binding-context-is-closed-over)
+(define (containing-contexts-annot sym k v)
+    (let ((end (binding-context sym)))
+      (let loop ((ctx *expr-context*))
+           (unless (nil? ctx)
+             (ht-at-put (ht-at (cdr ctx) '()) k v)
+             (unless (eq ctx end)
+               (loop (car ctx)))))))
+
 (define (binding-context-is-closed-over ctx)
     (if (nil? ctx) #f
-        (or (eq #t (ctx-annot-read ctx 'closed-over))
-            (binding-context-is-closed-over (car ctx)))))
+        (eq #t (ctx-annot-read ctx 'closed-over))))
 
 (define (expression-context-is-closed-over e)
     (with-expression-context (e)
@@ -429,8 +435,11 @@
     (walk-variables
      e (lambda (e)
          (when (binding-crosses-lambda e)
-           (binding-context-annot e 'closed-over #t)
-           (expr-set-meta e 'type 'closure)))))
+           (expr-set-meta e 'type 'closure))))
+  (walk-variables
+   e (lambda (e)
+       (when (eq (expr-meta e 'type) 'closure)
+         (containing-contexts-annot e 'closed-over #t)))))
 
 (define (analyse-forms e)
     (%mark-scopes e)
@@ -563,6 +572,11 @@
     (emit-u16 POP_JUMP)
     ;; end of inline code
     (label hop)))
+
+(defmacro trc (f)
+  `(let ((xxx ,f))
+     (print (list ',f '= xxx))
+     xxx))
 
 (define (emit-call-to-inlined-lambda it env)
     (let* ((sym (car it))

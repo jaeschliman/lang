@@ -701,8 +701,8 @@
       (binding ((*tail-position* #f)) (emit-expr val env))
       (emit-u16 DUP) ;; return the result
       (case type
-        (() (throw `(cannot set! to global variable)))
-        (argument (throw `(cannot set! to argument)))
+        (() (throw `(cannot set! to global variable: ,it)))
+        (argument (throw `(cannot set! to argument: ,it)))
         (local
          (emit-pair STORE_FRAME_RELATIVE (expr-meta sym 'index)))
         (closure

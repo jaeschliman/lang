@@ -152,6 +152,20 @@
     (if (nil? ctx) #f
         (eq #t (ctx-annot-read ctx 'closed-over))))
 
+(define (%bound-at? sym ctx)
+    (not (nil? (ht-at (cdr ctx) sym))))
+
+(define (%ctx-counts-in-closure-depth ctx)
+    (and (binding-context-is-closed-over ctx)
+         (not (%ctx-will-be-fully-inlined? ctx))))
+
+(define (closure-depth sym)
+    (let loop ((ctx *expr-context*) (sym sym) (acc 0))
+         (cond
+           ((nil? ctx) -1)
+           ((%bound-at? sym ctx) acc)
+           (#t (loop (car ctx) sym (+ acc (if (%ctx-counts-in-closure-depth ctx) 1 0)))))))
+
 (define (expression-context-is-closed-over e)
     (with-expression-context (e)
       (binding-context-is-closed-over *expr-context*)))
@@ -439,11 +453,12 @@
      e (lambda (e)
          (when (binding-crosses-lambda e)
            (when *note-closed-over-vars* (print `(closing over var: ,e)))
+           (binding-context-annot e 'closed-over #t)
            (expr-set-meta e 'type 'closure))))
   (walk-variables
    e (lambda (e)
        (when (eq (expr-meta e 'type) 'closure)
-         (containing-contexts-annot e 'closed-over #t)))))
+         (containing-contexts-annot e 'contains-closure #t)))))
 
 (define (analyse-forms e)
     (%mark-scopes e)
@@ -649,7 +664,7 @@
                        (case (expr-meta sym 'type)
                          (local (store-tmp (expr-meta sym 'index)))
                          (closure (store-closure (expr-meta sym 'closure-index)
-                                                 (binding-depth sym))))))
+                                                 (closure-depth sym))))))
                    (emit-body body env)
                    (when closed? (pop-closure)))))))
 
@@ -662,7 +677,11 @@
                  (label 'start)
                  (with-expression-context (body)
                    (binding ((*tail-position* #t) (*closure-depth* 0)) (emit-body body env))))))
-      (emit-pair PUSHLIT (emit-lit (bytecode->closure bc)))))
+      (if (eq #t (context-read body 'contains-closure))
+          (let ()
+            (emit-pair PUSHLIT (emit-lit bc))
+            (emit-u16 BUILD_CLOSURE))
+          (emit-pair PUSHLIT (emit-lit (bytecode->closure bc))))))
 
 (define (emit-lambda it env)
     (binding
@@ -719,7 +738,7 @@
         (closure
          (emit-u16 STORE_CLOSURE)
          (emit-u16 (expr-meta sym 'closure-index))
-         (emit-u16 (binding-depth sym))))))
+         (emit-u16 (closure-depth sym))))))
 
 ;; should be true iff it is a self tail-call
 (define (call-can-be-jump-optimized? it env)
@@ -804,7 +823,7 @@
             (load-arg (expr-meta it 'index)))
            (closure
             (let ((slot  (expr-meta it 'closure-index))
-                  (depth (binding-depth it)))
+                  (depth (closure-depth it)))
               ;; (when *enable-inline-let-bound-lambdas*
               ;;   (print `(loading closure ,it ,slot ,depth)))
               (load-closure slot depth)))

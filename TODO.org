@@ -498,6 +498,7 @@ https://www.infoq.com/presentations/ebtree-design/
 * TODO the original `bouncers.lisp` is now growing stack with N bouncers, it seems
 * TODO exceptions STILL not propagating 'properly' from compiler
   execution halts (good) nothing is reported to console (bad)
+* TODO rewrite `append` to not use up stack space
 
 * notes
 maybe have a stack of compilers? can push/pop...

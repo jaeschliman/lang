@@ -1,6 +1,8 @@
 (set '*package* (symbol-package 'define))
 
-(%load "./scratch/compiler.lisp")
+(binding (;;(*trace-eval* #t)
+          (*recompiling* #t))
+         (%load "./scratch/compiler.lisp"))
 (set '*enable-inline-letrec-bound-lambdas* #t)
 (set '*note-closed-over-vars* #t)
 

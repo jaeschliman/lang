@@ -1147,6 +1147,7 @@ blit_surface image_blit_surface(ByteArrayObject *img) {
   return (blit_surface){ mem, pitch, w, h};
 }
 
+
 PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   auto byte_count = sizeof(PtrArrayObject) + (len * sizeof(Ptr));
   PtrArrayObject* obj = (PtrArrayObject *)vm_alloc(vm, byte_count);
@@ -1154,6 +1155,14 @@ PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   obj->pao_type = ty;
   obj->length = len;
   return obj;
+}
+
+inline Ptr alloc_closure_env(VM *vm, uint count) {
+  #if STATS
+  vm->stats->total_closure_bytes_allocated += sizeof(PtrArrayObject) + (count + 1) * 8;
+  #endif
+  auto array = to(Ptr, alloc_pao(vm, Array, count + 1));
+  return array;
 }
 
 type_test(Array, it) {
@@ -4966,7 +4975,7 @@ void vm_interp(VM* vm, interp_params params) {
     }
     case PUSH_CLOSURE_ENV: {
       u64 count = vm_adv_instr(vm);
-      auto array = to(Ptr, alloc_pao(vm, Array, count + 1));
+      auto array = alloc_closure_env(vm, count);
       array_set(array, 0, vm->curr_frame->closed_over);
       while (count--) { //@speed
         auto it = vm_pop(vm);

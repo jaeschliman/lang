@@ -43,7 +43,7 @@
 (at-boot (defparameter *trace-eval* #f))
 (at-boot (defparameter *enable-jump-opts* #t))
 (at-boot (defparameter *enable-inline-let-bound-lambdas* #t))
-(at-boot (defparameter *enable-inline-letrec-bound-lambdas* #f))
+(at-boot (defparameter *enable-inline-letrec-bound-lambdas* #t))
 
 (defparameter *note-closed-over-vars* #f)
 
@@ -444,7 +444,7 @@
        (cond
          ((and *enable-inline-letrec-bound-lambdas* (eq name 'letrec) (eq 1 (length binds)))
           (when (%binding-is-inlineable-lambda? (first binds))
-            (print `(could inline letrec-bound lambda: ,(first binds)))
+            ;; (print `(could inline letrec-bound lambda: ,(first binds)))
             (%binding-prepare-for-lambda-inlining (first binds))))
          ((and *enable-inline-let-bound-lambdas* (eq name 'let) (eq 1 (length binds)))
           (dolist (b binds)

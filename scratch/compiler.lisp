@@ -45,6 +45,8 @@
 (at-boot (defparameter *enable-inline-let-bound-lambdas* #t))
 (at-boot (defparameter *enable-inline-letrec-bound-lambdas* #f))
 
+(defparameter *note-closed-over-vars* #f)
+
 (defparameter *code* #f)
 (defparameter *lits* #f)
 (defparameter *labels* #f)
@@ -435,6 +437,7 @@
     (walk-variables
      e (lambda (e)
          (when (binding-crosses-lambda e)
+           (when *note-closed-over-vars* (print `(closing over var: ,e)))
            (expr-set-meta e 'type 'closure))))
   (walk-variables
    e (lambda (e)

@@ -176,6 +176,7 @@ thread_ctx *make_thread_ctx();
 void reset_thread_ctx(thread_ctx *ctx);
 void thread_ctx_set_thread(thread_ctx *ctx, Ptr thread);
 Ptr thread_ctx_get_thread(thread_ctx *ctx);
+void _print_debug_stacktrace(thread_ctx *thd);
 
 struct thdq_node { thread_ctx *val;  thdq_node *next; };
 struct thdq { thdq_node *front, *back; thdq_node *free_list;  s64 count; };

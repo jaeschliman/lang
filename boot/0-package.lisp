@@ -64,7 +64,8 @@
 (at-boot (package-add-subpackage %root-package %user-package "user"))
 
 (define (find-package-by-path path)
-    (let* ((root? (eq (car path) 'root))
+    (let* ((path path)
+           (root? (eq (car path) 'root))
            (pkg (if root? %root-package *package*)))
       (when root? (set! path (cdr path)))
       (dolist (name path)

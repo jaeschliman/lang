@@ -133,7 +133,8 @@
            (sc (aget box 5)))
       (when target
         (unless (or (= x (point-x target))
-                    (= y (point-y target)))
+                    (= y (point-y target))
+                    (= 0 (% sc 2)))
           (draw-beam (make-point x y) target)))
       (draw-image-with-scale-and-rotation ufo (make-point x y)
                                           (* 4.0 (+ 0.05

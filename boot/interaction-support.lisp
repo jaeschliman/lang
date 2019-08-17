@@ -31,7 +31,8 @@
   (let ((found pending-events)) ;; clearly not thread safe ; )
     (unless (nil? found)
       (set 'pending-events '())
-      (mapcar handle-event (reverse-list found)))))
+      (dolist (e (reverse-list found))
+        (handle-event e)))))
 
 (at-boot
  (let ((started-event-loop #f))

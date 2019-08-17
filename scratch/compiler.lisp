@@ -700,6 +700,7 @@
       (emit-pair PUSHLIT (emit-lit sym))
       (binding ((*tail-position* #f)) (emit-expr val env))
       (emit-u16 PUSH_SPECIAL_BINDING)
+      ;; XXX is this restrictrion on tail position really needed?
       (binding ((*tail-position* #f)) (emit-expr exp env))
       (emit-u16 POP_SPECIAL_BINDING)))
 
@@ -757,6 +758,7 @@
       ((call-is-inlineable-lambda? it env)
        (emit-inline-lambda-call it env))
       ((and *enable-jump-opts* (call-can-be-jump-optimized? it env))
+       ;; this is a self call reduced to a jump
        (binding ((*tail-position* #f))
                 ;; (print `(jumping to start: ,it))
                 (let ((idx 0))

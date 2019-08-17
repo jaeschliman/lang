@@ -1,3 +1,5 @@
+(set '#/lang/*enable-inline-let-bound-lambdas* #t)
+(set '#/lang/*enable-inline-letrec-bound-lambdas* #t)
 
 ;; TODO: this would be a good one to stress-test shift/reset
 
@@ -141,17 +143,24 @@
 
 (define running '())
 
-(define mapcar? #f)
 (define (mapcar? fn lst)
-  (if (nil? lst) '()
-      (let ((n (fn (car lst))))
-        (if (nil? n)
-            (mapcar? fn (cdr lst))
-            (cons n (mapcar? fn (cdr lst)))))))
+    (let loop ((lst lst) (acc '()))
+         (if (nil? lst) (reverse-list acc)
+             (let ((n (fn (car lst))))
+               (if (nil? n)
+                   (loop (cdr lst) acc)
+                   (loop (cdr lst) (cons n acc)))))))
+
+(define (new-append as bs)
+    (if (nil? bs) as
+        (let ((r bs))
+          (dolist (a (reverse-list as))
+            (set! r (cons a r)))
+          r)))
 
 (define (step!)
     (set-symbol-value 'running (mapcar? step-coroutine running))
-  (set-symbol-value 'running (append running pending))
+  (set-symbol-value 'running (new-append running pending))
   (set-symbol-value 'pending '()))
 
 (define (clear-screen)

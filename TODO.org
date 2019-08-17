@@ -493,6 +493,11 @@ https://www.youtube.com/watch?v=FJQmjhOvjUs&list=PL843D1D545F9F52B6&index=7
   e.g. the even/odd example should allocate 0 closures
 * TODO watch lecture on HAProxy scheduler
 https://www.infoq.com/presentations/ebtree-design/
+* TODO address XXX comments in compiler
+  especially RE: needing a root *expr-context*
+* TODO the original `bouncers.lisp` is now growing stack with N bouncers, it seems
+* TODO exceptions STILL not propagating 'properly' from compiler
+  execution halts (good) nothing is reported to console (bad)
 
 * notes
 maybe have a stack of compilers? can push/pop...

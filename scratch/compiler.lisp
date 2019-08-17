@@ -613,9 +613,11 @@
       ;; (print `(emitting inlined call: ,it for: ,(expr-meta sym 'body)))
       ;; write args to temp slots
       (dolist (arg args)
-        (binding ((*tail-position* #f)) (emit-expr arg env))
-        (store-tmp idx)
-        (set! idx (+ 1 idx)))
+        (set! idx (+ 1 idx))
+        (binding ((*tail-position* #f)) (emit-expr arg env)))
+      (dolist (arg args)
+        (set! idx (- idx 1))
+        (store-tmp idx))
       ;; prepare closure depth for inlined env
       (when closed?
         (when (and (not self-call?) (> closure-diff 0))

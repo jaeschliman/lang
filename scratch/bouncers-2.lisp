@@ -1,6 +1,6 @@
-(set '#/lang/*note-closed-over-vars* #t)
-(set '#/lang/*enable-inline-let-bound-lambdas* #t)
-(set '#/lang/*enable-inline-letrec-bound-lambdas* #t)
+;; (set '#/lang/*note-closed-over-vars* #t)
+;; (set '#/lang/*enable-inline-let-bound-lambdas* #t)
+;; (set '#/lang/*enable-inline-letrec-bound-lambdas* #t)
 ;; (set '#/lang/*trace-eval* #t)
 
 (defmacro sync (sem & body)
@@ -55,11 +55,50 @@
       0xffaa0000
       0xffdd0000))
 
+(define (mappend f as)
+    (let loop ((as as) (f f) (acc '()))
+         (if (nil? as) (reverse-list acc)
+             (let ((r acc))
+               (dolist (b (reverse-list (f (car as))))
+                 (set! r (cons b r)))
+               (loop (cdr as) f r)))))
+
+(define (list-to-pairs l)
+    (let ((final (first l)))
+      (let loop ((as l) (bs (cdr l)) (acc '()))
+           (if (nil? bs) (reverse-list (cons (list (car as) final) acc))
+               (loop (cdr as) (cdr bs) (cons (list (car as) (car bs)) acc))))))
+
+;; not really a good blend, but ah well
+(define (blend-colors a b)
+    (+ (/ a 2) (/ b 2)))
+
+(define (extend-rainbow!)
+    (set 'rainbow-colors
+         (mappend (lambda (colors)
+                    (list (first colors)
+                          (blend-colors (first colors) (second colors))
+                          (second colors)))
+                  (list-to-pairs rainbow-colors))))
+
+(extend-rainbow!)
+(extend-rainbow!)
+(extend-rainbow!)
+
+(extend-rainbow!)
+(extend-rainbow!)
+(extend-rainbow!)
+
 (define alternate-colors
     '(0xff0000ff
       0xff00ffff))
 
 (define colors rainbow-colors)
+
+;; XXX FIXME the above does not work with optimizations enabled
+(set '#/lang/*note-closed-over-vars* #t)
+(set '#/lang/*enable-inline-let-bound-lambdas* #t)
+(set '#/lang/*enable-inline-letrec-bound-lambdas* #t)
 
 (define (move-box box)
     (let* ((dx (aget box 2))
@@ -139,7 +178,7 @@
 (define debug-colors colors)
 (define (draw-curr-boxes)
     (sleep-ms 10)
-  (clear-screen)
+  ;; (clear-screen)
   (dolist (box boxes)
     (draw-one-box box))
   (when (nil? debug-colors) (set 'debug-colors colors))
@@ -187,7 +226,7 @@
                 (add-some-boxes (make-point (aget box 0) (aget box 1)))
                 (sleep-ms 200)))))
 
-(when #t
+(when #f
   (define (onshow)
       (make-source 50 (make-point (/ screen-width 2) (/ screen-height 5)) 4 5)
     (make-source 50 (make-point (/ screen-width 3) (/ screen-height 2)) 2 -1)

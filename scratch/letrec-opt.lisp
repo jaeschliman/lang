@@ -9,6 +9,10 @@
 (dolist (x '(1 2 3 a b c))
   (print x))
 
-(forever (dolist (x '(1 2 3 a b c))
-           (sleep-ms 15)
-           (print (%stack-depth-in-bytes))))
+(let ((force-closure #t))
+  (forever (dolist (x '(1 2 3 a b c))
+             (sleep-ms 15)
+             (lambda () force-closure)
+             (print (%stack-depth-in-bytes)))))
+
+

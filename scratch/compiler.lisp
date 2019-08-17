@@ -598,12 +598,13 @@
         (store-tmp idx)
         (set! idx (+ 1 idx)))
       ;; prepare closure depth for inlined env
-      (when (and closed? (> closure-diff 0))
-        (emit-u16 SAVE_CLOSURE_ENV)
-        (emit-u16 closure-diff))
-      ;; XXX not yet sure about this
-      ;; (when (and closed? self-call?)
-      ;;   (pop-closure))
+      (when closed?
+        (when (and (not self-call?) (> closure-diff 0))
+          (emit-u16 SAVE_CLOSURE_ENV)
+          (emit-u16 closure-diff))
+        (when self-call?
+          (dotimes (_ closure-diff)
+            (pop-closure))))
       ;; push pc of return label
       (let ((return-label (list 'return-label it)))
         (unless self-call?
@@ -614,7 +615,7 @@
         ;; write return label
         (label return-label))
       ;; restore closure (now beneath call's return value)
-      (when (and closed? (> closure-diff 0))
+      (when (and closed? (not self-call?) (> closure-diff 0))
         (emit-u16 SWAP)
         (emit-u16 RESTORE_CLOSURE_ENV))))
 

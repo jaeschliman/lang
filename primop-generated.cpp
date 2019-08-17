@@ -154,6 +154,8 @@ enum PrimitiveOperation : u64 {
   PRIM_MKBTC = ((151ULL << 32) | (4ULL << 16) | PrimOp_Tag),
   PRIM_STKDPTH = ((152ULL << 32) | (255ULL << 16) | PrimOp_Tag),
   PRIM_STKDPTHB = ((153ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_CLRSTAT = ((154ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_PRNSTAT = ((155ULL << 32) | (255ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -1474,6 +1476,20 @@ Ptr PRIM_STKDPTHB_impl(VM *vm, u32 argc) {
   return to(Fixnum,((vm->curr_thd->stack_start - vm->curr_thd->stack) * 8));
 }
 
+// Primitive 153
+Ptr PRIM_CLRSTAT_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+
+ return reset_stats_reporting(vm);
+}
+
+// Primitive 154
+Ptr PRIM_PRNSTAT_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+
+ return print_stats_reporting(vm);
+}
+
 
 PrimitiveFunction PrimLookupTable[] = {
   (PrimitiveFunction)(void *)0, // apply
@@ -1630,6 +1646,8 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_MKBTC_impl,
   &PRIM_STKDPTH_impl,
   &PRIM_STKDPTHB_impl,
+  &PRIM_CLRSTAT_impl,
+  &PRIM_PRNSTAT_impl,
 
   (PrimitiveFunction)(void *)0
 };
@@ -1790,6 +1808,8 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "make-bytecode", to(PrimOp, PRIM_MKBTC));
   set_global(vm, "%stack-depth", to(PrimOp, PRIM_STKDPTH));
   set_global(vm, "%stack-depth-in-bytes", to(PrimOp, PRIM_STKDPTHB));
+  set_global(vm, "%clear-stats", to(PrimOp, PRIM_CLRSTAT));
+  set_global(vm, "%print-stats", to(PrimOp, PRIM_PRNSTAT));
 
 }
 
@@ -2956,6 +2976,18 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
   case 153: {
 
      return(to(Fixnum,((vm->curr_thd->stack_start - vm->curr_thd->stack) * 8)));
+    break;
+  }
+
+  case 154: {
+
+    return(reset_stats_reporting(vm));
+    break;
+  }
+
+  case 155: {
+
+    return(print_stats_reporting(vm));
     break;
   }
 

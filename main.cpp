@@ -579,8 +579,9 @@ _copy_state _copy_thread_stack_to_new_stack(thread_ctx *ctx, Ptr* input_stack, P
 void vm_refresh_frame_state(VM *);
 
 void grow_thread_ctx(VM *vm, thread_ctx *ctx) {
-  std::cerr << ("growing thread stack") << std::endl;
   auto new_curr_size   = ctx->curr_size * 2;
+  std::cerr << ("growing thread stack: ") << new_curr_size << std::endl;
+  if (new_curr_size > 1000000) { puts("it's all over folks"); exit(1); }
   auto new_count       = new_curr_size / sizeof(Ptr);
   auto new_stack_mem   = calloc(new_curr_size, 1);
   assert(pointer_is_aligned(new_stack_mem));

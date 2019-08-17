@@ -658,6 +658,27 @@ struct VM {
   #endif
 };
 
+// ----------------------------------------
+// stats reporting
+
+Ptr reset_stats_reporting(VM *vm) {
+  #if STATS
+  memset(vm->stats, 0, sizeof(stats));
+  #endif
+  return Nil;
+}
+
+Ptr print_stats_reporting(VM *vm) {
+  #if STATS
+  report_stats(vm->stats);
+  #else
+  dbg("must build with STATS enabled to print stats");
+  #endif
+  return Nil;
+}
+
+// ----------------------------------------
+
 inline void vm_refresh_frame_state(VM *vm){
   auto thd = vm->curr_thd;
   if (thd) {

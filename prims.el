@@ -430,6 +430,8 @@ void initialize_primitive_functions(VM *vm) {
   (prim %stack-depth STKDPTH () Fixnum "vm->curr_thd->stack_depth")
   (prim %stack-depth-in-bytes STKDPTHB () Fixnum "(vm->curr_thd->stack_start - vm->curr_thd->stack) * 8")
 
+  (prim %clear-stats CLRSTAT () any "reset_stats_reporting(vm)")
+  (prim %print-stats PRNSTAT () any "print_stats_reporting(vm)")
   (setf *prims* (reverse *prims*))
   (write-prims))
 

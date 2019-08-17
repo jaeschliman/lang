@@ -589,7 +589,8 @@
            (body (expr-meta sym 'body))
            (closure-diff (- *closure-depth* (context-read body 'closure-depth)))
            (closed? (context-read body 'closed))
-           (idx (context-read body 'initial-arg-index)))
+           (idx (context-read body 'initial-arg-index))
+           (self-call? (and *tail-position* (eq (car it) *binding-name*))))
       ;; (print `(emitting inlined call: ,it for: ,(expr-meta sym 'body)))
       ;; write args to temp slots
       (dolist (arg args)
@@ -597,19 +598,23 @@
         (store-tmp idx)
         (set! idx (+ 1 idx)))
       ;; prepare closure depth for inlined env
-      (when closed?
+      (when (and closed? (> closure-diff 0))
         (emit-u16 SAVE_CLOSURE_ENV)
         (emit-u16 closure-diff))
+      ;; XXX not yet sure about this
+      ;; (when (and closed? self-call?)
+      ;;   (pop-closure))
       ;; push pc of return label
       (let ((return-label (list 'return-label it)))
-        (emit-u16 PUSH_JUMP)
-        (save-jump-location return-label)
+        (unless self-call?
+          (emit-u16 PUSH_JUMP)
+          (save-jump-location return-label))
         ;; jump to entry label
         (jump (context-read body 'entry-label))
         ;; write return label
         (label return-label))
       ;; restore closure (now beneath call's return value)
-      (when closed?
+      (when (and closed? (> closure-diff 0))
         (emit-u16 SWAP)
         (emit-u16 RESTORE_CLOSURE_ENV))))
 

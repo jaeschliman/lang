@@ -308,6 +308,7 @@
 (defparameter *in-call-position* #f)
 (defparameter *being-set* #f)
 (defparameter *binding-name* '())
+(defparameter *toplevel-form* '())
 
 (forward walk-form)
 
@@ -378,10 +379,13 @@
      e (lambda (name binds body)
          (let ((idx 0))
            (dolist (b (ensure-list binds))
-             (let ((sym (car (ensure-list b))))
+             (let* ((b (ensure-list b))
+                    (sym (car b))
+                    (form (cadr b)))
                (declare-local-binding sym)
                (expr-set-meta sym 'type (if (eq name 'lambda) 'argument 'local))
                (expr-set-meta sym 'index idx)
+               (expr-set-meta sym 'bound-form form)
                (set! idx (+ 1 idx))))))))
 
 (define (%mark-reference-counts e)
@@ -440,7 +444,7 @@
        (cond
          ((and *enable-inline-letrec-bound-lambdas* (eq name 'letrec) (eq 1 (length binds)))
           (when (%binding-is-inlineable-lambda? (first binds))
-            ;; (print `(could inline letrec-bound lambda: ,(first binds)))
+            (print `(could inline letrec-bound lambda: ,(first binds)))
             (%binding-prepare-for-lambda-inlining (first binds))))
          ((and *enable-inline-let-bound-lambdas* (eq name 'let) (eq 1 (length binds)))
           (dolist (b binds)
@@ -675,6 +679,7 @@
                  (set '*varargs* (symbol? args))
                  (set '*lambda-name* (cadr it))
                  (label 'start)
+                 (label 're-entry)
                  (with-expression-context (body)
                    (binding ((*tail-position* #t) (*closure-depth* 0)) (emit-body body env))))))
       (if (eq #t (context-read body 'contains-closure))
@@ -705,6 +710,7 @@
                                  (load-arg arg-idx))
                                (set! arg-idx (+ 1 arg-idx)))
                              (push-closure closure-idx)
+                             (label 're-entry)
                              (binding ((*tail-position* #t)
                                        (*closure-depth* 1))
                                       (emit-body body))
@@ -720,7 +726,7 @@
       (emit-pair PUSHLIT (emit-lit sym))
       (binding ((*tail-position* #f)) (emit-expr val env))
       (emit-u16 PUSH_SPECIAL_BINDING)
-      ;; XXX is this restrictrion on tail position really needed?
+      ;; XXX is this restriction on tail position really needed?
       (binding ((*tail-position* #f)) (emit-expr exp env))
       (emit-u16 POP_SPECIAL_BINDING)))
 
@@ -781,18 +787,34 @@
        ;; this is a self call reduced to a jump
        (binding ((*tail-position* #f))
                 ;; (print `(jumping to start: ,it))
-                (let ((idx 0))
+                (let* ((idx 0)
+                       (closed? (> *closure-depth* 1))
+                       (bound-form
+                        (if (nil? (expr-meta (car it) 'type))
+                            ;; XXX hack this is nasty
+                            ;; need a toplevel *expr-context* instead
+                            (third *toplevel-form*)
+                            (expr-meta (car it) 'bound-form)))
+                       (args (caddr bound-form)))
+                  (when (not (eq (length args) (length (cdr it))))
+                    (throw `(bad inlined call arg count does not match: ,args ,it)))
                   (dolist (e (cdr it))
                     (emit-expr e env)
                     (set! idx (+ 1 idx)))
-                  (dolist (e (cdr it))
+                  (dolist (e (reverse-list args))
                     (set! idx (- idx 1))
                     ;; (print `(saving expr ,e as arg ,idx))
-                    (emit-pair STORE_ARG idx)))
-                ;; (print `(exiting from ,*closure-depth* closures))
-                (dotimes (_ *closure-depth*)
-                  (pop-closure))
-                (jump 'start)))
+                    (case (expr-meta e 'type)
+                      (argument (emit-pair STORE_ARG idx))
+                      (local (emit-pair STORE_ARG idx))
+                      (closure
+                       (store-closure (expr-meta e 'closure-index)
+                                      (closure-depth e)))))
+                  ;; (print `(exiting from ,*closure-depth* closures))
+                  (when closed?
+                    (dotimes (_ (- *closure-depth* 1))
+                      (pop-closure))))
+                (jump 're-entry)))
       (#t (let ((argc 0))
             (binding ((*tail-position* #f))
                      (dolist (e (cdr it))
@@ -801,11 +823,16 @@
                      (emit-expr (car it) env))
             (emit-pair (if (and *tail-position* (not *inlining-lambda*)) TAIL_CALL CALL) argc))) ))
 
+;; XXX HACK: rather than special-casing set-symbol-value here, we
+;; should have an internal %define form and a root *expr-context* that
+;; represents the top level, and handle things in the analyse step.
 (define (emit-call it env)
     (let ((binding-name (%call-get-binding-name it)))
       (if (eq binding-name *binding-name*)
           (%emit-call it env)
-          (binding ((*binding-name* binding-name)) (%emit-call it env)))))
+          (binding ((*binding-name* binding-name)
+                    (*toplevel-form* it))
+                   (%emit-call it env)))))
 
 (define (emit-expr it env)
     (cond
@@ -842,17 +869,26 @@
       (#t
        (emit-pair PUSHLIT (emit-lit it)))))
 
+(defmacro XX (form)
+  `(try-catch (lambda () ,form)
+              (lambda (ex)
+                (let ((f ',form))
+                  (print (list 'EXCEPTION 'IN f ex))
+                  (throw ex)))))
+
 (define (eval expr)
     (when *trace-eval* (print `(expanding: ,expr)))
   (let ((expanded (macroexpand (quasiquote-expand expr))))
     (when *trace-eval* (print `(compiling: ,expanded)))
     (let ((thunk (binding ((*context-table* (make-ht)))
                           (when *trace-eval* (print `(analysing forms)))
-                          (analyse-forms expanded)
-                          (when *trace-eval* (print `(emitting bytecode)))
-                          (bytecode->closure (with-output-to-bytecode ()
-                                               (with-expression-context (expanded)
-                                                 (emit-expr expanded '())))))))
+                          (binding ((*toplevel-form* expanded))
+                                   (analyse-forms expanded)
+                                   (when *trace-eval* (print `(emitting bytecode)))
+                                   (XX
+                                    (bytecode->closure (with-output-to-bytecode ()
+                                                         (with-expression-context (expanded)
+                                                           (emit-expr expanded '())))))))))
       (when *trace-eval* (print `(evaluating: ,thunk)))
       (thunk))))
 

@@ -32,3 +32,4 @@
 ;; (global-set-key (kbd "s-<return>") 'lang-send-dwim)
 
 (put 'binding 'common-lisp-indent-function (get 'let* 'common-lisp-indent-function))
+(put 'define 'common-lisp-indent-function (get 'let* 'common-lisp-indent-function))

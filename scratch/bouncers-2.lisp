@@ -73,6 +73,20 @@
 (define (blend-colors a b)
   (+ (/ a 2) (/ b 2)))
 
+(define (blend-components n a b)
+  (let* ((shiftl (*i n 8))
+         (shiftr (*i n -8))
+         (ca (bit-and 0xff (ash a shiftr)))
+         (cb (bit-and 0xff (ash b shiftr))))
+    (ash (+i (/i ca 2) (/i cb 2)) shiftl)))
+
+(define (proper-blend-colors a b)
+  (bit-or 0xff000000
+          (bit-or (blend-components 2 a b)
+                  (bit-or (blend-components 1 a b)
+                          (blend-components 0 a b)))))
+
+
 (define (extend-rainbow!)
   (set 'rainbow-colors
        (mappend (lambda (colors)

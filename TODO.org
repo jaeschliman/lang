@@ -483,7 +483,7 @@ https://www.youtube.com/watch?v=FJQmjhOvjUs&list=PL843D1D545F9F52B6&index=7
   right now we special-case forms with `set-symbol-value` in the call position,
   not `set`
 * TODO rewrite meta `seq` to use `if` for failure?
-* TODO asm: we are probably creating more closures than needed.
+* DONE asm: we are probably creating more closures than needed.
   e.g. if the parent contains closed over, but (this) child does /not/, then
   do not allocate/push closures in this child.
   -- can add new method, similar to `binding-depth`, `closure-binding-depth`
@@ -495,7 +495,8 @@ https://www.youtube.com/watch?v=FJQmjhOvjUs&list=PL843D1D545F9F52B6&index=7
 https://www.infoq.com/presentations/ebtree-design/
 * TODO address XXX comments in compiler
   especially RE: needing a root *expr-context*
-* TODO the original `bouncers.lisp` is now growing stack with N bouncers, it seems
+* DONE the original `bouncers.lisp` is now growing stack with N bouncers, it seems
+  it was `append`
 * TODO exceptions STILL not propagating 'properly' from compiler
   execution halts (good) nothing is reported to console (bad)
 * TODO rewrite `append` to not use up stack space

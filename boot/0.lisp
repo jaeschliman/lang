@@ -4,11 +4,6 @@
 
 ;; helper functions
 
-(maybe-set 'mapcar #f)
-(set 'mapcar (%nlambda () (f lst)
-               (if (nil? lst) lst
-                   (cons (f (car lst)) (mapcar f (cdr lst))))))
-
 (maybe-set 'list-every #f)
 (set 'list-every
      (%nlambda () (pred lst)
@@ -39,6 +34,14 @@
                              (%append3 (%append2 a b) (car cs) (cdr cs)))))
 
 (set 'append (%nlambda append args (%append3 (car args) (car (cdr args)) (cdr (cdr args)))))
+
+(maybe-set '%mapcar-helper #f)
+(set '%mapcar-helper (%nlambda %mapcar-helper (f lst acc)
+                               (if (nil? lst) (reverse-list acc)
+                                   (%mapcar-helper f (cdr lst) (cons (f (car lst)) acc)))))
+
+(set 'mapcar (%nlambda mapcar (f lst) (%mapcar-helper f lst '())))
+
 
 ;; ----------------------------------------
 ;;; nested quasiquote support

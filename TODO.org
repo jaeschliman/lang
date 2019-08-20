@@ -501,10 +501,11 @@ https://www.infoq.com/presentations/ebtree-design/
 * TODO exceptions STILL not propagating 'properly' from compiler
   execution halts (good) nothing is reported to console (bad)
 * DONE rewrite `append` to not use up stack space
-* TODO rewrite `mapcar` to not use up stack space
+* DONE rewrite `mapcar` to not use up stack space
 * TODO better emacs setup
 https://www.sandeepnambiar.com/setting-up-emacs-for-c++/
 * TODO snapshot tests for the new compiler
+* TODO see about reducing stack depth when compiling / running meta reader
 
 * notes
 maybe have a stack of compilers? can push/pop...

@@ -159,8 +159,8 @@
           r)))
 
 (define (step!)
-    (set-symbol-value 'running (mapcar? step-coroutine running))
-  (set-symbol-value 'running (new-append running pending))
+  (set-symbol-value 'running (mapcar? step-coroutine running))
+  (set-symbol-value 'running (append running pending))
   (set-symbol-value 'pending '()))
 
 (define (clear-screen)

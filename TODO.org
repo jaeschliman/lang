@@ -500,7 +500,8 @@ https://www.infoq.com/presentations/ebtree-design/
   it was `append`
 * TODO exceptions STILL not propagating 'properly' from compiler
   execution halts (good) nothing is reported to console (bad)
-* TODO rewrite `append` to not use up stack space
+* DONE rewrite `append` to not use up stack space
+* TODO rewrite `mapcar` to not use up stack space
 * TODO better emacs setup
 https://www.sandeepnambiar.com/setting-up-emacs-for-c++/
 * TODO snapshot tests for the new compiler

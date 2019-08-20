@@ -55,8 +55,8 @@
                 (*meta-context* (list 'Meta)))
                (match-map eval 'meta-main input))))
 
-(meta1-runfile "./meta-reader/meta-lisp-reader.lisp")
-(meta1-runfile "./meta-reader/meta-meta-reader.lisp")
+(at-boot (meta1-runfile "./meta-reader/meta-lisp-reader.lisp"))
+(at-boot (meta1-runfile "./meta-reader/meta-meta-reader.lisp"))
 
 (define (%load path)
     ;; (%print path)
@@ -66,11 +66,19 @@
                ;; TODO: we don't need to keep the results
                (match-map *load-evaluator* 'main input))))
 
+(when *recompiling*
+  (%load "./meta-reader/meta-lisp-reader.lisp")
+  (%load "./meta-reader/meta-meta-reader.lisp"))
+
+
 (define (load-as name path)
     (let ((pkg (make-user-package "anon")))
       (package-add-subpackage *package* pkg name)
       (binding ((*package* pkg))
         (%load path))))
+
+(ht-at-put meta-by-name 'Meta '())
+(ht-at-put meta-by-name 'Lisp '())
 
 ;; (binding ((*meta-context* (list 'lisp)))
 ;;   (match-map print 'expr (slurp "./cow-storm.lisp")))

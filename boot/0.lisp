@@ -5,42 +5,42 @@
 ;; helper functions
 
 (maybe-set 'list-every #f)
-(set 'list-every
+(set-symbol-value 'list-every
      (%nlambda () (pred lst)
        (if (nil? lst) #t
            (if (pred (car lst)) (list-every pred (cdr lst))
                #f))))
 
 (maybe-set 'append3 #f)
-(set 'append3 (%nlambda () (a b cs)
+(set-symbol-value 'append3 (%nlambda () (a b cs)
                 (if (nil? a)
                     (if (nil? cs) b
                         (append3 b (car cs) (cdr cs)))
                     (cons (car a) (append3 (cdr a) b cs)))))
 
 (maybe-set '%reverse-append #f)
-(set '%reverse-append (%nlambda %reverse-append (rem acc)
+(set-symbol-value '%reverse-append (%nlambda %reverse-append (rem acc)
                              (if (nil? rem) acc
                                  (%reverse-append
                                   (cdr rem) (cons (car rem) acc)))))
 
-(set 'reverse-list (%nlambda reverse-list (lst) (%reverse-append lst '())))
+(set-symbol-value 'reverse-list (%nlambda reverse-list (lst) (%reverse-append lst '())))
 
-(set '%append2 (%nlambda %append2 (a b) (if (nil? b) a (%reverse-append (reverse-list a) b))))
+(set-symbol-value '%append2 (%nlambda %append2 (a b) (if (nil? b) a (%reverse-append (reverse-list a) b))))
 
 (maybe-set '%append3 #f)
-(set '%append3 (%nlambda %append3 (a b cs)
+(set-symbol-value '%append3 (%nlambda %append3 (a b cs)
                          (if (nil? cs) (%append2 a b)
                              (%append3 (%append2 a b) (car cs) (cdr cs)))))
 
-(set 'append (%nlambda append args (%append3 (car args) (car (cdr args)) (cdr (cdr args)))))
+(set-symbol-value 'append (%nlambda append args (%append3 (car args) (car (cdr args)) (cdr (cdr args)))))
 
 (maybe-set '%mapcar-helper #f)
-(set '%mapcar-helper (%nlambda %mapcar-helper (f lst acc)
+(set-symbol-value '%mapcar-helper (%nlambda %mapcar-helper (f lst acc)
                                (if (nil? lst) (reverse-list acc)
                                    (%mapcar-helper f (cdr lst) (cons (f (car lst)) acc)))))
 
-(set 'mapcar (%nlambda mapcar (f lst) (%mapcar-helper f lst '())))
+(set-symbol-value 'mapcar (%nlambda mapcar (f lst) (%mapcar-helper f lst '())))
 
 
 ;; ----------------------------------------

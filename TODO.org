@@ -480,7 +480,7 @@ https://www.youtube.com/watch?v=FJQmjhOvjUs&list=PL843D1D545F9F52B6&index=7
   (put a 'common-lisp-indent-function (get b 'common-lisp-indent-function))
 * DONE asm: inline lambdas where possible
 * DONE asm: remove the old analyser
-* TODO rework the definitions in boot/0 to be amenable to TL jump opts
+* DONE rework the definitions in boot/0 to be amenable to TL jump opts
   right now we special-case forms with `set-symbol-value` in the call position,
   not `set`
 * TODO rewrite meta `seq` to use `if` for failure?
@@ -506,6 +506,7 @@ https://www.infoq.com/presentations/ebtree-design/
 https://www.sandeepnambiar.com/setting-up-emacs-for-c++/
 * TODO snapshot tests for the new compiler
 * TODO see about reducing stack depth when compiling / running meta reader
+* TODO delete the handwritten meta readers from the image before dumping
 
 * notes
 maybe have a stack of compilers? can push/pop...

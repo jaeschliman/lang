@@ -23,7 +23,22 @@
                         (append3 b (car cs) (cdr cs)))
                     (cons (car a) (append3 (cdr a) b cs)))))
 
-(set 'append (%nlambda () args (append3 (car args) (car (cdr args)) (cdr (cdr args)))))
+(maybe-set '%reverse-append #f)
+(set '%reverse-append (%nlambda %reverse-append (rem acc)
+                             (if (nil? rem) acc
+                                 (%reverse-append
+                                  (cdr rem) (cons (car rem) acc)))))
+
+(set 'reverse-list (%nlambda reverse-list (lst) (%reverse-append lst '())))
+
+(set '%append2 (%nlambda %append2 (a b) (if (nil? b) a (%reverse-append (reverse-list a) b))))
+
+(maybe-set '%append3 #f)
+(set '%append3 (%nlambda %append3 (a b cs)
+                         (if (nil? cs) (%append2 a b)
+                             (%append3 (%append2 a b) (car cs) (cdr cs)))))
+
+(set 'append (%nlambda append args (%append3 (car args) (car (cdr args)) (cdr (cdr args)))))
 
 ;; ----------------------------------------
 ;;; nested quasiquote support
@@ -258,13 +273,6 @@
     (if (nil? rest)
         (list 'if test body)
         `(if ,test ,body (cond ,@rest)))))
-
-(define (reverse-list lst)
-    (let ((helper #f))
-      (set! helper (lambda (rem acc)
-                     (if (nil? rem) acc
-                         (helper (cdr rem) (cons (car rem) acc)))))
-      (helper lst '())))
 
 (define (reduce-list fn seed list)
     (let ((helper #f)

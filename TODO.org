@@ -455,8 +455,9 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   some auxilary data structure? point being it would be good to not
   scan all threads all the time
 * DONE asm: proper names and sourcelocations for %nlambda
-* IN-PROGRESS asm: optimize self tail calls into banging on args and a jump
-  need to properly handle special bindings still
+* DONE asm: optimize self tail calls into banging on args and a jump
+  +need to properly handle special bindings still+
+  since special bindings are mutex with tail calls, not a problem
 * TODO asm: provide compiler notes and warnings
 * DONE asm: optimize bindless lets
   no need to introduce a new scope
@@ -502,6 +503,7 @@ https://www.infoq.com/presentations/ebtree-design/
 * TODO rewrite `append` to not use up stack space
 * TODO better emacs setup
 https://www.sandeepnambiar.com/setting-up-emacs-for-c++/
+* TODO snapshot tests for the new compiler
 
 * notes
 maybe have a stack of compilers? can push/pop...

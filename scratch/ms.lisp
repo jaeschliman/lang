@@ -1,3 +1,5 @@
+(load-as "text" "./scratch/text.lisp")
+
 (define board-size 10)
 (define tile-size 75)
 
@@ -48,17 +50,26 @@
           (bit-or (ash r 16)
                   (bit-or (ash g 8) b))))
 
+(define %char-names (vector "0" "1" "2" "3" "4" "5" "6" "7" "8" "9"))
+
 (define (draw-board board)
   (dotimes (y board-size)
     (dotimes (x board-size)
-      (rect (+ 1 (* x tile-size))
-            (+ 1 (* y tile-size))
-            (- tile-size 2)
-            (- tile-size 2)
-            (let ((it (board-at board (make-point x y))))
+      (let ((it (board-at board (make-point x y)))
+            (left (* x tile-size))
+            (top (* y tile-size)))
+        (rect (+ 1 left)
+              (+ 1 top)
+              (- tile-size 2)
+              (- tile-size 2)
               (if (eq it -1)
                   (make-color 255 0 0 255)
-                  (make-color (+ 64 (* it (/ 192 10))) 64 64 255)))))))
+                  (make-color (+ 64 (* it (/ 192 10))) 64 64 255)))
+        (cond
+          ((eq it -1)
+           (text/draw-string buffer "X" (make-point left top) (- tile-size 4) 0.0))
+          ((not (eq it 0))
+           (text/draw-string buffer (aget %char-names it) (make-point left top) (- tile-size 4) 0.0)))))))
 
 (define (draw-moves moves)
   (dotimes (y board-size)

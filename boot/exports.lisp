@@ -2,6 +2,8 @@
   (let ((exports (mapcar (lambda (s) `(package-extern-symbol *package* ',s)) syms)))
     `(let () ,@exports)))
 
+(export load-as)
+
 (export apply let lambda let* define set-symbol-value binding set set!
         *package* defparameter symbol-package forward)
 

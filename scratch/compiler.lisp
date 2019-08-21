@@ -40,10 +40,10 @@
   PUSH_SPECIAL_BINDING
   POP_SPECIAL_BINDING)
 
-(at-boot (defparameter *trace-eval* #f))
-(at-boot (defparameter *enable-jump-opts* #t))
-(at-boot (defparameter *enable-inline-let-bound-lambdas* #t))
-(at-boot (defparameter *enable-inline-letrec-bound-lambdas* #t))
+(#/lang/at-boot (defparameter *trace-eval* #f))
+(#/lang/at-boot (defparameter *enable-jump-opts* #t))
+(#/lang/at-boot (defparameter *enable-inline-let-bound-lambdas* #t))
+(#/lang/at-boot (defparameter *enable-inline-letrec-bound-lambdas* #t))
 
 (defparameter *note-closed-over-vars* #f)
 
@@ -359,9 +359,9 @@
                (if (walk-if e walk))
                (set! (binding ((*being-set* #t)) (walk-form (second e) walk))
                      (walk-form (third e) walk))
-               (%letrec (walk-letrec e walk))
-               (%let (walk-let e walk))
-               (%nlambda (walk-lambda e walk was-in-call-position))
+               (#/lang/%letrec (walk-letrec e walk))
+               (#/lang/%let (walk-let e walk))
+               (#/lang/%nlambda (walk-lambda e walk was-in-call-position))
                (with-special-binding (binding ((*tail-position* #f)) (walk-body (cddr e) walk)))
                (#t (binding ((*in-call-position* #t)) (walk-form (car e) walk))
                    (dolist (e (cdr e)) (walk-form e walk)))))))))
@@ -419,7 +419,7 @@
 (define (%binding-is-inlineable-lambda? b)
   (let ((sym (first b)) (form (second b)))
     (and (pair? form)
-         (eq '%nlambda (car form))
+         (eq '#/lang/%nlambda (car form))
          ;; not varargs?
          (not (symbol? (car (cddr form))))
          ;; XXX hack not optional args?
@@ -767,7 +767,7 @@
 
 (define (call-is-inlineable-lambda? it env)
   (and (pair? (car it))
-       (eq (caar it) '%nlambda)))
+       (eq (caar it) '#/lang/%nlambda)))
 
 (define (call-is-to-inlined-lambda? it env)
   (and (symbol? (car it))

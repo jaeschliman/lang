@@ -1,6 +1,12 @@
 (define board-size 10)
 (define tile-size 75)
 
+(define buffer (make-image (* board-size tile-size) (* board-size tile-size)))
+(define screen-size (make-point (* board-size tile-size) (* board-size tile-size)))
+
+(define (clear-screen!) (fill-rect buffer 0@0 screen-size 0xffffffff))
+(define (flip-buffer!) (blit-to-screen buffer 0@0 100 0))
+
 (define board (make-array (* board-size board-size)))
 (define moves (make-array (* board-size board-size)))
 
@@ -33,7 +39,9 @@
 (place-mines board 15)
 
 (define (rect x y w h color)
-  (screen-fill-rect (make-point x y) (make-point w h) color))
+  (let ((a (make-point x y))
+        (b (make-point w h)))
+    (fill-rect buffer a (point+ a b) color)))
 
 (define (make-color r g b a)
   (bit-or (ash a 24)
@@ -45,8 +53,8 @@
     (dotimes (x board-size)
       (rect (+ 1 (* x tile-size))
             (+ 1 (* y tile-size))
-            (- (+ (* x tile-size) tile-size) 2)
-            (- (+ (* y tile-size) tile-size ) 2)
+            (- tile-size 2)
+            (- tile-size 2)
             (let ((it (board-at board (make-point x y))))
               (if (eq it -1)
                   (make-color 255 0 0 255)
@@ -58,13 +66,15 @@
       (when (eq 0 (board-at moves (make-point x y)))
         (rect (+ 1 (* x tile-size))
               (+ 1 (* y tile-size))
-              (- (+ (* x tile-size) tile-size) 2)
-              (- (+ (* y tile-size) tile-size ) 2)
+              (- tile-size 2)
+              (- tile-size 2)
               (make-color 128 128 128 255))))))
 
 (define (draw!)
+  (clear-screen!)
   (draw-board board)
-  (draw-moves moves))
+  (draw-moves moves)
+  (flip-buffer!))
 
 (define (flood-fill x y)
   (let ((p (make-point x y)))

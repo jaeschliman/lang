@@ -1,4 +1,5 @@
 (set '*package* (symbol-package 'define))
+(set '*package* (package-find-subpackage *package* "compiler"))
 
 (define hello-world (bytecode->closure
                      (with-output-to-bytecode ()

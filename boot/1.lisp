@@ -12,11 +12,11 @@
 (when #t
   ;; load the new compiler
   (let ((%l (lambda (f) (print `(loading file ,f)) (%load f)))) 
-    (%l "./scratch/compiler.lisp") 
+    (load-as "compiler" "./scratch/compiler.lisp") 
 
     ;; reload (almost) everything with the new compiler
     (binding ((*recompiling* #t) (*trace-eval* #f))
-      (%l "./scratch/compiler.lisp") ;; compiler, compile thyself
+      (load-as "compiler" "./scratch/compiler.lisp") ;; compiler, compile thyself
 
       ;; (%load  "./boot/built-in-classes.lisp")
       (%l  "./boot/0.lisp")

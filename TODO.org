@@ -473,7 +473,7 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
 http://stephane.ducasse.free.fr/FreeBooks/CollectiveNBlueBook/Rowledge-Final.pdf
 * TODO review of VMMaker from 2011
 https://www.youtube.com/watch?v=FJQmjhOvjUs&list=PL843D1D545F9F52B6&index=7
-* TODO load compiler in its own package
+* DONE load compiler in its own package
 * IN-PROGRESS emacs indentation support
   see defns below `common-lisp-indent-function`
   can copy indentation of existing form using

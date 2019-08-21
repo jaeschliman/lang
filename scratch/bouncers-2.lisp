@@ -1,8 +1,3 @@
-(set '#/lang/*note-closed-over-vars* #t)
-(set '#/lang/*enable-inline-let-bound-lambdas* #t)
-(set '#/lang/*enable-inline-letrec-bound-lambdas* #t)
-;; (set '#/lang/*trace-eval* #t)
-
 (defmacro sync (sem & body)
   `(let ()
      (semaphore-wait ,sem)

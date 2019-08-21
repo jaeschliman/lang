@@ -28,15 +28,19 @@
     (aset b (+ x (* y board-size)) v)))
 
 (define (place-mines board n)
-  (dotimes (_ n)
-    (let ((x (random board-size)) (y (random board-size)))
-      (board-at-put board (make-point x y) -1)
-      (dolist (dx '(-1 0 1))
-        (dolist (dy '(-1 0 1))
-          (let* ((p (make-point (+ x dx) (+ y dy)))
-                 (exist (if (in-bounds? p) (board-at board p) -1)))
-            (unless (eq exist -1)
-              (board-at-put board p (+ 1 exist)))))))))
+  (let loop ((n n))
+       (unless (eq n 0)
+         (let* ((x (random board-size)) (y (random board-size)) (p (make-point x y)))
+           (cond ((eq -1 (board-at board p)) (loop n)) ;; try again
+                 (#t 
+                  (board-at-put board p -1)
+                  (dolist (dx '(-1 0 1))
+                    (dolist (dy '(-1 0 1))
+                      (let* ((p (make-point (+ x dx) (+ y dy)))
+                             (exist (if (in-bounds? p) (board-at board p) -1)))
+                        (unless (eq exist -1)
+                          (board-at-put board p (+ 1 exist))))))
+                  (loop (- n 1))))))))
 
 (place-mines board 15)
 

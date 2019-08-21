@@ -508,6 +508,7 @@ https://www.sandeepnambiar.com/setting-up-emacs-for-c++/
 * TODO see about reducing stack depth when compiling / running meta reader
 * DONE delete the handwritten meta readers from the image before dumping
 * TODO function to delete hash table entries
+* TODO fill-rect-with-mask
 
 * notes
 maybe have a stack of compilers? can push/pop...

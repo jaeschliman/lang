@@ -1,9 +1,12 @@
-(define font (load-image "./res/charmap-futuristic_white.png"))
+(define font (load-image "./res/charmap-futuristic_black.png"))
 (define font-start 32)
 (define font-chars-per-row 18)
 (define font-char-width 7)
 (define font-char-height 9)
 (define font-char-size (make-point font-char-width font-char-height))
+
+(define fill-buffer (make-image 100 100))
+(fill-rect fill-buffer 0@0 100@100 0xffffffff)
 
 (define (blit-charcode-at output raw-code point scale rotation)
   (let* ((code (- raw-code font-start))
@@ -11,10 +14,10 @@
          (row (/ code font-chars-per-row))
          (origin (make-point (* col font-char-width)
                              (* row font-char-height))))
-    (blit
-     font output point
-     origin (point+ origin font-char-size)
-     scale rotation)))
+    (blit-with-mask
+     fill-buffer output font point
+     0@0 font-char-size scale rotation
+     origin (point+ origin font-char-size) scale rotation)))
 
 (defmacro %do-char-codes (binds & body)
   (let ((ch (gensym))

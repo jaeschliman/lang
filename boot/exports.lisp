@@ -43,7 +43,7 @@
  make-ht make-st ht-at ht-at-put)
 
 (export
- make-array aget aset array->list)
+ make-array aget aset array->list array-length)
 
 (export
  make-array-u16 aget-u16 aset-u16 array-length-u16)

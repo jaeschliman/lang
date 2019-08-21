@@ -72,10 +72,13 @@
 
 
 (define (load-as name path)
-    (let ((pkg (make-user-package "anon")))
-      (package-add-subpackage *package* pkg name)
-      (binding ((*package* pkg))
-        (%load path))))
+  (let ((exist (package-find-subpackage *package* name)))
+    (if (nil? exist)
+        (let ((pkg (make-user-package "anon")))
+          (package-add-subpackage *package* pkg name)
+          (binding ((*package* pkg))
+            (%load path)))
+        (binding ((*package* exist)) (%load path)))))
 
 (ht-at-put meta-by-name 'Meta '())
 (ht-at-put meta-by-name 'Lisp '())

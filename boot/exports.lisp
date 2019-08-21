@@ -37,7 +37,8 @@
  plist-get)
 
 (export
- car cdr caar cadr cdar cddr caaar caddr cdaar cdddr caaar caddr cdaar cdddr)
+ car cdr caar cadr cdar cddr caaar caadr cadar caddr cdaar cdadr cddar cdddr)
+
 
 (export
  make-ht make-st ht-at ht-at-put)

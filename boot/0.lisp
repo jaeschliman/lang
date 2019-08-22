@@ -166,21 +166,22 @@
        `(%nlambda () ,(car (cdr expr))
           ,@(mapcar macroexpand (cdr (cdr expr))) )))
 
-(set 'macroexpand
-     (%nlambda () (expr)
-       ;; (print `(expanding: ,expr))
-       (if (pair? expr)
-           (%let ((sym (car expr)))
-             (if (eq sym 'quote) expr
-                 (if (eq sym '%let) (mx-process-let expr)
-                     (if (eq sym '%letrec) (mx-process-letrec expr)
-                         (if (eq sym 'lambda) (mx-process-lambda expr)
-                             (%let ((expander (ht-at macro-functions sym)))
-                                   (if (not (nil? expander))
-                                       (%let ((expansion (expander expr)))
-                                             (macroexpand expansion))
-                                       (mapcar macroexpand expr))))))))
-           expr)))
+(if (not macroexpand)
+    (set 'macroexpand
+         (%nlambda () (expr)
+                   ;; (print `(expanding: ,expr))
+                   (if (pair? expr)
+                       (%let ((sym (car expr)))
+                         (if (eq sym 'quote) expr
+                             (if (eq sym '%let) (mx-process-let expr)
+                                 (if (eq sym '%letrec) (mx-process-letrec expr)
+                                     (if (eq sym 'lambda) (mx-process-lambda expr)
+                                         (%let ((expander (ht-at macro-functions sym)))
+                                           (if (not (nil? expander))
+                                               (%let ((expansion (expander expr)))
+                                                 (macroexpand expansion))
+                                               (mapcar macroexpand expr))))))))
+                       expr))))
 
 (set 'compiler (%nlambda () (expr) (macroexpand (qq-process expr))))
 (set 'quasiquote-expand qq-process)
@@ -188,11 +189,12 @@
 ;;; ----------------------------------------
 ;;; basic macros
 
-(set-macro-function
- 'lambda
- (%nlambda () (expr)
-           `(%nlambda () ,(car (cdr (cdr expr)))
-                      ,@(cdr (cdr (cdr expr))))))
+(if (nil? (ht-at macro-functions 'lambda))
+    (set-macro-function
+     'lambda
+     (%nlambda () (expr)
+               `(%nlambda () ,(car (cdr (cdr expr)))
+                          ,@(cdr (cdr (cdr expr)))))))
 
 ;; simple rewrite of let for now
 (if (nil? (ht-at macro-functions 'let))

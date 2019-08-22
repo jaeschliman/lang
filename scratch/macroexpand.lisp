@@ -77,17 +77,21 @@
 
 
 (define macroexpand %macroexpand)
+;; (define (macroexpand form)
+;;   (let ((r (%macroexpand form)))
+;;     (print `(+++> ,r))
+;;     r))
 
 ;; was previously handled in mx internals
 (defmacro lambda (args & body)
   `(#/lang/%nlambda () ,args ,@body))
 
-(set '*package* (symbol-package 'define))
-(binding ((*recompiling* #t))
-  (load-as "compiler" "./scratch/compiler.lisp"))
+;; (set '*package* (symbol-package 'define))
+;; (binding ((*recompiling* #t))
+;;   (load-as "compiler" "./scratch/compiler.lisp"))
 
-(print `(two plus two is ,(+ 2 2)))
+;; (print `(two plus two is ,(+ 2 2)))
 
-;; please don't do this
-(let ((lambda (lambda (x) (+ x x))))
- (print `(four plus four is ,(lambda 4))))
+;; ;; please don't do this
+;; (let ((lambda (lambda (x) (+ x x))))
+;;  (print `(four plus four is ,(lambda 4))))

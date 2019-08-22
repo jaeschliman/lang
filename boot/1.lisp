@@ -13,15 +13,16 @@
   ;; load the new compiler
   (let ((%l (lambda (f) (print `(loading file ,f)) (%load f)))) 
     (load-as "compiler" "./scratch/compiler.lisp") 
+    (load-as "macroexpand" "./scratch/macroexpand.lisp")
 
     ;; reload (almost) everything with the new compiler
     (binding ((*recompiling* #t) (*trace-eval* #f))
       (load-as "compiler" "./scratch/compiler.lisp") ;; compiler, compile thyself
 
       ;; (%load  "./boot/built-in-classes.lisp")
-      (%l  "./boot/0.lisp")
-      (%l  "./boot/0-package.lisp")
-      (%l  "./meta-reader/0-compiler.lisp")
+      (%l "./boot/0.lisp")
+      (%l "./boot/0-package.lisp")
+      (%l "./meta-reader/0-compiler.lisp")
       ;; no need to load the handwritten readers, as we've
       ;; already bootstrapped out of them
       ;; (%l"./meta-reader/1-lisp-handwritten.lisp")

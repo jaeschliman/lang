@@ -23,13 +23,13 @@
 
 (define (ensure-list it) (if (or (pair? it) (nil? it)) it (list it)))
 
-(define list-member? #f)
+(forward list-member?)
 (define (list-member? item lst)
     (if-nil? lst #f
              (or (eq (car lst) item)
                  (list-member? item (cdr lst)))))
 
-(define plist-get #f)
+(forward plist-get)
 (define (plist-get item lst)
     (if-nil? lst lst
              (if (eq item (car lst)) (cadr lst)

@@ -33,3 +33,4 @@
 
 (put 'binding 'common-lisp-indent-function (get 'let* 'common-lisp-indent-function))
 (put 'define 'common-lisp-indent-function (get 'let* 'common-lisp-indent-function))
+(put '%let 'common-lisp-indent-function (get 'let* 'common-lisp-indent-function))

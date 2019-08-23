@@ -57,6 +57,7 @@
 
 (define brush-scale 10)
 (define brush-spread 10)
+(define brush-density 4)
 
 (define boxes (queue/make))
 
@@ -149,7 +150,9 @@
     (#\[ (set 'brush-scale (-i brush-scale 2)))
     (#\] (set 'brush-scale (+i brush-scale 2)))
     (#\- (set 'brush-spread (-i brush-spread 2)))
-    (#\= (set 'brush-spread (+i brush-spread 2)))))
+    (#\= (set 'brush-spread (+i brush-spread 2)))
+    (#\o (set 'brush-density (-i brush-density 1)))
+    (#\p (set 'brush-density (+i brush-density 1)))))
 
 (define (onmousedrag p)
   (when (>f (distance p last-point) 15.0)
@@ -161,12 +164,9 @@
                                              (perturb-point (point+ p d))
                                              (car colors))
                                    bs)))))
-           (s brush-spread)
-           (-s (- 0 s)))
-      (add-p -s  0)
-      (add-p  s  0)
-      (add-p  0 -s)
-      (add-p  0  s)
+           (s (+i 1 (*i 2 brush-spread))))
+      (dotimes (_ brush-density)
+        (add-p (random-offset s) (random-offset s)))
       (queue/add boxes bs)
       (fork (forever (sleep-ms 15) (dolist (b bs) (move-box b))))
       (set 'last-point p))))

@@ -169,4 +169,7 @@
                            (screen-fill-rect 0@0 900@900 0x11888888)
                            (dolist (b boxes) (draw-box b))))
 
+(fork-with-priority 50 (forever (sleep-ms 2000)
+                                (print (thread-count))))
+
 (request-display 900 900)

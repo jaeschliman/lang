@@ -140,20 +140,28 @@
 
 (define (onmousedrag p)
   (when (>f (distance p last-point) 35.0)
-    (let ((add-p (lambda (dx dy)
-                   (let ((d (make-point dx dy)))
-                     (add-box (perturb-point (point+ last-point d))
-                              (perturb-point (point+ p d)))))))
+    (let* ((bs '())
+           (add-p (lambda (dx dy)
+                    (let ((d (make-point dx dy)))
+                      (set! bs (cons
+                                   (make-box (perturb-point (point+ last-point d))
+                                             (perturb-point (point+ p d))
+                                             (car colors))
+                                   bs))))))
       (add-p -10  0)
       (add-p  10  0)
       (add-p  0 -10)
       (add-p  0  10)
+      (set 'boxes (cons bs boxes))
+      (fork (forever (sleep-ms 15) (dolist (b bs) (move-box b))))
       (set 'last-point p))))
 
 (define (draw-box b)
-  (let ((p (make-point (f->i (aget b 2))
-                       (f->i (aget b 3)))))
-    (screen-fill-rect p (point+ p (make-point (aget b 10) (aget b 10))) (car (aget b 6)))))
+  (if (pair? b)
+      (dolist (b b) (draw-box b))
+      (let ((p (make-point (f->i (aget b 2))
+                           (f->i (aget b 3)))))
+        (screen-fill-rect p (point+ p (make-point (aget b 10) (aget b 10))) (car (aget b 6))))))
 
 
 (fork-with-priority 10000 (forever

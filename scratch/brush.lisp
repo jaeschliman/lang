@@ -58,6 +58,7 @@
 (define brush-scale 10)
 (define brush-spread 10)
 (define brush-density 4)
+(define brush-stroke-length 15.0)
 
 (define boxes (queue/make))
 
@@ -152,10 +153,12 @@
     (#\- (set 'brush-spread (-i brush-spread 2)))
     (#\= (set 'brush-spread (+i brush-spread 2)))
     (#\o (set 'brush-density (-i brush-density 1)))
-    (#\p (set 'brush-density (+i brush-density 1)))))
+    (#\p (set 'brush-density (+i brush-density 1)))
+    (#\k (set 'brush-stroke-length (-f brush-stroke-length 1.0)))
+    (#\l (set 'brush-stroke-length (+f brush-stroke-length 1.0)))))
 
 (define (onmousedrag p)
-  (when (>f (distance p last-point) 15.0)
+  (when (>f (distance p last-point) brush-stroke-length)
     (let* ((bs '())
            (add-p (lambda (dx dy)
                     (let ((d (make-point dx dy)))

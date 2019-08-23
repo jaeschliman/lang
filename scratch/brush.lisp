@@ -78,7 +78,7 @@
         (cons (/f (i->f x) (i->f m))
               (/f (i->f y) (i->f m))))))
 
-(define (make-box pa pb colors)
+(define (make-box pa pb scale colors)
   (let ((d (calc-delta pa pb)))
     (vector pa pb
             (i->f (point-x pa)) (i->f (point-y pa))
@@ -86,7 +86,7 @@
             colors
             pa pb
             colors
-            brush-scale)))
+            scale)))
 
 (define (near? af ai)
   (<f (abs (-f af (i->f ai))) 3.0))
@@ -129,7 +129,7 @@
           (aset b 6 (if (nil? (cdr c)) (aget b 9) (cdr c)))))))
 
 (define (add-box pa pb)
-  (let ((box (make-box pa pb (car colors))))
+  (let ((box (make-box pa pb brush-scale (car colors))))
     (set 'boxes (cons box boxes))
     (fork (forever (sleep-ms 15) (move-box box)))))
 
@@ -165,16 +165,18 @@
 (define (maybe-add-point p from symbol toggle-value)
   (when (>f (distance p from) brush-stroke-length)
     (let* ((bs '())
-           (add-p (lambda (dx dy)
+           (add-p (lambda (dx dy scale)
                     (let ((d (make-point dx dy)))
                       (set! bs (cons
                                 (make-box (perturb-point (point+ from d))
                                           (perturb-point (point+ p d))
+                                          scale
                                           (car colors))
                                 bs)))))
            (s (+i 1 (*i 2 brush-spread))))
       (dotimes (_ brush-density)
-        (add-p (random-offset s) (random-offset s)))
+        (add-p (random-offset s) (random-offset s)
+               (+i brush-scale (random-offset (-i brush-scale 1)))))
       (queue/add boxes bs)
       (fork (forever (sleep-ms 15) (dolist (b bs) (move-box b))))
       (set symbol p)

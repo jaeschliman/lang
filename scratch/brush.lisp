@@ -1,4 +1,10 @@
-(define colors '(0xffff0000 0xff00ff00 0xff0000ff))
+(define colors
+  '((0xffff0000 0xff00ff00 0xff0000ff)
+    (0xffff0000 0xff00ff00)
+    (0xff00ff00 0xff0000ff)
+    (0xffff0000 0xff0000ff)
+    (0xffffff00 0xff0000ff)
+    (0xff00ff00 0xff00ffff)))
 
 (define (mappend f as)
   (let loop ((as as) (f f) (acc '()))
@@ -27,19 +33,17 @@
                   (bit-or (blend-components 1 a b)
                           (blend-components 0 a b)))))
 
-(define (extend-rainbow!)
-  (set 'colors
-       (mappend (lambda (colors)
-                  (list (first colors)
-                        (proper-blend-colors (first colors) (second colors))
-                        (second colors)))
-                (list-to-pairs colors))))
+(define (extend-rainbow colors)
+  (mappend (lambda (colors)
+             (list (first colors)
+                   (proper-blend-colors (first colors) (second colors))
+                   (second colors)))
+           (list-to-pairs colors)))
 
-(extend-rainbow!)
-(extend-rainbow!)
-(extend-rainbow!)
-(extend-rainbow!)
-(extend-rainbow!)
+(define (stretch-colors colors)
+  (extend-rainbow (extend-rainbow (extend-rainbow (extend-rainbow (extend-rainbow colors))))))
+
+(set 'colors (mapcar stretch-colors colors))
 
 
 (define boxes '())
@@ -66,7 +70,8 @@
             (i->f (point-x pa)) (i->f (point-y pa))
             (car d) (cdr d)
             colors
-            pa pb)))
+            pa pb
+            colors)))
 
 (define (near? af ai)
   (<f (abs (-f af (i->f ai))) 3.0))
@@ -87,8 +92,8 @@
     (aset b 1 pb)
     (aset b 4 (car d))
     (aset b 5 (cdr d)))
-  (aset b 7 (perturb-point (aget b 7) 2))
-  (aset b 8 (perturb-point (aget b 8) 2))
+  (aset b 7 (perturb-point (aget b 7) 3))
+  (aset b 8 (perturb-point (aget b 8) 3))
   (let ((origin (aget b 0)))
     (aset b 2 (i->f (point-x origin)))
     (aset b 3 (i->f (point-y origin)))))
@@ -106,10 +111,10 @@
         (let ()
           (aset b 2 (+f x dx))
           (aset b 3 (+f y dy))
-          (aset b 6 (if (nil? (cdr c)) colors (cdr c)))))))
+          (aset b 6 (if (nil? (cdr c)) (aget b 9) (cdr c)))))))
 
 (define (add-box pa pb)
-  (let ((box (make-box pa pb colors)))
+  (let ((box (make-box pa pb (car colors))))
     (set 'boxes (cons box boxes))
     (fork (forever (sleep-ms 15) (move-box box)))))
 
@@ -140,6 +145,9 @@
   (let ((p (make-point (f->i (aget b 2))
                        (f->i (aget b 3)))))
     (screen-fill-rect p (point+ p 10@10) (car (aget b 6)))))
+
+(define (onkey e)
+  (set 'colors (if (nil? (cdr colors)) colors (cdr colors))))
 
 (fork-with-priority 10000 (forever
                            (sleep-ms 5)

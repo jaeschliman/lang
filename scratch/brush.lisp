@@ -108,8 +108,14 @@
 
 (define (onmousedrag p)
   (when (>f (distance p last-point) 15.0)
-    (add-box last-point p)
-    (set 'last-point p)))
+    (let ((add-p (lambda (dx dy)
+                   (let ((d (make-point dx dy)))
+                     (add-box (point+ last-point d) (point+ p d))))))
+      (add-p -10  0)
+      (add-p  10  0)
+      (add-p  0 -10)
+      (add-p  0  10)
+      (set 'last-point p))))
 
 (define (draw-box b)
   (let ((p (make-point (f->i (aget b 2))

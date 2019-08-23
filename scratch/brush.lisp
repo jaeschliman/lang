@@ -87,6 +87,8 @@
     (aset b 1 pb)
     (aset b 4 (car d))
     (aset b 5 (cdr d)))
+  (aset b 7 (perturb-point (aget b 7) 2))
+  (aset b 8 (perturb-point (aget b 8) 2))
   (let ((origin (aget b 0)))
     (aset b 2 (i->f (point-x origin)))
     (aset b 3 (i->f (point-y origin)))))

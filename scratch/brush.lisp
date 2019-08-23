@@ -45,6 +45,7 @@
 
 (set 'colors (mapcar stretch-colors colors))
 
+(define brush-scale 10)
 
 (define boxes '())
 
@@ -71,7 +72,8 @@
             (car d) (cdr d)
             colors
             pa pb
-            colors)))
+            colors
+            brush-scale)))
 
 (define (near? af ai)
   (<f (abs (-f af (i->f ai))) 3.0))
@@ -129,8 +131,15 @@
          (b (i->f (point-y d))))
     (sqrtf (+f (*f a a) (*f b b)))))
 
+(define (onkey k)
+  (print `(-> ,k))
+  (case k
+    (#\c (set 'colors (if (nil? (cdr colors)) colors (cdr colors))))
+    (#\[ (set 'brush-scale (-i brush-scale 2)))
+    (#\] (set 'brush-scale (+i brush-scale 2)))))
+
 (define (onmousedrag p)
-  (when (>f (distance p last-point) 15.0)
+  (when (>f (distance p last-point) 35.0)
     (let ((add-p (lambda (dx dy)
                    (let ((d (make-point dx dy)))
                      (add-box (perturb-point (point+ last-point d))
@@ -144,10 +153,8 @@
 (define (draw-box b)
   (let ((p (make-point (f->i (aget b 2))
                        (f->i (aget b 3)))))
-    (screen-fill-rect p (point+ p 10@10) (car (aget b 6)))))
+    (screen-fill-rect p (point+ p (make-point (aget b 10) (aget b 10))) (car (aget b 6)))))
 
-(define (onkey e)
-  (set 'colors (if (nil? (cdr colors)) colors (cdr colors))))
 
 (fork-with-priority 10000 (forever
                            (sleep-ms 5)

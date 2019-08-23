@@ -72,7 +72,7 @@
  with-output-to-string make-string-output-stream string-output-stream-get-string)
 
 (export
- char-code char-at char-code-at char-array->string)
+ char-code code-char char-at char-code-at char-array->string)
 
 (export
  *standard-output* stream-write-char stream-write-string print-object print)

@@ -515,6 +515,9 @@ https://www.sandeepnambiar.com/setting-up-emacs-for-c++/
 * TODO some way to consume rest args without consing
   could have a do-extra-args type macro or something
 * TODO tests, tests, tests
+* TODO since we don't have progv, we can statically compile special bindings
+  could reserve stack space for them just like temps.
+  -- but do we /want/ progv? (or similar)
 
 * notes
 maybe have a stack of compilers? can push/pop...

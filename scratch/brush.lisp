@@ -1,3 +1,5 @@
+(load-as "queue" "./scratch/queue.lisp")
+
 (define colors
   '((0xffff0000 0xff00ff00 0xff0000ff)
     (0xffff0000 0xff00ff00)
@@ -48,7 +50,7 @@
 (define brush-scale 10)
 (define brush-spread 10)
 
-(define boxes '())
+(define boxes (queue/make))
 
 (define (min a b)
   (if (<i a b) a b))
@@ -157,7 +159,8 @@
       (add-p  s  0)
       (add-p  0 -s)
       (add-p  0  s)
-      (set 'boxes (cons bs boxes))
+      (queue/add boxes bs)
+      ;; (set 'boxes (cons bs boxes))
       (fork (forever (sleep-ms 15) (dolist (b bs) (move-box b))))
       (set 'last-point p))))
 
@@ -172,7 +175,7 @@
 (fork-with-priority 10000 (forever
                            (sleep-ms 5)
                            (screen-fill-rect 0@0 900@900 0x11888888)
-                           (dolist (b boxes) (draw-box b))))
+                           (queue/doq (b boxes) (draw-box b))))
 
 (fork-with-priority 50 (forever (sleep-ms 2000)
                                 (print (thread-count))))

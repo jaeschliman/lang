@@ -134,9 +134,13 @@
     (fork (forever (sleep-ms 15) (move-box box)))))
 
 (define last-point '())
+(define last-last-point '())
+(define toggle #t)
 
 (define (onmousedown p)
-  (set 'last-point p))
+  (set 'last-point p)
+  (set 'last-last-point p) ;; FIXME: would be better to start this at an offset
+  (set 'toggle #t))
 
 (define (distance pa pb)
   (let* ((d (point- pa pb))
@@ -157,22 +161,29 @@
     (#\k (set 'brush-stroke-length (-f brush-stroke-length 1.0)))
     (#\l (set 'brush-stroke-length (+f brush-stroke-length 1.0)))))
 
-(define (onmousedrag p)
-  (when (>f (distance p last-point) brush-stroke-length)
+
+(define (maybe-add-point p from symbol toggle-value)
+  (when (>f (distance p from) brush-stroke-length)
     (let* ((bs '())
            (add-p (lambda (dx dy)
                     (let ((d (make-point dx dy)))
                       (set! bs (cons
-                                   (make-box (perturb-point (point+ last-point d))
-                                             (perturb-point (point+ p d))
-                                             (car colors))
-                                   bs)))))
+                                (make-box (perturb-point (point+ from d))
+                                          (perturb-point (point+ p d))
+                                          (car colors))
+                                bs)))))
            (s (+i 1 (*i 2 brush-spread))))
       (dotimes (_ brush-density)
         (add-p (random-offset s) (random-offset s)))
       (queue/add boxes bs)
       (fork (forever (sleep-ms 15) (dolist (b bs) (move-box b))))
-      (set 'last-point p))))
+      (set symbol p)
+      (set 'toggle toggle-value))))
+
+(define (onmousedrag p)
+  (if toggle
+      (maybe-add-point p last-point 'last-point #f)
+      (maybe-add-point p last-last-point 'last-last-point #t)))
 
 (define (draw-box b)
   (if (pair? b)

@@ -46,6 +46,7 @@
 (set 'colors (mapcar stretch-colors colors))
 
 (define brush-scale 10)
+(define brush-spread 10)
 
 (define boxes '())
 
@@ -136,7 +137,9 @@
   (case k
     (#\c (set 'colors (if (nil? (cdr colors)) colors (cdr colors))))
     (#\[ (set 'brush-scale (-i brush-scale 2)))
-    (#\] (set 'brush-scale (+i brush-scale 2)))))
+    (#\] (set 'brush-scale (+i brush-scale 2)))
+    (#\- (set 'brush-spread (-i brush-spread 2)))
+    (#\= (set 'brush-spread (+i brush-spread 2)))))
 
 (define (onmousedrag p)
   (when (>f (distance p last-point) 15.0)
@@ -147,11 +150,13 @@
                                    (make-box (perturb-point (point+ last-point d))
                                              (perturb-point (point+ p d))
                                              (car colors))
-                                   bs))))))
-      (add-p -10  0)
-      (add-p  10  0)
-      (add-p  0 -10)
-      (add-p  0  10)
+                                   bs)))))
+           (s brush-spread)
+           (-s (- 0 s)))
+      (add-p -s  0)
+      (add-p  s  0)
+      (add-p  0 -s)
+      (add-p  0  s)
       (set 'boxes (cons bs boxes))
       (fork (forever (sleep-ms 15) (dolist (b bs) (move-box b))))
       (set 'last-point p))))

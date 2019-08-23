@@ -1,29 +1,3 @@
-
-(define boxes '())
-
-(define (min a b)
-  (if (<i a b) a b))
-
-(define (sign-f i)
-  (if (<i i 0) -0.5 0.5))
-
-(define (calc-delta pa pb)
-  (let* ((d (point- pb pa))
-         (x (point-x d))
-         (y (point-y d))
-         (m (* 3 (min (abs x) (abs y)))))
-    (if (eq 0 m)
-        (if (>i (abs x) (abs y)) (cons (sign-f x) 0.0) (cons 0.0 (sign-f y)))
-        (cons (/f (i->f x) (i->f m))
-              (/f (i->f y) (i->f m))))))
-
-(define (make-box pa pb colors)
-  (let ((d (calc-delta pa pb)))
-    (vector pa pb
-            (i->f (point-x pa)) (i->f (point-y pa))
-            (car d) (cdr d)
-            colors)))
-
 (define colors '(0xffff0000 0xff00ff00 0xff0000ff))
 
 (define (mappend f as)
@@ -67,10 +41,52 @@
 (extend-rainbow!)
 (extend-rainbow!)
 
+
+(define boxes '())
+
+(define (min a b)
+  (if (<i a b) a b))
+
+(define (sign-f i)
+  (if (<i i 0) -0.5 0.5))
+
+(define (calc-delta pa pb)
+  (let* ((d (point- pb pa))
+         (x (point-x d))
+         (y (point-y d))
+         (m (* 3 (min (abs x) (abs y)))))
+    (if (eq 0 m)
+        (if (>i (abs x) (abs y)) (cons (sign-f x) 0.0) (cons 0.0 (sign-f y)))
+        (cons (/f (i->f x) (i->f m))
+              (/f (i->f y) (i->f m))))))
+
+(define (make-box pa pb colors)
+  (let ((d (calc-delta pa pb)))
+    (vector pa pb
+            (i->f (point-x pa)) (i->f (point-y pa))
+            (car d) (cdr d)
+            colors
+            pa pb)))
+
 (define (near? af ai)
   (<f (abs (-f af (i->f ai))) 3.0))
 
+(define (random-offset n)
+  (+i (*i -1 (/i n 2)) (random n)))
+
+(define (perturb-point p)
+  (let ((x (+i (point-x p) (random-offset 6)))
+        (y (+i (point-y p) (random-offset 6))))
+    (make-point x y)))
+
 (define (reset-box b)
+  (let* ((pa (perturb-point (aget b 7)))
+         (pb (perturb-point (aget b 8)))
+         (d  (calc-delta pa pb)))
+    (aset b 0 pa)
+    (aset b 1 pb)
+    (aset b 4 (car d))
+    (aset b 5 (cdr d)))
   (let ((origin (aget b 0)))
     (aset b 2 (i->f (point-x origin)))
     (aset b 3 (i->f (point-y origin)))))
@@ -110,7 +126,8 @@
   (when (>f (distance p last-point) 15.0)
     (let ((add-p (lambda (dx dy)
                    (let ((d (make-point dx dy)))
-                     (add-box (point+ last-point d) (point+ p d))))))
+                     (add-box (perturb-point (point+ last-point d))
+                              (perturb-point (point+ p d)))))))
       (add-p -10  0)
       (add-p  10  0)
       (add-p  0 -10)

@@ -1,5 +1,13 @@
 (load-as "queue" "./scratch/queue.lisp")
 
+(define screen-width 900)
+(define screen-height 900)
+(define screen-size (make-point screen-width screen-height))
+
+
+(define buffer (make-image screen-width screen-height))
+(fill-rect buffer 0@0 screen-size 0xff888888)
+
 (define colors
   '((0xffff0000 0xff00ff00 0xff0000ff)
     (0xffff0000 0xff00ff00)
@@ -160,7 +168,6 @@
       (add-p  0 -s)
       (add-p  0  s)
       (queue/add boxes bs)
-      ;; (set 'boxes (cons bs boxes))
       (fork (forever (sleep-ms 15) (dolist (b bs) (move-box b))))
       (set 'last-point p))))
 
@@ -169,15 +176,16 @@
       (dolist (b b) (draw-box b))
       (let ((p (make-point (f->i (aget b 2))
                            (f->i (aget b 3)))))
-        (screen-fill-rect p (point+ p (make-point (aget b 10) (aget b 10))) (car (aget b 6))))))
+        (fill-rect buffer p (point+ p (make-point (aget b 10) (aget b 10))) (car (aget b 6))))))
 
 
 (fork-with-priority 10000 (forever
                            (sleep-ms 5)
-                           (screen-fill-rect 0@0 900@900 0x11888888)
-                           (queue/doq (b boxes) (draw-box b))))
+                           (fill-rect buffer 0@0 screen-size 0x11888888)
+                           (queue/doq (b boxes) (draw-box b))
+                           (blit-to-screen buffer 0@0 100 0)))
 
 (fork-with-priority 50 (forever (sleep-ms 2000)
                                 (print (thread-count))))
 
-(request-display 900 900)
+(request-display screen-width screen-height)

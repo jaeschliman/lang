@@ -74,14 +74,14 @@
 (define (random-offset n)
   (+i (*i -1 (/i n 2)) (random n)))
 
-(define (perturb-point p)
-  (let ((x (+i (point-x p) (random-offset 6)))
-        (y (+i (point-y p) (random-offset 6))))
+(define (perturb-point p &opt (amt 6))
+  (let ((x (+i (point-x p) (random-offset amt)))
+        (y (+i (point-y p) (random-offset amt))))
     (make-point x y)))
 
 (define (reset-box b)
-  (let* ((pa (perturb-point (aget b 7)))
-         (pb (perturb-point (aget b 8)))
+  (let* ((pa (perturb-point (aget b 7) 22))
+         (pb (perturb-point (aget b 8) 22))
          (d  (calc-delta pa pb)))
     (aset b 0 pa)
     (aset b 1 pb)
@@ -141,7 +141,7 @@
 
 (fork (forever
        (sleep-ms 5)
-       (screen-fill-rect 0@0 900@900 0x11ffffff)
+       (screen-fill-rect 0@0 900@900 0x11888888)
        (dolist (b boxes) (draw-box b))))
 
 (request-display 900 900)

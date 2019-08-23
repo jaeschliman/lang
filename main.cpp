@@ -7501,8 +7501,8 @@ void run_event_loop_with_display(VM *vm, int w, int h, bool from_image = false) 
       switch (event.type) {
       case SDL_QUIT: running = false; break;
       case SDL_KEYDOWN : {
-        auto key = event.key.keysym.scancode;
-        Ptr num = to(Fixnum, key);
+        char key = event.key.keysym.sym;
+        Ptr num = to(Char, key);
         vm_poke_event(vm, pending_events, event_ready_semaphore, onkey, num);
         break;
       }

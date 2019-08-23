@@ -139,9 +139,9 @@
                        (f->i (aget b 3)))))
     (screen-fill-rect p (point+ p 10@10) (car (aget b 6)))))
 
-(fork (forever
-       (sleep-ms 5)
-       (screen-fill-rect 0@0 900@900 0x11888888)
-       (dolist (b boxes) (draw-box b))))
+(fork-with-priority 10000 (forever
+                           (sleep-ms 5)
+                           (screen-fill-rect 0@0 900@900 0x11888888)
+                           (dolist (b boxes) (draw-box b))))
 
 (request-display 900 900)

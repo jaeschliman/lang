@@ -55,9 +55,9 @@
 
 (set 'colors (mapcar stretch-colors colors))
 
-(define brush-scale 10)
+(define brush-scale 4)
 (define brush-spread 10)
-(define brush-density 4)
+(define brush-density 6)
 (define brush-stroke-length 25.0)
 
 (define boxes (queue/make))

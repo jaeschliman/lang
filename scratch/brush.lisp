@@ -139,7 +139,7 @@
     (#\] (set 'brush-scale (+i brush-scale 2)))))
 
 (define (onmousedrag p)
-  (when (>f (distance p last-point) 35.0)
+  (when (>f (distance p last-point) 15.0)
     (let* ((bs '())
            (add-p (lambda (dx dy)
                     (let ((d (make-point dx dy)))

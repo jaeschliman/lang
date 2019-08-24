@@ -17,6 +17,8 @@
     (0xffffff00 0xff0000ff)
     (0xff00ff00 0xff00ffff)))
 
+(define picked-colors '())
+
 (define (mappend f as)
   (let loop ((as as) (f f) (acc '()))
        (if (nil? as) (reverse-list acc)
@@ -166,7 +168,7 @@
 (define (onkey k)
   (print `(-> ,k))
   (case k
-    (#\c (set 'colors '()))
+    (#\c (set 'picked-colors '()))
     (#\[ (set 'brush-scale (-i brush-scale 2)))
     (#\] (set 'brush-scale (+i brush-scale 2)))
     (#\- (set 'brush-spread (-i brush-spread 2)))
@@ -222,10 +224,10 @@
     0xffffffff 0xff888888 0xffaaaaaa 0xffdddddd
     0xff000000 0xff880000 0xffaa0000 0xffdd0000))
 
-(define picked-colors '())
-
 (define (update-color-from-widget w p)
   (let ((color (w/wget w :color)))
+    (binding ((#/lang/*print-base* 16))
+      (print `(--> ,color)))
     (set 'picked-colors (cons color picked-colors))
     (set 'colors (list (stretch-colors picked-colors)))))
 

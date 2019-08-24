@@ -59,11 +59,20 @@
 (define brush-spread 10)
 (define brush-density 6)
 (define brush-stroke-length 25.0)
+(define travel-speed (*f 2.0 brush-stroke-length))
 
 (define boxes (queue/make))
 
-(define (min a b)
-  (if (<i a b) a b))
+(define (distance pa pb)
+  (let* ((d (point- pa pb))
+         (a (i->f (point-x d)))
+         (b (i->f (point-y d))))
+    (sqrtf (+f (*f a a) (*f b b)))))
+
+(define (min a b) (if (<i a b) a b))
+(define (max a b) (if (<i a b) b a))
+(define (minf a b) (if (<f a b) a b))
+(define (maxf a b) (if (<f a b) b a))
 
 (define (sign-f i)
   (if (<i i 0) -0.5 0.5))
@@ -72,11 +81,12 @@
   (let* ((d (point- pb pa))
          (x (point-x d))
          (y (point-y d))
-         (m (* 3 (min (abs x) (abs y)))))
+         (m (* 3 (min (abs x) (abs y))))
+         (dist (/f travel-speed (distance pa pb))))
     (if (eq 0 m)
-        (if (>i (abs x) (abs y)) (cons (sign-f x) 0.0) (cons 0.0 (sign-f y)))
-        (cons (/f (i->f x) (i->f m))
-              (/f (i->f y) (i->f m))))))
+        (if (>i (abs x) (abs y)) (cons (*f dist (sign-f x)) 0.0) (cons 0.0 (*f dist (sign-f y))))
+        (cons (*f dist (/f (i->f x) (i->f m)))
+              (*f dist (/f (i->f y) (i->f m)))))))
 
 (define (make-box pa pb scale colors)
   (let ((d (calc-delta pa pb)))
@@ -88,8 +98,8 @@
             colors
             scale)))
 
-(define (near? af ai)
-  (<f (abs (-f af (i->f ai))) 3.0))
+(define (near? af ai slackf)
+  (<f (abs (-f af (i->f ai))) (maxf (abs slackf) 1.0)))
 
 (define (random-offset n)
   (+i (*i -1 (/i n 2)) (random n)))
@@ -120,8 +130,8 @@
         (y  (aget b 3))
         (c  (aget b 6))
         (dest (aget b 1)))
-    (if (and (near? x (point-x dest))
-             (near? y (point-y dest)))
+    (if (and (near? x (point-x dest) (*f 3.0 dx))
+             (near? y (point-y dest) (*f 3.0 dy)))
         (reset-box b)
         (let ()
           (aset b 2 (+f x dx))
@@ -141,12 +151,6 @@
   (set 'last-point p)
   (set 'last-last-point p) ;; FIXME: would be better to start this at an offset
   (set 'toggle #t))
-
-(define (distance pa pb)
-  (let* ((d (point- pa pb))
-         (a (i->f (point-x d)))
-         (b (i->f (point-y d))))
-    (sqrtf (+f (*f a a) (*f b b)))))
 
 (define (onkey k)
   (print `(-> ,k))

@@ -154,9 +154,10 @@
 (define show-drawer #f)
 
 (define (onmousemove p)
-  (if (<i (point-x p) 200)
-      (set 'show-drawer #t)
-      (set 'show-drawer #f)))
+  (when (<i (point-x p) 20)
+    (set 'show-drawer #t))
+  (when (>i (point-x p) 200)
+    (set 'show-drawer #f)))
 
 (define (onmousedown p)
   (if (and show-drawer (<i (point-x p) 200))

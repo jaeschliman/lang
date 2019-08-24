@@ -55,7 +55,7 @@
   (not (or (<i (point-x p) (point-x *translation*))
            (<i (point-y p) (point-y *translation*))
            (>i (point-x p) (point-x (point+ (wget *widget* :size) *translation*)))
-           (>i (point-x p) (point-x (point+ (wget *widget* :size) *translation*))))))
+           (>i (point-y p) (point-y (point+ (wget *widget* :size) *translation*))))))
 
 (define (accept-click w p)
   (with-widget (w)

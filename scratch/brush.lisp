@@ -148,6 +148,7 @@
 (define last-last-point '())
 (define toggle #t)
 
+(define root-widget (w/make-root 200 screen-height))
 (define show-drawer #f)
 
 (define (onmousemove p)
@@ -156,6 +157,8 @@
       (set 'show-drawer #f)))
 
 (define (onmousedown p)
+  (if (and show-drawer (<i (point-x p) 200))
+      (w/accept-click root-widget p))
   (set 'last-point p)
   (set 'last-last-point p) ;; FIXME: would be better to start this at an offset
   (set 'toggle #t))
@@ -163,7 +166,7 @@
 (define (onkey k)
   (print `(-> ,k))
   (case k
-    (#\c (set 'colors (if (nil? (cdr colors)) colors (cdr colors))))
+    (#\c (set 'colors '()))
     (#\[ (set 'brush-scale (-i brush-scale 2)))
     (#\] (set 'brush-scale (+i brush-scale 2)))
     (#\- (set 'brush-spread (-i brush-spread 2)))
@@ -206,8 +209,6 @@
                            (f->i (aget b 3)))))
         (fill-rect buffer p (point+ p (make-point (aget b 10) (aget b 10))) (car (aget b 6))))))
 
-
-(define root-widget (w/make-root 200 screen-height))
 (define tray (w/make-rect 0 0 200 screen-height 0xffffffff))
 (w/add-kid root-widget tray)
 
@@ -221,10 +222,17 @@
     0xffffffff 0xff888888 0xffaaaaaa 0xffdddddd
     0xff000000 0xff880000 0xffaa0000 0xffdd0000))
 
+(define picked-colors '())
+
+(define (update-color-from-widget w p)
+  (let ((color (w/wget w :color)))
+    (set 'picked-colors (cons color picked-colors))
+    (set 'colors (list (stretch-colors picked-colors)))))
+
 (let ((colors rainbow-colors)
       (x 3) (y 50) (idx 0))
   (dolist (c colors)
-    (w/add-kid tray (w/make-rect (+ x 3) (+ y 3) 30 30 c))
+    (w/add-kid tray (w/make-rect (+ x 3) (+ y 3) 30 30 c update-color-from-widget))
     (set! idx (+ 1 idx))
     (if (eq 0 (% idx 5))
         (let ()

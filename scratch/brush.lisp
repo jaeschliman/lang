@@ -215,15 +215,17 @@
 (define tray (w/make-rect 0 0 200 screen-height 0xffffffff))
 (w/add-kid root-widget tray)
 
-(define rainbow-colors
-  '(0xffff0000 0xffff8800 0xffffaa00 0xffffdd00
-    0xffffff00 0xff88ff00 0xffaaff00 0xffddff00
-    0xff00ff00 0xff00ff88 0xff00ffaa 0xff00ffdd
-    0xff00ffff 0xff0088ff 0xff00aaff 0xff00ddff
-    0xff0000ff 0xff8800ff 0xffaa00ff 0xffdd00ff
-    0xffff00ff 0xffff88ff 0xffffaaff 0xffffddff
-    0xffffffff 0xff888888 0xffaaaaaa 0xffdddddd
-    0xff000000 0xff880000 0xffaa0000 0xffdd0000))
+(define (make-color r g b a)
+  (bit-or (ash a 24)
+          (bit-or (ash r 16)
+                  (bit-or (ash g 8) b))))
+(define picker-colors '())
+
+(let ((comps '(0xff 0xdd 0xaa 0x88 0x44 0x00)))
+  (dolist (g comps)
+    (dolist (b comps)
+      (dolist (r comps)
+        (set 'picker-colors (cons (make-color r g b 0xff) picker-colors))))))
 
 (define (update-color-from-widget w p)
   (let ((color (w/wget w :color)))
@@ -232,16 +234,19 @@
     (set 'picked-colors (cons color picked-colors))
     (set 'colors (list (stretch-colors picked-colors)))))
 
-(let ((colors rainbow-colors)
-      (x 3) (y 50) (idx 0))
+(let* ((colors picker-colors)
+      (x 3) (y 50) (idx 0)
+       (size 14)
+       (margin 1)
+       (with-margin (+ size (* 2 margin))))
   (dolist (c colors)
-    (w/add-kid tray (w/make-rect (+ x 3) (+ y 3) 30 30 c update-color-from-widget))
+    (w/add-kid tray (w/make-rect (+ x margin) (+ y margin) size size c update-color-from-widget))
     (set! idx (+ 1 idx))
-    (if (eq 0 (% idx 5))
+    (if (eq 0 (% idx 12))
         (let ()
-          (set! y (+ y 36))
+          (set! y (+ y with-margin))
           (set! x 3))
-        (set! x (+ x 36)))))
+        (set! x (+ x with-margin)))))
 
 (fork-with-priority 10000 (forever
                            (sleep-ms 5)

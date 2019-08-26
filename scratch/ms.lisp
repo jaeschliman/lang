@@ -98,6 +98,8 @@
             (val  (board-at board p)))
         (unless (or (eq move 1) (eq val -1))
           (board-at-put moves p 1)
+          (draw!)
+          (sleep-ms 10)
           (when (eq val 0)
             (flood-fill (+ x  1) (+ y  0))
             (flood-fill (+ x -1) (+ y  0))
@@ -118,7 +120,7 @@
          (val  (board-at board here)))
     (cond
       ((eq val -1) (print "YOU LOSE"))
-      (#t (flood-fill x y))))
+      (#t (fork (flood-fill x y)))))
   (when (won?) (print "YOU WIN"))
   (draw!))
 

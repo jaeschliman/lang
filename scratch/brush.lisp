@@ -235,7 +235,7 @@
     (set 'colors (list (stretch-colors picked-colors)))))
 
 (let* ((colors picker-colors)
-      (x 3) (y 50) (idx 0)
+       (x 3) (y 50) (idx 0)
        (size 14)
        (margin 1)
        (with-margin (+ size (* 2 margin))))

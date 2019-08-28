@@ -14,9 +14,8 @@
          (row (/ code font-chars-per-row))
          (origin (make-point (* col font-char-width)
                              (* row font-char-height))))
-    (blit-with-mask
-     fill-buffer output font point
-     0@0 font-char-size scale rotation
+    (fill-rect-with-mask
+     0xffff0000 output font point font-char-size scale rotation
      origin (point+ origin font-char-size) scale rotation)))
 
 (defmacro %do-char-codes (binds & body)

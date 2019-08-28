@@ -86,7 +86,8 @@
  onmousemove onmousedown onmousedrag onkey onshow request-display)
 
 (export
- make-image load-image image-width image-height blit-to-screen screen-fill-rect fill-rect)
+ make-image load-image image-width image-height blit-to-screen screen-fill-rect fill-rect
+ fill-rect-with-mask)
 
 (export blit blitq blit-with-mask)
 

@@ -346,6 +346,16 @@ void initialize_primitive_functions(VM *vm) {
   points_to_rect(msk_ul, msk_lr), msk_scale, msk_rot
 )")
 
+  (prim fill-rect-with-mask FIL_M
+        ((color Fixnum) (dst Image) (msk Image)
+         (src_ul Point) (src_lr Point) (src_scale Float) (src_rot Float)
+         (msk_ul Point) (msk_lr Point) (msk_scale Float) (msk_rot Float))
+        any
+        "gfx_fill_rect_with_mask(color, dst, msk,
+  points_to_rect(src_ul, src_lr), src_scale, src_rot,
+  points_to_rect(msk_ul, msk_lr), msk_scale, msk_rot
+)")
+
   (prim blit-from-screen BLT_FR_SCRN
         ((dst Image) (at Point) (ul Point) (lr Point)
          (scale Float) (degrees_rotation Float))

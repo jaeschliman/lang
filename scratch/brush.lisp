@@ -5,6 +5,10 @@
 (define screen-height 900)
 (define screen-size (make-point screen-width screen-height))
 
+(define brush-image (load-image "./res/brush0.png"))
+(define brush-w (image-width brush-image))
+(define brush-h (image-width brush-image))
+
 
 (define buffer (make-image screen-width screen-height))
 (fill-rect buffer 0@0 screen-size 0xff888888)
@@ -177,7 +181,8 @@
     (#\o (set 'brush-density (-i brush-density 1)))
     (#\p (set 'brush-density (+i brush-density 1)))
     (#\k (set 'brush-stroke-length (-f brush-stroke-length 1.0)))
-    (#\l (set 'brush-stroke-length (+f brush-stroke-length 1.0)))))
+    (#\l (set 'brush-stroke-length (+f brush-stroke-length 1.0)))
+    (#\i (set 'brush-image-fill (not brush-image-fill)))))
 
 
 (define (maybe-add-point p from symbol toggle-value)
@@ -205,12 +210,22 @@
       (maybe-add-point p last-point 'last-point #f)
       (maybe-add-point p last-last-point 'last-last-point #t)))
 
+(define brush-image-fill #f)
+
 (define (draw-box b)
   (if (pair? b)
       (dolist (b b) (draw-box b))
-      (let ((p (make-point (f->i (aget b 2))
-                           (f->i (aget b 3)))))
-        (fill-rect buffer p (point+ p (make-point (aget b 10) (aget b 10))) (car (aget b 6))))))
+      (let* ((p (make-point (f->i (aget b 2))
+                            (f->i (aget b 3))))
+             (size (aget b 10))
+             (scale (/f (i->f size) (i->f brush-w))))
+        (if brush-image-fill
+            (fill-rect-with-mask
+             (car (aget b 6))
+             buffer brush-image
+             p (make-point brush-w brush-h) scale 0.0
+             0@0 (make-point brush-w brush-h) scale 0.0)
+            (fill-rect buffer p (point+ p (make-point (aget b 10) (aget b 10))) (car (aget b 6)))))))
 
 (define tray (w/make-rect 0 0 200 screen-height 0xffffffff))
 (w/add-kid root-widget tray)

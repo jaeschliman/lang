@@ -223,7 +223,7 @@
             (fill-rect-with-mask
              (car (aget b 6))
              buffer brush-image
-             p (make-point brush-w brush-h) scale 0.0
+             p (make-point size size) 1.0 0.0
              0@0 (make-point brush-w brush-h) scale 0.0)
             (fill-rect buffer p (point+ p (make-point (aget b 10) (aget b 10))) (car (aget b 6)))))))
 

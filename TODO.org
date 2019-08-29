@@ -519,6 +519,7 @@ https://www.sandeepnambiar.com/setting-up-emacs-for-c++/
   could reserve stack space for them just like temps.
   -- but do we /want/ progv? (or similar)
 * TODO sws: some kind of labeled slider
+* TODO `fill-rect-with-mask` needs a better interface...
 
 * notes
 maybe have a stack of compilers? can push/pop...

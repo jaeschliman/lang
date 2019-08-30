@@ -21,7 +21,7 @@
       (set 'items (cons (cons sul dul) items)))))
 
 (define (draw!)
-    (blit crowd back-buffer 0@0 0@0 500@500 (* 2 (/ 800.0 500.0)) 0.0)
+    (blit crowd back-buffer 0@0 0@0 500@500 (* 2 (/ 800.0 500.0)) 0.0 0xffffffff)
     (dolist (pair items)
       (let ((sul (car pair))
             (dul (cdr pair)))

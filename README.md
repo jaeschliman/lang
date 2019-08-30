@@ -1,0 +1,30 @@
+#### brief overview
+- inspired by Common Lisp, Scheme, SmallTalk, Erlang, work from VPRI
+- base language is a lisp-1 with syntax for defining peg-like grammars (OMeta inspired)
+- TCO, delimited continuations, exceptions, green threads, objects (no inheritance yet)
+- tagged pointers, with 4 tag bits. room for many primitive types.
+- booleans, 60-bit fixnums, 32-bit floats, utf-8 characters, 30-bit integer points, all immediate
+- VM and primitive functions written in C++
+- simple cheney-style GC written in C++
+- simple reader and compiler written in C++ for bootstrapping
+- reader and compiler written in the languge itself, loaded as part of boot
+- would like to eventually shrink the C++ portion of the project as much as possible
+- would like to eventaually have exception handling/signalling as in CL / SmallTalk
+- lexical and dynamic binding
+- basic built-in graphics and interaction support, using SDL
+- save and restore heap snapshots
+- basic eval-from-emacs support
+- bootstrapped compiler does some basic lambda inlining for efficient loops etc
+- [the bootstrapped lisp reader](meta-reader/meta-lisp-reader.lisp)
+- [the bootstrapped 'meta' reader](meta-reader/meta-meta-reader.lisp)
+- [the bootstrapped compiler](scratch/compiler.lisp)
+- [the bootstrapped macroexpander](scratch/macroexpand.lisp)
+- very little in the way debugging facilities. just recently got userspace stacktraces.
+- project structure is currently organized for ease of hacking. will evolve as things settle down
+- med-term goal is a small and simple kernel running a family of flexible dynamic languages.
+- long-term goal is some statically-typed languages as well, and a GUI system, and debugger.
+- will eventually add support for hardware-accelerated graphics.
+- [start of a SmallTalk-like, 'chit-chat'](scratch/chit-chat.lisp)
+- [start of the chitchat compiler](scratch/chit-chat.compiler.lisp)
+- `scratch` dir contains many little experiments. it is the main WIP folder
+- [TODO.org](TODO.org) is where work is planned and tracked. GH does not render org files well (sorry!).

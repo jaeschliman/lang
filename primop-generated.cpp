@@ -104,7 +104,7 @@ enum PrimitiveOperation : u64 {
   PRIM_DRAWIMAGE = ((101ULL << 32) | (4ULL << 16) | PrimOp_Tag),
   PRIM_FILLRCT = ((102ULL << 32) | (4ULL << 16) | PrimOp_Tag),
   PRIM_CLRRCT = ((103ULL << 32) | (3ULL << 16) | PrimOp_Tag),
-  PRIM_BLT = ((104ULL << 32) | (7ULL << 16) | PrimOp_Tag),
+  PRIM_BLT = ((104ULL << 32) | (8ULL << 16) | PrimOp_Tag),
   PRIM_BLT_M = ((105ULL << 32) | (12ULL << 16) | PrimOp_Tag),
   PRIM_FIL_M = ((106ULL << 32) | (11ULL << 16) | PrimOp_Tag),
   PRIM_BLT_FR_SCRN = ((107ULL << 32) | (6ULL << 16) | PrimOp_Tag),
@@ -1034,6 +1034,7 @@ Ptr PRIM_CLRRCT_impl(VM *vm, u32 argc) {
 // Primitive 103
 Ptr PRIM_BLT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("blit",Fixnum,tint);
    VM_ARG("blit",Float,degrees_rotation);
    VM_ARG("blit",Float,scale);
    VM_ARG("blit",Point,lr);
@@ -1042,7 +1043,7 @@ Ptr PRIM_BLT_impl(VM *vm, u32 argc) {
    VM_ARG("blit",Image,dst);
    VM_ARG("blit",Image,src);
 
- return gfx_blit(src, dst, at, ul, lr, scale, degrees_rotation);
+ return gfx_blit(src, dst, at, ul, lr, scale, degrees_rotation, tint);
 }
 
 // Primitive 104
@@ -2618,6 +2619,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
   }
 
   case 104: {
+   VM_ARG("blit",Fixnum,tint);
    VM_ARG("blit",Float,degrees_rotation);
    VM_ARG("blit",Float,scale);
    VM_ARG("blit",Point,lr);
@@ -2626,7 +2628,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("blit",Image,dst);
    VM_ARG("blit",Image,src);
 
-    return(gfx_blit(src, dst, at, ul, lr, scale, degrees_rotation));
+    return(gfx_blit(src, dst, at, ul, lr, scale, degrees_rotation, tint));
     break;
   }
 

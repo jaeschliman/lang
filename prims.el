@@ -333,9 +333,9 @@ void initialize_primitive_functions(VM *vm) {
         "gfx_clear_rect(dst, a, b)")
   (prim blit BLT
         ((src Image) (dst Image) (at Point) (ul Point) (lr Point)
-         (scale Float) (degrees_rotation Float))
+         (scale Float) (degrees_rotation Float) (tint Fixnum))
         any
-        "gfx_blit(src, dst, at, ul, lr, scale, degrees_rotation)")
+        "gfx_blit(src, dst, at, ul, lr, scale, degrees_rotation, tint)")
   (prim blit-with-mask BLT_M
         ((src Image) (dst Image) (msk Image) (at Point)
          (src_ul Point) (src_lr Point) (src_scale Float) (src_rot Float)

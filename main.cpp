@@ -6509,7 +6509,8 @@ Ptr gfx_blit_image(blit_surface *src, blit_surface *dst,
                    rect *from,
                    point at,
                    f32 scale,
-                   f32 deg_rot) {
+                   f32 deg_rot,
+                   u32 tint) {
 
   u32 scan_width; u32 scan_height;
   // TODO: @speed properly calculate scan width and height (rotate rect and get bounds)
@@ -6728,7 +6729,7 @@ Ptr gfx_blit_image_at(VM *vm, ByteArrayObject* img, point p, s64 scale100, s64 d
   vm->screen_dirty = true;
 
   auto from = (rect){ 0, 0, src.width, src.height };
-  return gfx_blit_image(&src, dst, &from, p, scale100/100.0f, deg_rot * 1.0f);
+  return gfx_blit_image(&src, dst, &from, p, scale100/100.0f, deg_rot * 1.0f, 0xffffffff);
 }
 
 Ptr gfx_blit(ByteArrayObject *source_image, ByteArrayObject *dest_image,
@@ -6736,13 +6737,14 @@ Ptr gfx_blit(ByteArrayObject *source_image, ByteArrayObject *dest_image,
              point src_upper_left,
              point src_lower_right,
              f32 scale,
-             f32 degrees_rotation) {
+             f32 degrees_rotation,
+             u32 tint) {
   if (!is(Image, to(Ptr, source_image))) die("gfx_blit_image: not an image");
   if (!is(Image, to(Ptr, dest_image)))   die("gfx_blit_image: not an image");
   auto src = image_blit_surface(source_image);
   auto dst = image_blit_surface(dest_image);
   auto from = points_to_rect(src_upper_left, src_lower_right);
-  return gfx_blit_image(&src, &dst, &from, dst_location, scale, degrees_rotation);
+  return gfx_blit_image(&src, &dst, &from, dst_location, scale, degrees_rotation, tint);
 }
 
 // TODO: it would be nice to represent the screen as just an image,
@@ -6756,7 +6758,7 @@ Ptr gfx_blit_from_screen(VM *vm, ByteArrayObject *dest_image,
   if (!is(Image, to(Ptr, dest_image)))   die("gfx_blit_image: not an image");
   auto dst = image_blit_surface(dest_image);
   auto from = points_to_rect(src_upper_left, src_lower_right);
-  return gfx_blit_image(vm->surface, &dst, &from, dst_location, scale, degrees_rotation);
+  return gfx_blit_image(vm->surface, &dst, &from, dst_location, scale, degrees_rotation, 0xffffffff);
 }
 
 /* 

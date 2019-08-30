@@ -6651,9 +6651,6 @@ Ptr _gfx_fill_rect_with_mask(u32 color, blit_surface *dst, blit_surface *msk,
                              rect *m_from, f32 m_scale, f32 m_deg_rot
                              ) {
 
-  blit_surface _src = dummy_blit_surface(from->width, from->height);
-  auto src = &_src;
-
   auto at_y = from->y, at_x = from->x;
   
   u32 scan_width; u32 scan_height;
@@ -6667,14 +6664,11 @@ Ptr _gfx_fill_rect_with_mask(u32 color, blit_surface *dst, blit_surface *msk,
   s32 right  = std::min((s32)scan_width, (s32)(dst->width - at_x));
   s32 bottom = std::min((s32)scan_height, (s32)(dst->height - at_y));
 
-  blit_sampler bs_src;
-  blit_sampler_init(&bs_src, src, scale, deg_rot, from);
   blit_sampler bs_msk;
   blit_sampler_init(&bs_msk, msk, m_scale, m_deg_rot, m_from);
 
   for (s32 y = 0; y < bottom; y++) {
 
-    blit_sampler_start_row(&bs_src);
     blit_sampler_start_row(&bs_msk);
     auto dest_row = (at_y + y) * dst->pitch;
 
@@ -6684,9 +6678,7 @@ Ptr _gfx_fill_rect_with_mask(u32 color, blit_surface *dst, blit_surface *msk,
 
       // it would be great if there were a way to do fewer checks here.
       if (at_x + x >= 0L && at_y + y >= 0L &&
-          blit_sampler_sample(&bs_msk, &mask) // &&
-          // blit_sampler_sample(&bs_src, &over)
-          ) {
+          blit_sampler_sample(&bs_msk, &mask)) {
 
         u8* under = dst->mem + dest_row + (at_x + x) * 4;
         u8 alpha  = over[3] * mask[0] / 255;
@@ -6707,11 +6699,9 @@ Ptr _gfx_fill_rect_with_mask(u32 color, blit_surface *dst, blit_surface *msk,
       }
       #endif
 
-      blit_sampler_step_col(&bs_src);
       blit_sampler_step_col(&bs_msk);
     }
 
-    blit_sampler_step_row(&bs_src);
     blit_sampler_step_row(&bs_msk);
   }
 

@@ -419,7 +419,7 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
 * DONE blit arbitrary quad images
 * DONE blit from quad to quad images
 * DONE spatial point sort for quad blit
-* TODO blit with tint / blend modes
+* IN-PROGRESS blit with tint / blend modes
 * DONE handle more edge cases in quad blit
 * IN-PROGRESS think about how to optimize blitq (it is super slow)
   not only are we doing a lot of unneeded drawing, (to eliminate
@@ -444,7 +444,8 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   will be a little tricker to do a full lambda -> loop conversion,
   as it will require examining all uses of the binding form, and ensuring that
   it is only used in the tail-call position (not passed as an arg anywhere, not mutated)
-* TODO asm: looping contruct
+* DONE asm: looping contruct
+  just use named let
 * TODO asm: tagbody
   this will be trickier than initially anticipated, because of the way
   closures and special bindings are implemented (with push/pop in the
@@ -490,7 +491,7 @@ https://www.youtube.com/watch?v=FJQmjhOvjUs&list=PL843D1D545F9F52B6&index=7
   do not allocate/push closures in this child.
   -- can add new method, similar to `binding-depth`, `closure-binding-depth`
      count the # of crossed binding contexts that require closure
-* IN-PROGRESS asm: eliminate closures from letrec where possible
+* DONE asm: eliminate closures from letrec where possible
   (include the self-tail-call optimization as well)
   e.g. the even/odd example should allocate 0 closures
 * TODO watch lecture on HAProxy scheduler
@@ -509,7 +510,7 @@ https://www.sandeepnambiar.com/setting-up-emacs-for-c++/
 * TODO see about reducing stack depth when compiling / running meta reader
 * DONE delete the handwritten meta readers from the image before dumping
 * TODO function to delete hash table entries
-* TODO fill-rect-with-mask
+* DONE fill-rect-with-mask
 * TODO something like CL-style compiler macros
   and use them to optimize the vararg arithmetic calls
 * TODO some way to consume rest args without consing

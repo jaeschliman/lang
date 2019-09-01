@@ -9,6 +9,8 @@
     r))
 
 (define Queue (create-class 'Queue '(front back)))
+(define (front q) (instance-get-ivar q 0))
+(define (back q) (instance-get-ivar q 1))
 
 (define (make)
   (let ((r (instantiate-class Queue)))
@@ -28,6 +30,16 @@
            (let ((last (instance-get-ivar q 1)))
              (instance-set-ivar last 1 p)
              (instance-set-ivar q 1 p))))))
+
+(define (pop q)
+  (unless (empty? q)
+    (let ((r (fst (front q))))
+      (cond ((eq (front q) (back q))
+             (instance-set-ivar q 0 '())
+             (instance-set-ivar q 1 '()))
+            (#t
+             (instance-set-ivar q 0 (rst (front q)))))
+      r)))
 
 (defmacro doq (binds & body)
   (let ((sym (car binds))

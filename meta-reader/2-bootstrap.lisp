@@ -1,38 +1,35 @@
 (defparameter *current-file*)
 
 (define (eval-with-source-location x)
-    (let* ((pos (state-col-row *match-start*)))
-      (binding ((*source-location* (list (if-nil? *current-file* "<anonymous>" *current-file*)
-                                         (car pos) (cdr pos))))
-        (eval x))))
+  (let* ((pos (state-col-row *match-start*)))
+    (binding ((*source-location* (list (if-nil? *current-file* "<anonymous>" *current-file*)
+                                       (car pos) (cdr pos))))
+      (eval x))))
 
 (defparameter *load-evaluator* eval-with-source-location)
 
 (define (match-1 rule string)
-    (let* ((stream (make-stream string))
-           (state  (make-initial-state stream))
-           (fn (get-rule rule))
-           (newstate (fn state)))
-      (state-result newstate)))
+  (let* ((stream (make-stream string))
+         (state  (make-initial-state stream))
+         (fn (get-rule rule))
+         (newstate (fn state)))
+    (state-result newstate)))
 
 (define (match-map xf rule string)
-    (let* ((stream (make-stream string))
-           (state  (make-initial-state stream))
-           (fn (get-rule rule))
-           (loop #f))
-      (set! loop
-            (lambda (state results)
-              (let ((newstate (fn state)))
-                (if (failure? newstate) (throw `(syntax error in ,*current-file* at ,(state-col-row state)))
-                    (let ((newresults (binding ((*match-start* state)
-                                                (*match-end*  newstate))
-                                        (cons (xf (state-result newstate)) results))))
-                      (if (stream-end? (state-stream newstate)) (reverse-list newresults)
-                          (loop newstate newresults)))))))
-      (loop state '())))
+  (let* ((stream (make-stream string))
+         (state  (make-initial-state stream))
+         (fn (get-rule rule)))
+    (let loop ((state state) (results '()))
+         (let ((newstate (fn state)))
+           (if (failure? newstate) (throw `(syntax error in ,*current-file* at ,(state-col-row state)))
+               (let ((newresults (binding ((*match-start* state)
+                                           (*match-end*  newstate))
+                                   (cons (xf (state-result newstate)) results))))
+                 (if (stream-end? (state-stream newstate)) (reverse-list newresults)
+                     (loop newstate newresults))))))))
 
 (define (match-all rule string)
-    (match-map identity rule string))
+  (match-map identity rule string))
 
 ;; (define (%source-location-string)
 ;;     (let ((pos (state-col-row *match-start*)))
@@ -50,26 +47,25 @@
 ;;   (eval x))
 
 (define (meta1-runfile path)
-    (let ((input (slurp path)))
-      (binding ((*current-file* path)
-                (*meta-context* (list 'Meta)))
-               (match-map eval 'meta-main input))))
+  (let ((input (slurp path)))
+    (binding ((*current-file* path)
+              (*meta-context* (list 'Meta)))
+      (match-map eval 'meta-main input))))
 
 (at-boot (meta1-runfile "./meta-reader/meta-lisp-reader.lisp"))
 (at-boot (meta1-runfile "./meta-reader/meta-meta-reader.lisp"))
 
 (define (%load path)
-    ;; (%print path)
-    (let ((input (slurp path)))
-      (binding ((*current-file* path)
-                (*meta-context* (list 'meta)))
-               ;; TODO: we don't need to keep the results
-               (match-map *load-evaluator* 'main input))))
+  ;; (%print path)
+  (let ((input (slurp path)))
+    (binding ((*current-file* path)
+              (*meta-context* (list 'meta)))
+      ;; TODO: we don't need to keep the results
+      (match-map *load-evaluator* 'main input))))
 
 (when *recompiling*
   (%load "./meta-reader/meta-lisp-reader.lisp")
   (%load "./meta-reader/meta-meta-reader.lisp"))
-
 
 (define (load-as name path)
   (let ((exist (package-find-subpackage *package* name)))
@@ -82,24 +78,6 @@
 
 (ht-at-put meta-by-name 'Meta '())
 (ht-at-put meta-by-name 'Lisp '())
-
-;; (binding ((*meta-context* (list 'lisp)))
-;;   (match-map print 'expr (slurp "./cow-storm.lisp")))
-;; (binding ((*meta-context* (list 'meta)))
-;;   (match-map print 'main (slurp "./cow-storm.lisp")))
-
-;; (binding ((*meta-context* (list 'meta)))
-;;   (match-map print 'main (slurp "./meta-lisp-reader.lisp")))
-
-;; (binding ((*meta-context* (list 'meta)))
-;;   (match-map eval 'main (slurp "./meta-reader/meta-meta-reader.lisp")))
-;; (binding ((*meta-context* (list 'meta)))
-;;   (match-map print 'main (slurp "./meta-reader/meta-meta-reader.lisp")))
-;; (print "----------------------------------------")
-;; (binding ((*meta-context* (list 'meta)))
-;;   (match-map eval 'main (slurp "./meta-reader/meta-meta-reader.lisp")))
-;; (binding ((*meta-context* (list 'meta)))
-;;   (match-map print 'main (slurp "./meta-reader/meta-meta-reader.lisp")))
 
 ;; use as default reader for the repl
 ;; (define (run-string input)

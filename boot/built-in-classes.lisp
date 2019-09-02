@@ -66,5 +66,7 @@
 (set-symbol-value 'thread?       (%nlambda thread?       (x) (isa? x Thread)))
 (set-symbol-value 'package?      (%nlambda package?      (x) (isa? x Package)))
 
+(instance-set-ivar Class 5 (vector 'name 'ivar-count 'method-dict 'metadata 'applicator 'ivar-names))
+
 
 'done

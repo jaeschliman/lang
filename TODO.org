@@ -338,7 +338,7 @@ fixed an issue in ht_at_put that could possibly contribute to this
   - clean up the tracing code (allow tracing specific set of rules rather than all or none)
   - replace state list and stream list with objects
 * TODO move the parsers into their own packages
-* TODO initialize base class ivar names in boot
+* DONE initialize base class ivar names in boot
 * TODO generate lisp-side accessors for builtins instead of lots of prims
   something like (%aget) and (%aset) like ccl's gvectors IIRC
 * TODO get/set ivar by name

@@ -167,7 +167,7 @@
               (y (- screen-height 75 (* (sin x) 10))))
          (blit cow back-buffer (make-point x (f->i y))
                0@0 (make-point (image-width cow) (image-height cow))
-               0.9 (* (cos (* x 0.105 1.5)) 13.0) 0xffffffff)))
+               0.9 (* (cos (* x 0.105 1.5)) 13.0) 0xff00ff00)))
      (flip-buffer)
      (update-display)
      (set! step (+ 1 step))

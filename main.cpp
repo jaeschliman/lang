@@ -6526,6 +6526,15 @@ Ptr gfx_blit_image(blit_surface *src, blit_surface *dst,
   blit_sampler bs_src;
   blit_sampler_init(&bs_src, src, scale, deg_rot, from);
 
+  f32 tint_a, tint_r, tint_g, tint_b;
+  {
+    u8* tints = (u8*)&tint;
+    tint_r = tints[0] / 255.0;
+    tint_g = tints[1] / 255.0;
+    tint_b = tints[2] / 255.0;
+    tint_a = tints[3] / 255.0;
+  }
+
   for (s32 y = 0; y < bottom; y++) {
 
     blit_sampler_start_row(&bs_src);
@@ -6539,12 +6548,14 @@ Ptr gfx_blit_image(blit_surface *src, blit_surface *dst,
           blit_sampler_sample(&bs_src, &over)) {
 
         u8* under = dst->mem + dest_row + (at.x + x) * 4;
-        u8 alpha   = over[3];
+        u8 alpha  = over[3];
+
+        f32 malpha = (alpha / 255.0) * tint_a;
 
         // aA + (1-a)B = a(A-B)+B
-        under[0] = ((over[0] - under[0]) * alpha /  255)  + under[0];
-        under[1] = ((over[1] - under[1]) * alpha /  255)  + under[1];
-        under[2] = ((over[2] - under[2]) * alpha /  255)  + under[2];
+        under[0] = (((over[0] * tint_r) - under[0]) * malpha)  + under[0];
+        under[1] = (((over[1] * tint_g) - under[1]) * malpha)  + under[1];
+        under[2] = (((over[2] * tint_b) - under[2]) * malpha)  + under[2];
         u8 ualpha = under[3];
         u8 calpha = alpha + ualpha;
         under[3] = calpha < alpha ? 255 : calpha;

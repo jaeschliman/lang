@@ -65,7 +65,7 @@
 * DONE basic notebook
 * DONE notebook w/ event reactor
 * DONE 'load file' vs run file
-* TODO rewrite the codegen in the lang itself 
+* DONE rewrite the codegen in the lang itself 
 * DONE 'apply'
 * DONE basic 'event reactor' runloop -- start with keycodes
 * IGNORE optimize global calls for more arities
@@ -402,7 +402,7 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   -- ignore for now. don't want to complicate the GC yet
 * TODO maybe reorganize the VM struct a bit into substructs
 * DONE start gathering allocation stats
-* TODO think about how to reduce more common allocations
+* IN-PROGRESS think about how to reduce more common allocations
   right now it looks we allocate _alot_ of conses (not that surprising)
   as well as quite a lot of closures
   reducing closure allocation will likely be hard (requires writing a better compiler, I think)

@@ -8,14 +8,14 @@
 (define fill-buffer (make-image 100 100))
 (fill-rect fill-buffer 0@0 100@100 0xffffffff)
 
-(define (blit-charcode-at output raw-code point scale rotation)
+(define (blit-charcode-at output raw-code point color scale rotation)
   (let* ((code (- raw-code font-start))
          (col (% code font-chars-per-row))
          (row (/ code font-chars-per-row))
          (origin (make-point (* col font-char-width)
                              (* row font-char-height))))
     (fill-rect-with-mask
-     0xffff0000 output font point font-char-size scale rotation
+     color output font point font-char-size scale rotation
      origin (point+ origin font-char-size) scale rotation)))
 
 (defmacro %do-char-codes (binds & body)
@@ -28,14 +28,14 @@
                         (let ((,code (char-code ,ch))) ,@body)
                         (set! ,idx (+ ,idx 1))))))
 
-(define (%display-string output at scale rotation str)
+(define (%display-string output at color scale rotation str)
   (let ((w (* font-char-width scale)))
     (%do-char-codes (code idx str)
        (let ((left (f->i (* idx w))))
          (blit-charcode-at
-          output code (point+ at (make-point left 0)) scale rotation)))))
+          output code (point+ at (make-point left 0)) color scale rotation)))))
 
 
-(define (draw-string output str at-point height rotation)
+(define (draw-string output str at-point color height rotation)
   (let ((scale (/ height (i->f font-char-height))))
-    (%display-string output at-point scale rotation str)))
+    (%display-string output at-point color scale rotation str)))

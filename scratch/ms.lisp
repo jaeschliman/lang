@@ -72,9 +72,9 @@
                   (make-color (+ 64 (* it (/ 192 10))) 64 64 255)))
         (cond
           ((eq it -1)
-           (text/draw-string buffer "X" (make-point left top) (- tile-size 4) 0.0))
+           (text/draw-string buffer "X" (make-point left top) 0xff000000 (- tile-size 4) 0.0))
           ((not (eq it 0))
-           (text/draw-string buffer (aget %char-names it) (make-point left top) (- tile-size 4) 0.0)))))))
+           (text/draw-string buffer (aget %char-names it) (make-point left top) 0xffff0000 (- tile-size 4) 0.0)))))))
 
 (define (draw-moves moves)
   (dotimes (y board-size)

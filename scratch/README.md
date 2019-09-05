@@ -39,9 +39,6 @@ one of the first graphic demos. translate and rotate many images of a cow
 stress test `blitq` a bit
 ###### [debug-thread.lisp](debug-thread.lisp)
 test for `thread-get-debug-info`
-###### [jump-opt.lisp](jump-opt.lisp)
-some WIP tests for compiler optimizations (convert self tail-calls to
-jumps, inline let-bound lambdas when possible)
 ###### [letrec-opt.lisp](letrec-opt.lisp)
 some WIP tests for compiler optimizations (inline letrec-bound lambdas when possible, allowing for jump opts. this handles the common case of named let for looping)
 ###### [macroexpand.lisp](macroexpand.lisp)

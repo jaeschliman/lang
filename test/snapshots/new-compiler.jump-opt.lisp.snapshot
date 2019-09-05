@@ -1,0 +1,71 @@
+(1)
+(2 1)
+(3 2 1)
+(4 3 2 1)
+(5 4 3 2 1)
+(6 5 4 3 2 1)
+(7 6 5 4 3 2 1)
+(8 7 6 5 4 3 2 1)
+(9 8 7 6 5 4 3 2 1)
+(10 9 8 7 6 5 4 3 2 1)
+(10 9 8 7 6 5 4 3 2 1)
+10
+9
+8
+7
+6
+5
+4
+3
+2
+1
+0
+done
+10
+9
+8
+7
+6
+5
+4
+3
+2
+1
+0
+done
+#t
+"0 **********"
+before-before-inline
+before-inline
+"this ran!"
+(the answer is 42)
+after-inline
+"1 **********"
+before-inline
+(two plus two is 4)
+after-inline
+"2 **********"
+before-inline
+(two plus two is 4)
+(three plus three is 6)
+after-inline
+(here comes trouble)
+42
+"first thing"
+"starting up"
+before-inline
+before-inner-inline
+after-inner-inline
+(two plus two is 4)
+(x = 311)
+after-inline
+"ending it"
+"starting up"
+"ending it"
+a
+b
+c
+d
+e
+f
+(all done)

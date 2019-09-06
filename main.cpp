@@ -7561,6 +7561,7 @@ void run_event_loop_with_display(VM *vm, int w, int h, bool from_image = false) 
   auto onkey       = root_intern(vm, "onkey");       prot_ptr(onkey);
   auto onmousedrag = root_intern(vm, "onmousedrag"); prot_ptr(onmousedrag);
   auto onmousemove = root_intern(vm, "onmousemove"); prot_ptr(onmousemove);
+  auto onmouseup   = root_intern(vm, "onmouseup");   prot_ptr(onmouseup);
   auto onmousedown = root_intern(vm, "onmousedown"); prot_ptr(onmousedown);
   auto onframe     = root_intern(vm, "onframe");     prot_ptr(onframe);
 
@@ -7615,6 +7616,14 @@ void run_event_loop_with_display(VM *vm, int w, int h, bool from_image = false) 
         auto p = (point){x, y};
         auto pt = to(Point, p);
         vm_poke_event(vm, pending_events, event_ready_semaphore, onmousedown, pt);
+        break;
+      }
+      case SDL_MOUSEBUTTONUP: {
+        auto x = event.button.x;
+        auto y = event.button.y;
+        auto p = (point){x, y};
+        auto pt = to(Point, p);
+        vm_poke_event(vm, pending_events, event_ready_semaphore, onmouseup, pt);
         break;
       }
       }

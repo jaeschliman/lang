@@ -3,6 +3,7 @@
 (define (ignore1 _))
 (define onshow ignore1)
 (define onmousedown ignore1)
+(define onmouseup ignore1)
 (define onmousedrag ignore1)
 (define onmousemove ignore1)
 (define onkey ignore1)
@@ -22,6 +23,7 @@
       (case name
         (onmousemove (onmousemove data))
         (onmousedown (onmousedown data))
+        (onmouseup   (onmouseup   data))
         (onmousedrag (onmousedrag data))
         (onkey       (onkey       data))
         (onshow      (onshow      data)))))

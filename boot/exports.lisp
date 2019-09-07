@@ -83,7 +83,7 @@
  fork fork-with-priority forever sleep-ms)
 
 (export
- onmousemove onmousedown onmousedrag onkey onshow request-display)
+ onmousemove onmousedown onmouseup onmousedrag onkey onshow request-display)
 
 (export
  make-image load-image image-width image-height blit-to-screen screen-fill-rect fill-rect

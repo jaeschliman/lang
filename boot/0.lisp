@@ -523,6 +523,19 @@
 (define (char-to-digit ch)
     (-i (char-code ch) (char-code #\0)))
 
+(define (%slot-index object slot)
+  (let ((slotnames (instance-get-ivar (class-of object) 5)))
+    (let loop ((idx 0))
+         (if (eq idx (array-length slotnames)) -1
+             (if (eq slot (aget slotnames idx)) idx
+                 (loop (+i idx 1)))))))
+
+(define (iget object slotname)
+  (instance-get-ivar object (%slot-index object slotname)))
+
+(define (iset object slotname value)
+  (instance-set-ivar object (%slot-index object slotname) value))
+
 ;;  the end -----------------------------------------------------------------------
 
 'done

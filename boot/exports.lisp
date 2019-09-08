@@ -46,6 +46,8 @@
 (export
  make-array aget aset array->list array-length)
 
+(export iget iset)
+
 (export
  make-array-u16 aget-u16 aset-u16 array-length-u16)
 

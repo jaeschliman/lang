@@ -341,7 +341,7 @@ fixed an issue in ht_at_put that could possibly contribute to this
 * DONE initialize base class ivar names in boot
 * TODO generate lisp-side accessors for builtins instead of lots of prims
   something like (%aget) and (%aset) like ccl's gvectors IIRC
-* TODO get/set ivar by name
+* DONE get/set ivar by name
 * TODO make a Language class, have runtime interface through *language* var
   should have slots `syntax` `compiler` and `assembler`?
   not sure `assembler` is the right word... maybe `code-generator`?

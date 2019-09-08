@@ -188,16 +188,16 @@
 
 (define (make-agg)
   (let ((r (instantiate-class Aggregator)))
-    (instance-set-ivar r 0 0)
-    (instance-set-ivar r 1 '())
+    (iset r 'count 0)
+    (iset r 'list '())
     r))
 
-(define (agg-count agg) (instance-get-ivar agg 0))
-(define (agg-items agg) (reverse-list (instance-get-ivar agg 1)))
+(define (agg-count agg) (iget agg 'count))
+(define (agg-items agg) (reverse-list (iget agg 'list)))
 
 (define (agg-push agg it)
-  (instance-set-ivar agg 0 (+ 1 (instance-get-ivar agg 0)))
-  (instance-set-ivar agg 1 (cons it (instance-get-ivar agg 1))))
+  (iset agg 'count (+ 1 (iget agg 'count)))
+  (iset agg 'list (cons it (iget agg 'list))))
 
 (define (agg-push-uniq agg it)
   (let ((items (agg-items agg)))

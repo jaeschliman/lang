@@ -34,3 +34,4 @@
 (put 'binding 'common-lisp-indent-function (get 'let* 'common-lisp-indent-function))
 (put 'define 'common-lisp-indent-function (get 'let* 'common-lisp-indent-function))
 (put '%let 'common-lisp-indent-function (get 'let* 'common-lisp-indent-function))
+(put 'string-do-chars 'common-lisp-indent-function (get 'dolist 'common-lisp-indent-function))

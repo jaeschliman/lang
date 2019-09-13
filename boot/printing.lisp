@@ -1,17 +1,17 @@
 (define (integer-digit-length n base)
-    (let ((len (f->i (floor (log base n)))))
-      (+i len 1)))
+  (let ((len (f->i (floor (log base n)))))
+    (+i len 1)))
 
 (define (integer-nth-digit n digit base)
-    (let* ((len (integer-digit-length n base))
-           (offs (-i len digit))
-           (div (pow base (-i offs 1))))
-      (%i (/i n div) base)))
+  (let* ((len (integer-digit-length n base))
+         (offs (-i len digit))
+         (div (pow base (-i offs 1))))
+    (%i (/i n div) base)))
 
 (at-boot (define *digit-table* (string->char-array "0123456789abcdefghijklmnopqrstuvwxyz")))
 
 (define (digit-to-character n)
-    (aget *digit-table* n))
+  (aget *digit-table* n))
 
 (at-boot (defparameter *print-base* 10))
 
@@ -22,13 +22,13 @@
       (stream-write-char stream (digit-to-character (integer-nth-digit n i base))))))
 
 (define (print-integer n &opt (stream *standard-output*))
-    (%print-integer n stream *print-base*))
+  (%print-integer n stream *print-base*))
 
 (define (newline &opt (stream *standard-output*))
-    (stream-write-char stream #\Newline))
+  (stream-write-char stream #\Newline))
 
 (define (print-float fl &opt (stream *standard-output*))
-    (when (<f fl 0.0) (stream-write-string stream "-"))
+  (when (<f fl 0.0) (stream-write-string stream "-"))
   (let ((f (absf fl)))
     (%print-integer (f->i f) stream 10)
     (stream-write-char stream #\.)
@@ -42,13 +42,13 @@
 (at-boot (define print-object (make-generic-function 2)))
 
 (define (%print-object-address object stream)
-    (let ((hi (%obj-high-bits object))
-          (lo (%obj-low-bits object)))
-      (binding ((*print-base* 16))
-               (dotimes (_ (-i 8 (integer-digit-length hi 16))) (stream-write-char stream #\0))
-               (print-integer hi stream)
-               (dotimes (_ (-i 8 (integer-digit-length lo 16))) (stream-write-char stream #\0))
-               (print-integer lo stream))) )
+  (let ((hi (%obj-high-bits object))
+        (lo (%obj-low-bits object)))
+    (binding ((*print-base* 16))
+      (dotimes (_ (-i 8 (integer-digit-length hi 16))) (stream-write-char stream #\0))
+      (print-integer hi stream)
+      (dotimes (_ (-i 8 (integer-digit-length lo 16))) (stream-write-char stream #\0))
+      (print-integer lo stream))) )
 
 (generic-function-add-method
  print-object
@@ -68,19 +68,19 @@
 
 (forward %print-list-loop)
 (define (%print-list-loop first cons stream)
-    (unless first (stream-write-char stream #\Space))
-    (if (or (nil? (cdr cons)) (pair? (cdr cons)))
-        (let ()
-          (print-object (car cons) stream)
-          (unless (nil? (cdr cons))
-            (%print-list-loop #f (cdr cons) stream)))
-        (let ()
-          (print-object (car cons) stream)
-          (stream-write-string stream " . ")
-          (print-object (cdr cons) stream))))
+  (unless first (stream-write-char stream #\Space))
+  (if (or (nil? (cdr cons)) (pair? (cdr cons)))
+      (let ()
+        (print-object (car cons) stream)
+        (unless (nil? (cdr cons))
+          (%print-list-loop #f (cdr cons) stream)))
+      (let ()
+        (print-object (car cons) stream)
+        (stream-write-string stream " . ")
+        (print-object (cdr cons) stream))))
 
 (define (print-list lst &opt (stream *standard-output*))
-    (stream-write-char stream #\()
+  (stream-write-char stream #\()
   (%print-list-loop #t lst stream)
   (stream-write-char stream #\)))
 
@@ -88,7 +88,7 @@
  print-object (list Cons #t) print-list)
 
 (define (print-point p &opt (stream *standard-output*))
-    (print-integer (point-x p) stream)
+  (print-integer (point-x p) stream)
   (stream-write-char stream #\@)
   (print-integer (point-y p)))
 
@@ -96,23 +96,23 @@
  print-object (list Point #t) print-point)
 
 (define (%write-relative-package-name symbol package relative-to stream)
-    (unless (or (eq package relative-to)
-                (and (list-member? package (package-use-list relative-to))
-                     (not (nil? (ht-at (package-exports package) symbol)))))
-      (dolist (part (package-relative-path package relative-to))
-        (if (eq part 'root)
-            (stream-write-string stream "#")
-            (stream-write-string stream part))
-        (stream-write-string stream "/"))))
+  (unless (or (eq package relative-to)
+              (and (list-member? package (package-use-list relative-to))
+                   (not (nil? (ht-at (package-exports package) symbol)))))
+    (dolist (part (package-relative-path package relative-to))
+      (if (eq part 'root)
+          (stream-write-string stream "#")
+          (stream-write-string stream part))
+      (stream-write-string stream "/"))))
 
 ;; TODO: syntax for escaped symbols
 (define (print-symbol it &opt (stream *standard-output*))
-    (let ((pkg (symbol-package it)))
-      (if (eq pkg %keyword-package)
-          (stream-write-string stream ":")
-          ;; TODO: prefix for package-less symbols
-          (unless (nil? pkg) (%write-relative-package-name it pkg *package* stream)))
-      (stream-write-string stream (symbol-name it))))
+  (let ((pkg (symbol-package it)))
+    (if (eq pkg %keyword-package)
+        (stream-write-string stream ":")
+        ;; TODO: prefix for package-less symbols
+        (unless (nil? pkg) (%write-relative-package-name it pkg *package* stream)))
+    (stream-write-string stream (symbol-name it))))
 
 (generic-function-add-method
  print-object (list Symbol #t) print-symbol)
@@ -139,12 +139,12 @@
  print-object (list Class #t) print-class)
 
 (define (print-string str &opt (stream *standard-output*))
-    (stream-write-char stream #\")
+  (stream-write-char stream #\")
   ;; TODO: escape codes for unprintable characters
   (string-do-chars (ch str)
     (when (eq ch #\") (stream-write-char stream #\\))
     (stream-write-char stream ch))
-    (stream-write-char stream #\"))
+  (stream-write-char stream #\"))
 
 (generic-function-add-method
  print-object (list String #t) print-string)
@@ -160,13 +160,13 @@
  print-object (list Package #t) print-package)
 
 (define (print-boolean object &opt (stream *standard-output*))
-    (stream-write-string stream (if object "#t" "#f")))
+  (stream-write-string stream (if object "#t" "#f")))
 
 (generic-function-add-method
  print-object (list Boolean #t) print-boolean)
 
 (define (print-array object &opt (stream *standard-output*))
-    (stream-write-char stream #\[)
+  (stream-write-char stream #\[)
   (when (> (array-length object) 0)
     (print-object (aget object 0) stream))
   (dotimes (i (- (array-length object) 1))
@@ -178,7 +178,7 @@
  print-object (list Array #t) print-array)
 
 (define (print object)
-    (print-object object *standard-output*)
+  (print-object object *standard-output*)
   (stream-write-char *standard-output* #\Newline))
 
 

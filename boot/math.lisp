@@ -85,17 +85,17 @@
 (define ComparisonOp (create-class 'ComparisonOp '(compare)))
 
 (define (pairwise-compare compare items)
-    (let ((loop #f))
-      (set! loop (lambda (cmp lst)
-                   (if (nil? (cdr lst)) #t
-                       (and (cmp (car lst) (cadr lst))
-                            (loop cmp (cdr lst))))))
-      (loop compare items)))
+  (let ((loop #f))
+    (set! loop (lambda (cmp lst)
+                 (if (nil? (cdr lst)) #t
+                     (and (cmp (car lst) (cadr lst))
+                          (loop cmp (cdr lst))))))
+    (loop compare items)))
 
 (define comparison-op-invoke
-    (lambda args
-      (let ((compare (instance-get-ivar (car args) 0)))
-        (pairwise-compare compare (cdr args)))))
+  (lambda args
+    (let ((compare (instance-get-ivar (car args) 0)))
+      (pairwise-compare compare (cdr args)))))
 
 (class-set-applicator ComparisonOp comparison-op-invoke)
 

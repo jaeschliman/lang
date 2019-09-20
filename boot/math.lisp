@@ -34,9 +34,9 @@
 (define ArithmeticOp (create-class 'ArithmeticOp '(combine)))
 
 (define arithmetic-op-invoke
-    (lambda args
-      (let ((combine (instance-get-ivar (car args) 0)))
-        (reduce-list combine (cadr args) (cddr args)))))
+  (lambda args
+    (let ((combine (instance-get-ivar (car args) 0)))
+      (reduce-list combine (cadr args) (cddr args)))))
 
 (class-set-applicator ArithmeticOp arithmetic-op-invoke)
 

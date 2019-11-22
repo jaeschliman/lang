@@ -308,6 +308,7 @@ void thdq_remove_ptr(thdq *q, Ptr ptr) {
   }
 }
 
+
 // ----------------------------------------
 
 std::ostream &operator<<(std::ostream &os, Ptr p);
@@ -622,8 +623,15 @@ struct blit_surface {
   u8 *mem; s64 pitch, width, height;
 };
 
+struct static_memory {
+  static_memory *next;
+  u64 byte_count;
+  u8 bytes[];
+};
+
 struct VM {
   Ptr system_dictionary;
+  static_memory *static_mem;
   void* heap_mem;
   void* heap_end;
   void* alt_heap_mem;
@@ -657,6 +665,17 @@ struct VM {
   stats *stats;
   #endif
 };
+
+// ----------------------------------------
+// static memory
+
+static_memory *alloc_static_memory(VM *vm, u64 byte_count) {
+  auto it = (static_memory *)calloc(sizeof(static_memory) + byte_count, 1);
+  it->byte_count = byte_count;
+  it->next = vm->static_mem;
+  vm->static_mem = it;
+  return it;
+}
 
 // ----------------------------------------
 // stats reporting
@@ -780,11 +799,33 @@ typedef enum {
   Image
 } BAOType;
 
+#define BA_STATIC_MEM 1
+
 struct ByteArrayObject : Object {
   BAOType bao_type;
+#if BA_STATIC_MEM
+  static_memory *mem;
+#else
   uint length;
   char data[];
+#endif
 };
+
+inline u64 ba_length(ByteArrayObject *o) {
+#if BA_STATIC_MEM
+  return o->mem->byte_count;
+#else
+  return o->length;
+#endif
+}
+
+inline char* ba_data(ByteArrayObject *o) {
+#if BA_STATIC_MEM
+  return (char *)o->mem->bytes;
+#else
+  return o->data;
+#endif
+}
 
 struct RawPointerObject : Object {
   void *pointer;
@@ -1081,11 +1122,18 @@ ByteCodeObject *alloc_bytecode(VM *vm) {
 }
 
 ByteArrayObject *alloc_bao(VM *vm, BAOType ty, uint len) {
+#if BA_STATIC_MEM
+  auto byte_count = sizeof(ByteArrayObject);
+  ByteArrayObject* obj = (ByteArrayObject *)vm_alloc(vm, byte_count);
+  auto mem = alloc_static_memory(vm, len);
+  obj->mem = mem;
+#else 
   auto byte_count = sizeof(ByteArrayObject) + len;
   ByteArrayObject* obj = (ByteArrayObject *)vm_alloc(vm, byte_count);
+  obj->length = len;
+#endif
   obj->header.object_type = ByteArray_ObjectType;
   obj->bao_type = ty;
-  obj->length = len;
   return obj;
 }
 
@@ -1112,23 +1160,23 @@ unwrap_ptr_for(Image, it) {
 
 u32 image_width(ByteArrayObject *it) {
   assert(it->bao_type == Image);
-  return *(u32*)it->data;
+  return *(u32*)ba_data(it);
 }
 u32 image_height(ByteArrayObject *it) {
   assert(it->bao_type == Image);
-  return *(((u32*)it->data)+1);
+  return *(((u32*)ba_data(it))+1);
 }
 
 u8* image_data(ByteArrayObject *it) {
   assert(it->bao_type == Image);
-  return (u8*)(((u32*)it->data)+2);
+  return (u8*)(((u32*)ba_data(it))+2);
 }
 
 ByteArrayObject *alloc_image(VM *vm, u32 w, u32 h) {
   auto byte_count = (w * h * 4) + 8;
   auto result = alloc_bao(vm, Image, byte_count);
   set_obj_tag(result, Image);
-  auto u32s = (u32*)result->data;
+  auto u32s = (u32*)ba_data(result);
   u32s[0] = w; u32s[1] = h;
   return result;
 }
@@ -1152,7 +1200,7 @@ Ptr load_image_from_path(VM *vm, string path) {
 
 Ptr gfx_load_image(VM *vm, ByteArrayObject *path) {
   if (!is(String, to(Ptr, path))) die("load_image takes a string");
-  auto str = string(path->data, path->length);
+  auto str = string(ba_data(path), ba_length(path));
   auto result = load_image_from_path(vm, str);
   return result;
 }
@@ -1277,7 +1325,7 @@ inline ByteArrayObject *alloc_string(VM *vm, s64 len) {
 Ptr make_string(VM *vm, const char* str) {
   ByteArrayObject *obj = alloc_string(vm, strlen(str));
   const char *from = str;
-  char *to = &(obj->data[0]);
+  char *to = ba_data(obj);
   while(*from != 0) {
     *to = *from;
     to++; from++;
@@ -1289,7 +1337,7 @@ Ptr make_string_with_end(VM *vm, const char* str, const char* end) {
   // die(" make string with end: ", end - str);
   ByteArrayObject *obj = alloc_string(vm, end - str);
   const char *from = str;
-  char *to = &(obj->data[0]);
+  char *to = ba_data(obj);
   while(from < end) {
     *to = *from;
     to++; from++;
@@ -1298,20 +1346,20 @@ Ptr make_string_with_end(VM *vm, const char* str, const char* end) {
 }
 
 char string_byte_at(VM *vm, ByteArrayObject *str, s64 index) {
-  if (index >= str->length) {
+  if (index >= ba_length(str)) {
     vm->error = "string index out of range";
     return -1;
   }
-  return (char)(str->data[index]);
+  return (char)(ba_data(str)[index]);
 }
 
 character string_char_at(VM *vm, ByteArrayObject *str, s64 index) {
-  if (index >= str->length) {
+  if (index >= ba_length(str)) {
     vm->error = "string index out of range";
     return (character){0};
   }
   u32 code_point = 0;
-  u8 *data = (u8 *)str->data + index;
+  u8 *data = (u8 *)(ba_data(str)) + index;
   auto width = utf8_byte_width_for_char(*data);
   switch(width) {
   case 1: {
@@ -1347,11 +1395,11 @@ s64 string_char_code_at(VM *vm, ByteArrayObject *str, s64 index) {
 
 Ptr string_set_char_at(VM *vm, ByteArrayObject *str, s64 index, character ch) {
   auto width = character_byte_width(ch);
-  if (index > str->length + width) {
+  if (index > ba_length(str) + width) {
     vm->error = "string index out of range";
   } else {
     for (auto i = 0; i < width; i++) {
-      str->data[index + i] = character_byte_at(ch, i);
+      ba_data(str)[index + i] = character_byte_at(ch, i);
     }
   }
   return Nil;
@@ -1374,10 +1422,10 @@ Ptr string_substr_byte_range(VM *vm, ByteArrayObject *str, s64 start, s64 end) {
   auto len = end - start;
   // @speed should just allocate inline here instead
   auto result = make_filled_string(vm, len, from(Char, to(Char, '0')));
-  const char *read = str->data + start;
+  const char *read = ba_data(str) + start;
   auto write = from(String, result);
   for (auto i = 0; i < len; i++) {
-    write->data[i] = read[i];
+    ba_data(write)[i] = read[i];
   }
   gc_unprotect(str);
   return result;
@@ -1385,14 +1433,14 @@ Ptr string_substr_byte_range(VM *vm, ByteArrayObject *str, s64 start, s64 end) {
 
 
 s64 string_byte_length(ByteArrayObject *str) {
-  return str->length;
+  return ba_length(str);
 }
 
 s64 string_char_count(ByteArrayObject *str){
   auto count = 0;
   auto i = 0;
-  while (i < str->length) {
-    u8 byte = str->data[i];
+  while (i < ba_length(str)) {
+    u8 byte = ba_data(str)[i];
     count++;
     i += utf8_byte_width_for_char(byte);
   }
@@ -1402,8 +1450,8 @@ s64 string_char_count(ByteArrayObject *str){
 u32 hash_code(Ptr it);
 bool string_equal(ByteArrayObject *a, ByteArrayObject*b) {
   if (hash_code(to(Ptr, a)) != hash_code(to(Ptr, b))) return false;
-  if (a->length != b->length) return false;
-  return memcmp(a->data, b->data, a->length) == 0;
+  if (ba_length(a) != ba_length(b)) return false;
+  return memcmp(ba_data(a), ba_data(b), ba_length(a)) == 0;
 }
 
 inline Ptr make_number(s64 value) { return to(Fixnum, value); }
@@ -1599,7 +1647,7 @@ u32 hash_code(Ptr it) {
   if (obj->header.hashcode == 0) {
     if (is(String, it)) {
       auto str = as(String, it);
-      obj->header.hashcode = djb2((u8*)str->data, str->length);
+      obj->header.hashcode = djb2((u8*)ba_data(str), ba_length(str));
     } else {
       obj->header.hashcode = hash6432shift(it.value) | 1;
     }
@@ -1767,8 +1815,8 @@ bool file_output_stream_write_string(Ptr os, ByteArrayObject *str) {
   auto fd = from(Fixnum, file_output_stream_get_fd(os));
   assert(fd == 1 || fd == 2); // only support stdout & stderr right now
   auto file = fd == 1 ? stdout : stderr;
-  auto wrote = fwrite(str->data, 1, str->length, file);
-  return wrote == str->length;
+  auto wrote = fwrite(ba_data(str), 1, ba_length(str), file);
+  return wrote == ba_length(str);
 }
 bool file_output_stream_write_char(Ptr os, character ch) {
   auto fd = from(Fixnum, file_output_stream_get_fd(os));
@@ -1790,7 +1838,11 @@ u64 obj_size(U16ArrayObject *it)  { return sizeof(U16ArrayObject) + it->length *
 u64 obj_size(U32ArrayObject *it)  { return sizeof(U32ArrayObject) + it->length * 4;    }
 u64 obj_size(U64ArrayObject *it)  { return sizeof(U64ArrayObject) + it->length * 8;    }
 u64 obj_size(ByteCodeObject *)    { return sizeof(ByteCodeObject) + 0;                 }
+#if BA_STATIC_MEM
+u64 obj_size(ByteArrayObject *it) { return sizeof(ByteArrayObject);                    }
+#else
 u64 obj_size(ByteArrayObject *it) { return sizeof(ByteArrayObject) + it->length;       }
+#endif
 u64 obj_size(PtrArrayObject *it)  { return sizeof(PtrArrayObject) + it->length * 8;    }
 u64 obj_size(StandardObject *)    { return sizeof(StandardObject);                     }
 u64 obj_size(StackFrameObject*it) {
@@ -1955,7 +2007,7 @@ void initialize_character_names() {
 }
 
 Ptr character_by_name(ByteArrayObject *str) {
-  auto lookup = string((char *)&str->data, str->length);
+  auto lookup = string((char *)ba_data(str), ba_length(str));
   if (character_codes_by_name.find(lookup) == character_codes_by_name.end()) {
     return Nil;
   } else {
@@ -1985,13 +2037,16 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
   case ByteArray_ObjectType: {
     ByteArrayObject *vobj = (ByteArrayObject*)(obj);
     switch(vobj->bao_type) {
-    case String:
+    case String: {
       os << "\"";
-      for (uint i = 0; i < vobj->length; i++) {
-        os << vobj->data[i];
+      auto len = ba_length(vobj);
+      auto mem = ba_data(vobj);
+      for (uint i = 0; i < len; i++) {
+        os << mem[i];
       }
       os << "\"";
       return os;
+    }
     case Image: {
       auto w = image_width(vobj); auto h = image_height(vobj);
       return os << "#<Image w=" << w << " h=" << h << " " << (void*)vobj << ">";
@@ -2712,6 +2767,7 @@ void im_move_heap(VM *vm);
 void _vm_update_collection_limit(VM *vm);
 
 void gc(VM *vm) {
+  dbg("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
   vm->in_gc = true;
   vm->gc_count++;
 
@@ -2882,8 +2938,10 @@ void debug_print_list(std::ostream &os, Ptr p) {
 
 void debug_print_symbol(std::ostream &os, Ptr p) {
   auto s = as(String, Symbol_get_name(p));
-  for (uint i = 0; i < s->length; i++) {
-    os << s->data[i];
+  auto len = ba_length(s); 
+  auto mem = ba_data(s);
+  for (uint i = 0; i < len; i++) {
+    os << mem[i];
   }
 }
 
@@ -3114,7 +3172,7 @@ Ptr intern(VM *vm, const char* cstr, int len, Ptr pkg) {
 }
 
 Ptr intern(VM *vm, ByteArrayObject *str, Ptr pkg) {
-  return intern(vm, str->data, str->length, pkg);
+  return intern(vm, ba_data(str), ba_length(str), pkg);
 }
 
 Ptr intern(VM *vm, string name, Ptr pkg) {
@@ -4812,10 +4870,12 @@ Ptr vm_get_stack_values_as_list(VM *vm, u32 count) { //@varargs
 auto vm_load_closure_value(VM *vm, u64 slot, u64 depth) {
   auto curr = vm->curr_frame->closed_over;
   while (depth) {
+    // if (isNil(curr)) _print_debug_stacktrace(vm->curr_thd);
     assert(!isNil(curr));
     curr = array_get(curr, 0);
     depth--;
   }
+  // if (isNil(curr)) _print_debug_stacktrace(vm->curr_thd);
   assert(!isNil(curr));
   return array_get(curr, slot+1);
 }
@@ -6974,9 +7034,9 @@ const char *read_file_contents(string path) {
 }
 
 const char *bao_to_c_string(ByteArrayObject *bao) {
-  auto len = bao->length + 1;
+  auto len = ba_length(bao) + 1;
   auto mem = (char *)calloc(len, 1);
-  memcpy(mem, &bao->data, len - 1);
+  memcpy(mem, ba_data(bao), len - 1);
   return mem;
 }
 

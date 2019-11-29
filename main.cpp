@@ -100,7 +100,8 @@ typedef double f64;
 // info that lives at the start of a snapshot image
 struct image_header {
   u64 heap_size;
-  u64 static_region_size;
+  u64 static_size;
+  u64 static_memory_allocation_count;
 };
 
 #if STATS
@@ -625,13 +626,16 @@ struct blit_surface {
 
 struct static_memory {
   static_memory *next;
-  u64 byte_count;
+  u32 flags;
+  u32 byte_count;
   u8 bytes[];
 };
 
 struct VM {
   Ptr system_dictionary;
   static_memory *static_mem;
+  u64 static_mem_size;
+  u64 static_mem_allocation_count;
   void* heap_mem;
   void* heap_end;
   void* alt_heap_mem;
@@ -670,10 +674,13 @@ struct VM {
 // static memory
 
 static_memory *alloc_static_memory(VM *vm, u64 byte_count) {
-  auto it = (static_memory *)calloc(sizeof(static_memory) + byte_count, 1);
+  auto size = sizeof(static_memory) + byte_count;
+  auto it = (static_memory *)calloc(size, 1);
   it->byte_count = byte_count;
   it->next = vm->static_mem;
   vm->static_mem = it;
+  vm->static_mem_allocation_count++;
+  vm->static_mem_size += size;
   return it;
 }
 
@@ -4717,7 +4724,8 @@ Ptr im_snapshot_to_path(VM *vm, const char *path){
     auto heap_size = (u64)new_heap_end - (u64)new_heap;
 
     header.heap_size = heap_size;
-    header.static_region_size = 0;
+    header.static_size = vm->static_mem_size;
+    header.static_memory_allocation_count = vm->static_mem_allocation_count;
 
     FILE *out = fopen(path, "wb");
     if(out != NULL) {
@@ -4737,6 +4745,19 @@ Ptr im_snapshot_to_path(VM *vm, const char *path){
           to_go -= wrote;
           data += wrote;
           dbg("to go bytes: ", to_go, " wrote: ", wrote);
+        }
+      }
+      //write the static memory
+      {
+        auto curr = vm->static_mem;
+        while (curr) {
+          auto next = curr->next;
+          curr->next = curr; // store this block's pointer in itself to reference on rehydrate
+          auto size = sizeof(static_memory) + curr->byte_count;
+          auto wrote = fwrite(curr, 1, size, out);
+          assert(wrote == size);
+          curr->next = next;
+          curr = next;
         }
       }
       fclose(out);
@@ -7226,6 +7247,8 @@ VM *vm_create(run_info info) {
 VM *vm_create_from_image(const char *path, run_info info) {
   VM *vm = _vm_create();
 
+  static_memory *smem = 0;
+
   // read the image into heap memory
   {
     FILE *in = fopen(path, "rb");
@@ -7246,10 +7269,24 @@ VM *vm_create_from_image(const char *path, run_info info) {
         exit(1);
       }
     }
+    vm->heap_end = (void *)((u64)vm->heap_mem + header.heap_size);
+    dbg("read heap size: ", (1.0 * header.heap_size) / (1024 * 1024));
+
+    // read the static memory
+    vm->static_mem_allocation_count = header.static_memory_allocation_count;
+    {
+      smem = (static_memory *)calloc(header.static_size, 1);
+      auto amt_read = fread(smem, 1, header.static_size, in);
+      assert(amt_read == header.static_size);
+      if (amt_read != header.static_size) {
+        dbg("failed to read full static memory.");
+        exit(1);
+      }
+    }
+    dbg("read static size : ", (1.0 * header.static_size) / (1024 * 1024));
+
     fclose(in);
 
-    vm->heap_end = (void *)((u64)vm->heap_mem + header.heap_size);
-    dbg("read size: ", (1.0 * header.heap_size) / (1024 * 1024));
   }
 
   // fixup the pointers
@@ -7262,6 +7299,7 @@ VM *vm_create_from_image(const char *path, run_info info) {
 
   _debug_heap_report(vm->heap_mem, vm->heap_end);
 
+  // assert heap integrity
   {
     scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it) {
         if (it == Nil || !is(Object, it)) return;
@@ -7269,6 +7307,32 @@ VM *vm_create_from_image(const char *path, run_info info) {
         auto where = as(Object, it);
         assert(vm->heap_mem <= where && vm->heap_end > where);
         #endif 
+      });
+  }
+
+  // set up static memory
+  {
+    std::map<static_memory*, static_memory*>fixups;
+
+    static_memory *src = smem;
+    auto count = vm->static_mem_allocation_count;
+    dbg("fixing up ", count, " allocations");
+    while (count--) {
+      auto size = sizeof(static_memory) + src->byte_count;
+      auto dst = (static_memory *)calloc(size, 1);
+      fixups[src->next] = dst;
+      memcpy(dst, src, size);
+      dst->next = vm->static_mem;
+      vm->static_mem = dst;
+      src = (static_memory*)(((u8*)src) + size);
+    }
+
+    scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it) {
+        if (it == Nil || !is(ByteArray, it)) return;
+        auto ba = as(ByteArray, it);
+        auto mem = fixups[ba->mem];
+        assert(mem);
+        ba->mem = mem;
       });
   }
 
@@ -7290,6 +7354,7 @@ VM *vm_create_from_image(const char *path, run_info info) {
 
   _vm_poke_arguments(vm, info);
 
+  free(smem);
   return vm;
 }
 

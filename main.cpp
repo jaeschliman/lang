@@ -497,6 +497,7 @@ struct thread_ctx {
   StackFrameObject *frame;
   ByteCodeObject *bc;
   Ptr thread;
+  bool has_run;
 };
 
 thread_ctx *make_thread_ctx() {
@@ -510,6 +511,7 @@ thread_ctx *make_thread_ctx() {
   result->stack = ptr_mem + (count - 1);
   result->stack_start = result->stack;
   result->stack_end = ptr_mem; // + 1024; // padding
+  result->has_run = false;
   return result;
 }
 
@@ -4355,31 +4357,33 @@ s64 _vm_threads_get_minimum_sleep_time(VM *vm) {
 
 // FIXME: doesn't yet respect thread priority
 thread_ctx *_vm_maybe_get_next_available_thread(VM *vm) {
-  if (vm->threads->front) {
-    s64 now = current_time_ms();
+  auto threads = vm->threads;
+  if (threads->front) {
+    s64 now = 0; //current_time_ms();
     thdq_node *p = 0;
-    auto n = vm->threads->front;
+    auto n = threads->front;
     while (n) {
       auto thd = n->val;
       auto thread = thd->thread;
       auto status = thread_get_status(thread);
       if (status == THREAD_STATUS_WAITING) {
         // dbg("found waiting thread");
-        thdq_remove_next(vm->threads, p);
+        thdq_remove_next(threads, p);
         return thd;
       } else if (status == THREAD_STATUS_SLEEPING) {
+        if (!now) now = current_time_ms();
         auto wake_after = thread_get_wake_after(thread);
         s64 delta = as(Fixnum, wake_after) - now;
         // if (delta > 0) dbg("thread still sleeping for ", delta, " ms", thread);
         if (delta <= 0) {
           // dbg("waking sleeping thread");
-          thdq_remove_next(vm->threads, p);
+          thdq_remove_next(threads, p);
           return thd;
         }
       } else if (status == THREAD_STATUS_SEM_WAIT) {
         auto sem = thread_get_semaphore(thread);
         if (acquire_semaphore(sem)) {
-          thdq_remove_next(vm->threads, p);
+          thdq_remove_next(threads, p);
           return thd;
         }
       } else if (status == THREAD_STATUS_RUNNING) {
@@ -4472,6 +4476,9 @@ ByteCodeObject *make_empty_bytecode(VM *vm);
 void _vm_thread_resume(VM *vm, thread_ctx* thd) {
   vm_set_curr_thread(vm, thd);
   auto thread = thd->thread;
+  thread_set_status(thread, THREAD_STATUS_RUNNING);
+  if (thd->has_run) return;
+  thd->has_run = true;
   auto thunk = thread_get_thunk(thread);
   auto cont  = thread_get_suspension(thread);
   if (thunk != Nil || cont != Nil) {
@@ -4503,8 +4510,9 @@ void _vm_thread_resume(VM *vm, thread_ctx* thd) {
     } else {
       assert(false);
     }
+  } else {
+      assert(false);
   }
-  thread_set_status(thread, THREAD_STATUS_RUNNING);
 }
 
 // N.B. when used outside the interpreter loop, you must
@@ -4582,9 +4590,10 @@ bool vm_sem_wait_current_thread(VM *vm, Ptr semaphore) { prot_ptr(semaphore);
 bool vm_swap_threads(VM *vm) {
   auto next = _vm_maybe_get_next_available_thread(vm);
   if (next) {
-    assert(vm->curr_thd != next);
+    // assert(vm->curr_thd != next);
     auto curr = _vm_thread_suspend(vm);
-    vm_set_curr_thread(vm, 0); // XXX careful!
+    // vm_set_curr_thread(vm, 0); // XXX careful!
+    vm->curr_thd = 0;
     if (curr) vm_add_thread_to_background_set(vm, curr);
     _vm_thread_resume(vm, next);
     return true;
@@ -4806,8 +4815,12 @@ Ptr im_snapshot_to_path(VM *vm, const char *path){
           auto next = curr->next;
           curr->next = curr; // store this block's pointer in itself to reference on rehydrate
           auto size = sizeof(static_memory) + curr->byte_count;
+          #ifdef NDEBUG
+          fwrite(curr, 1, size, out);
+          #else
           auto wrote = fwrite(curr, 1, size, out);
           assert(wrote == size);
+          #endif
           curr->next = next;
           curr = next;
         }
@@ -5028,7 +5041,7 @@ typedef struct {
 } interp_params;
 
 //absurdly low for testing
-#define CTX_SWITCH 2000
+#define CTX_SWITCH 10000
 #define RUN_QUICK 10000
 #define RUN_AWHILE 1000000
 #define RUN_INDEFINITELY 0
@@ -5223,7 +5236,15 @@ void vm_interp(VM* vm, interp_params params) {
         auto is_builtin = !(idx & ~0b111);
 
         if (is_builtin) {
-          if (idx == 0) { // APPLY
+          switch(idx) {
+          case 0: goto lbl_apply;
+          case 1: goto lbl_send;
+          case 2: goto lbl_sleep;
+          case 3: goto lbl_sem_wait;
+          case 4: goto lbl_kill_thd;
+          }
+        lbl_apply:
+            { // APPLY
             // TODO: multi-arity apply
             auto args = vm_pop(vm);
             auto to_apply = vm_pop(vm);
@@ -5236,12 +5257,14 @@ void vm_interp(VM* vm, interp_params params) {
             vm_push(vm, to_apply);
             argc = count;
             goto reenter_call;
-          } else if (idx == 1) { // SEND
+          }
+        lbl_send: { // SEND
             // dbg("preparing to send... ", idx);
             vm_interp_prepare_for_send(vm, argc);
             argc--;
             goto reenter_call;
-          } else if (idx == 2) { // SLEEP
+          }
+        lbl_sleep: { // SLEEP
             auto ms = vm_pop(vm); 
             vm_push(vm, Nil);
             // dbg("sleeping for ", as(Fixnum, ms));
@@ -5253,7 +5276,8 @@ void vm_interp(VM* vm, interp_params params) {
               // do nothing, we have another thread ready to go
             }
             break;
-          } else if (idx == 3) { // SEM_WAIT
+          }
+        lbl_sem_wait:{ // SEM_WAIT
             auto semaphore = vm_pop(vm);
             vm_push(vm, Nil);
             auto status = semaphore_get_count(semaphore);
@@ -5282,7 +5306,8 @@ void vm_interp(VM* vm, interp_params params) {
               }
             }
             break;
-          } else if (idx == 4) { // KILL_THD
+          }
+        lbl_kill_thd: { // KILL_THD
             auto thread = vm_pop(vm);
             vm_push(vm, Nil);
             thread_set_status(thread, THREAD_STATUS_DEAD);
@@ -5355,16 +5380,18 @@ void vm_interp(VM* vm, interp_params params) {
       // PC is now -1
 
       // we choose the end of a CALL as our safe point for ctx switching
-      if (params.total_execution_instr_budget &&
-          spent_instructions >= params.total_execution_instr_budget) {
-        // dbg("suspending execution");
-        vm_suspend_current_thread(vm);
-        if (vm->error) { dbg("error suspending: ", vm->error); }
-        // dbg("suspended.");
-        unprot_ptr(init_thread);
-        return;
-      }
       if (params.thread_switch_instr_budget && ctx_switch_budget <= 0) {
+        // check if we need to poll for events
+        if (params.total_execution_instr_budget &&
+            spent_instructions >= params.total_execution_instr_budget) {
+          // dbg("suspending execution");
+          vm_suspend_current_thread(vm);
+          if (vm->error) { dbg("error suspending: ", vm->error); }
+          // dbg("suspended.");
+          unprot_ptr(init_thread);
+          return;
+        }
+
         if (vm_swap_threads(vm)) {
           counter++;
         } else {

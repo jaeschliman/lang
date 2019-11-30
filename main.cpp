@@ -2208,7 +2208,7 @@ auto vm_map_thread_ctx_refs(VM *vm, thread_ctx *ctx, PtrFn fn) {
   }
 }
 auto vm_map_stack_refs(VM *vm, PtrFn fn) {
-  return vm_map_thread_ctx_refs(vm, vm->curr_thd, fn);
+  vm_map_thread_ctx_refs(vm, vm->curr_thd, fn);
   auto n = vm->threads->front;
   while(n) {
     vm_map_thread_ctx_refs(vm, n->val, fn);
@@ -2379,14 +2379,23 @@ auto _debug_heap_report(void *start, void *end, s64 delta = 0) {
 
 // @unsafe
 auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
-  std::set<u64> seen;
+  std::set<u64> *seen = new std::set<u64>;
+  std::vector<Ptr> *q = new std::vector<Ptr>;
+
+  PtrFn enqueue = [&](Ptr it) {
+    if (!is(NonNilObject, it)) return;
+    if (seen->find(it.value) != seen->end()) return;
+    q->push_back(it);
+  };
+
   PtrFn recurse = [&](Ptr it) {
     if (!is(NonNilObject, it)) return;
-    if (seen.find(it.value) != seen.end()) return;
-    seen.insert(it.value);
+    if (seen->find(it.value) != seen->end()) return;
+    seen->insert(it.value);
     fn(it);
-    map_refs(it, recurse);
+    map_refs(it, enqueue);
   };
+
   vm_map_stack_refs(vm, recurse);
   recurse(vm->globals->lang_package);
   recurse(vm->globals->call1);
@@ -2401,6 +2410,16 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
     recurse(to(Ptr, vm->globals->classes.builtins[i]));
   }
 
+  recurse(vm->system_dictionary);
+
+  while (q->size()) {
+    auto it = q->at(q->size() - 1);
+    q->pop_back();
+    recurse(it);
+  }
+
+  delete seen;
+  delete q;
 }
 
 void vm_count_reachable_refs(VM *vm) {

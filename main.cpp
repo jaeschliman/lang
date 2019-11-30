@@ -222,8 +222,8 @@ void thdq_insert_at_index(thdq *q, thdq_node *n, s64 idx) {
       return;
     }
     idx--;
-    curr = curr->next;
     p = curr;
+    curr = curr->next;
   }
   // should not happen
   // assert(false);

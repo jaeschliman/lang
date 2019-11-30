@@ -2773,6 +2773,37 @@ void im_move_heap(VM *vm);
 
 void _vm_update_collection_limit(VM *vm);
 
+void gc_static_mem(VM *vm) {
+    vm_map_reachable_refs(vm, [&](Ptr it){
+         if (!is(ByteArray, it)) return;
+         auto ba = as(ByteArray, it);
+         ba->mem->flags = 1;
+      });
+
+    auto count = 0;
+    auto size = 0;
+    static_memory **prev = &vm->static_mem;
+    auto curr = vm->static_mem;
+    while (curr) {
+      if (curr->flags) {
+        size += sizeof(static_memory) + curr->byte_count;
+        count++;
+        curr->flags = 0;
+        *prev = curr;
+        prev = &curr->next;
+        curr = curr->next;
+      } else {
+        auto next = curr->next;
+        free(curr);
+        curr = next;
+      }
+    }
+    *prev = 0;
+
+    vm->static_mem_allocation_count = count;
+    vm->static_mem_size = size;
+}
+
 void gc(VM *vm) {
   dbg("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
   vm->in_gc = true;
@@ -2842,6 +2873,8 @@ void gc(VM *vm) {
   // dbg(" protected ptr    count : ", vm->gc_protected_ptrs->size());
 
   vm_refresh_frame_state(vm);
+
+  gc_static_mem(vm);
 
   vm->in_gc = false;
 }

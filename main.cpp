@@ -96,6 +96,7 @@ typedef double f64;
 #define SYSTEM_CURRENT_THREAD_KEY FIXNUM(1)
 #define SYSTEM_OTHER_THREADS_KEY FIXNUM(2)
 #define SYSTEM_BUILTIN_CLASSES_KEY FIXNUM(3)
+#define SYSTEM_CURRENT_COLOR_KEY FIXNUM(4)
 
 // info that lives at the start of a snapshot image
 struct image_header {
@@ -635,6 +636,7 @@ struct static_memory {
 
 struct VM {
   Ptr system_dictionary;
+  u16 current_color; // actual 'color' stored in top two bits
   static_memory *static_mem;
   u64 static_mem_size;
   u64 static_mem_allocation_count;
@@ -785,11 +787,16 @@ void * vm_alloc(VM *vm, u64 bytes) {
       auto result = vm_alloc(vm, bytes);
       vm->gc_disabled = false;
       if (vm_heap_used(vm) > vm->heap_size_in_bytes) { die("heap exhausted"); }
+      auto object = (Object *)result;
+      object->header.flags = vm->current_color;
       return result;
   }
 
   vm->heap_end = new_heap_end;
   vm->allocation_count++;
+
+  auto object = (Object *)result;
+  object->header.flags = vm->current_color;
 
   return result;
 }
@@ -2379,21 +2386,39 @@ auto _debug_heap_report(void *start, void *end, s64 delta = 0) {
   dbg(count, " objects on heap, ", ref_count, " in-heap references ");
 }
 
+#define COLOR_MASK 0b1100000000000000
+
+void vm_advance_color(VM *vm) {
+  vm->current_color = ((((vm->current_color >> 14) & 0b11) + 1) << 14) & COLOR_MASK;
+  // dbg("set current color: ", std::bitset<16>(vm->current_color));
+}
+
+bool vm_is_object_marked(VM *vm, Ptr it) {
+  if (!is(NonNilObject,it)) return true;
+  auto obj = as(Object, it);
+  return (obj->header.flags & COLOR_MASK) == vm->current_color;
+} 
+
+void vm_mark_object(VM *vm, Ptr it) {
+  if (!is(NonNilObject,it)) return;
+  auto obj = as(Object, it);
+  obj->header.flags &= ~COLOR_MASK;
+  obj->header.flags |= vm->current_color;
+}
+
 // @unsafe
 auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
-  std::set<u64> *seen = new std::set<u64>;
   std::vector<Ptr> *q = new std::vector<Ptr>;
+  vm_advance_color(vm);
 
   PtrFn enqueue = [&](Ptr it) {
-    if (!is(NonNilObject, it)) return;
-    if (seen->find(it.value) != seen->end()) return;
+    if (vm_is_object_marked(vm, it)) return;
     q->push_back(it);
   };
 
   PtrFn recurse = [&](Ptr it) {
-    if (!is(NonNilObject, it)) return;
-    if (seen->find(it.value) != seen->end()) return;
-    seen->insert(it.value);
+    if (vm_is_object_marked(vm, it)) return;
+    vm_mark_object(vm, it);
     fn(it);
     map_refs(it, enqueue);
   };
@@ -2420,7 +2445,6 @@ auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
     recurse(it);
   }
 
-  delete seen;
   delete q;
 }
 
@@ -3285,7 +3309,7 @@ bool is_object_class(StandardObject *obj) {
 }
 
 Ptr mark_object_as_class(StandardObject *obj) {
-  obj->header.flags = obj->header.flags | StandardObjectFlag_IsClass;
+  obj->header.flags |= StandardObjectFlag_IsClass;
   return Nil;
 }
 
@@ -4643,7 +4667,14 @@ void _im_prepare_vm_for_snapshot(VM *vm) {
   auto classes = _built_in_classes_as_array(vm);
   ht_at_put(vm, vm->system_dictionary, SYSTEM_BUILTIN_CLASSES_KEY, classes);
 
+  // allocate space for the current object color (before gc)
+  ht_at_put(vm, vm->system_dictionary, SYSTEM_CURRENT_COLOR_KEY, FIXNUM(0));
+
   gc(vm);
+
+  // save the current object color (after gc)
+  ht_at_put(vm, vm->system_dictionary, SYSTEM_CURRENT_COLOR_KEY, to(Fixnum, vm->current_color));
+
 
   #if DEBUG_IMAGE_SNAPSHOTS
   {
@@ -7180,6 +7211,9 @@ void vm_init_from_heap_snapshot(VM *vm) {
   _debug_assert_in_heap(vm, vm->system_dictionary);
   dbg("loaded system dictionary: ", vm->system_dictionary);
   assert(is(ht, vm->system_dictionary));
+
+  // set current color
+  vm->current_color = from(Fixnum, ht_at(vm->system_dictionary, SYSTEM_CURRENT_COLOR_KEY));
 
   // set root package
   vm->globals->lang_package = ht_at(vm->system_dictionary, SYSTEM_LANG_PACKAGE_KEY);

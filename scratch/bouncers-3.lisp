@@ -180,7 +180,7 @@
          ;; (x (aget box 0))
          ;; (y (aget box 1))
          ;(sc (/i (aget box 5) 275))
-         (d 4; (if (<i sc 2) 2 (if (<i sc 6) sc 6))
+         (d 2; (if (<i sc 2) 2 (if (<i sc 6) sc 6))
            )
          (color (car (aget box 4)))
          ;; (a (make-point x y))

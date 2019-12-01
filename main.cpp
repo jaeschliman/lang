@@ -2388,37 +2388,40 @@ auto _debug_heap_report(void *start, void *end, s64 delta = 0) {
 
 #define COLOR_MASK 0b1100000000000000
 
-void vm_advance_color(VM *vm) {
+u16 vm_advance_color(VM *vm) {
   vm->current_color = ((((vm->current_color >> 14) & 0b11) + 1) << 14) & COLOR_MASK;
   // dbg("set current color: ", std::bitset<16>(vm->current_color));
+  return vm->current_color;
 }
 
-bool vm_is_object_marked(VM *vm, Ptr it) {
+bool vm_is_object_marked(VM *vm, Ptr it, u16 color) {
   if (!is(NonNilObject,it)) return true;
   auto obj = as(Object, it);
-  return (obj->header.flags & COLOR_MASK) == vm->current_color;
+  return (obj->header.flags & COLOR_MASK) == color;
 } 
 
-void vm_mark_object(VM *vm, Ptr it) {
+void vm_mark_object(VM *vm, Ptr it, u16 color) {
   if (!is(NonNilObject,it)) return;
   auto obj = as(Object, it);
   obj->header.flags &= ~COLOR_MASK;
-  obj->header.flags |= vm->current_color;
+  obj->header.flags |= color;
 }
 
 // @unsafe
 auto vm_map_reachable_refs(VM *vm, PtrFn fn) {
   std::vector<Ptr> *q = new std::vector<Ptr>;
-  vm_advance_color(vm);
+  auto grey  = vm_advance_color(vm);
+  auto black = vm_advance_color(vm);
 
   PtrFn enqueue = [&](Ptr it) {
-    if (vm_is_object_marked(vm, it)) return;
+    if (vm_is_object_marked(vm, it, grey) || vm_is_object_marked(vm, it, black)) return;
+    vm_mark_object(vm, it, grey);
     q->push_back(it);
   };
 
   PtrFn recurse = [&](Ptr it) {
-    if (vm_is_object_marked(vm, it)) return;
-    vm_mark_object(vm, it);
+    if (vm_is_object_marked(vm, it, black)) return;
+    vm_mark_object(vm, it, black);
     fn(it);
     map_refs(it, enqueue);
   };

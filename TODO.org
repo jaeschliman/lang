@@ -74,7 +74,7 @@
 * DONE basic message definition, send facility
 * DONE image objects
 * DONE rotation + scale BitBlt like thing
-* TODO maybe store image data off-heap?
+* DONE maybe store image data off-heap?
 * DONE fix make-point for negative values (was a reader problem)
 * DONE more compact bc representation
 * TODO compact more of the bc
@@ -521,6 +521,7 @@ https://www.sandeepnambiar.com/setting-up-emacs-for-c++/
   -- but do we /want/ progv? (or similar)
 * TODO sws: some kind of labeled slider
 * TODO `fill-rect-with-mask` needs a better interface...
+* TODO make off-heap storage fully conditional on define flag
 
 * notes
 maybe have a stack of compilers? can push/pop...

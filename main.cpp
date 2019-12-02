@@ -1828,14 +1828,12 @@ ByteArrayObject *bignum_add(VM *vm, ByteArrayObject *a, ByteArrayObject *b) {
   auto a_len = ba_length(a), b_len = ba_length(b);
 
   ByteArrayObject *bigger, *smaller;
-  if (a_len < b_len) {bigger = b; smaller = a;}
+  if (a_len < b_len) { bigger = b; smaller = a;}
   else { bigger = a; smaller = b;}
   auto bigger_mem = ba_mem(bigger);
   auto smaller_mem = ba_mem(smaller);
 
   auto a_mem = ba_mem(a), b_mem = ba_mem(b);
-  auto a_neg = ((s8 *)a_mem)[0] < 0;
-  auto b_neg = ((s8 *)b_mem)[0] < 0;
   auto smaller_neg = ((s8 *)smaller_mem)[0] < 0;
 
   auto min_len = std::min(a_len, b_len);
@@ -1844,59 +1842,31 @@ ByteArrayObject *bignum_add(VM *vm, ByteArrayObject *a, ByteArrayObject *b) {
   u8 c_mem[c_len];
   memset(c_mem, 0, c_len);
 
-  // TODO: unclear to me why I need a separate clause to add two negative numbers.
-  if (a_neg && b_neg) {
-    int carry = 1; // TODO: uneasy about this still
-    int idx = 0;
-    while (idx++ < min_len) {
-      s16 a = (u8)~(a_mem[a_len - idx]);
-      s16 b = (u8)~(b_mem[b_len - idx]);
-      s32 sum = a + b + carry;
-      carry = sum / 256;
-      c_mem[c_len - idx] = sum % 256;
-    }
-    while (idx < max_len) {
-      auto n = (u8)~(bigger_mem[max_len - idx]);
-      s32 sum = n + carry;
-      carry = sum / 256;
-      c_mem[c_len - idx] = sum % 256;
-      idx++;
-    }
-    if (carry) {
-      c_mem[c_len - idx] = carry;
-    }
-    for (auto i = 0; i < c_len; i++) {
-      c_mem[i] = ~c_mem[i];
-    }
-  } else {
+  u16 carry = 0;
+  s32 idx = 0;
+  while (idx++ < min_len) {
+    u16 sum = a_mem[a_len - idx] + b_mem[b_len - idx] + carry;
+    c_mem[c_len - idx] = sum % 256;
+    carry = sum / 256;
+  }
+  idx--;
+  while (idx++ < max_len) {
+    auto n = bigger_mem[max_len - idx];
+    // sign extend the smaller number if needed
+    u16 sum = smaller_neg ? n + 0xff + carry : n + carry;
+    c_mem[c_len - idx] = sum % 256;
+    carry = sum / 256;
+  }
+  idx--;
 
-    u16 carry = 0;
-    s32 idx = 0;
-    while (idx++ < min_len) {
-      u16 sum = a_mem[a_len - idx] + b_mem[b_len - idx] + carry;
-      c_mem[c_len - idx] = sum % 256;
-      carry = sum / 256;
-    }
-    while (idx < max_len) {
-      auto n = bigger_mem[max_len - idx];
-      // sign extend the smaller number if needed
-      u16 sum = smaller_neg ? n + 0xff + carry : n + carry;
-      c_mem[c_len - idx] = sum % 256;
-      carry = sum / 256;
-      idx++;
-    }
+  //TODO: makes me uncomofortable to drop the carry, but it seems to be what works
 
-    // really uncomfortable with this, need to clean it up.
-    if (carry) {
-      // drop the final carry?
-      // c_mem[c_len - idx] = carry;
-    } else if (((s8 *)c_mem)[c_len - (idx - 1)] < 0) {
-      // truncate out the empty top byte
-      auto result = make_bignum(vm, c_len - 1, &(c_mem[1]));
-      return as(Bignum, result);
-    } else {
-      
-    }
+  auto prev_byte = ((s8 *)c_mem)[c_len - idx];
+
+  if (prev_byte < 0) {
+    // could also set top byte to 0xFF, but may as well drop it
+    auto result = make_bignum(vm, c_len - 1, &(c_mem[1]));
+    return as(Bignum, result);
   }
 
   // TODO: truncate empty bytes

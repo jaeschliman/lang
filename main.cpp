@@ -1793,6 +1793,15 @@ lh *bignum_to_longhand(ByteArrayObject *ba) {
   return res;
 }
 
+ByteArrayObject *bignum_from_fixnum(VM *vm, s64 n) {
+  union {
+    s64 num;
+    u8  bytes[4];
+  } bits;
+  bits.num = htonl(n);
+  return as(Bignum, make_bignum(vm, 4, bits.bytes));
+}
+
 ByteArrayObject *bignum_copy(VM *vm, ByteArrayObject *n) {
   return as(Bignum, make_bignum(vm, ba_length(n), ba_mem(n)));
 }
@@ -1814,20 +1823,26 @@ ByteArrayObject *bignum_negate(VM *vm, ByteArrayObject *n) {
   return r;
 }
 
+typedef union {
+  u8 b[2];
+  u16 n;
+}
+bignum_byte;
 
 // TODO: handle negative numbers
 ByteArrayObject *bignum_add(VM *vm, ByteArrayObject *a, ByteArrayObject *b) {
   auto a_len = ba_length(a), b_len = ba_length(b);
 
-  ByteArrayObject *bigger;
-  if (a_len < b_len)  bigger = b;
-  else bigger = a;
+  ByteArrayObject *bigger, *smaller;
+  if (a_len < b_len) {bigger = b; smaller = a;}
+  else { bigger = a; smaller = b;}
   auto bigger_mem = ba_mem(bigger);
+  auto smaller_mem = ba_mem(smaller);
 
   auto a_mem = ba_mem(a), b_mem = ba_mem(b);
   auto a_neg = ((s8 *)a_mem)[0] < 0;
   auto b_neg = ((s8 *)b_mem)[0] < 0;
-  // auto bigger_neg = ((s8 *)bigger_mem)[0] < 0;
+  auto smaller_neg = ((s8 *)smaller_mem)[0] < 0;
 
   auto min_len = std::min(a_len, b_len);
   auto max_len = std::max(a_len, b_len);
@@ -1835,24 +1850,7 @@ ByteArrayObject *bignum_add(VM *vm, ByteArrayObject *a, ByteArrayObject *b) {
   u8 c_mem[c_len];
   memset(c_mem, 0, c_len);
 
-  if (!a_neg && !b_neg) {
-    int carry = 0;
-    int idx = 0;
-    while (idx++ < min_len) {
-      auto sum = a_mem[a_len - idx] + b_mem[b_len - idx] + carry;
-      carry = sum / 256;
-      c_mem[c_len - idx] = sum % 256;
-    }
-    while (idx < max_len) {
-      auto sum = bigger_mem[max_len - idx] + carry;
-      carry = sum / 256;
-      c_mem[c_len - idx] = sum % 256;
-      idx++;
-    }
-    if (carry) {
-      c_mem[c_len - idx] = carry;
-    }
-  } else if (a_neg && b_neg) {
+  if (a_neg && b_neg) {
     int carry = 1; // TODO: uneasy about this still
     int idx = 0;
     while (idx++ < min_len) {
@@ -1875,8 +1873,52 @@ ByteArrayObject *bignum_add(VM *vm, ByteArrayObject *a, ByteArrayObject *b) {
     for (auto i = 0; i < c_len; i++) {
       c_mem[i] = ~c_mem[i];
     }
-  } else if (a_neg) {
   } else {
+    u16 carry = 0;
+    s32 idx = 0;
+    while (idx++ < min_len) {
+      bignum_byte a;
+      a.b[0] = a_mem[a_len - idx];
+      a.b[1] = 0x0;
+     
+      bignum_byte b;
+      b.b[0] = b_mem[b_len - idx];
+      b.b[1] = 0x0;
+      
+      // dbg(" a = ", a.n);
+      // dbg(" b = ", b.n);
+      u16 sum = a.n + b.n + carry;
+
+      u8 p = sum % 256;
+      c_mem[c_len - idx] = p;
+      carry = sum / 256;
+    }
+    while (idx < max_len) {
+      // dbg("churning....");
+      bignum_byte n;
+      n.b[0] = bigger_mem[max_len - idx];
+      n.b[1] = 0x0;
+
+      // sign extend the smaller number if needed
+      u16 sum = smaller_neg ? n.n + 0xff + carry : n.n + carry;
+      u8 p = sum % 256;
+      c_mem[c_len - idx] = p;
+      carry = sum / 256;
+      idx++;
+    }
+
+    if (carry) {
+      // drop the final carry?
+      // c_mem[c_len - idx] = carry;
+    } else if (((s8 *)c_mem)[c_len - (idx - 1)] < 0) {
+      // c_mem[c_len - idx] = 1 << 7;
+      // c_mem[c_len - idx] = (u8)-1;
+      // truncate out the empty top byte
+      auto result = make_bignum(vm, c_len - 1, &(c_mem[1]));
+      return as(Bignum, result);
+    } else {
+      
+    }
   }
 
   // TODO: truncate empty bytes

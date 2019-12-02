@@ -44,12 +44,14 @@
 
 (let ((n (* 2 500000000000000000)))
   (#/lang/%print n)
+  (print 'self-add)
   (#/lang/%print (#/lang/+b n n)))
 
 (print '-------------------------------)
 
 (let ((n (* 2 -500000000000000000)))
   (#/lang/%print n)
+  (print 'self-add)
   (#/lang/%print (#/lang/+b n n)))
 
 (print '-------------------------------)
@@ -58,6 +60,7 @@
       (b (* 2 -500000000000000001)))
   (#/lang/%print a)
   (#/lang/%print b)
+  (print 'summed)
   (#/lang/%print (#/lang/+b a b)))
 
 (print '-------------------------------)
@@ -108,6 +111,34 @@
     (#/lang/%print a)
     (#/lang/%print b)
     (#/lang/%print (#/lang/+b a b))))
+
+
+(print '-------------------------------)
+(let ((a (#/lang/i->b 5))
+      (b (#/lang/i->b -7)))
+  (#/lang/%print a)
+  (#/lang/%print b)
+  (#/lang/%print (#/lang/+b a b)))
+(print '-------------------------------)
+
+(print '-------------------------------)
+(define (check a b)
+  (let ((a (if (fixnum? a) (#/lang/i->b a) a))
+        (b (if (fixnum? b) (#/lang/i->b b) b)))
+    (#/lang/%print a)
+    (#/lang/%print b)
+    (#/lang/%print (#/lang/+b a b)))
+  (print '-------------------------------))
+
+(check 1024 -2048)
+
+(check (* 16 1024) (* 16 -2048))
+
+(check (* 16 1024) (* 16 -2048))
+(check (* 2  500000000) -5)
+(check (* 2  500000000000000000) -5)
+
+(check -3 -5)
 
 (print 'done)
 

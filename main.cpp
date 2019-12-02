@@ -1803,28 +1803,60 @@ ByteArrayObject *bignum_add(VM *vm, ByteArrayObject *a, ByteArrayObject *b) {
   auto bigger_mem = ba_mem(bigger);
 
   auto a_mem = ba_mem(a), b_mem = ba_mem(b);
+  auto a_neg = ((s8 *)a_mem)[0] < 0;
+  auto b_neg = ((s8 *)b_mem)[0] < 0;
+  // auto bigger_neg = ((s8 *)bigger_mem)[0] < 0;
+
   auto min_len = std::min(a_len, b_len);
   auto max_len = std::max(a_len, b_len);
   auto c_len = max_len + 1;
   u8 c_mem[c_len];
   memset(c_mem, 0, c_len);
 
-  int carry = 0;
-  int idx = 0;
-  while (idx++ < min_len) {
-    auto sum = a_mem[a_len - idx] + b_mem[b_len - idx] + carry;
-    carry = sum / 256;
-    c_mem[c_len - idx] = sum % 256;
+  if (!a_neg && !b_neg) {
+    int carry = 0;
+    int idx = 0;
+    while (idx++ < min_len) {
+      auto sum = a_mem[a_len - idx] + b_mem[b_len - idx] + carry;
+      carry = sum / 256;
+      c_mem[c_len - idx] = sum % 256;
+    }
+    while (idx < max_len) {
+      auto sum = bigger_mem[max_len - idx] + carry;
+      carry = sum / 256;
+      c_mem[c_len - idx] = sum % 256;
+      idx++;
+    }
+    if (carry) {
+      c_mem[c_len - idx] = carry;
+    }
+  } else if (a_neg && b_neg) {
+    int carry = 1; // TODO: uneasy about this still
+    int idx = 0;
+    while (idx++ < min_len) {
+      s16 a = (u8)~(a_mem[a_len - idx]);
+      s16 b = (u8)~(b_mem[b_len - idx]);
+      s32 sum = a + b + carry;
+      carry = sum / 256;
+      c_mem[c_len - idx] = sum % 256;
+    }
+    while (idx < max_len) {
+      auto n = (u8)~(bigger_mem[max_len - idx]);
+      s32 sum = n + carry;
+      carry = sum / 256;
+      c_mem[c_len - idx] = sum % 256;
+      idx++;
+    }
+    if (carry) {
+      c_mem[c_len - idx] = carry;
+    }
+    for (auto i = 0; i < c_len; i++) {
+      c_mem[i] = ~c_mem[i];
+    }
+  } else if (a_neg) {
+  } else {
   }
-  while (idx < max_len) {
-    auto sum = bigger_mem[max_len - idx] + carry;
-    carry = sum / 256;
-    c_mem[c_len - idx] = sum % 256;
-    idx++;
-  }
-  if (carry) {
-    c_mem[c_len - idx] = carry;
-  }
+
   // TODO: truncate empty bytes
   auto result = make_bignum(vm, c_len, c_mem);
   return as(Bignum, result);

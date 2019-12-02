@@ -346,7 +346,7 @@ Ptr PRIM_FIX_PLUS_impl(VM *vm, u32 argc) {
    VM_ARG("+i",Fixnum,b);
    VM_ARG("+i",Fixnum,a);
 
-  return to(Fixnum,(a + b));
+ return fixnum_add(vm, a, b);
 }
 
 // Primitive 23
@@ -2012,7 +2012,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("+i",Fixnum,b);
    VM_ARG("+i",Fixnum,a);
 
-     return(to(Fixnum,(a + b)));
+    return(fixnum_add(vm, a, b));
     break;
   }
 

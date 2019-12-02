@@ -220,7 +220,7 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim class?        IS_CLSS ((a any)) Bool "is_class(a)")
 
-  (prim +i    FIX_PLUS   ((a Fixnum) (b Fixnum)) Fixnum "a + b")
+  (prim +i    FIX_PLUS   ((a Fixnum) (b Fixnum)) any "fixnum_add(vm, a, b)")
   (prim -i    FIX_MINUS  ((a Fixnum) (b Fixnum)) Fixnum "a - b")
   (prim *i    FIX_TIMES  ((a Fixnum) (b Fixnum)) any "fixnum_mul(vm, a, b)")
   (prim /i    FIX_DIVIDE ((a Fixnum) (b Fixnum)) Fixnum "a / b")

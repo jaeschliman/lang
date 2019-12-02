@@ -1703,6 +1703,23 @@ inline Ptr fixnum_mul(VM *vm, s64 a, s64 b) {
   return make_bignum(vm, 16, bits.bytes);
 }
 
+inline Ptr fixnum_add(VM *vm, s64 a, s64 b) {
+  s128 r = a + b;
+  if (r <= MOST_POSITIVE_FIXNUM && r >= MOST_NEGATIVE_FIXNUM) { return to(Fixnum, r); }
+
+  union {
+    u128 whole;
+    u64 qwords[2];
+    u8 bytes[16];
+  } bits;
+
+  bits.whole = (u128)r;
+  auto tmp = bits.qwords[1];
+  bits.qwords[1] = (u64)htonll(bits.qwords[0]);
+  bits.qwords[0] = (u64)htonll(tmp);
+  return make_bignum(vm, 16, bits.bytes);
+}
+
 typedef std::vector<u8> lh;
 lh *longhand_add(lh *a, lh *b) {
   int carry = 0;

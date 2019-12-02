@@ -34,5 +34,11 @@
   (#/lang/%print (+ 2 n))
   (#/lang/%print (+ n n)))
 
+(let ((n -500000000000000000))
+  (#/lang/%print (* 2 n))
+  (#/lang/%print (* -2 n))
+  (#/lang/%print n)
+  (#/lang/%print (* n n)))
+
 (print 'done)
 

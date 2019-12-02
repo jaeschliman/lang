@@ -1673,40 +1673,8 @@ Ptr make_bignum(VM *vm, s64 byte_count, u8 bytes[]) {
 inline bool is_bignum_negative(ByteArrayObject *b) {
   return ((s8 *)ba_data(b))[0] < 0;
 }
-inline Ptr fixnum_mul(VM *vm, s64 a, s64 b) {
-  s64 result = 0;
-  s64 flag = 0;
 
-  asm("movq %2, %%rax;\n"
-      "imulq %3;\n"
-      "movq %%rax, %1;\n"
-      "movq %%rdx, %0;\n"
-      : "=r"(flag), "=r"(result)
-      : "r"(a), "r"(b)
-      : "rax", "rdx"
-      );
-
-  if (!flag && result >= 0 && result <= MOST_POSITIVE_FIXNUM) return to(Fixnum, result);
-  if (flag == -1 && result < 0 && result >= MOST_NEGATIVE_FIXNUM) return to(Fixnum, result);
-
-  // dbg("tried to multiply: ", a, " and " , b, " flag = ", flag);
-  // dbg(" result = ", result);
-
-  union {
-    u64 qwords[2];
-    u8  bytes[16];
-  } bits;
-
-  bits.qwords[0] = (u64)htonll(flag);
-  bits.qwords[1] = (u64)htonll(result);
-
-  return make_bignum(vm, 16, bits.bytes);
-}
-
-inline Ptr fixnum_add(VM *vm, s64 a, s64 b) {
-  s128 r = a + b;
-  if (r <= MOST_POSITIVE_FIXNUM && r >= MOST_NEGATIVE_FIXNUM) { return to(Fixnum, r); }
-
+Ptr s128_to_bignum(VM *vm, s128 r) {
   union {
     u128 whole;
     u64 qwords[2];
@@ -1718,6 +1686,24 @@ inline Ptr fixnum_add(VM *vm, s64 a, s64 b) {
   bits.qwords[1] = (u64)htonll(bits.qwords[0]);
   bits.qwords[0] = (u64)htonll(tmp);
   return make_bignum(vm, 16, bits.bytes);
+}
+
+inline Ptr fixnum_mul(VM *vm, s64 a, s64 b) {
+  s128 r = (s128)a * (s128)b;
+  if (r <= MOST_POSITIVE_FIXNUM && r >= MOST_NEGATIVE_FIXNUM) { return to(Fixnum, r); }
+  return s128_to_bignum(vm, r);
+}
+
+inline Ptr fixnum_add(VM *vm, s64 a, s64 b) {
+  s128 r = (s128)a + (s128)b;
+  if (r <= MOST_POSITIVE_FIXNUM && r >= MOST_NEGATIVE_FIXNUM) { return to(Fixnum, r); }
+  return s128_to_bignum(vm, r);
+}
+
+inline Ptr fixnum_sub(VM *vm, s64 a, s64 b) {
+  s128 r = (s128)a -(s128)b;
+  if (r <= MOST_POSITIVE_FIXNUM && r >= MOST_NEGATIVE_FIXNUM) { return to(Fixnum, r); }
+  return s128_to_bignum(vm, r);
 }
 
 typedef std::vector<u8> lh;
@@ -1784,7 +1770,7 @@ lh *bignum_to_longhand(ByteArrayObject *ba) {
   auto mem = ba_mem(ba);
   auto idx = ba_length(ba);
   auto res = new lh;
-  res->push_back(0);
+  res->push_back(neg ? 1 : 0);
   while (idx--) {
     auto byte = neg ? ~(mem[idx]) : mem[idx];
     auto bit = 8;
@@ -2245,13 +2231,11 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
     case Bignum: {
       auto neg = is_bignum_negative(vobj);
       if (neg) os << "-";
-
       auto nums = bignum_to_longhand(vobj);
       for (auto it = nums->rbegin(); it != nums->rend(); it++) {
         os << (u16)*it;
       }
       delete nums;
-      os << std::endl << " done" << std::endl;
       return os;
     }
     }

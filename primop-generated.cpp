@@ -355,7 +355,7 @@ Ptr PRIM_FIX_MINUS_impl(VM *vm, u32 argc) {
    VM_ARG("-i",Fixnum,b);
    VM_ARG("-i",Fixnum,a);
 
-  return to(Fixnum,(a - b));
+ return fixnum_sub(vm, a, b);
 }
 
 // Primitive 24
@@ -2020,7 +2020,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
    VM_ARG("-i",Fixnum,b);
    VM_ARG("-i",Fixnum,a);
 
-     return(to(Fixnum,(a - b)));
+    return(fixnum_sub(vm, a, b));
     break;
   }
 

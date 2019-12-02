@@ -1823,12 +1823,6 @@ ByteArrayObject *bignum_negate(VM *vm, ByteArrayObject *n) {
   return r;
 }
 
-typedef union {
-  u8 b[2];
-  u16 n;
-}
-bignum_byte;
-
 // TODO: handle negative numbers
 ByteArrayObject *bignum_add(VM *vm, ByteArrayObject *a, ByteArrayObject *b) {
   auto a_len = ba_length(a), b_len = ba_length(b);
@@ -1850,6 +1844,7 @@ ByteArrayObject *bignum_add(VM *vm, ByteArrayObject *a, ByteArrayObject *b) {
   u8 c_mem[c_len];
   memset(c_mem, 0, c_len);
 
+  // TODO: unclear to me why I need a separate clause to add two negative numbers.
   if (a_neg && b_neg) {
     int carry = 1; // TODO: uneasy about this still
     int idx = 0;
@@ -1874,45 +1869,28 @@ ByteArrayObject *bignum_add(VM *vm, ByteArrayObject *a, ByteArrayObject *b) {
       c_mem[i] = ~c_mem[i];
     }
   } else {
+
     u16 carry = 0;
     s32 idx = 0;
     while (idx++ < min_len) {
-      bignum_byte a;
-      a.b[0] = a_mem[a_len - idx];
-      a.b[1] = 0x0;
-     
-      bignum_byte b;
-      b.b[0] = b_mem[b_len - idx];
-      b.b[1] = 0x0;
-      
-      // dbg(" a = ", a.n);
-      // dbg(" b = ", b.n);
-      u16 sum = a.n + b.n + carry;
-
-      u8 p = sum % 256;
-      c_mem[c_len - idx] = p;
+      u16 sum = a_mem[a_len - idx] + b_mem[b_len - idx] + carry;
+      c_mem[c_len - idx] = sum % 256;
       carry = sum / 256;
     }
     while (idx < max_len) {
-      // dbg("churning....");
-      bignum_byte n;
-      n.b[0] = bigger_mem[max_len - idx];
-      n.b[1] = 0x0;
-
+      auto n = bigger_mem[max_len - idx];
       // sign extend the smaller number if needed
-      u16 sum = smaller_neg ? n.n + 0xff + carry : n.n + carry;
-      u8 p = sum % 256;
-      c_mem[c_len - idx] = p;
+      u16 sum = smaller_neg ? n + 0xff + carry : n + carry;
+      c_mem[c_len - idx] = sum % 256;
       carry = sum / 256;
       idx++;
     }
 
+    // really uncomfortable with this, need to clean it up.
     if (carry) {
       // drop the final carry?
       // c_mem[c_len - idx] = carry;
     } else if (((s8 *)c_mem)[c_len - (idx - 1)] < 0) {
-      // c_mem[c_len - idx] = 1 << 7;
-      // c_mem[c_len - idx] = (u8)-1;
       // truncate out the empty top byte
       auto result = make_bignum(vm, c_len - 1, &(c_mem[1]));
       return as(Bignum, result);

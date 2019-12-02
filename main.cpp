@@ -814,7 +814,8 @@ void report_memory_usage(VM *vm) {
 
 typedef enum {
   String,
-  Image
+  Image,
+  Bignum
 } BAOType;
 
 #define BA_STATIC_MEM 1
@@ -842,6 +843,14 @@ inline char* ba_data(ByteArrayObject *o) {
   return (char *)o->mem->bytes;
 #else
   return o->data;
+#endif
+}
+
+inline u8* ba_mem(ByteArrayObject *o) {
+#if BA_STATIC_MEM
+  return (u8 *)o->mem->bytes;
+#else
+  return (u8*)o->data;
 #endif
 }
 
@@ -1176,6 +1185,15 @@ unwrap_ptr_for(Image, it) {
   return as(ByteArray, it);
 }
 
+type_test(Bignum, it) {
+  if (!is(ByteArray, it)) return false;
+  auto bao = as(ByteArray, it);
+  return bao->bao_type == Bignum;
+}
+unwrap_ptr_for(Bignum, it) {
+  return as(ByteArray, it);
+}
+
 u32 image_width(ByteArrayObject *it) {
   assert(it->bao_type == Image);
   return *(u32*)ba_data(it);
@@ -1330,6 +1348,14 @@ Ptr create_bytecode(VM* vm, bool varargs, Ptr name, U16ArrayObject *code, PtrArr
   return to(Ptr, bc);
 }
   
+inline ByteArrayObject *alloc_bignum(VM *vm, s64 len) {
+  #if STATS
+  vm->stats->total_string_bytes_allocated += len;
+  #endif
+  ByteArrayObject *obj = alloc_bao(vm, Bignum, len);
+  set_obj_tag(obj, Bignum);
+  return obj;
+}
 
 inline ByteArrayObject *alloc_string(VM *vm, s64 len) {
   #if STATS
@@ -1635,6 +1661,16 @@ Ptr xarray_at(Ptr array, u64 idx) {
 // ----------------------------------------
 // -- math stuff --
 
+Ptr make_bignum(VM *vm, s64 byte_count, u8 bytes[]) {
+  auto result = alloc_bignum(vm, byte_count);
+  auto mem = ba_mem(result);
+  for (auto i = 0; i < byte_count; i++) { mem[i] = bytes[i]; }
+  return to(Ptr, result);
+}
+
+inline bool is_bignum_negative(ByteArrayObject *b) {
+  return ((s8 *)ba_data(b))[0] < 0;
+}
 inline Ptr fixnum_mul(VM *vm, s64 a, s64 b) {
   s64 result = 0;
   s64 flag = 0;
@@ -1651,11 +1687,104 @@ inline Ptr fixnum_mul(VM *vm, s64 a, s64 b) {
   if (!flag && result >= 0 && result <= MOST_POSITIVE_FIXNUM) return to(Fixnum, result);
   if (flag == -1 && result < 0 && result >= MOST_NEGATIVE_FIXNUM) return to(Fixnum, result);
 
-  dbg("tried to multiply: ", a, " and " , b, " flag = ", flag);
-  vm->error = "integer overflow";
+  // dbg("tried to multiply: ", a, " and " , b, " flag = ", flag);
+  // dbg(" result = ", result);
 
-  return FIXNUM(0);
+  union {
+    u64 qwords[2];
+    u8  bytes[16];
+  } bits;
+
+  bits.qwords[0] = (u64)htonll(flag);
+  bits.qwords[1] = (u64)htonll(result);
+
+  return make_bignum(vm, 16, bits.bytes);
 }
+
+typedef std::vector<u8> lh;
+lh *longhand_add(lh *a, lh *b) {
+  int carry = 0;
+  auto result = new lh;
+  auto idx = 0;
+  lh *bigger, *smaller;
+  if (a->size() > b->size()) {bigger = a; smaller = b;}
+  else {bigger = b; smaller = a; }
+  while (idx < smaller->size()) {
+    auto n = a->at(idx) + b->at(idx) + carry;
+    carry = n / 10;
+    result->push_back(n % 10);
+    idx++;
+  }
+  while (idx < bigger->size()) {
+    auto n = bigger->at(idx) + carry;
+    carry = n / 10;
+    result->push_back(n % 10);
+    idx++;
+  }
+  if (carry) { result->push_back(carry); }
+  return result;
+}
+
+lh *longhand_mul_digit(s64 places, s64 digit, lh *a) {
+  auto result = new lh;
+  while (places--) { result->push_back(0); }
+  int carry = 0;
+  auto idx = 0;
+  while (idx < a->size()) {
+    auto n = a->at(idx) * digit + carry;
+    carry = n / 10;
+    result->push_back(n % 10);
+    idx++;
+  }
+  if (carry) { result->push_back(carry); }
+  return result;
+}
+
+lh *longhand_mul(lh*a, lh *b) {
+  lh *result = 0;
+  auto idx = 0;
+  while (idx < a->size()) {
+    auto digit = a->at(idx);
+    auto one = longhand_mul_digit(idx, digit, b);
+    if (!result) { result = one; }
+    else {
+      auto new_result = longhand_add(result, one);
+      delete result;
+      result = new_result;
+    }
+    idx++;
+  }
+  return result;
+}
+
+// FIXME: we drop the sign in this conversion, no need really.
+lh *bignum_to_longhand(ByteArrayObject *ba) {
+  bool neg = is_bignum_negative(ba);
+  lh *pw2 = new lh;
+  pw2->push_back(1);
+  auto mem = ba_mem(ba);
+  auto idx = ba_length(ba);
+  auto res = new lh;
+  res->push_back(0);
+  while (idx--) {
+    auto byte = neg ? ~(mem[idx]) : mem[idx];
+    auto bit = 8;
+    while (bit--) {
+      auto isset = byte & 0b1;
+      if (isset) {
+        auto new_res = longhand_add(res, pw2);
+        delete res;
+        res = new_res;
+      }
+      auto new_pw2 = longhand_mul_digit(0, 2, pw2);
+      delete pw2; pw2 = new_pw2;
+      byte = byte >> 1;
+    }
+  }
+  delete pw2;
+  return res;
+}
+
 
 /* ---------------------------------------- */
 //          basic hashing support
@@ -2093,6 +2222,18 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
     case Image: {
       auto w = image_width(vobj); auto h = image_height(vobj);
       return os << "#<Image w=" << w << " h=" << h << " " << (void*)vobj << ">";
+    }
+    case Bignum: {
+      auto neg = is_bignum_negative(vobj);
+      if (neg) os << "-";
+
+      auto nums = bignum_to_longhand(vobj);
+      for (auto it = nums->rbegin(); it != nums->rend(); it++) {
+        os << (u16)*it;
+      }
+      delete nums;
+      os << std::endl << " done" << std::endl;
+      return os;
     }
     }
   }

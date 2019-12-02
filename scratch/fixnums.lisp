@@ -1,0 +1,28 @@
+(print (* 10 10))
+(print 576460752303423487)
+(print "576460752303423487")
+(print -1)
+(print -576460752303423487)
+
+(let ((n -576460752303423487))
+  (try-catch (lambda () (* n n))
+             (lambda (ex) (print `(got expected exception: ,ex))))
+  (try-catch (lambda () (* n 2))
+             (lambda (ex) (print `(got expected exception: ,ex))))
+  (try-catch (lambda () (* n 3))
+             (lambda (ex) (print `(got expected exception: ,ex))))
+  (try-catch (lambda () (* n 4))
+             (lambda (ex) (print `(got expected exception: ,ex)))))
+
+(let ((n 576460752303423487))
+  (try-catch (lambda () (* n n))
+             (lambda (ex) (print `(got expected exception: ,ex))))
+  (try-catch (lambda () (* n 2))
+             (lambda (ex) (print `(got expected exception: ,ex))))
+  (try-catch (lambda () (* n 3))
+             (lambda (ex) (print `(got expected exception: ,ex))))
+  (try-catch (lambda () (* n 4))
+             (lambda (ex) (print `(got expected exception: ,ex)))))
+
+(print 'done)
+

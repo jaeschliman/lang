@@ -222,7 +222,7 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim +i    FIX_PLUS   ((a Fixnum) (b Fixnum)) Fixnum "a + b")
   (prim -i    FIX_MINUS  ((a Fixnum) (b Fixnum)) Fixnum "a - b")
-  (prim *i    FIX_TIMES  ((a Fixnum) (b Fixnum)) Fixnum "a * b")
+  (prim *i    FIX_TIMES  ((a Fixnum) (b Fixnum)) any "fixnum_mul(vm, a, b)")
   (prim /i    FIX_DIVIDE ((a Fixnum) (b Fixnum)) Fixnum "a / b")
   (prim <i    FIX_LT     ((a Fixnum) (b Fixnum)) Bool   "a < b")
   (prim >i    FIX_GT     ((a Fixnum) (b Fixnum)) Bool   "a > b")

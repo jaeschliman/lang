@@ -54,6 +54,9 @@ using std::string;
 #define STATS 0
 #define UNCHECKED_UNWRAP 0
 
+#define MOST_POSITIVE_FIXNUM 576460752303423487
+#define MOST_NEGATIVE_FIXNUM -576460752303423487
+
 /*
  latest perf reports on bouncers-2.
   
@@ -309,7 +312,6 @@ void thdq_remove_ptr(thdq *q, Ptr ptr) {
     n = n->next;
   }
 }
-
 
 // ----------------------------------------
 
@@ -1628,6 +1630,31 @@ s64 xarray_index_of(Ptr array, Ptr item) {
 Ptr xarray_at(Ptr array, u64 idx) {
   assert(idx < xarray_used(array));
   return xarray_memory(array)[idx];
+}
+
+// ----------------------------------------
+// -- math stuff --
+
+inline Ptr fixnum_mul(VM *vm, s64 a, s64 b) {
+  s64 result = 0;
+  s64 flag = 0;
+
+  asm("movq %2, %%rax;\n"
+      "imulq %3;\n"
+      "movq %%rax, %1;\n"
+      "movq %%rdx, %0;\n"
+      : "=r"(flag), "=r"(result)
+      : "r"(a), "r"(b)
+      : "rax", "rdx"
+      );
+
+  if (!flag && result >= 0 && result <= MOST_POSITIVE_FIXNUM) return to(Fixnum, result);
+  if (flag == -1 && result < 0 && result >= MOST_NEGATIVE_FIXNUM) return to(Fixnum, result);
+
+  dbg("tried to multiply: ", a, " and " , b, " flag = ", flag);
+  vm->error = "integer overflow";
+
+  return FIXNUM(0);
 }
 
 /* ---------------------------------------- */

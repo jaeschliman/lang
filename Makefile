@@ -14,9 +14,9 @@ release :
 	./build/boot ./boot/_cmdline-loader.lisp ./build/latest.image
 
 vm :
-	rm ./build/boot
-	rm ./build/repl
-	rm ./build/img
+	- rm ./build/boot
+	- rm ./build/repl
+	- rm ./build/img
 	clang++ main.cpp $(WARN_FLAGS) -std=c++17 $(OPTIMIZE) -F$(INCLUDE) $(FRAMEWORKS) -o build/boot
 	cd build && ln boot repl && ln boot img
 
@@ -29,9 +29,9 @@ debug :
 	./build/boot ./boot/_cmdline-loader.lisp ./build/latest.image
 
 debugvm :
-	rm ./build/boot
-	rm ./build/repl
-	rm ./build/img
+	- rm ./build/boot
+	- rm ./build/repl
+	- rm ./build/img
 	clang++ main.cpp $(WARN_FLAGS) -std=c++17 -O0 -g -F$(INCLUDE) $(FRAMEWORKS) -o build/boot
 	cd build && ln boot repl && ln boot img
 

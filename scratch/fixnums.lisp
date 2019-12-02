@@ -65,7 +65,8 @@
 (let ((a (* 2 -500000000000000000)))
   (#/lang/%print a)
   (#/lang/%print 'negated)
-  (#/lang/%print (#/lang/%negate-bignum a)))
+  (#/lang/%print (#/lang/%negate-bignum a))
+  (#/lang/%print (#/lang/%negate-bignum (#/lang/%negate-bignum a))))
 
 (print '-------------------------------)
 

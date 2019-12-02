@@ -1803,28 +1803,15 @@ ByteArrayObject *bignum_negate(VM *vm, ByteArrayObject *n) {
   auto r = bignum_copy(vm, n);
   auto len = ba_length(r);
   auto mem = ba_mem(r);
-  auto was_neg = ((s8 *)mem)[0] < 0;
-  if (was_neg) {
-    for (auto i = 0; i < len; i++) {
-      mem[i] = ~mem[i];
-    }
-    u8 one_u8 = 1;
-    gc_protect(r);
-    auto one = make_bignum(vm, 1, &one_u8);
-    gc_unprotect(r);
-    auto r2 = bignum_add(vm, r, as(Bignum, one));
-    return r2;
-  } else {
-    int carry = 1;
-    int idx = len;
-    while (idx--) {
-      u8 n = ~mem[idx];
-      s16 sum = n + carry;
-      mem[idx] = (u8)(sum % 256);
-      carry = sum / 256;
-    }
-    return r;
+  int carry = 1;
+  int idx = len;
+  while (idx--) {
+    u8 n = ~mem[idx];
+    s16 sum = n + carry;
+    mem[idx] = (u8)(sum % 256);
+    carry = sum / 256;
   }
+  return r;
 }
 
 

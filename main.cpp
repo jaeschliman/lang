@@ -80,6 +80,8 @@ using std::string;
 #define _deg_to_rad(x) (x) * (M_PI / 180.0f)
 
 typedef unsigned int uint;
+typedef __uint128_t u128;
+typedef __int128_t s128;
 typedef uint64_t u64;
 typedef int64_t s64;
 typedef uint32_t u32;

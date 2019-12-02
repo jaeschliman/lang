@@ -40,5 +40,9 @@
   (#/lang/%print n)
   (#/lang/%print (* n n)))
 
+(let ((n (* 2 500000000000000000)))
+  (#/lang/%print n)
+  (#/lang/%print (#/lang/+b n n)))
+
 (print 'done)
 

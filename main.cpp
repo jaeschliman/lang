@@ -1192,6 +1192,9 @@ type_test(Bignum, it) {
   auto bao = as(ByteArray, it);
   return bao->bao_type == Bignum;
 }
+create_ptr_for(Bignum, ByteArrayObject *it) {
+  return to(Ptr, it);
+}
 unwrap_ptr_for(Bignum, it) {
   return as(ByteArray, it);
 }
@@ -1790,6 +1793,42 @@ lh *bignum_to_longhand(ByteArrayObject *ba) {
   return res;
 }
 
+// TODO: handle negative numbers
+ByteArrayObject *bignum_add(VM *vm, ByteArrayObject *a, ByteArrayObject *b) {
+  auto a_len = ba_length(a), b_len = ba_length(b);
+
+  ByteArrayObject *bigger;
+  if (a_len < b_len)  bigger = b;
+  else bigger = a;
+  auto bigger_mem = ba_mem(bigger);
+
+  auto a_mem = ba_mem(a), b_mem = ba_mem(b);
+  auto min_len = std::min(a_len, b_len);
+  auto max_len = std::max(a_len, b_len);
+  auto c_len = max_len + 1;
+  u8 c_mem[c_len];
+  memset(c_mem, 0, c_len);
+
+  int carry = 0;
+  int idx = 0;
+  while (idx++ < min_len) {
+    auto sum = a_mem[a_len - idx] + b_mem[b_len - idx] + carry;
+    carry = sum / 256;
+    c_mem[c_len - idx] = sum % 256;
+  }
+  while (idx < max_len) {
+    auto sum = bigger_mem[max_len - idx] + carry;
+    carry = sum / 256;
+    c_mem[c_len - idx] = sum % 256;
+    idx++;
+  }
+  if (carry) {
+    c_mem[c_len - idx] = carry;
+  }
+  // TODO: truncate empty bytes
+  auto result = make_bignum(vm, c_len, c_mem);
+  return as(Bignum, result);
+}
 
 /* ---------------------------------------- */
 //          basic hashing support

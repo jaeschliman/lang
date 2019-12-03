@@ -33,10 +33,20 @@
 
 (define ArithmeticOp (create-class 'ArithmeticOp '(combine)))
 
-(define arithmetic-op-invoke
-  (lambda args
-    (let ((combine (instance-get-ivar (car args) 0)))
-      (reduce-list combine (cadr args) (cddr args)))))
+(if *recompiling*
+    ;; need to wait for a bootstrapped compile to eliminate lambda from the loop
+    (define arithmetic-op-invoke
+      (lambda (self)
+        (let ((combine (instance-get-ivar self 0))
+              (max (%argument-count)))
+          (let loop ((acc (%load-arg 1)) (idx 2))
+               (if (or (eq idx max) (>i idx max))
+                   acc
+                   (loop (combine acc (%load-arg idx)) (+i idx 1)))))))
+    (define arithmetic-op-invoke
+      (lambda args
+        (let ((combine (instance-get-ivar (car args) 0)))
+          (reduce-list combine (cadr args) (cddr args))))))
 
 (class-set-applicator ArithmeticOp arithmetic-op-invoke)
 

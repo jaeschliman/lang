@@ -31,7 +31,7 @@
       ;; (%l  "./boot/1.lisp") ;; infinite loop
       (%l "./boot/better-define.lisp")
       (%l "./boot/generic-functions.lisp")
-      ;; (%load "./boot/math.lisp") ;; no need
+      (%l "./boot/math.lisp")
       (%l "./boot/list.lisp")
       (%l "./boot/string.lisp")
       (%l "./boot/char.lisp")

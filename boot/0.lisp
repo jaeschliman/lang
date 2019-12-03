@@ -425,6 +425,16 @@
 (defmacro at-boot (& forms)
   (if *recompiling* '() `(let () ,@forms)))
 
+
+;; these are redefined as generics later in the boot proccess,
+;; but are used in the reader to construct integers. we alias them so that
+;; after bootstrapping (once redefined) we can read bignums.
+
+(at-boot (define + +i))
+(at-boot (define * *i))
+(at-boot (define - -i))
+(at-boot (define / /i))
+
 ;;; eval
 
 (at-boot (define (eval x) ((compile-to-closure (compiler x)))))

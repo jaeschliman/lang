@@ -63,9 +63,9 @@
        (define ,name ,it))))
 
 (define-arithmetic-op *
-  ;; ((Bignum Bignum) *b)
-  ;; ((Fixnum Bignum) (lambda (a b) (*b (i->b a) b)))
-  ;; ((Bignum Fixnum) (lambda (a b) (*b a (i->b b))))
+  ((Bignum Bignum) *b)
+  ((Fixnum Bignum) (lambda (a b) (*b (i->b a) b)))
+  ((Bignum Fixnum) (lambda (a b) (*b a (i->b b))))
   ((Fixnum Fixnum) *i)
   ((Float Float)   *f)
   ((Fixnum Float)  (lambda (a b) (*f (i->f a) b)))

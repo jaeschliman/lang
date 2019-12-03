@@ -14,7 +14,7 @@ meta lisp {
   symbol-char  = any:x ?(symbol-char x) -> x
   symbol-name  = ~[0-9] symbol-char+:xs -> (charlist-to-string xs)
   symbol       = pkg-prefix?:pfx symbol-name:name -> (intern-with-package-prefix pfx name)
-  integer      = "-"?:s digit+:xs -> (*i (digits-to-integer xs) (if-nil? s 1 -1))
+  integer      = "-"?:s digit+:xs -> (* (digits-to-integer xs) (if-nil? s 1 -1))
   float        = "-"?:s digit+:xs "." digit+:ys -> (*f (digits-to-float xs ys) (if-nil? s 1.0 -1.0))
   point        = integer:x "@" integer:y -> (make-point x y)
   hex-integer  = "0x" [0-9a-f]+:chs -> (hex-chars-to-integer chs)

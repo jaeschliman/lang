@@ -44,7 +44,7 @@
   (set! xs (* symbol-char))
   (return (implode (cons x xs))))
 
-(define (digits-to-integer xs)  (reduce-list (lambda (acc n) (+i n (*i 10 acc))) 0 xs))
+(define (digits-to-integer xs)  (reduce-list (lambda (acc n) (+ n (* 10 acc))) 0 xs))
 
 (define (digits-to-float xs ys)
   (+f (i->f (reduce-list

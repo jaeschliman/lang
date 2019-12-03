@@ -1886,6 +1886,61 @@ ByteArrayObject *bignum_sub(VM *vm, ByteArrayObject *a, ByteArrayObject *b) {
   return r;
 }
 
+inline void _bignum_add_number_and_carry(std::vector<u8> &num, u32 k, u32 to_add) {
+  auto len = num.size();
+  auto inner_sum = num[len - k] + to_add;
+  num[len - k] = inner_sum % 256;
+  auto inner_carry = inner_sum / 256;
+  while (inner_carry) {
+    k++;
+    inner_sum = num[len - k] + inner_carry;
+    num[len - k] = inner_sum % 256;
+    inner_carry = inner_sum / 256;
+  }
+}
+
+ByteArrayObject *bignum_mul(VM *vm, ByteArrayObject *a, ByteArrayObject *b) {
+  auto a_neg = is_bignum_negative(a), b_neg = is_bignum_negative(b);
+  if (a_neg) bignum_negate_in_place(a);
+  if (b_neg) bignum_negate_in_place(b);
+
+  auto a_mem = ba_mem(a), b_mem = ba_mem(b);
+  auto a_len = ba_length(a), b_len = ba_length(b);
+  auto len = (a_len + b_len) * 4;
+
+  std::vector<u8>num(len);
+  for (auto i = 0; i < len; i++) { num[i] = 0; }
+
+  auto offs = 0;
+  for (auto i = 1; i <= a_len; i++) {
+    auto n = a_mem[a_len - i];
+    auto carry = 0;
+    for (auto j = 1; j <= b_len; j++) {
+      auto sum = n * b_mem[b_len - j] + carry;
+      carry = sum / 256;
+
+      auto k = j + offs;
+      auto to_add = (sum % 256);
+      _bignum_add_number_and_carry(num, k, to_add);
+    }
+    if (carry) {
+      auto k = offs + b_len + 1;
+      _bignum_add_number_and_carry(num, k, carry);
+    }
+    offs++;
+  }
+
+  if (a_neg) bignum_negate_in_place(a);
+  if (b_neg) bignum_negate_in_place(b);
+
+  auto neg = (a_neg || b_neg) && !(a_neg && b_neg);
+  auto result = as(Bignum, make_bignum(vm, len, num.data()));
+  if (neg) { bignum_negate_in_place(result); }
+
+  return result;
+}
+
+
 /* ---------------------------------------- */
 //          basic hashing support
 //

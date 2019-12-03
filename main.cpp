@@ -1906,7 +1906,7 @@ ByteArrayObject *bignum_mul(VM *vm, ByteArrayObject *a, ByteArrayObject *b) {
 
   auto a_mem = ba_mem(a), b_mem = ba_mem(b);
   auto a_len = ba_length(a), b_len = ba_length(b);
-  auto len = (a_len + b_len) * 4;
+  auto len = a_len + b_len;
 
   std::vector<u8>num(len);
   for (auto i = 0; i < len; i++) { num[i] = 0; }

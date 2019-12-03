@@ -39,6 +39,7 @@
 (init-builtin-class 'FileOutputStream (class-of *standard-output*))
 (init-builtin-class 'Package          (class-of *package*))
 (init-builtin-class 'Class            (class-of (class-of 0)))
+(init-builtin-class 'Bignum           (class-of (*i 2 500000000000000000)))
 
 
 ;; since we don't support class inheritance yet, this will do
@@ -65,6 +66,7 @@
 (set-symbol-value 'semaphore?    (%nlambda semaphore?    (x) (isa? x Semaphore)))
 (set-symbol-value 'thread?       (%nlambda thread?       (x) (isa? x Thread)))
 (set-symbol-value 'package?      (%nlambda package?      (x) (isa? x Package)))
+(set-symbol-value 'bignum?       (%nlambda bignum?       (x) (isa? x Bignum)))
 
 (instance-set-ivar Class 5 (vector 'name 'ivar-count 'method-dict 'metadata 'applicator 'ivar-names))
 

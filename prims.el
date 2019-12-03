@@ -221,7 +221,9 @@ void initialize_primitive_functions(VM *vm) {
   (prim class?        IS_CLSS ((a any)) Bool "is_class(a)")
 
   (prim %negate-bignum BIG_NEG ((a Bignum)) Bignum "bignum_negate(vm, a)")
+  ;; (prim *b    BIG_TIMES  ((a Bignum) (b Bignum)) Bignum "bignum_mul(vm, a, b)")
   (prim +b    BIG_PLUS   ((a Bignum) (b Bignum)) Bignum "bignum_add(vm, a, b)")
+  (prim -b    BIG_MINUS  ((a Bignum) (b Bignum)) Bignum "bignum_sub(vm, a, b)")
   (prim i->b  FIX_TO_BIG ((a Fixnum)) Bignum "bignum_from_fixnum(vm, a)")
 
   (prim +i    FIX_PLUS   ((a Fixnum) (b Fixnum)) any "fixnum_add(vm, a, b)")

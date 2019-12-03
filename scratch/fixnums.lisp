@@ -127,7 +127,9 @@
         (b (if (fixnum? b) (#/lang/i->b b) b)))
     (#/lang/%print a)
     (#/lang/%print b)
-    (#/lang/%print (#/lang/+b a b)))
+    (#/lang/%print `((+ a b) = ,(#/lang/+b a b)))
+    (#/lang/%print `((- a b) = ,(#/lang/-b a b)))
+    )
   (print '-------------------------------))
 
 (check 1024 -2048)
@@ -135,10 +137,14 @@
 (check (* 16 1024) (* 16 -2048))
 
 (check (* 16 1024) (* 16 -2048))
-(check (* 2  500000000) -5)
-(check (* 2  500000000000000000) -5)
+(check (* 2 500000000) -5)
+(check (* 2 500000000000000000) -5)
 
 (check -3 -5)
+(print `(+ 0xff 0xff = ,(+ 0xff 0xff)))
+(check 0xff 0xff)
+
+;; (#/lang/%print 50000000000000000000000000)
 
 (print 'done)
 

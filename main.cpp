@@ -1808,8 +1808,7 @@ ByteArrayObject *bignum_copy(VM *vm, ByteArrayObject *n) {
 
 ByteArrayObject *bignum_add(VM *vm, ByteArrayObject *a, ByteArrayObject *b);
 
-ByteArrayObject *bignum_negate(VM *vm, ByteArrayObject *n) {
-  auto r = bignum_copy(vm, n);
+void bignum_negate_in_place(ByteArrayObject *r) {
   auto len = ba_length(r);
   auto mem = ba_mem(r);
   int carry = 1;
@@ -1820,10 +1819,14 @@ ByteArrayObject *bignum_negate(VM *vm, ByteArrayObject *n) {
     mem[idx] = (u8)(sum % 256);
     carry = sum / 256;
   }
+}
+
+ByteArrayObject *bignum_negate(VM *vm, ByteArrayObject *n) {
+  auto r = bignum_copy(vm, n);
+  bignum_negate_in_place(r);
   return r;
 }
 
-// TODO: handle negative numbers
 ByteArrayObject *bignum_add(VM *vm, ByteArrayObject *a, ByteArrayObject *b) {
   auto a_len = ba_length(a), b_len = ba_length(b);
 
@@ -1872,6 +1875,15 @@ ByteArrayObject *bignum_add(VM *vm, ByteArrayObject *a, ByteArrayObject *b) {
   // TODO: truncate empty bytes
   auto result = make_bignum(vm, c_len, c_mem);
   return as(Bignum, result);
+}
+
+ByteArrayObject *bignum_sub(VM *vm, ByteArrayObject *a, ByteArrayObject *b) {
+  gc_protect(b);
+  bignum_negate_in_place(b);
+  auto r = bignum_add(vm, a, b);
+  bignum_negate_in_place(b);
+  gc_unprotect(b);
+  return r;
 }
 
 /* ---------------------------------------- */

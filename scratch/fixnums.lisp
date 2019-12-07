@@ -168,14 +168,21 @@
 (print '(reading a bignum:))
 (#/lang/%print 50000000000000000000000001)
 
-(print '(2 ^ 64))
-(#/lang/%print "18446744073709551616")
-(#/lang/%print 18446744073709551616)
-(#/lang/%print 0x10000000000000000)
 (print '(2 ^ 64 - 1))
 (#/lang/%print "18446744073709551615")
 (#/lang/%print 18446744073709551615)
 (#/lang/%print 0xffffffffffffffff)
+
+(print '(2 ^ 64))
+(#/lang/%print "18446744073709551616")
+(#/lang/%print 18446744073709551616)
+(#/lang/%print 0x10000000000000000)
+(#/lang/%print (+ 1 0xffffffffffffffff))
+
+(print '(2 ^ 65))
+(#/lang/%print "36893488147419103232")
+(#/lang/%print 36893488147419103232)
+(#/lang/%print (* 2 0x10000000000000000))
 
 (print 'done)
 

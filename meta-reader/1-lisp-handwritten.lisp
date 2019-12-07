@@ -60,7 +60,7 @@
       (-i (char-code ch) (char-code #\0))))
 
 (define (hex-chars-to-integer xs)
-  (reduce-list (lambda (acc hx) (+i (hex-char-value hx) (*i 16 acc))) 0 xs))
+  (reduce-list (lambda (acc hx) (+ (hex-char-value hx) (* 16 acc))) 0 xs))
 
 (define-rule integer
   (set! sign? (? #\-))  (set! x (+ digit))

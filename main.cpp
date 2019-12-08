@@ -1667,6 +1667,30 @@ Ptr xarray_at(Ptr array, u64 idx) {
 // -- math stuff --
 
 Ptr make_bignum(VM *vm, s64 byte_count, u8 bytes[]) {
+  {
+    auto neg = ((s8 *)bytes)[0] < 0;
+    auto max = byte_count - 2;
+    auto trunc = 0;
+    if (neg) {
+      for (auto i = 0; i >= max; i++) {
+        if (bytes[i] == 0xff && ((s8*)bytes)[i + 1] < 0) {
+          trunc++;
+        } else {
+          break;
+        }
+      }
+    } else {
+      for (auto i = 0; i >= max; i++) {
+        if (bytes[i] == 0 && ((s8*)bytes)[i + 1] >= 0) {
+          trunc++;
+        } else {
+          break;
+        }
+      }
+    }
+    byte_count -= trunc;
+    bytes += trunc;
+  }
   auto result = alloc_bignum(vm, byte_count);
   auto mem = ba_mem(result);
   for (auto i = 0; i < byte_count; i++) { mem[i] = bytes[i]; }

@@ -27,142 +27,145 @@ enum PrimitiveOperation : u64 {
   PRIM_BIG_TIMES = ((24ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_BIG_PLUS = ((25ULL << 32) | (2ULL << 16) | PrimOp_Tag),
   PRIM_BIG_MINUS = ((26ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FIX_TO_BIG = ((27ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_FIX_PLUS = ((28ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FIX_MINUS = ((29ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FIX_TIMES = ((30ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FIX_DIVIDE = ((31ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FIX_LT = ((32ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FIX_GT = ((33ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FIX_MOD = ((34ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_PLUS = ((35ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_MINUS = ((36ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_TIMES = ((37ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_DIVIDE = ((38ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_LT = ((39ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_GT = ((40ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_MOD = ((41ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FIX_TO_FLT = ((42ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_TO_FIX = ((43ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_LOG = ((44ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_FLOOR = ((45ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_CEIL = ((46ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_POW = ((47ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_REM = ((48ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_COS = ((49ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_SIN = ((50ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_TAN = ((51ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_A2F = ((52ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_FLT_SRT = ((53ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_RAND = ((54ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_ASH = ((55ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_BAND = ((56ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_BOR = ((57ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_LIST = ((58ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_CONS = ((59ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_CAR = ((60ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_CDR = ((61ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_EQ = ((62ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_NOT = ((63ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PRINT = ((64ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_NTH = ((65ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_VEC = ((66ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_MKARY = ((67ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_AGET = ((68ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_ASET = ((69ULL << 32) | (3ULL << 16) | PrimOp_Tag),
-  PRIM_ALEN = ((70ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_MKARYU16 = ((71ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_AGETU16 = ((72ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_ASETU16 = ((73ULL << 32) | (3ULL << 16) | PrimOp_Tag),
-  PRIM_ALENU16 = ((74ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_MK_HT = ((75ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_MK_ST = ((76ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_HT_AT = ((77ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_HT_AT_PUT = ((78ULL << 32) | (3ULL << 16) | PrimOp_Tag),
-  PRIM_SYM_NAME = ((79ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_SYM_PKG = ((80ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_SYM_BND = ((81ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_SET_SYM_VAL = ((82ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_SET_SYM_SPECIAL = ((83ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_SYM_SPECIAL_P = ((84ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PKG_EXT_SYM = ((85ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_MK_USR_PKG = ((86ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_MK_PKG = ((87ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PKG_NAME = ((88ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PKG_SUBP = ((89ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PKG_USELST = ((90ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PKG_SET_USELST = ((91ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_PKG_EXTERNS = ((92ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PKG_META = ((93ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_GSYM = ((94ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_INTERN = ((95ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_PRINT_STACK = ((96ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_DBG_STACK = ((97ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_SETPXL = ((98ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PTPLUS = ((99ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_PTMINUS = ((100ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_MKPOINT = ((101ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_PTX = ((102ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PTY = ((103ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PTROT = ((104ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_SFILLRCT = ((105ULL << 32) | (3ULL << 16) | PrimOp_Tag),
-  PRIM_DRAWIMAGE = ((106ULL << 32) | (4ULL << 16) | PrimOp_Tag),
-  PRIM_FILLRCT = ((107ULL << 32) | (4ULL << 16) | PrimOp_Tag),
-  PRIM_CLRRCT = ((108ULL << 32) | (3ULL << 16) | PrimOp_Tag),
-  PRIM_BLT = ((109ULL << 32) | (8ULL << 16) | PrimOp_Tag),
-  PRIM_BLT_M = ((110ULL << 32) | (12ULL << 16) | PrimOp_Tag),
-  PRIM_FIL_M = ((111ULL << 32) | (11ULL << 16) | PrimOp_Tag),
-  PRIM_BLT_FR_SCRN = ((112ULL << 32) | (6ULL << 16) | PrimOp_Tag),
-  PRIM_LOADIMAGE = ((113ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_MKIMAGE = ((114ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_IMG_W = ((115ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_IMG_H = ((116ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_CCA = ((117ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_CCO = ((118ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_COC = ((119ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_CH_AT = ((120ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_CH_ATP = ((121ULL << 32) | (3ULL << 16) | PrimOp_Tag),
-  PRIM_CH_LT = ((122ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_CH_GT = ((123ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_CH_W = ((124ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_CHBYNM = ((125ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_CHNM = ((126ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_MKSTR = ((127ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_STRBLEN = ((128ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_STRSBB = ((129ULL << 32) | (3ULL << 16) | PrimOp_Tag),
-  PRIM_STR_EQUAL = ((130ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_STRCHCNT = ((131ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_STR_CHARY = ((132ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_CHARY_STR = ((133ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_SSTKMARK = ((134ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PSTKMARK = ((135ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_RSTKSNAP = ((136ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_RETMARK = ((137ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_CONT_VAL = ((138ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_FORK = ((139ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_MK_SEM = ((140ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_SEM_SIG = ((141ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_CURR_THD = ((142ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_THD_CNT = ((143ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_ALL_THDS = ((144ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_SLURP = ((145ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_OS_WSTR = ((146ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_OS_WCH = ((147ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_THD_DBG_INFO = ((148ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_IM_SAV = ((149ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_IM_SAV_DIE = ((150ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_TIME_MS = ((151ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_CL_SRC_LOC = ((152ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_UPD_WIN = ((153ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_BLTQ = ((154ULL << 32) | (10ULL << 16) | PrimOp_Tag),
-  PRIM_EXIT = ((155ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PF = ((156ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_BCTOCLS = ((157ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_MKBTC = ((158ULL << 32) | (4ULL << 16) | PrimOp_Tag),
-  PRIM_STKDPTH = ((159ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_STKDPTHB = ((160ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_CLRSTAT = ((161ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_PRNSTAT = ((162ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_BIG_LT = ((27ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_BIG_GT = ((28ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_BIG_EQL = ((29ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FIX_TO_BIG = ((30ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_FIX_PLUS = ((31ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FIX_MINUS = ((32ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FIX_TIMES = ((33ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FIX_DIVIDE = ((34ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FIX_LT = ((35ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FIX_GT = ((36ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FIX_MOD = ((37ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_PLUS = ((38ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_MINUS = ((39ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_TIMES = ((40ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_DIVIDE = ((41ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_LT = ((42ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_GT = ((43ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_MOD = ((44ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FIX_TO_FLT = ((45ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_TO_FIX = ((46ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_LOG = ((47ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_FLOOR = ((48ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_CEIL = ((49ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_POW = ((50ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_REM = ((51ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_COS = ((52ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_SIN = ((53ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_TAN = ((54ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_A2F = ((55ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_FLT_SRT = ((56ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_RAND = ((57ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_ASH = ((58ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_BAND = ((59ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_BOR = ((60ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_LIST = ((61ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_CONS = ((62ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_CAR = ((63ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_CDR = ((64ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_EQ = ((65ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_NOT = ((66ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PRINT = ((67ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_NTH = ((68ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_VEC = ((69ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_MKARY = ((70ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_AGET = ((71ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_ASET = ((72ULL << 32) | (3ULL << 16) | PrimOp_Tag),
+  PRIM_ALEN = ((73ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_MKARYU16 = ((74ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_AGETU16 = ((75ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_ASETU16 = ((76ULL << 32) | (3ULL << 16) | PrimOp_Tag),
+  PRIM_ALENU16 = ((77ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_MK_HT = ((78ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_MK_ST = ((79ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_HT_AT = ((80ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_HT_AT_PUT = ((81ULL << 32) | (3ULL << 16) | PrimOp_Tag),
+  PRIM_SYM_NAME = ((82ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_SYM_PKG = ((83ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_SYM_BND = ((84ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_SET_SYM_VAL = ((85ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_SET_SYM_SPECIAL = ((86ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_SYM_SPECIAL_P = ((87ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PKG_EXT_SYM = ((88ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_MK_USR_PKG = ((89ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_MK_PKG = ((90ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PKG_NAME = ((91ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PKG_SUBP = ((92ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PKG_USELST = ((93ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PKG_SET_USELST = ((94ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_PKG_EXTERNS = ((95ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PKG_META = ((96ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_GSYM = ((97ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_INTERN = ((98ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_PRINT_STACK = ((99ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_DBG_STACK = ((100ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_SETPXL = ((101ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PTPLUS = ((102ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_PTMINUS = ((103ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_MKPOINT = ((104ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_PTX = ((105ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PTY = ((106ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PTROT = ((107ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_SFILLRCT = ((108ULL << 32) | (3ULL << 16) | PrimOp_Tag),
+  PRIM_DRAWIMAGE = ((109ULL << 32) | (4ULL << 16) | PrimOp_Tag),
+  PRIM_FILLRCT = ((110ULL << 32) | (4ULL << 16) | PrimOp_Tag),
+  PRIM_CLRRCT = ((111ULL << 32) | (3ULL << 16) | PrimOp_Tag),
+  PRIM_BLT = ((112ULL << 32) | (8ULL << 16) | PrimOp_Tag),
+  PRIM_BLT_M = ((113ULL << 32) | (12ULL << 16) | PrimOp_Tag),
+  PRIM_FIL_M = ((114ULL << 32) | (11ULL << 16) | PrimOp_Tag),
+  PRIM_BLT_FR_SCRN = ((115ULL << 32) | (6ULL << 16) | PrimOp_Tag),
+  PRIM_LOADIMAGE = ((116ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_MKIMAGE = ((117ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_IMG_W = ((118ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_IMG_H = ((119ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_CCA = ((120ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_CCO = ((121ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_COC = ((122ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_CH_AT = ((123ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_CH_ATP = ((124ULL << 32) | (3ULL << 16) | PrimOp_Tag),
+  PRIM_CH_LT = ((125ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_CH_GT = ((126ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_CH_W = ((127ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_CHBYNM = ((128ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_CHNM = ((129ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_MKSTR = ((130ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_STRBLEN = ((131ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_STRSBB = ((132ULL << 32) | (3ULL << 16) | PrimOp_Tag),
+  PRIM_STR_EQUAL = ((133ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_STRCHCNT = ((134ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_STR_CHARY = ((135ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_CHARY_STR = ((136ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_SSTKMARK = ((137ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PSTKMARK = ((138ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_RSTKSNAP = ((139ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_RETMARK = ((140ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_CONT_VAL = ((141ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_FORK = ((142ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_MK_SEM = ((143ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_SEM_SIG = ((144ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_CURR_THD = ((145ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_THD_CNT = ((146ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_ALL_THDS = ((147ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_SLURP = ((148ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_OS_WSTR = ((149ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_OS_WCH = ((150ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_THD_DBG_INFO = ((151ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_IM_SAV = ((152ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_IM_SAV_DIE = ((153ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_TIME_MS = ((154ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_CL_SRC_LOC = ((155ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_UPD_WIN = ((156ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_BLTQ = ((157ULL << 32) | (10ULL << 16) | PrimOp_Tag),
+  PRIM_EXIT = ((158ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PF = ((159ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_BCTOCLS = ((160ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_MKBTC = ((161ULL << 32) | (4ULL << 16) | PrimOp_Tag),
+  PRIM_STKDPTH = ((162ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_STKDPTHB = ((163ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_CLRSTAT = ((164ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_PRNSTAT = ((165ULL << 32) | (255ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -381,6 +384,33 @@ Ptr PRIM_BIG_MINUS_impl(VM *vm, u32 argc) {
 }
 
 // Primitive 26
+Ptr PRIM_BIG_LT_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("<b",Bignum,b);
+   VM_ARG("<b",Bignum,a);
+
+  return to(Bool,(bignum_lt(a, b)));
+}
+
+// Primitive 27
+Ptr PRIM_BIG_GT_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG(">b",Bignum,b);
+   VM_ARG(">b",Bignum,a);
+
+  return to(Bool,(bignum_gt(a,b)));
+}
+
+// Primitive 28
+Ptr PRIM_BIG_EQL_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("=b",Bignum,b);
+   VM_ARG("=b",Bignum,a);
+
+  return to(Bool,(bignum_eql(a, b)));
+}
+
+// Primitive 29
 Ptr PRIM_FIX_TO_BIG_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("i->b",Fixnum,a);
@@ -388,7 +418,7 @@ Ptr PRIM_FIX_TO_BIG_impl(VM *vm, u32 argc) {
   return to(Bignum,(bignum_from_fixnum(vm, a)));
 }
 
-// Primitive 27
+// Primitive 30
 Ptr PRIM_FIX_PLUS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("+i",Fixnum,b);
@@ -397,7 +427,7 @@ Ptr PRIM_FIX_PLUS_impl(VM *vm, u32 argc) {
  return fixnum_add(vm, a, b);
 }
 
-// Primitive 28
+// Primitive 31
 Ptr PRIM_FIX_MINUS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("-i",Fixnum,b);
@@ -406,7 +436,7 @@ Ptr PRIM_FIX_MINUS_impl(VM *vm, u32 argc) {
  return fixnum_sub(vm, a, b);
 }
 
-// Primitive 29
+// Primitive 32
 Ptr PRIM_FIX_TIMES_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("*i",Fixnum,b);
@@ -415,7 +445,7 @@ Ptr PRIM_FIX_TIMES_impl(VM *vm, u32 argc) {
  return fixnum_mul(vm, a, b);
 }
 
-// Primitive 30
+// Primitive 33
 Ptr PRIM_FIX_DIVIDE_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("/i",Fixnum,b);
@@ -424,7 +454,7 @@ Ptr PRIM_FIX_DIVIDE_impl(VM *vm, u32 argc) {
   return to(Fixnum,(a / b));
 }
 
-// Primitive 31
+// Primitive 34
 Ptr PRIM_FIX_LT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("<i",Fixnum,b);
@@ -433,7 +463,7 @@ Ptr PRIM_FIX_LT_impl(VM *vm, u32 argc) {
   return to(Bool,(a < b));
 }
 
-// Primitive 32
+// Primitive 35
 Ptr PRIM_FIX_GT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG(">i",Fixnum,b);
@@ -442,7 +472,7 @@ Ptr PRIM_FIX_GT_impl(VM *vm, u32 argc) {
   return to(Bool,(a > b));
 }
 
-// Primitive 33
+// Primitive 36
 Ptr PRIM_FIX_MOD_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("%i",Fixnum,b);
@@ -451,7 +481,7 @@ Ptr PRIM_FIX_MOD_impl(VM *vm, u32 argc) {
   return to(Fixnum,(a % b));
 }
 
-// Primitive 34
+// Primitive 37
 Ptr PRIM_FLT_PLUS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("+f",Float,b);
@@ -460,7 +490,7 @@ Ptr PRIM_FLT_PLUS_impl(VM *vm, u32 argc) {
   return to(Float,(a + b));
 }
 
-// Primitive 35
+// Primitive 38
 Ptr PRIM_FLT_MINUS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("-f",Float,b);
@@ -469,7 +499,7 @@ Ptr PRIM_FLT_MINUS_impl(VM *vm, u32 argc) {
   return to(Float,(a - b));
 }
 
-// Primitive 36
+// Primitive 39
 Ptr PRIM_FLT_TIMES_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("*f",Float,b);
@@ -478,7 +508,7 @@ Ptr PRIM_FLT_TIMES_impl(VM *vm, u32 argc) {
   return to(Float,(a * b));
 }
 
-// Primitive 37
+// Primitive 40
 Ptr PRIM_FLT_DIVIDE_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("/f",Float,b);
@@ -487,7 +517,7 @@ Ptr PRIM_FLT_DIVIDE_impl(VM *vm, u32 argc) {
   return to(Float,(a / b));
 }
 
-// Primitive 38
+// Primitive 41
 Ptr PRIM_FLT_LT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("<f",Float,b);
@@ -496,7 +526,7 @@ Ptr PRIM_FLT_LT_impl(VM *vm, u32 argc) {
   return to(Bool,(a < b));
 }
 
-// Primitive 39
+// Primitive 42
 Ptr PRIM_FLT_GT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG(">f",Float,b);
@@ -505,7 +535,7 @@ Ptr PRIM_FLT_GT_impl(VM *vm, u32 argc) {
   return to(Bool,(a > b));
 }
 
-// Primitive 40
+// Primitive 43
 Ptr PRIM_FLT_MOD_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("%f",Float,b);
@@ -514,7 +544,7 @@ Ptr PRIM_FLT_MOD_impl(VM *vm, u32 argc) {
   return to(Float,(fmodf(a, b)));
 }
 
-// Primitive 41
+// Primitive 44
 Ptr PRIM_FIX_TO_FLT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("i->f",Fixnum,a);
@@ -522,7 +552,7 @@ Ptr PRIM_FIX_TO_FLT_impl(VM *vm, u32 argc) {
   return to(Float,((f32)a));
 }
 
-// Primitive 42
+// Primitive 45
 Ptr PRIM_FLT_TO_FIX_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("f->i",Float,a);
@@ -530,7 +560,7 @@ Ptr PRIM_FLT_TO_FIX_impl(VM *vm, u32 argc) {
   return to(Fixnum,((s64)a));
 }
 
-// Primitive 43
+// Primitive 46
 Ptr PRIM_FLT_LOG_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("logf",Float,n);
@@ -539,7 +569,7 @@ Ptr PRIM_FLT_LOG_impl(VM *vm, u32 argc) {
   return to(Float,(log(n) / log(base)));
 }
 
-// Primitive 44
+// Primitive 47
 Ptr PRIM_FLT_FLOOR_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("floorf",Float,n);
@@ -547,7 +577,7 @@ Ptr PRIM_FLT_FLOOR_impl(VM *vm, u32 argc) {
   return to(Float,(floorf(n)));
 }
 
-// Primitive 45
+// Primitive 48
 Ptr PRIM_FLT_CEIL_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("ceilf",Float,n);
@@ -555,7 +585,7 @@ Ptr PRIM_FLT_CEIL_impl(VM *vm, u32 argc) {
   return to(Float,(ceilf(n)));
 }
 
-// Primitive 46
+// Primitive 49
 Ptr PRIM_FLT_POW_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("powf",Float,e);
@@ -564,7 +594,7 @@ Ptr PRIM_FLT_POW_impl(VM *vm, u32 argc) {
   return to(Float,(pow(n, e)));
 }
 
-// Primitive 47
+// Primitive 50
 Ptr PRIM_FLT_REM_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("remf",Float,n);
@@ -572,7 +602,7 @@ Ptr PRIM_FLT_REM_impl(VM *vm, u32 argc) {
   return to(Float,(fractional_part(n)));
 }
 
-// Primitive 48
+// Primitive 51
 Ptr PRIM_FLT_COS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("cosf",Float,n);
@@ -580,7 +610,7 @@ Ptr PRIM_FLT_COS_impl(VM *vm, u32 argc) {
   return to(Float,(cos(n)));
 }
 
-// Primitive 49
+// Primitive 52
 Ptr PRIM_FLT_SIN_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("sinf",Float,n);
@@ -588,7 +618,7 @@ Ptr PRIM_FLT_SIN_impl(VM *vm, u32 argc) {
   return to(Float,(sin(n)));
 }
 
-// Primitive 50
+// Primitive 53
 Ptr PRIM_FLT_TAN_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("tanf",Float,n);
@@ -596,7 +626,7 @@ Ptr PRIM_FLT_TAN_impl(VM *vm, u32 argc) {
   return to(Float,(tan(n)));
 }
 
-// Primitive 51
+// Primitive 54
 Ptr PRIM_FLT_A2F_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("atan2f",Float,x);
@@ -605,7 +635,7 @@ Ptr PRIM_FLT_A2F_impl(VM *vm, u32 argc) {
   return to(Float,(atan2f(y,x)));
 }
 
-// Primitive 52
+// Primitive 55
 Ptr PRIM_FLT_SRT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("sqrtf",Float,a);
@@ -613,7 +643,7 @@ Ptr PRIM_FLT_SRT_impl(VM *vm, u32 argc) {
   return to(Float,(sqrtf(a)));
 }
 
-// Primitive 53
+// Primitive 56
 Ptr PRIM_RAND_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("random",Fixnum,a);
@@ -621,7 +651,7 @@ Ptr PRIM_RAND_impl(VM *vm, u32 argc) {
   return to(Fixnum,(rand() % a));
 }
 
-// Primitive 54
+// Primitive 57
 Ptr PRIM_ASH_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("ash",Fixnum,shift);
@@ -630,7 +660,7 @@ Ptr PRIM_ASH_impl(VM *vm, u32 argc) {
   return to(Fixnum,(shift < 0 ? n >> abs(shift) : n << shift));
 }
 
-// Primitive 55
+// Primitive 58
 Ptr PRIM_BAND_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("bit-and",Fixnum,b);
@@ -639,7 +669,7 @@ Ptr PRIM_BAND_impl(VM *vm, u32 argc) {
   return to(Fixnum,(a & b));
 }
 
-// Primitive 56
+// Primitive 59
 Ptr PRIM_BOR_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("bit-or",Fixnum,b);
@@ -648,14 +678,14 @@ Ptr PRIM_BOR_impl(VM *vm, u32 argc) {
   return to(Fixnum,(a | b));
 }
 
-// Primitive 57
+// Primitive 60
 Ptr PRIM_LIST_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 Ptr list = vm_get_stack_values_as_list(vm, argc);
  return list;
 }
 
-// Primitive 58
+// Primitive 61
 Ptr PRIM_CONS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("cons",any,b);
@@ -664,7 +694,7 @@ Ptr PRIM_CONS_impl(VM *vm, u32 argc) {
  return cons(vm, a, b);
 }
 
-// Primitive 59
+// Primitive 62
 Ptr PRIM_CAR_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("car",any,a);
@@ -672,7 +702,7 @@ Ptr PRIM_CAR_impl(VM *vm, u32 argc) {
  return car(a);
 }
 
-// Primitive 60
+// Primitive 63
 Ptr PRIM_CDR_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("cdr",any,a);
@@ -680,7 +710,7 @@ Ptr PRIM_CDR_impl(VM *vm, u32 argc) {
  return cdr(a);
 }
 
-// Primitive 61
+// Primitive 64
 Ptr PRIM_EQ_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("eq",any,b);
@@ -689,7 +719,7 @@ Ptr PRIM_EQ_impl(VM *vm, u32 argc) {
   return to(Bool,(ptr_eq(a, b)));
 }
 
-// Primitive 62
+// Primitive 65
 Ptr PRIM_NOT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("not",any,a);
@@ -697,7 +727,7 @@ Ptr PRIM_NOT_impl(VM *vm, u32 argc) {
   return to(Bool,(a == False));
 }
 
-// Primitive 63
+// Primitive 66
 Ptr PRIM_PRINT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("%print",any,a);
@@ -705,7 +735,7 @@ Ptr PRIM_PRINT_impl(VM *vm, u32 argc) {
  return primitive_print(a);
 }
 
-// Primitive 64
+// Primitive 67
 Ptr PRIM_NTH_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("nth",Fixnum,idx);
@@ -714,14 +744,14 @@ Ptr PRIM_NTH_impl(VM *vm, u32 argc) {
  return nth_or_nil(a, idx);
 }
 
-// Primitive 65
+// Primitive 68
 Ptr PRIM_VEC_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 Ptr as = vm_get_stack_values_as_list(vm, argc);
  return make_vector_from_list(vm, as);
 }
 
-// Primitive 66
+// Primitive 69
 Ptr PRIM_MKARY_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("make-array",Fixnum,len);
@@ -729,7 +759,7 @@ Ptr PRIM_MKARY_impl(VM *vm, u32 argc) {
  return make_zf_array(vm, len);
 }
 
-// Primitive 67
+// Primitive 70
 Ptr PRIM_AGET_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("aget",Fixnum,idx);
@@ -738,7 +768,7 @@ Ptr PRIM_AGET_impl(VM *vm, u32 argc) {
  return aget(a, idx);
 }
 
-// Primitive 68
+// Primitive 71
 Ptr PRIM_ASET_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("aset",any,val);
@@ -748,7 +778,7 @@ Ptr PRIM_ASET_impl(VM *vm, u32 argc) {
  return aset(a, idx, val);
 }
 
-// Primitive 69
+// Primitive 72
 Ptr PRIM_ALEN_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("array-length",PtrArray,a);
@@ -756,7 +786,7 @@ Ptr PRIM_ALEN_impl(VM *vm, u32 argc) {
   return to(Fixnum,(array_length(a)));
 }
 
-// Primitive 70
+// Primitive 73
 Ptr PRIM_MKARYU16_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("make-array-u16",Fixnum,len);
@@ -764,7 +794,7 @@ Ptr PRIM_MKARYU16_impl(VM *vm, u32 argc) {
  return to(Ptr, alloc_u16ao(vm, len));
 }
 
-// Primitive 71
+// Primitive 74
 Ptr PRIM_AGETU16_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("aget-u16",Fixnum,idx);
@@ -773,7 +803,7 @@ Ptr PRIM_AGETU16_impl(VM *vm, u32 argc) {
   return to(Fixnum,(aget(a, idx)));
 }
 
-// Primitive 72
+// Primitive 75
 Ptr PRIM_ASETU16_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("aset-u16",Fixnum,v);
@@ -783,7 +813,7 @@ Ptr PRIM_ASETU16_impl(VM *vm, u32 argc) {
  return aset(a, idx, v);
 }
 
-// Primitive 73
+// Primitive 76
 Ptr PRIM_ALENU16_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("array-length-u16",U16Array,a);
@@ -791,21 +821,21 @@ Ptr PRIM_ALENU16_impl(VM *vm, u32 argc) {
   return to(Fixnum,(a->length));
 }
 
-// Primitive 74
+// Primitive 77
 Ptr PRIM_MK_HT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
  return ht(vm);
 }
 
-// Primitive 75
+// Primitive 78
 Ptr PRIM_MK_ST_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
  return string_table(vm);
 }
 
-// Primitive 76
+// Primitive 79
 Ptr PRIM_HT_AT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("ht-at",any,key);
@@ -814,7 +844,7 @@ Ptr PRIM_HT_AT_impl(VM *vm, u32 argc) {
  return ht_at(ht, key);
 }
 
-// Primitive 77
+// Primitive 80
 Ptr PRIM_HT_AT_PUT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("ht-at-put",any,val);
@@ -824,7 +854,7 @@ Ptr PRIM_HT_AT_PUT_impl(VM *vm, u32 argc) {
  return ht_at_put(vm, ht, key, val);
 }
 
-// Primitive 78
+// Primitive 81
 Ptr PRIM_SYM_NAME_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("symbol-name",any,a);
@@ -832,7 +862,7 @@ Ptr PRIM_SYM_NAME_impl(VM *vm, u32 argc) {
  return Symbol_get_name(a);
 }
 
-// Primitive 79
+// Primitive 82
 Ptr PRIM_SYM_PKG_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("symbol-package",any,a);
@@ -840,7 +870,7 @@ Ptr PRIM_SYM_PKG_impl(VM *vm, u32 argc) {
  return Symbol_get_package(a);
 }
 
-// Primitive 80
+// Primitive 83
 Ptr PRIM_SYM_BND_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("symbol-bound?",any,a);
@@ -848,7 +878,7 @@ Ptr PRIM_SYM_BND_impl(VM *vm, u32 argc) {
   return to(Bool,(boundp(vm, a)));
 }
 
-// Primitive 81
+// Primitive 84
 Ptr PRIM_SET_SYM_VAL_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("set-symbol-value",any,b);
@@ -857,7 +887,7 @@ Ptr PRIM_SET_SYM_VAL_impl(VM *vm, u32 argc) {
  return set_symbol_value(vm, a, b);
 }
 
-// Primitive 82
+// Primitive 85
 Ptr PRIM_SET_SYM_SPECIAL_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("mark-symbol-as-special",any,a);
@@ -865,7 +895,7 @@ Ptr PRIM_SET_SYM_SPECIAL_impl(VM *vm, u32 argc) {
  return mark_symbol_as_special(vm, a);
 }
 
-// Primitive 83
+// Primitive 86
 Ptr PRIM_SYM_SPECIAL_P_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("special-symbol?",any,a);
@@ -873,7 +903,7 @@ Ptr PRIM_SYM_SPECIAL_P_impl(VM *vm, u32 argc) {
   return to(Bool,(is_special_symbol(vm, a)));
 }
 
-// Primitive 84
+// Primitive 87
 Ptr PRIM_PKG_EXT_SYM_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("package-extern-symbol",any,b);
@@ -882,7 +912,7 @@ Ptr PRIM_PKG_EXT_SYM_impl(VM *vm, u32 argc) {
  return package_extern_symbol(vm, a, b);
 }
 
-// Primitive 85
+// Primitive 88
 Ptr PRIM_MK_USR_PKG_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("make-user-package",any,name);
@@ -890,7 +920,7 @@ Ptr PRIM_MK_USR_PKG_impl(VM *vm, u32 argc) {
  return make_user_package(vm, name);
 }
 
-// Primitive 86
+// Primitive 89
 Ptr PRIM_MK_PKG_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("%make-package",any,name);
@@ -898,7 +928,7 @@ Ptr PRIM_MK_PKG_impl(VM *vm, u32 argc) {
  return make_basic_package(vm, name);
 }
 
-// Primitive 87
+// Primitive 90
 Ptr PRIM_PKG_NAME_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("package-name",any,a);
@@ -906,7 +936,7 @@ Ptr PRIM_PKG_NAME_impl(VM *vm, u32 argc) {
  return package_get_name(a);
 }
 
-// Primitive 88
+// Primitive 91
 Ptr PRIM_PKG_SUBP_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("package-subpackages",any,a);
@@ -914,7 +944,7 @@ Ptr PRIM_PKG_SUBP_impl(VM *vm, u32 argc) {
  return package_get_subpackages(a);
 }
 
-// Primitive 89
+// Primitive 92
 Ptr PRIM_PKG_USELST_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("package-use-list",any,a);
@@ -922,7 +952,7 @@ Ptr PRIM_PKG_USELST_impl(VM *vm, u32 argc) {
  return package_get_use_list(a);
 }
 
-// Primitive 90
+// Primitive 93
 Ptr PRIM_PKG_SET_USELST_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("package-set-use-list",any,lst);
@@ -931,7 +961,7 @@ Ptr PRIM_PKG_SET_USELST_impl(VM *vm, u32 argc) {
  return (package_set_use_list(pkg,lst), Nil);
 }
 
-// Primitive 91
+// Primitive 94
 Ptr PRIM_PKG_EXTERNS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("package-exports",any,a);
@@ -939,7 +969,7 @@ Ptr PRIM_PKG_EXTERNS_impl(VM *vm, u32 argc) {
  return package_get_exports(a);
 }
 
-// Primitive 92
+// Primitive 95
 Ptr PRIM_PKG_META_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("package-meta",any,a);
@@ -947,14 +977,14 @@ Ptr PRIM_PKG_META_impl(VM *vm, u32 argc) {
  return package_get_meta(a);
 }
 
-// Primitive 93
+// Primitive 96
 Ptr PRIM_GSYM_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
  return make_symbol(vm, "_gensym_");
 }
 
-// Primitive 94
+// Primitive 97
 Ptr PRIM_INTERN_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("intern",any,pkg);
@@ -963,21 +993,21 @@ Ptr PRIM_INTERN_impl(VM *vm, u32 argc) {
  return intern(vm, a, pkg);
 }
 
-// Primitive 95
+// Primitive 98
 Ptr PRIM_PRINT_STACK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
  return vm_print_stack_trace(vm);
 }
 
-// Primitive 96
+// Primitive 99
 Ptr PRIM_DBG_STACK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
  return vm_print_debug_stack_trace(vm);
 }
 
-// Primitive 97
+// Primitive 100
 Ptr PRIM_SETPXL_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("set-pixel",Point,p);
@@ -985,7 +1015,7 @@ Ptr PRIM_SETPXL_impl(VM *vm, u32 argc) {
  return gfx_set_pixel(vm, p);
 }
 
-// Primitive 98
+// Primitive 101
 Ptr PRIM_PTPLUS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("point+",Point,b);
@@ -994,7 +1024,7 @@ Ptr PRIM_PTPLUS_impl(VM *vm, u32 argc) {
   return to(Point,(a + b));
 }
 
-// Primitive 99
+// Primitive 102
 Ptr PRIM_PTMINUS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("point-",Point,b);
@@ -1003,7 +1033,7 @@ Ptr PRIM_PTMINUS_impl(VM *vm, u32 argc) {
   return to(Point,(a - b));
 }
 
-// Primitive 100
+// Primitive 103
 Ptr PRIM_MKPOINT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("make-point",Fixnum,b);
@@ -1012,7 +1042,7 @@ Ptr PRIM_MKPOINT_impl(VM *vm, u32 argc) {
   return to(Point,((point){(s32)a, (s32)b}));
 }
 
-// Primitive 101
+// Primitive 104
 Ptr PRIM_PTX_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("point-x",Point,p);
@@ -1020,7 +1050,7 @@ Ptr PRIM_PTX_impl(VM *vm, u32 argc) {
   return to(Fixnum,((s64)p.x));
 }
 
-// Primitive 102
+// Primitive 105
 Ptr PRIM_PTY_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("point-y",Point,p);
@@ -1028,7 +1058,7 @@ Ptr PRIM_PTY_impl(VM *vm, u32 argc) {
   return to(Fixnum,((s64)p.y));
 }
 
-// Primitive 103
+// Primitive 106
 Ptr PRIM_PTROT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("point-rotate",Float,degrees);
@@ -1037,7 +1067,7 @@ Ptr PRIM_PTROT_impl(VM *vm, u32 argc) {
   return to(Point,(rotate_point(p, degrees)));
 }
 
-// Primitive 104
+// Primitive 107
 Ptr PRIM_SFILLRCT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("screen-fill-rect",Fixnum,color);
@@ -1047,7 +1077,7 @@ Ptr PRIM_SFILLRCT_impl(VM *vm, u32 argc) {
  return gfx_screen_fill_rect(vm, a, b, color);
 }
 
-// Primitive 105
+// Primitive 108
 Ptr PRIM_DRAWIMAGE_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("blit-to-screen",Fixnum,rot);
@@ -1058,7 +1088,7 @@ Ptr PRIM_DRAWIMAGE_impl(VM *vm, u32 argc) {
  return gfx_blit_image_at(vm, img, p, scale, rot);
 }
 
-// Primitive 106
+// Primitive 109
 Ptr PRIM_FILLRCT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("fill-rect",Fixnum,color);
@@ -1069,7 +1099,7 @@ Ptr PRIM_FILLRCT_impl(VM *vm, u32 argc) {
  return gfx_fill_rect(dst, a, b, color);
 }
 
-// Primitive 107
+// Primitive 110
 Ptr PRIM_CLRRCT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("clear-rect",Point,b);
@@ -1079,7 +1109,7 @@ Ptr PRIM_CLRRCT_impl(VM *vm, u32 argc) {
  return gfx_clear_rect(dst, a, b);
 }
 
-// Primitive 108
+// Primitive 111
 Ptr PRIM_BLT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("blit",Fixnum,tint);
@@ -1094,7 +1124,7 @@ Ptr PRIM_BLT_impl(VM *vm, u32 argc) {
  return gfx_blit(src, dst, at, ul, lr, scale, degrees_rotation, tint);
 }
 
-// Primitive 109
+// Primitive 112
 Ptr PRIM_BLT_M_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("blit-with-mask",Float,msk_rot);
@@ -1116,7 +1146,7 @@ Ptr PRIM_BLT_M_impl(VM *vm, u32 argc) {
 );
 }
 
-// Primitive 110
+// Primitive 113
 Ptr PRIM_FIL_M_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("fill-rect-with-mask",Float,msk_rot);
@@ -1137,7 +1167,7 @@ Ptr PRIM_FIL_M_impl(VM *vm, u32 argc) {
 );
 }
 
-// Primitive 111
+// Primitive 114
 Ptr PRIM_BLT_FR_SCRN_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("blit-from-screen",Float,degrees_rotation);
@@ -1150,7 +1180,7 @@ Ptr PRIM_BLT_FR_SCRN_impl(VM *vm, u32 argc) {
  return gfx_blit_from_screen(vm, dst, at, ul, lr, scale, degrees_rotation);
 }
 
-// Primitive 112
+// Primitive 115
 Ptr PRIM_LOADIMAGE_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("load-image",String,path);
@@ -1158,7 +1188,7 @@ Ptr PRIM_LOADIMAGE_impl(VM *vm, u32 argc) {
  return gfx_load_image(vm, path);
 }
 
-// Primitive 113
+// Primitive 116
 Ptr PRIM_MKIMAGE_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("make-image",Fixnum,h);
@@ -1167,7 +1197,7 @@ Ptr PRIM_MKIMAGE_impl(VM *vm, u32 argc) {
  return gfx_make_image(vm, w, h);
 }
 
-// Primitive 114
+// Primitive 117
 Ptr PRIM_IMG_W_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("image-width",Image,img);
@@ -1175,7 +1205,7 @@ Ptr PRIM_IMG_W_impl(VM *vm, u32 argc) {
   return to(Fixnum,(image_width(img)));
 }
 
-// Primitive 115
+// Primitive 118
 Ptr PRIM_IMG_H_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("image-height",Image,img);
@@ -1183,7 +1213,7 @@ Ptr PRIM_IMG_H_impl(VM *vm, u32 argc) {
   return to(Fixnum,(image_height(img)));
 }
 
-// Primitive 116
+// Primitive 119
 Ptr PRIM_CCA_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("char-code-at",Fixnum,idx);
@@ -1192,7 +1222,7 @@ Ptr PRIM_CCA_impl(VM *vm, u32 argc) {
   return to(Fixnum,(string_char_code_at(vm, str, idx)));
 }
 
-// Primitive 117
+// Primitive 120
 Ptr PRIM_CCO_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("char-code",Char,ch);
@@ -1200,7 +1230,7 @@ Ptr PRIM_CCO_impl(VM *vm, u32 argc) {
   return to(Fixnum,(character_to_s64(ch)));
 }
 
-// Primitive 118
+// Primitive 121
 Ptr PRIM_COC_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("code-char",Fixnum,code);
@@ -1208,7 +1238,7 @@ Ptr PRIM_COC_impl(VM *vm, u32 argc) {
  return to(Char, (char)code);
 }
 
-// Primitive 119
+// Primitive 122
 Ptr PRIM_CH_AT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("char-at",Fixnum,idx);
@@ -1217,7 +1247,7 @@ Ptr PRIM_CH_AT_impl(VM *vm, u32 argc) {
   return to(Char,(string_char_at(vm, str, idx)));
 }
 
-// Primitive 120
+// Primitive 123
 Ptr PRIM_CH_ATP_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("char-at-put",Char,ch);
@@ -1227,7 +1257,7 @@ Ptr PRIM_CH_ATP_impl(VM *vm, u32 argc) {
  return string_set_char_at(vm, str, idx, ch);
 }
 
-// Primitive 121
+// Primitive 124
 Ptr PRIM_CH_LT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("char-<",Char,b);
@@ -1236,7 +1266,7 @@ Ptr PRIM_CH_LT_impl(VM *vm, u32 argc) {
   return to(Bool,(character_lt(a,b)));
 }
 
-// Primitive 122
+// Primitive 125
 Ptr PRIM_CH_GT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("char->",Char,b);
@@ -1245,7 +1275,7 @@ Ptr PRIM_CH_GT_impl(VM *vm, u32 argc) {
   return to(Bool,(character_gt(a,b)));
 }
 
-// Primitive 123
+// Primitive 126
 Ptr PRIM_CH_W_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("char-width",Char,a);
@@ -1253,7 +1283,7 @@ Ptr PRIM_CH_W_impl(VM *vm, u32 argc) {
   return to(Fixnum,(character_byte_width(a)));
 }
 
-// Primitive 124
+// Primitive 127
 Ptr PRIM_CHBYNM_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("char-by-name",String,name);
@@ -1261,7 +1291,7 @@ Ptr PRIM_CHBYNM_impl(VM *vm, u32 argc) {
  return character_by_name(name);
 }
 
-// Primitive 125
+// Primitive 128
 Ptr PRIM_CHNM_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("char-name",Char,a);
@@ -1269,7 +1299,7 @@ Ptr PRIM_CHNM_impl(VM *vm, u32 argc) {
  return character_name(vm, a);
 }
 
-// Primitive 126
+// Primitive 129
 Ptr PRIM_MKSTR_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("make-string",Char,ch);
@@ -1278,7 +1308,7 @@ Ptr PRIM_MKSTR_impl(VM *vm, u32 argc) {
  return make_filled_string(vm, len, ch);
 }
 
-// Primitive 127
+// Primitive 130
 Ptr PRIM_STRBLEN_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("string-byte-length",String,str);
@@ -1286,7 +1316,7 @@ Ptr PRIM_STRBLEN_impl(VM *vm, u32 argc) {
   return to(Fixnum,(string_byte_length(str)));
 }
 
-// Primitive 128
+// Primitive 131
 Ptr PRIM_STRSBB_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("string-substr-bytes",Fixnum,b);
@@ -1296,7 +1326,7 @@ Ptr PRIM_STRSBB_impl(VM *vm, u32 argc) {
  return string_substr_byte_range(vm, str, a, b);
 }
 
-// Primitive 129
+// Primitive 132
 Ptr PRIM_STR_EQUAL_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("string-equal",String,b);
@@ -1305,7 +1335,7 @@ Ptr PRIM_STR_EQUAL_impl(VM *vm, u32 argc) {
   return to(Bool,(string_equal(a,b)));
 }
 
-// Primitive 130
+// Primitive 133
 Ptr PRIM_STRCHCNT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("string-char-count",String,str);
@@ -1313,7 +1343,7 @@ Ptr PRIM_STRCHCNT_impl(VM *vm, u32 argc) {
   return to(Fixnum,(string_char_count(str)));
 }
 
-// Primitive 131
+// Primitive 134
 Ptr PRIM_STR_CHARY_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("string->char-array",String,str);
@@ -1321,7 +1351,7 @@ Ptr PRIM_STR_CHARY_impl(VM *vm, u32 argc) {
   return to(Array,(array_from_string(vm, str)));
 }
 
-// Primitive 132
+// Primitive 135
 Ptr PRIM_CHARY_STR_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("char-array->string",Array,arr);
@@ -1329,7 +1359,7 @@ Ptr PRIM_CHARY_STR_impl(VM *vm, u32 argc) {
   return to(String,(string_from_array(vm, arr)));
 }
 
-// Primitive 133
+// Primitive 136
 Ptr PRIM_SSTKMARK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("set-stack-mark",any,m);
@@ -1337,7 +1367,7 @@ Ptr PRIM_SSTKMARK_impl(VM *vm, u32 argc) {
  return vm_set_stack_mark(vm, m);
 }
 
-// Primitive 134
+// Primitive 137
 Ptr PRIM_PSTKMARK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("snapshot-to-stack-mark",any,v);
@@ -1346,7 +1376,7 @@ Ptr PRIM_PSTKMARK_impl(VM *vm, u32 argc) {
  return vm_abort_to_mark(vm, m, v);
 }
 
-// Primitive 135
+// Primitive 138
 Ptr PRIM_RSTKSNAP_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("resume-stack-snapshot",any,arg);
@@ -1355,7 +1385,7 @@ Ptr PRIM_RSTKSNAP_impl(VM *vm, u32 argc) {
  return vm_resume_stack_snapshot(vm, s, arg);
 }
 
-// Primitive 136
+// Primitive 139
 Ptr PRIM_RETMARK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("return-from-mark",any,a);
@@ -1364,7 +1394,7 @@ Ptr PRIM_RETMARK_impl(VM *vm, u32 argc) {
  return vm_return_from_mark(vm, m, a);
 }
 
-// Primitive 137
+// Primitive 140
 Ptr PRIM_CONT_VAL_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("continuation-value",any,a);
@@ -1372,7 +1402,7 @@ Ptr PRIM_CONT_VAL_impl(VM *vm, u32 argc) {
  return cont_get_value(a);
 }
 
-// Primitive 138
+// Primitive 141
 Ptr PRIM_FORK_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("fork-thunk",any,a);
@@ -1381,7 +1411,7 @@ Ptr PRIM_FORK_impl(VM *vm, u32 argc) {
  return vm_schedule_closure(vm, a, priority, Nil);
 }
 
-// Primitive 139
+// Primitive 142
 Ptr PRIM_MK_SEM_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("make-semaphore",any,a);
@@ -1389,7 +1419,7 @@ Ptr PRIM_MK_SEM_impl(VM *vm, u32 argc) {
  return make_semaphore(vm, a);
 }
 
-// Primitive 140
+// Primitive 143
 Ptr PRIM_SEM_SIG_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("signal-semaphore",any,a);
@@ -1397,28 +1427,28 @@ Ptr PRIM_SEM_SIG_impl(VM *vm, u32 argc) {
  return signal_semaphore(a);
 }
 
-// Primitive 141
+// Primitive 144
 Ptr PRIM_CURR_THD_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
  return vm->curr_thd->thread;
 }
 
-// Primitive 142
+// Primitive 145
 Ptr PRIM_THD_CNT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
   return to(Fixnum,(vm->threads->count));
 }
 
-// Primitive 143
+// Primitive 146
 Ptr PRIM_ALL_THDS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
  return list_all_threads(vm);
 }
 
-// Primitive 144
+// Primitive 147
 Ptr PRIM_SLURP_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("slurp",String,path);
@@ -1426,7 +1456,7 @@ Ptr PRIM_SLURP_impl(VM *vm, u32 argc) {
  return slurp(vm, path);
 }
 
-// Primitive 145
+// Primitive 148
 Ptr PRIM_OS_WSTR_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("%file-output-stream-write-string",String,str);
@@ -1435,7 +1465,7 @@ Ptr PRIM_OS_WSTR_impl(VM *vm, u32 argc) {
   return to(Bool,(file_output_stream_write_string(s, str)));
 }
 
-// Primitive 146
+// Primitive 149
 Ptr PRIM_OS_WCH_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("%file-output-stream-write-char",Char,ch);
@@ -1444,7 +1474,7 @@ Ptr PRIM_OS_WCH_impl(VM *vm, u32 argc) {
   return to(Bool,(file_output_stream_write_char(s, ch)));
 }
 
-// Primitive 147
+// Primitive 150
 Ptr PRIM_THD_DBG_INFO_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("thread-get-debug-info",any,a);
@@ -1452,7 +1482,7 @@ Ptr PRIM_THD_DBG_INFO_impl(VM *vm, u32 argc) {
  return thread_get_debug_info(vm, a);
 }
 
-// Primitive 148
+// Primitive 151
 Ptr PRIM_IM_SAV_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("save-snapshot",String,path);
@@ -1460,7 +1490,7 @@ Ptr PRIM_IM_SAV_impl(VM *vm, u32 argc) {
  return im_snapshot_to_path(vm, path);
 }
 
-// Primitive 149
+// Primitive 152
 Ptr PRIM_IM_SAV_DIE_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("save-snapshot-and-exit",String,path);
@@ -1468,14 +1498,14 @@ Ptr PRIM_IM_SAV_DIE_impl(VM *vm, u32 argc) {
  return im_snapshot_to_path_and_exit(vm, path);
 }
 
-// Primitive 150
+// Primitive 153
 Ptr PRIM_TIME_MS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
   return to(Fixnum,(current_time_ms()));
 }
 
-// Primitive 151
+// Primitive 154
 Ptr PRIM_CL_SRC_LOC_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("closure-source-location",any,a);
@@ -1483,14 +1513,14 @@ Ptr PRIM_CL_SRC_LOC_impl(VM *vm, u32 argc) {
  return get_source_location(a);
 }
 
-// Primitive 152
+// Primitive 155
 Ptr PRIM_UPD_WIN_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
  return update_display(vm);
 }
 
-// Primitive 153
+// Primitive 156
 Ptr PRIM_BLTQ_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("blitq",Point,dd);
@@ -1507,7 +1537,7 @@ Ptr PRIM_BLTQ_impl(VM *vm, u32 argc) {
  return gfx_blit_image_into_quad(s,d, sa,sb,sc,sd,da,db,dc,dd);
 }
 
-// Primitive 154
+// Primitive 157
 Ptr PRIM_EXIT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("exit",Fixnum,status);
@@ -1515,7 +1545,7 @@ Ptr PRIM_EXIT_impl(VM *vm, u32 argc) {
  return (exit(status), Nil);
 }
 
-// Primitive 155
+// Primitive 158
 Ptr PRIM_PF_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("prefetch",any,it);
@@ -1523,7 +1553,7 @@ Ptr PRIM_PF_impl(VM *vm, u32 argc) {
  return prefetch(it);
 }
 
-// Primitive 156
+// Primitive 159
 Ptr PRIM_BCTOCLS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("bytecode->closure",any,it);
@@ -1531,7 +1561,7 @@ Ptr PRIM_BCTOCLS_impl(VM *vm, u32 argc) {
  return make_closure(vm, it, Nil);
 }
 
-// Primitive 157
+// Primitive 160
 Ptr PRIM_MKBTC_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("make-bytecode",PtrArray,literals);
@@ -1542,28 +1572,28 @@ Ptr PRIM_MKBTC_impl(VM *vm, u32 argc) {
  return create_bytecode(vm, varargs, name, code, literals);
 }
 
-// Primitive 158
+// Primitive 161
 Ptr PRIM_STKDPTH_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
   return to(Fixnum,(vm->curr_thd->stack_depth));
 }
 
-// Primitive 159
+// Primitive 162
 Ptr PRIM_STKDPTHB_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
   return to(Fixnum,((vm->curr_thd->stack_start - vm->curr_thd->stack) * 8));
 }
 
-// Primitive 160
+// Primitive 163
 Ptr PRIM_CLRSTAT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
  return reset_stats_reporting(vm);
 }
 
-// Primitive 161
+// Primitive 164
 Ptr PRIM_PRNSTAT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
@@ -1599,6 +1629,9 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_BIG_TIMES_impl,
   &PRIM_BIG_PLUS_impl,
   &PRIM_BIG_MINUS_impl,
+  &PRIM_BIG_LT_impl,
+  &PRIM_BIG_GT_impl,
+  &PRIM_BIG_EQL_impl,
   &PRIM_FIX_TO_BIG_impl,
   &PRIM_FIX_PLUS_impl,
   &PRIM_FIX_MINUS_impl,
@@ -1768,6 +1801,9 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "*b", to(PrimOp, PRIM_BIG_TIMES));
   set_global(vm, "+b", to(PrimOp, PRIM_BIG_PLUS));
   set_global(vm, "-b", to(PrimOp, PRIM_BIG_MINUS));
+  set_global(vm, "<b", to(PrimOp, PRIM_BIG_LT));
+  set_global(vm, ">b", to(PrimOp, PRIM_BIG_GT));
+  set_global(vm, "=b", to(PrimOp, PRIM_BIG_EQL));
   set_global(vm, "i->b", to(PrimOp, PRIM_FIX_TO_BIG));
   set_global(vm, "+i", to(PrimOp, PRIM_FIX_PLUS));
   set_global(vm, "-i", to(PrimOp, PRIM_FIX_MINUS));
@@ -2098,13 +2134,37 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
   }
 
   case 27: {
+   VM_ARG("<b",Bignum,b);
+   VM_ARG("<b",Bignum,a);
+
+     return(to(Bool,(bignum_lt(a, b))));
+    break;
+  }
+
+  case 28: {
+   VM_ARG(">b",Bignum,b);
+   VM_ARG(">b",Bignum,a);
+
+     return(to(Bool,(bignum_gt(a,b))));
+    break;
+  }
+
+  case 29: {
+   VM_ARG("=b",Bignum,b);
+   VM_ARG("=b",Bignum,a);
+
+     return(to(Bool,(bignum_eql(a, b))));
+    break;
+  }
+
+  case 30: {
    VM_ARG("i->b",Fixnum,a);
 
      return(to(Bignum,(bignum_from_fixnum(vm, a))));
     break;
   }
 
-  case 28: {
+  case 31: {
    VM_ARG("+i",Fixnum,b);
    VM_ARG("+i",Fixnum,a);
 
@@ -2112,7 +2172,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 29: {
+  case 32: {
    VM_ARG("-i",Fixnum,b);
    VM_ARG("-i",Fixnum,a);
 
@@ -2120,7 +2180,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 30: {
+  case 33: {
    VM_ARG("*i",Fixnum,b);
    VM_ARG("*i",Fixnum,a);
 
@@ -2128,7 +2188,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 31: {
+  case 34: {
    VM_ARG("/i",Fixnum,b);
    VM_ARG("/i",Fixnum,a);
 
@@ -2136,7 +2196,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 32: {
+  case 35: {
    VM_ARG("<i",Fixnum,b);
    VM_ARG("<i",Fixnum,a);
 
@@ -2144,7 +2204,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 33: {
+  case 36: {
    VM_ARG(">i",Fixnum,b);
    VM_ARG(">i",Fixnum,a);
 
@@ -2152,7 +2212,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 34: {
+  case 37: {
    VM_ARG("%i",Fixnum,b);
    VM_ARG("%i",Fixnum,a);
 
@@ -2160,7 +2220,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 35: {
+  case 38: {
    VM_ARG("+f",Float,b);
    VM_ARG("+f",Float,a);
 
@@ -2168,7 +2228,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 36: {
+  case 39: {
    VM_ARG("-f",Float,b);
    VM_ARG("-f",Float,a);
 
@@ -2176,7 +2236,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 37: {
+  case 40: {
    VM_ARG("*f",Float,b);
    VM_ARG("*f",Float,a);
 
@@ -2184,7 +2244,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 38: {
+  case 41: {
    VM_ARG("/f",Float,b);
    VM_ARG("/f",Float,a);
 
@@ -2192,7 +2252,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 39: {
+  case 42: {
    VM_ARG("<f",Float,b);
    VM_ARG("<f",Float,a);
 
@@ -2200,7 +2260,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 40: {
+  case 43: {
    VM_ARG(">f",Float,b);
    VM_ARG(">f",Float,a);
 
@@ -2208,7 +2268,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 41: {
+  case 44: {
    VM_ARG("%f",Float,b);
    VM_ARG("%f",Float,a);
 
@@ -2216,21 +2276,21 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 42: {
+  case 45: {
    VM_ARG("i->f",Fixnum,a);
 
      return(to(Float,((f32)a)));
     break;
   }
 
-  case 43: {
+  case 46: {
    VM_ARG("f->i",Float,a);
 
      return(to(Fixnum,((s64)a)));
     break;
   }
 
-  case 44: {
+  case 47: {
    VM_ARG("logf",Float,n);
    VM_ARG("logf",Float,base);
 
@@ -2238,21 +2298,21 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 45: {
+  case 48: {
    VM_ARG("floorf",Float,n);
 
      return(to(Float,(floorf(n))));
     break;
   }
 
-  case 46: {
+  case 49: {
    VM_ARG("ceilf",Float,n);
 
      return(to(Float,(ceilf(n))));
     break;
   }
 
-  case 47: {
+  case 50: {
    VM_ARG("powf",Float,e);
    VM_ARG("powf",Float,n);
 
@@ -2260,35 +2320,35 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 48: {
+  case 51: {
    VM_ARG("remf",Float,n);
 
      return(to(Float,(fractional_part(n))));
     break;
   }
 
-  case 49: {
+  case 52: {
    VM_ARG("cosf",Float,n);
 
      return(to(Float,(cos(n))));
     break;
   }
 
-  case 50: {
+  case 53: {
    VM_ARG("sinf",Float,n);
 
      return(to(Float,(sin(n))));
     break;
   }
 
-  case 51: {
+  case 54: {
    VM_ARG("tanf",Float,n);
 
      return(to(Float,(tan(n))));
     break;
   }
 
-  case 52: {
+  case 55: {
    VM_ARG("atan2f",Float,x);
    VM_ARG("atan2f",Float,y);
 
@@ -2296,21 +2356,21 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 53: {
+  case 56: {
    VM_ARG("sqrtf",Float,a);
 
      return(to(Float,(sqrtf(a))));
     break;
   }
 
-  case 54: {
+  case 57: {
    VM_ARG("random",Fixnum,a);
 
      return(to(Fixnum,(rand() % a)));
     break;
   }
 
-  case 55: {
+  case 58: {
    VM_ARG("ash",Fixnum,shift);
    VM_ARG("ash",Fixnum,n);
 
@@ -2318,7 +2378,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 56: {
+  case 59: {
    VM_ARG("bit-and",Fixnum,b);
    VM_ARG("bit-and",Fixnum,a);
 
@@ -2326,7 +2386,7 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 57: {
+  case 60: {
    VM_ARG("bit-or",Fixnum,b);
    VM_ARG("bit-or",Fixnum,a);
 
@@ -2334,13 +2394,13 @@ Ptr unused = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 58: {
+  case 61: {
 Ptr list = vm_get_stack_values_as_list(vm, argc);
     return(list);
     break;
   }
 
-  case 59: {
+  case 62: {
    VM_ARG("cons",any,b);
    VM_ARG("cons",any,a);
 
@@ -2348,21 +2408,21 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 60: {
+  case 63: {
    VM_ARG("car",any,a);
 
     return(car(a));
     break;
   }
 
-  case 61: {
+  case 64: {
    VM_ARG("cdr",any,a);
 
     return(cdr(a));
     break;
   }
 
-  case 62: {
+  case 65: {
    VM_ARG("eq",any,b);
    VM_ARG("eq",any,a);
 
@@ -2370,21 +2430,21 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 63: {
+  case 66: {
    VM_ARG("not",any,a);
 
      return(to(Bool,(a == False)));
     break;
   }
 
-  case 64: {
+  case 67: {
    VM_ARG("%print",any,a);
 
     return(primitive_print(a));
     break;
   }
 
-  case 65: {
+  case 68: {
    VM_ARG("nth",Fixnum,idx);
    VM_ARG("nth",any,a);
 
@@ -2392,20 +2452,20 @@ Ptr list = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 66: {
+  case 69: {
 Ptr as = vm_get_stack_values_as_list(vm, argc);
     return(make_vector_from_list(vm, as));
     break;
   }
 
-  case 67: {
+  case 70: {
    VM_ARG("make-array",Fixnum,len);
 
     return(make_zf_array(vm, len));
     break;
   }
 
-  case 68: {
+  case 71: {
    VM_ARG("aget",Fixnum,idx);
    VM_ARG("aget",PtrArray,a);
 
@@ -2413,7 +2473,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 69: {
+  case 72: {
    VM_ARG("aset",any,val);
    VM_ARG("aset",Fixnum,idx);
    VM_ARG("aset",PtrArray,a);
@@ -2422,21 +2482,21 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 70: {
+  case 73: {
    VM_ARG("array-length",PtrArray,a);
 
      return(to(Fixnum,(array_length(a))));
     break;
   }
 
-  case 71: {
+  case 74: {
    VM_ARG("make-array-u16",Fixnum,len);
 
     return(to(Ptr, alloc_u16ao(vm, len)));
     break;
   }
 
-  case 72: {
+  case 75: {
    VM_ARG("aget-u16",Fixnum,idx);
    VM_ARG("aget-u16",U16Array,a);
 
@@ -2444,7 +2504,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 73: {
+  case 76: {
    VM_ARG("aset-u16",Fixnum,v);
    VM_ARG("aset-u16",Fixnum,idx);
    VM_ARG("aset-u16",U16Array,a);
@@ -2453,26 +2513,26 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 74: {
+  case 77: {
    VM_ARG("array-length-u16",U16Array,a);
 
      return(to(Fixnum,(a->length)));
     break;
   }
 
-  case 75: {
+  case 78: {
 
     return(ht(vm));
     break;
   }
 
-  case 76: {
+  case 79: {
 
     return(string_table(vm));
     break;
   }
 
-  case 77: {
+  case 80: {
    VM_ARG("ht-at",any,key);
    VM_ARG("ht-at",any,ht);
 
@@ -2480,7 +2540,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 78: {
+  case 81: {
    VM_ARG("ht-at-put",any,val);
    VM_ARG("ht-at-put",any,key);
    VM_ARG("ht-at-put",any,ht);
@@ -2489,28 +2549,28 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 79: {
+  case 82: {
    VM_ARG("symbol-name",any,a);
 
     return(Symbol_get_name(a));
     break;
   }
 
-  case 80: {
+  case 83: {
    VM_ARG("symbol-package",any,a);
 
     return(Symbol_get_package(a));
     break;
   }
 
-  case 81: {
+  case 84: {
    VM_ARG("symbol-bound?",any,a);
 
      return(to(Bool,(boundp(vm, a))));
     break;
   }
 
-  case 82: {
+  case 85: {
    VM_ARG("set-symbol-value",any,b);
    VM_ARG("set-symbol-value",any,a);
 
@@ -2518,21 +2578,21 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 83: {
+  case 86: {
    VM_ARG("mark-symbol-as-special",any,a);
 
     return(mark_symbol_as_special(vm, a));
     break;
   }
 
-  case 84: {
+  case 87: {
    VM_ARG("special-symbol?",any,a);
 
      return(to(Bool,(is_special_symbol(vm, a))));
     break;
   }
 
-  case 85: {
+  case 88: {
    VM_ARG("package-extern-symbol",any,b);
    VM_ARG("package-extern-symbol",any,a);
 
@@ -2540,42 +2600,42 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 86: {
+  case 89: {
    VM_ARG("make-user-package",any,name);
 
     return(make_user_package(vm, name));
     break;
   }
 
-  case 87: {
+  case 90: {
    VM_ARG("%make-package",any,name);
 
     return(make_basic_package(vm, name));
     break;
   }
 
-  case 88: {
+  case 91: {
    VM_ARG("package-name",any,a);
 
     return(package_get_name(a));
     break;
   }
 
-  case 89: {
+  case 92: {
    VM_ARG("package-subpackages",any,a);
 
     return(package_get_subpackages(a));
     break;
   }
 
-  case 90: {
+  case 93: {
    VM_ARG("package-use-list",any,a);
 
     return(package_get_use_list(a));
     break;
   }
 
-  case 91: {
+  case 94: {
    VM_ARG("package-set-use-list",any,lst);
    VM_ARG("package-set-use-list",any,pkg);
 
@@ -2583,27 +2643,27 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 92: {
+  case 95: {
    VM_ARG("package-exports",any,a);
 
     return(package_get_exports(a));
     break;
   }
 
-  case 93: {
+  case 96: {
    VM_ARG("package-meta",any,a);
 
     return(package_get_meta(a));
     break;
   }
 
-  case 94: {
+  case 97: {
 
     return(make_symbol(vm, "_gensym_"));
     break;
   }
 
-  case 95: {
+  case 98: {
    VM_ARG("intern",any,pkg);
    VM_ARG("intern",String,a);
 
@@ -2611,26 +2671,26 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 96: {
+  case 99: {
 
     return(vm_print_stack_trace(vm));
     break;
   }
 
-  case 97: {
+  case 100: {
 
     return(vm_print_debug_stack_trace(vm));
     break;
   }
 
-  case 98: {
+  case 101: {
    VM_ARG("set-pixel",Point,p);
 
     return(gfx_set_pixel(vm, p));
     break;
   }
 
-  case 99: {
+  case 102: {
    VM_ARG("point+",Point,b);
    VM_ARG("point+",Point,a);
 
@@ -2638,7 +2698,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 100: {
+  case 103: {
    VM_ARG("point-",Point,b);
    VM_ARG("point-",Point,a);
 
@@ -2646,7 +2706,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 101: {
+  case 104: {
    VM_ARG("make-point",Fixnum,b);
    VM_ARG("make-point",Fixnum,a);
 
@@ -2654,21 +2714,21 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 102: {
+  case 105: {
    VM_ARG("point-x",Point,p);
 
      return(to(Fixnum,((s64)p.x)));
     break;
   }
 
-  case 103: {
+  case 106: {
    VM_ARG("point-y",Point,p);
 
      return(to(Fixnum,((s64)p.y)));
     break;
   }
 
-  case 104: {
+  case 107: {
    VM_ARG("point-rotate",Float,degrees);
    VM_ARG("point-rotate",Point,p);
 
@@ -2676,7 +2736,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 105: {
+  case 108: {
    VM_ARG("screen-fill-rect",Fixnum,color);
    VM_ARG("screen-fill-rect",Point,b);
    VM_ARG("screen-fill-rect",Point,a);
@@ -2685,7 +2745,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 106: {
+  case 109: {
    VM_ARG("blit-to-screen",Fixnum,rot);
    VM_ARG("blit-to-screen",Fixnum,scale);
    VM_ARG("blit-to-screen",Point,p);
@@ -2695,7 +2755,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 107: {
+  case 110: {
    VM_ARG("fill-rect",Fixnum,color);
    VM_ARG("fill-rect",Point,b);
    VM_ARG("fill-rect",Point,a);
@@ -2705,7 +2765,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 108: {
+  case 111: {
    VM_ARG("clear-rect",Point,b);
    VM_ARG("clear-rect",Point,a);
    VM_ARG("clear-rect",Image,dst);
@@ -2714,7 +2774,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 109: {
+  case 112: {
    VM_ARG("blit",Fixnum,tint);
    VM_ARG("blit",Float,degrees_rotation);
    VM_ARG("blit",Float,scale);
@@ -2728,7 +2788,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 110: {
+  case 113: {
    VM_ARG("blit-with-mask",Float,msk_rot);
    VM_ARG("blit-with-mask",Float,msk_scale);
    VM_ARG("blit-with-mask",Point,msk_lr);
@@ -2749,7 +2809,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 111: {
+  case 114: {
    VM_ARG("fill-rect-with-mask",Float,msk_rot);
    VM_ARG("fill-rect-with-mask",Float,msk_scale);
    VM_ARG("fill-rect-with-mask",Point,msk_lr);
@@ -2769,7 +2829,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 112: {
+  case 115: {
    VM_ARG("blit-from-screen",Float,degrees_rotation);
    VM_ARG("blit-from-screen",Float,scale);
    VM_ARG("blit-from-screen",Point,lr);
@@ -2781,14 +2841,14 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 113: {
+  case 116: {
    VM_ARG("load-image",String,path);
 
     return(gfx_load_image(vm, path));
     break;
   }
 
-  case 114: {
+  case 117: {
    VM_ARG("make-image",Fixnum,h);
    VM_ARG("make-image",Fixnum,w);
 
@@ -2796,21 +2856,21 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 115: {
+  case 118: {
    VM_ARG("image-width",Image,img);
 
      return(to(Fixnum,(image_width(img))));
     break;
   }
 
-  case 116: {
+  case 119: {
    VM_ARG("image-height",Image,img);
 
      return(to(Fixnum,(image_height(img))));
     break;
   }
 
-  case 117: {
+  case 120: {
    VM_ARG("char-code-at",Fixnum,idx);
    VM_ARG("char-code-at",String,str);
 
@@ -2818,21 +2878,21 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 118: {
+  case 121: {
    VM_ARG("char-code",Char,ch);
 
      return(to(Fixnum,(character_to_s64(ch))));
     break;
   }
 
-  case 119: {
+  case 122: {
    VM_ARG("code-char",Fixnum,code);
 
     return(to(Char, (char)code));
     break;
   }
 
-  case 120: {
+  case 123: {
    VM_ARG("char-at",Fixnum,idx);
    VM_ARG("char-at",String,str);
 
@@ -2840,7 +2900,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 121: {
+  case 124: {
    VM_ARG("char-at-put",Char,ch);
    VM_ARG("char-at-put",Fixnum,idx);
    VM_ARG("char-at-put",String,str);
@@ -2849,7 +2909,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 122: {
+  case 125: {
    VM_ARG("char-<",Char,b);
    VM_ARG("char-<",Char,a);
 
@@ -2857,7 +2917,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 123: {
+  case 126: {
    VM_ARG("char->",Char,b);
    VM_ARG("char->",Char,a);
 
@@ -2865,28 +2925,28 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 124: {
+  case 127: {
    VM_ARG("char-width",Char,a);
 
      return(to(Fixnum,(character_byte_width(a))));
     break;
   }
 
-  case 125: {
+  case 128: {
    VM_ARG("char-by-name",String,name);
 
     return(character_by_name(name));
     break;
   }
 
-  case 126: {
+  case 129: {
    VM_ARG("char-name",Char,a);
 
     return(character_name(vm, a));
     break;
   }
 
-  case 127: {
+  case 130: {
    VM_ARG("make-string",Char,ch);
    VM_ARG("make-string",Fixnum,len);
 
@@ -2894,14 +2954,14 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 128: {
+  case 131: {
    VM_ARG("string-byte-length",String,str);
 
      return(to(Fixnum,(string_byte_length(str))));
     break;
   }
 
-  case 129: {
+  case 132: {
    VM_ARG("string-substr-bytes",Fixnum,b);
    VM_ARG("string-substr-bytes",Fixnum,a);
    VM_ARG("string-substr-bytes",String,str);
@@ -2910,7 +2970,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 130: {
+  case 133: {
    VM_ARG("string-equal",String,b);
    VM_ARG("string-equal",String,a);
 
@@ -2918,35 +2978,35 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 131: {
+  case 134: {
    VM_ARG("string-char-count",String,str);
 
      return(to(Fixnum,(string_char_count(str))));
     break;
   }
 
-  case 132: {
+  case 135: {
    VM_ARG("string->char-array",String,str);
 
      return(to(Array,(array_from_string(vm, str))));
     break;
   }
 
-  case 133: {
+  case 136: {
    VM_ARG("char-array->string",Array,arr);
 
      return(to(String,(string_from_array(vm, arr))));
     break;
   }
 
-  case 134: {
+  case 137: {
    VM_ARG("set-stack-mark",any,m);
 
     return(vm_set_stack_mark(vm, m));
     break;
   }
 
-  case 135: {
+  case 138: {
    VM_ARG("snapshot-to-stack-mark",any,v);
    VM_ARG("snapshot-to-stack-mark",any,m);
 
@@ -2954,7 +3014,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 136: {
+  case 139: {
    VM_ARG("resume-stack-snapshot",any,arg);
    VM_ARG("resume-stack-snapshot",any,s);
 
@@ -2962,7 +3022,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 137: {
+  case 140: {
    VM_ARG("return-from-mark",any,a);
    VM_ARG("return-from-mark",any,m);
 
@@ -2970,14 +3030,14 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 138: {
+  case 141: {
    VM_ARG("continuation-value",any,a);
 
     return(cont_get_value(a));
     break;
   }
 
-  case 139: {
+  case 142: {
    VM_ARG("fork-thunk",any,a);
    VM_ARG("fork-thunk",any,priority);
 
@@ -2985,46 +3045,46 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 140: {
+  case 143: {
    VM_ARG("make-semaphore",any,a);
 
     return(make_semaphore(vm, a));
     break;
   }
 
-  case 141: {
+  case 144: {
    VM_ARG("signal-semaphore",any,a);
 
     return(signal_semaphore(a));
     break;
   }
 
-  case 142: {
+  case 145: {
 
     return(vm->curr_thd->thread);
     break;
   }
 
-  case 143: {
+  case 146: {
 
      return(to(Fixnum,(vm->threads->count)));
     break;
   }
 
-  case 144: {
+  case 147: {
 
     return(list_all_threads(vm));
     break;
   }
 
-  case 145: {
+  case 148: {
    VM_ARG("slurp",String,path);
 
     return(slurp(vm, path));
     break;
   }
 
-  case 146: {
+  case 149: {
    VM_ARG("%file-output-stream-write-string",String,str);
    VM_ARG("%file-output-stream-write-string",any,s);
 
@@ -3032,7 +3092,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 147: {
+  case 150: {
    VM_ARG("%file-output-stream-write-char",Char,ch);
    VM_ARG("%file-output-stream-write-char",any,s);
 
@@ -3040,47 +3100,47 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 148: {
+  case 151: {
    VM_ARG("thread-get-debug-info",any,a);
 
     return(thread_get_debug_info(vm, a));
     break;
   }
 
-  case 149: {
+  case 152: {
    VM_ARG("save-snapshot",String,path);
 
     return(im_snapshot_to_path(vm, path));
     break;
   }
 
-  case 150: {
+  case 153: {
    VM_ARG("save-snapshot-and-exit",String,path);
 
     return(im_snapshot_to_path_and_exit(vm, path));
     break;
   }
 
-  case 151: {
+  case 154: {
 
      return(to(Fixnum,(current_time_ms())));
     break;
   }
 
-  case 152: {
+  case 155: {
    VM_ARG("closure-source-location",any,a);
 
     return(get_source_location(a));
     break;
   }
 
-  case 153: {
+  case 156: {
 
     return(update_display(vm));
     break;
   }
 
-  case 154: {
+  case 157: {
    VM_ARG("blitq",Point,dd);
    VM_ARG("blitq",Point,dc);
    VM_ARG("blitq",Point,db);
@@ -3096,28 +3156,28 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 155: {
+  case 158: {
    VM_ARG("exit",Fixnum,status);
 
     return((exit(status), Nil));
     break;
   }
 
-  case 156: {
+  case 159: {
    VM_ARG("prefetch",any,it);
 
     return(prefetch(it));
     break;
   }
 
-  case 157: {
+  case 160: {
    VM_ARG("bytecode->closure",any,it);
 
     return(make_closure(vm, it, Nil));
     break;
   }
 
-  case 158: {
+  case 161: {
    VM_ARG("make-bytecode",PtrArray,literals);
    VM_ARG("make-bytecode",U16Array,code);
    VM_ARG("make-bytecode",any,name);
@@ -3127,25 +3187,25 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 159: {
+  case 162: {
 
      return(to(Fixnum,(vm->curr_thd->stack_depth)));
     break;
   }
 
-  case 160: {
+  case 163: {
 
      return(to(Fixnum,((vm->curr_thd->stack_start - vm->curr_thd->stack) * 8)));
     break;
   }
 
-  case 161: {
+  case 164: {
 
     return(reset_stats_reporting(vm));
     break;
   }
 
-  case 162: {
+  case 165: {
 
     return(print_stats_reporting(vm));
     break;

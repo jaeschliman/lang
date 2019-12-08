@@ -1964,6 +1964,46 @@ ByteArrayObject *bignum_mul(VM *vm, ByteArrayObject *a, ByteArrayObject *b) {
   return result;
 }
 
+s32 bignum_cmp(ByteArrayObject *a, ByteArrayObject *b) {
+  auto a_neg = is_bignum_negative(a), b_neg = is_bignum_negative(b);
+  auto inverted = false;
+
+  if (a_neg && b_neg) inverted = true;
+  else if (a_neg) return -1;
+  else if (b_neg) return 1;
+
+  auto a_len = ba_length(a), b_len = ba_length(b);
+
+  if (a_len < b_len) return inverted ? 1 : -1;
+  if (a_len > b_len) return inverted ? -1 : 1;
+
+  auto a_mem = ba_mem(a), b_mem = ba_mem(b);
+  if (inverted) {
+    for (auto i = 0; i < a_len; i++) {
+      auto a_byte = ~a_mem[i], b_byte = ~b_mem[i];
+      if (a_byte > b_byte) return -1;
+      if (a_byte < b_byte) return 1;
+    }
+  } else {
+    for (auto i = 0; i < a_len; i++) {
+      auto a_byte = a_mem[i], b_byte = b_mem[i];
+      if (a_byte < b_byte) return -1;
+      if (a_byte > b_byte) return 1;
+    }
+  }
+  return 0;
+}
+
+bool bignum_lt(ByteArrayObject *a, ByteArrayObject *b) {
+  return bignum_cmp(a, b) == -1;
+}
+bool bignum_gt(ByteArrayObject *a, ByteArrayObject *b) {
+  return bignum_cmp(a, b) == 1;
+}
+bool bignum_eql(ByteArrayObject *a, ByteArrayObject *b) {
+  return bignum_cmp(a, b) == 0;
+}
+
 
 /* ---------------------------------------- */
 //          basic hashing support

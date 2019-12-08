@@ -224,6 +224,9 @@ void initialize_primitive_functions(VM *vm) {
   (prim *b    BIG_TIMES  ((a Bignum) (b Bignum)) Bignum "bignum_mul(vm, a, b)")
   (prim +b    BIG_PLUS   ((a Bignum) (b Bignum)) Bignum "bignum_add(vm, a, b)")
   (prim -b    BIG_MINUS  ((a Bignum) (b Bignum)) Bignum "bignum_sub(vm, a, b)")
+  (prim <b    BIG_LT     ((a Bignum) (b Bignum)) Bool   "bignum_lt(a, b)")
+  (prim >b    BIG_GT     ((a Bignum) (b Bignum)) Bool   "bignum_gt(a,b)")
+  (prim =b    BIG_EQL    ((a Bignum) (b Bignum)) Bool   "bignum_eql(a, b)")
   (prim i->b  FIX_TO_BIG ((a Fixnum)) Bignum "bignum_from_fixnum(vm, a)")
 
   (prim +i    FIX_PLUS   ((a Fixnum) (b Fixnum)) any "fixnum_add(vm, a, b)")

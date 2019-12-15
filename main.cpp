@@ -591,6 +591,7 @@ void vm_refresh_frame_state(VM *);
 void grow_thread_ctx(VM *vm, thread_ctx *ctx) {
   auto new_curr_size   = ctx->curr_size * 2;
   std::cerr << ("growing thread stack: ") << new_curr_size << std::endl;
+  _print_debug_stacktrace(ctx);
   if (new_curr_size > 1000000) { puts("it's all over folks"); exit(1); }
   auto new_count       = new_curr_size / sizeof(Ptr);
   auto new_stack_mem   = calloc(new_curr_size, 1);
@@ -2465,8 +2466,8 @@ std::ostream &operator<<(std::ostream &os, Object *obj) {
       else { os << "#<Struct[" << index << "] " << (void *)obj << ">" ;}
       return os;
     }
+    case Closure: { return os << "#<Closure " << (void *)obj << ">" ;}
     case Array:
-    case Closure:
       os << "[";
       if (vobj->length > 0) {
         os << vobj->data[0];
@@ -6367,7 +6368,7 @@ void _print_debug_frame(StackFrameObject *fr) {
 void _print_debug_stacktrace(thread_ctx *thd) {
   // auto thread = thd->thread;
   auto fr = thd->frame;
-  dbg("userpace stacktrace:");
+  dbg("userspace stacktrace:");
   while (fr) {
     _print_debug_frame(fr);
     fr = fr->prev_frame;

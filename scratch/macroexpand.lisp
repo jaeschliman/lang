@@ -5,7 +5,7 @@
         ((eq (caar alist) key) (car alist))
         (#t (assoc key (cdr alist)))))
 
-(defparameter *binds* '())
+(#/lang/at-boot (defparameter *binds* '()))
 
 (define (local? sym) (not (nil? (assoc sym *binds*))))
 

@@ -18,6 +18,7 @@
     ;; reload (almost) everything with the new compiler
     (binding ((*recompiling* #t) (*trace-eval* #f))
       (load-as "compiler" "./scratch/compiler.lisp") ;; compiler, compile thyself
+      (load-as "macroexpand" "./scratch/macroexpand.lisp")
 
       ;; (%load  "./boot/built-in-classes.lisp")
       (%l "./boot/0.lisp")

@@ -136,7 +136,8 @@
                      (mapcar qq-process expr))))
            expr)))
 
-(set 'compiler qq-process)
+(if (not (symbol-bound? 'compiler))
+    (set 'compiler qq-process))
 
 ;;; ----------------------------------------
 ;;; macro support
@@ -156,10 +157,18 @@
        `(%let ,(mapcar mx-process-let-binding (car (cdr expr)))
           ,@(mapcar macroexpand (cdr (cdr expr))))))
 
+;; (set 'mx-process-letrec
+;;      (%nlambda () (expr)
+;;        `(%letrec ,(mapcar mx-process-let-binding (car (cdr expr)))
+;;           ,@(mapcar macroexpand (cdr (cdr expr))))))
+
 (set 'mx-process-letrec
      (%nlambda () (expr)
-       `(%letrec ,(mapcar mx-process-let-binding (car (cdr expr)))
-          ,@(mapcar macroexpand (cdr (cdr expr))))))
+               (%let ((binds (mapcar (%nlambda () (b) (list (car b) #f)) (car (cdr expr)))))
+                 (%let ((bangs (mapcar (%nlambda () (b) `(set! ,(car b) ,(car (cdr b))))
+                                       (car (cdr expr)))))
+                   (%let ((result `(let ,binds ,@bangs ,@(cdr (cdr expr)))))
+                     (macroexpand result))))))
 
 (set 'mx-process-lambda
      (%nlambda () (expr)
@@ -183,7 +192,10 @@
                                                (mapcar macroexpand expr))))))))
                        expr))))
 
-(set 'compiler (%nlambda () (expr) (macroexpand (qq-process expr))))
+
+(if (eq compiler qq-process)
+    (set 'compiler (%nlambda () (expr) (macroexpand (qq-process expr)))))
+
 (set 'quasiquote-expand qq-process)
 
 ;;; ----------------------------------------
@@ -280,18 +292,18 @@
         `(if ,test ,body (cond ,@rest)))))
 
 (define (reduce-list fn seed list)
-    (let ((helper #f)
-          (acc seed))
-      (set! helper (lambda (lst)
-                     (if (nil? lst) acc
-                         (let ()
-                           (set! acc (fn acc (car lst)))
-                           (helper (cdr lst))))))
-      (helper list)
-      acc))
+  (let ((helper #f)
+        (acc seed))
+    (set! helper (lambda (lst)
+                   (if (nil? lst) acc
+                       (let ()
+                         (set! acc (fn acc (car lst)))
+                         (helper (cdr lst))))))
+    (helper list)
+    acc))
 
 (define (list-length lst)
-    (reduce-list (lambda (acc _) (+i acc 1)) 0 lst))
+  (reduce-list (lambda (acc _) (+i acc 1)) 0 lst))
 
 (defmacro case (subj & tests)
   (let* ((name (gensym))
@@ -424,6 +436,15 @@
 
 (defmacro at-boot (& forms)
   (if *recompiling* '() `(let () ,@forms)))
+
+(defmacro after-boot (& forms)
+  (if *recompiling* `(let () ,@forms '())))
+
+(after-boot
+  (define (reduce-list fn seed lst)
+    (let loop ((lst lst) (acc seed))
+         (if (nil? lst) acc
+             (loop (cdr lst) (fn acc (car lst)))))))
 
 
 ;; these are redefined as generics later in the boot proccess,

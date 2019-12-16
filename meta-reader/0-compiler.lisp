@@ -10,7 +10,7 @@
      (print (list ',form '= _res))
      _res))
 
-(at-boot (define MetaInputStream (create-class 'MetaInputStream '(pos str line memo))))
+(at-boot (define MetaInputStream (create-class 'MetaInputStream '(pos str line memo next))))
 
 (define (make-meta-input-stream pos str line)
   (let ((r (instantiate-class MetaInputStream)))
@@ -18,12 +18,14 @@
     (instance-set-ivar r 1 str)
     (instance-set-ivar r 2 line)
     (instance-set-ivar r 3 '())
+    (instance-set-ivar r 4 '#f)
     r))
 
 (define (meta-stream-pos it)  (instance-get-ivar it 0))
 (define (meta-stream-str it)  (instance-get-ivar it 1))
 (define (meta-stream-line it) (instance-get-ivar it 2))
 (define (meta-stream-memo it) (instance-get-ivar it 3))
+(define (meta-stream-next it) (instance-get-ivar it 4))
 
 
 (at-boot (define fail '(fail fail fail)))
@@ -41,17 +43,21 @@
 (define (stream-read s) (char-at (meta-stream-str s) (meta-stream-pos s)))
 (define (stream-end? s) (>i (+i 1 (meta-stream-pos s)) (string-byte-length (meta-stream-str s))))
 (define (stream-advance s char)
-  (let* ((nl? (eq char #\Newline))
-         (col? (not (or (eq char #\Newline) (eq char #\Return))))
-         (prev-pos (meta-stream-line s))
-         (pos (if (or nl? col?)
-                  (cons (if nl? (+i 1 (car prev-pos)) (car prev-pos))
-                        (if nl? 0 (if col? (+i 1 (cdr prev-pos)) (cdr prev-pos))))
-                  prev-pos)))
-    (make-meta-input-stream
-     (+i (char-width char) (meta-stream-pos s))
-     (meta-stream-str s)
-     pos)))
+  (or (meta-stream-next s)
+      (let* ((nl? (eq char #\Newline))
+             (col? (not (or (eq char #\Newline) (eq char #\Return))))
+             (prev-pos (meta-stream-line s))
+             (pos (if (or nl? col?)
+                      (cons (if nl? (+i 1 (car prev-pos)) (car prev-pos))
+                            (if nl? 0 (if col? (+i 1 (cdr prev-pos)) (cdr prev-pos))))
+                      prev-pos)))
+        (let ((result
+               (make-meta-input-stream
+                (+i (char-width char) (meta-stream-pos s))
+                (meta-stream-str s)
+                pos)))
+          (instance-set-ivar s 4 result)
+          result))))
 
 (define (stream-at s key)
   (let ((ht (meta-stream-memo s)))

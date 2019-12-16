@@ -316,10 +316,14 @@
 
 (define-compile (%base state symbol next) `(--base ,state ',symbol ,next))
 
-(define-apply (%base state symbol next)
-    (let* ((rule (get-rule symbol))
-           (res  (rule state)))
-      (if (failure? res) res (next res))))
+(define (failcall next result) (if (failure? result) result (next result)))
+
+;; (define-apply (%base state symbol next)
+;;     (let* ((rule (get-rule symbol))
+;;            (res  (rule state)))
+;;       (if (failure? res) res (next res))))
+
+(define-apply (%base state symbol next) (failcall next ((get-rule symbol) state)))
 
 (define (--exactly state item next)
   (apply-rule 'any state (lambda (s)
@@ -411,14 +415,16 @@
         (let ((body
                (reduce-list
                 (lambda (acc rule)
-                  `(let ((next-state ,(compile-rule rule 'state 'identity)))
+                  `(let ()
+                     (set! next-state ,(compile-rule rule 'state 'identity))
                      (if (failure? next-state)
                          ,acc
                          (next next-state))))
                 'fail
                 (reverse-list rules))))
           `(let ((state ,state)
-                 (next  ,next))
+                 (next  ,next)
+                 (next-state #f))
              ,body))))
 
 ;; (define-compile (or state rules next)
@@ -449,6 +455,19 @@
 ;;                             (reverse-list rules))))
 ;;           `(,body ,state))))
 
+;; (define-compile (seq state rules next)
+;;     (if (eq 1 (list-length rules))
+;;         (compile-rule (first rules) state next)
+;;         (let* ((rev (reverse-list rules))
+;;                (final (compile-rule (car rev) 'state next)))
+;;           `(let ((state ,state))
+;;              ,(reduce-list (lambda (nxt rule)
+;;                              `(let ((state ,(compile-rule rule 'state 'identity)))
+;;                                 (if (failure? state) fail
+;;                                     ,nxt)))
+;;                            final
+;;                            (cdr rev))))))
+
 (define-compile (seq state rules next)
     (if (eq 1 (list-length rules))
         (compile-rule (first rules) state next)
@@ -456,7 +475,8 @@
                (final (compile-rule (car rev) 'state next)))
           `(let ((state ,state))
              ,(reduce-list (lambda (nxt rule)
-                             `(let ((state ,(compile-rule rule 'state 'identity)))
+                             `(let ()
+                                (set! state ,(compile-rule rule 'state 'identity))
                                 (if (failure? state) fail
                                     ,nxt)))
                            final

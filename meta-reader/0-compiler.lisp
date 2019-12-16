@@ -149,21 +149,21 @@
         (let ((ch (stream-read s)))
           (state+stream+result st (stream-advance s ch) ch)))))
 
+
 (define (apply-rule rule state next)
   (if (eq rule 'any)
       (let ((r (--any state)))
         (if (failure? r) fail (next r)))
-      (let ((fn (applicator rule)))
+      (let ((fn (applicator rule))
+            (stream (state-stream state)))
         (when (nil? fn) (throw `(rule ,rule is undefined)))
-        (let* ((exist (stream-at (state-stream state) rule)))
+        (let* ((exist (stream-at stream rule)))
           (cond
             ((eq exist sentinel) fail)
             ((nil? exist)
-             (unless (or (eq rule 'ws))
-               (stream-at-put (state-stream state) rule sentinel))
+             (stream-at-put stream rule sentinel)
              (let ((result (fn state (safe-cdr rule) identity)))
-               (unless (or (eq rule 'ws))
-                 (stream-at-put (state-stream state) rule result))
+               (stream-at-put stream rule result)
                (if (failure? result) fail
                    (next result))))
             (#t (if (failure? exist) fail

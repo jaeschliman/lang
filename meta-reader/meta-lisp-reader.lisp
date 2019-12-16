@@ -9,7 +9,7 @@ meta lisp {
   escaped-char = "\\" any:x -> (escaped-char-character x)
   string       = "\"" (non-quote | escaped-char)*:chs "\"" -> (charlist-to-string chs)
   pkg-name     = [a-zA-Z\-]+:chs -> (charlist-to-string chs)
-  pkg-path     = "#/"?:gl (pkg-name:n "/" -> n)*:parts  -> (if-nil? gl parts (cons 'root parts))
+  pkg-path     = "#/"?:gl (pkg-name:n "/" -> n)+:parts  -> (if-nil? gl parts (cons 'root parts))
   pkg-prefix   = ":" -> '(root "keyword") | pkg-path
   symbol-char  = any:x ?(symbol-char x) -> x
   symbol-name  = ~[0-9] symbol-char+:xs -> (charlist-to-string xs)

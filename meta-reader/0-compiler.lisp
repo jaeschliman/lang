@@ -136,22 +136,32 @@
 ;;           (%print `(,rule => ,(state-result applied) ,failed-from-recursion ,cache-hit)))
 ;;         (next applied)))))
 
+(define (--any st)
+  (let ((s (state-stream st)))
+    (if (stream-end? s)
+        fail
+        (let ((ch (stream-read s)))
+          (state+stream+result st (stream-advance s ch) ch)))))
+
 (define (apply-rule rule state next)
-  (let ((fn (applicator rule)))
-    (when (nil? fn) (throw `(rule ,rule is undefined)))
-    (let* ((exist (stream-at (state-stream state) rule)))
-      (cond
-        ((eq exist sentinel) fail)
-        ((nil? exist)
-         (unless (eq rule 'any)
-           (stream-at-put (state-stream state) rule sentinel))
-         (let ((result (fn state (safe-cdr rule) identity)))
-           (unless (eq rule 'any)
-             (stream-at-put (state-stream state) rule result))
-           (if (failure? result) fail
-               (next result))))
-        (#t (if (failure? exist) fail
-                (next exist)))))))
+  (if (eq rule 'any)
+      (let ((r (--any state)))
+        (if (failure? r) fail (next r)))
+      (let ((fn (applicator rule)))
+        (when (nil? fn) (throw `(rule ,rule is undefined)))
+        (let* ((exist (stream-at (state-stream state) rule)))
+          (cond
+            ((eq exist sentinel) fail)
+            ((nil? exist)
+             (unless (or (eq rule 'ws))
+               (stream-at-put (state-stream state) rule sentinel))
+             (let ((result (fn state (safe-cdr rule) identity)))
+               (unless (or (eq rule 'ws))
+                 (stream-at-put (state-stream state) rule result))
+               (if (failure? result) fail
+                   (next result))))
+            (#t (if (failure? exist) fail
+                    (next exist))))))))
 
 
 (at-boot (define compilers-table (make-ht)))
@@ -236,7 +246,7 @@
   (let ((xform (xf-tl (cons 'seq forms))))
     `(set-rule ',name (%nlambda (meta rule for ,name) (_state_) ,(compile-rule xform '_state_ 'identity)))))
 
-(define (make-meta parent) (list parent (make-ht)))
+(define (make-meta parent) (list parent (make-ht) (make-ht))) ; parent, rules, cache
 (at-boot (define meta-by-name (make-ht)))
 (define (find-meta x) (if (symbol? x) (ht-at meta-by-name x) x))
 
@@ -248,17 +258,19 @@
   (set-symbol-value '*meta-context* (cdr *meta-context*)))
 
 (define (meta-lookup rulename)
-  (let lookup ((meta (first *meta-context*)))
-       (if (nil? meta) '()
-           (let ((Meta (find-meta meta)))
-             (let ((exist (ht-at (second Meta) rulename)))
-               (if (nil? exist) (lookup (first Meta))
-                   exist))))))
+  (let* ((top (first *meta-context*)))
+    (let lookup ((meta top))
+         (if (nil? meta) '()
+             (let ((Meta (find-meta meta)))
+               (let ((exist (ht-at (second Meta) rulename)))
+                 (if (nil? exist) (lookup (first Meta))
+                     exist)))))))
 
 (define (get-rule x)
-  (let ((r (meta-lookup x)))
-    (when (nil? r) (throw `(rule ,x is undefined)))
-    r))
+  (if (eq x 'any) --any
+      (let ((r (meta-lookup x)))
+        (when (nil? r) (throw `(rule ,x is undefined)))
+        r)))
 
 (define (set-rule x fn) (ht-at-put (second (find-meta (first *meta-context*))) x fn))
 
@@ -266,12 +278,7 @@
   (let ((str (second (state-stream *match-start*))))
     (string-substr-bytes str (state-position *match-start*) (state-position *match-end*))))
 
-(set-rule 'any (lambda (st)
-                 (let ((s (state-stream st)))
-                   (if (stream-end? s)
-                       fail
-                       (let ((ch (stream-read s)))
-                         (state+stream+result st (stream-advance s ch) ch))))))
+(set-rule 'any --any)
 
 (set-rule 'nothing (lambda (st)
                      (let ((s (state-stream st)))
@@ -357,19 +364,27 @@
 ;;                                   (_run_1_)))))
 ;;          (_run_1_))))
 
+;; (define-compile (* state args next)
+;;     `(let* ((last-state (state+result ,state (list))))
+;;        (%letrec
+;;         ((_next_ (lambda (result) (,next result)))
+;;          (_run_1_ (lambda () ,(compile-rule (cons '? args) 'last-state 'apply-next)))
+;;          (apply-next (lambda (new-state)
+;;                        (if (eq (state-position new-state)
+;;                                (state-position last-state))
+;;                            (_next_ (state-reverse-result last-state))
+;;                            (let ((acc-state (state-cons new-state last-state)))
+;;                              (set! last-state acc-state)
+;;                              (_run_1_))))))
+;;         (_run_1_))))
+
 (define-compile (* state args next)
-    `(let* ((last-state (state+result ,state (list))))
-       (%letrec
-        ((_next_ (lambda (result) (,next result)))
-         (_run_1_ (lambda () ,(compile-rule (cons '? args) 'last-state 'apply-next)))
-         (apply-next (lambda (new-state)
-                       (if (eq (state-position new-state)
-                               (state-position last-state))
-                           (_next_ (state-reverse-result last-state))
-                           (let ((acc-state (state-cons new-state last-state)))
-                             (set! last-state acc-state)
-                             (_run_1_))))))
-        (_run_1_))))
+    `(let ((run1 (lambda (state) ,(compile-rule (car args) 'state 'identity))))
+       (let loop ((last-state (state+result ,state '())))
+            (let ((r (run1 last-state)))
+              (if (failure? r) (,next (state-reverse-result last-state))
+                  (loop (state-cons r last-state)))))))
+
 
 (define-compile (+ state args next)
     (let* ((rule (car args))
@@ -384,37 +399,37 @@
               (state ,state))
          ,run)))
 
-;; (define-compile (or state rules next)
-;;     (if (eq 1 (list-length rules))
-;;         (compile-rule (first rules) state next)
-;;         (let ((body
-;;                (reduce-list
-;;                 (lambda (acc rule)
-;;                   `(let ((next-state ,(compile-rule rule 'state 'identity)))
-;;                      (if (failure? next-state)
-;;                          ,acc
-;;                          (next next-state))))
-;;                 'fail
-;;                 (reverse-list rules))))
-;;           `(let ((state ,state)
-;;                  (next  ,next))
-;;              ,body))))
-
 (define-compile (or state rules next)
     (if (eq 1 (list-length rules))
         (compile-rule (first rules) state next)
-        (let ((compiled (cons 'list (mapcar (lambda (rule)
-                                              `(lambda (state)
-                                                 ,(compile-rule rule 'state 'identity)))
-                                            rules))))
+        (let ((body
+               (reduce-list
+                (lambda (acc rule)
+                  `(let ((next-state ,(compile-rule rule 'state 'identity)))
+                     (if (failure? next-state)
+                         ,acc
+                         (next next-state))))
+                'fail
+                (reverse-list rules))))
           `(let ((state ,state)
                  (next  ,next))
-             (let loop ((rules ,compiled))
-                  (if (nil? rules) fail
-                      (let ((result ((car rules) state)))
-                        (if (failure? result)
-                            (loop (cdr rules))
-                            (next result)))))))))
+             ,body))))
+
+;; (define-compile (or state rules next)
+;;     (if (eq 1 (list-length rules))
+;;         (compile-rule (first rules) state next)
+;;         (let ((compiled (cons 'list (mapcar (lambda (rule)
+;;                                               `(lambda (state)
+;;                                                  ,(compile-rule rule 'state 'identity)))
+;;                                             rules))))
+;;           `(let ((state ,state)
+;;                  (next  ,next))
+;;              (let loop ((rules ,compiled))
+;;                   (if (nil? rules) fail
+;;                       (let ((result ((car rules) state)))
+;;                         (if (failure? result)
+;;                             (loop (cdr rules))
+;;                             (next result)))))))))
 
 ;; changed to _not_ aggregate results as I'm not sure we actually need
 ;; that from seq.

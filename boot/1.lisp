@@ -1,23 +1,28 @@
-(%load "./boot/better-define.lisp")
-(%load "./boot/generic-functions.lisp")
-(%load "./boot/math.lisp")
-(%load "./boot/list.lisp")
-(%load "./boot/string.lisp")
-(%load "./boot/char.lisp")
-(%load "./boot/string-output-stream.lisp")
-(%load "./boot/printing.lisp")
-(%load "./boot/interaction-support.lisp")
-(%load "./boot/exports.lisp")
+(let ((%l (lambda (f) (%print `(loading file ,f)) (%load f))))  
+  (%l "./boot/better-define.lisp")
+  (%l "./boot/generic-functions.lisp")
+  (%l "./boot/math.lisp")
+  (%l "./boot/list.lisp")
+  (%l "./boot/string.lisp")
+  (%l "./boot/char.lisp")
+  (%l "./boot/string-output-stream.lisp")
+  (%l "./boot/printing.lisp")
+  (%l "./boot/interaction-support.lisp")
+  (%l "./boot/exports.lisp"))
 
 (when #t
   ;; load the new compiler
-  (let ((%l (lambda (f) (print `(loading file ,f)) (%load f)))) 
-    (load-as "compiler" "./scratch/compiler.lisp") 
-    (load-as "macroexpand" "./scratch/macroexpand.lisp")
+  (print `(loading compiler))
+  (load-as "compiler" "./scratch/compiler.lisp") 
+  (print `(loading macroexpand))
+  (load-as "macroexpand" "./scratch/macroexpand.lisp")
 
+  (let ((%l (lambda (f) (print `(reloading file ,f)) (%load f)))) 
     ;; reload (almost) everything with the new compiler
     (binding ((*recompiling* #t) (*trace-eval* #f))
+      (print `(reloading compiler))
       (load-as "compiler" "./scratch/compiler.lisp") ;; compiler, compile thyself
+      (print `(reloading macroexpand))
       (load-as "macroexpand" "./scratch/macroexpand.lisp")
 
       ;; (%load  "./boot/built-in-classes.lisp")

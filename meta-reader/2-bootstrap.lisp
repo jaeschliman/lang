@@ -52,7 +52,9 @@
               (*meta-context* (list 'Meta)))
       (match-map eval 'meta-main input))))
 
+(at-boot (%print `(loading meta lisp reader)))
 (at-boot (meta1-runfile "./meta-reader/meta-lisp-reader.lisp"))
+(at-boot (%print `(loading meta meta reader)))
 (at-boot (meta1-runfile "./meta-reader/meta-meta-reader.lisp"))
 
 (define (%load path)
@@ -64,7 +66,9 @@
       (match-map *load-evaluator* 'main input))))
 
 (when *recompiling*
+  (%print `(reloading meta lisp reader))
   (%load "./meta-reader/meta-lisp-reader.lisp")
+  (%print `(reloading meta meta reader))
   (%load "./meta-reader/meta-meta-reader.lisp"))
 
 (define (load-as name path)

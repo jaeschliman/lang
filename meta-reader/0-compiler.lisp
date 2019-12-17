@@ -176,20 +176,27 @@
 ;;         ((failure? exist) fail)
 ;;         (#t (next exist))))))
 
+;; (define (apply-rule rule state next)
+;;   (let ((fn (get-rule rule))
+;;         (stream (state-stream state)))
+;;     (let* ((exist (stream-at stream rule)))
+;;       (cond
+;;         ((nil? exist)
+;;          ;; (stream-at-put stream rule sentinel)
+;;          (let ((result (fn state)))
+;;            ;; (stream-at-put stream rule result)
+;;            (if (failure? result) fail
+;;                (next result))))
+;;         ;; ((eq exist sentinel) fail)
+;;         ((failure? exist) fail)
+;;         (#t (next exist))))))
+
 (define (apply-rule rule state next)
   (let ((fn (get-rule rule))
         (stream (state-stream state)))
-    (let* ((exist (stream-at stream rule)))
-      (cond
-        ((nil? exist)
-         ;; (stream-at-put stream rule sentinel)
-         (let ((result (fn state)))
-           (stream-at-put stream rule result)
-           (if (failure? result) fail
-               (next result))))
-        ;; ((eq exist sentinel) fail)
-        ((failure? exist) fail)
-        (#t (next exist))))))
+    (let ((result (fn state)))
+      (if (failure? result) result
+          (next result)))))
 
 
 (at-boot (define compilers-table (make-ht)))

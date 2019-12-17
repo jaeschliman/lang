@@ -59,6 +59,11 @@
           (instance-set-ivar s 4 result)
           result))))
 
+
+(define (stream-peek s)
+  (if (stream-end? s) '()
+      (char-at (meta-stream-str s) (meta-stream-pos s))))
+
 (define (stream-at s key)
   (let ((ht (meta-stream-memo s)))
     (if-nil? ht '() (ht-at ht key))))
@@ -362,6 +367,9 @@
     (if (failure? s) fail
         (if (eq (state-result s) item) (next s) fail))))
 
+(define (--exactly-char s item next)
+  (if (eq (stream-peek (state-stream s)) item) (next (--any s)) fail))
+
 ;; (define-compile (%exactly state item next)
 ;;     (let ((x (gensym)))
 ;;       `(apply-rule 'any ,state (lambda (st)
@@ -369,7 +377,9 @@
 ;;                                    (if (eq ,x ,item) (,next st) fail))))))
 
 (define-compile (%exactly state item next)
-    `(--exactly ,state ,item ,next))
+    (if (char? item)
+        `(--exactly-char ,state ,item ,next)
+        `(--exactly ,state ,item ,next)))
 
 (define-compile (%string state item next)
     (let ((chars (string-to-charlist item)))

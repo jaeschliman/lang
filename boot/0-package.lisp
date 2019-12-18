@@ -75,8 +75,12 @@
 
 
 (define (intern-with-package-prefix pfx str)
-    (if-nil? pfx (intern str *package*)
-             (let* ((pkg (find-package-by-path pfx))
-                    (sym (intern str pkg))) 
-               (when (eq pkg %keyword-package) (set sym sym))
-               sym)))
+  (if-nil? pfx (intern str *package*)
+           (let* ((pkg (find-package-by-path pfx))
+                  (sym (intern str pkg))) 
+             (when (eq pkg %keyword-package) (set sym sym))
+             sym)))
+
+(define (intern-with-charlist-prefix pfx str)
+  (let ((pfx (mapcar (lambda (it) (if (pair? it) (charlist-to-string it) it)) pfx)))
+    (intern-with-package-prefix pfx str)))

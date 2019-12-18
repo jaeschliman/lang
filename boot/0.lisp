@@ -538,15 +538,27 @@
 
 (define (character-name? str) (not (nil? (char-by-name str))))
 
-(define (symbol-char x) ;; TODO: convert to lookup table
-  (or (char-between x #\a #\z)
-      (char-between x #\* #\-)
-      (char-between x #\< #\Z)
-      (char-between x #\/ #\9)
-      (char-between x #\# #\&)
-      (eq x #\!) (eq x #\^) (eq x #\_)
-      (eq x #\|) (eq x #\~)
-      (eq x #\:)))
+
+(let ((chars '(#f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+               #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
+               #f #t #f #t #t #t #t #f #f #f #t #t #f #t #t #t
+               #t #t #t #t #t #t #t #t #t #t #t #f #t #t #t #t
+               #t #t #t #t #t #t #t #t #t #t #t #t #t #t #t #t
+               #t #t #t #t #t #t #t #t #t #t #t #f #f #f #t #t
+               #f #t #t #t #t #t #t #t #t #t #t #t #t #t #t #t
+               #t #t #t #t #t #t #t #t #t #t #t #f #f #f #t #f))
+      (table (make-array 128)))
+  (dotimes (i 128)
+    (aset table i (car chars))
+    (set! chars (cdr chars)))
+  (define symbol-char-lookup-table table))
+
+(define (symbol-char x)
+  (let ((code (char-code x)))
+    (or (>i code 127) (aget symbol-char-lookup-table code))))
+
+(define (symbol-char-no-slash x)
+  (and (not (eq x #\/)) (symbol-char x)))
 
 (define (digit-char? ch)
     (char-between ch #\0 #\9))

@@ -13,7 +13,8 @@
 
 (define (character-name? str) (not (nil? (char-by-name str))))
 
-(define (symbol-char x) ;; TODO: convert to lookup table
+(when #f
+  (define (symbol-char x) ;; TODO: convert to lookup table
     (or (char-between x #\a #\z)
         (char-between x #\* #\-)
         (char-between x #\< #\Z)
@@ -21,7 +22,7 @@
         (char-between x #\# #\&)
         (eq x #\!) (eq x #\^) (eq x #\_)
         (eq x #\|) (eq x #\~)
-        (eq x #\:)))
+        (eq x #\:))))
 
 (define (digit-char? ch)
     (char-between ch #\0 #\9))

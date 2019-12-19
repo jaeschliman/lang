@@ -14,8 +14,7 @@ meta lisp {
   pkg-prefix   = ":" -> '(root "keyword") | pkg-path
 
   simbol-char = any:x ?(symbol-char-no-slash x) -> x
-  simbol-fst  = ("-" ~[0-9]) | (~[\-0-9#:] simbol-char)
-  simbol-lead = "/" | simbol-fst
+  simbol-lead = (~[\-0-9#:] simbol-char) | ("-" ~[0-9]) | "/"
   simbol-name = simbol-lead:x simbol-char*:xs ~"/" -> (charlist-to-string (cons x xs))
   simbol      = simbol-name:n -> (intern-with-charlist-prefix '() n)
 

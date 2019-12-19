@@ -191,13 +191,20 @@
 ;;         ((failure? exist) fail)
 ;;         (#t (next exist))))))
 
-(define (apply-rule rule state next)
-  (let ((fn (get-rule rule))
-        (stream (state-stream state)))
-    (let ((result (fn state)))
-      (if (failure? result) result
-          (next result)))))
+;; (define (apply-rule rule state next)
+;;   (let ((fn (get-rule rule))
+;;         (stream (state-stream state)))
+;;     (let ((result (fn state)))
+;;       (if (failure? result) result
+;;           (next result)))))
 
+(define (failcall next result) (if (failure? result) result (next result)))
+
+;; (define (apply-rule rule state next) (failcall next ((get-rule rule) state)))
+
+(define (apply-rule rule state next)
+  (let ((r ((get-rule rule) state)))
+    (if (failure? r) r (next r))))
 
 (at-boot (define compilers-table (make-ht)))
 
@@ -348,8 +355,6 @@
             `(--any ,state)
             `(--any-2 ,state ,next))
         `(--base ,state ',symbol ,next)))
-
-(define (failcall next result) (if (failure? result) result (next result)))
 
 ;; (define-apply (%base state symbol next)
 ;;     (let* ((rule (get-rule symbol))

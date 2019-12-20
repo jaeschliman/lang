@@ -7726,7 +7726,7 @@ VM *_vm_create() {
   vm->heap_size_in_bytes = heap_size_in_bytes;
   vm->allocation_count = 0;
   vm->gc_count = 0;
-  vm->gc_threshold_in_bytes = 100 * 1024 * 1024;
+  vm->gc_threshold_in_bytes = heap_size_in_bytes * 0.5;
 
   vm->gc_protected = new std::unordered_map<Object **, u64>;
   vm->gc_protected_ptrs = new std::unordered_map<Ptr *, u64>;

@@ -48,16 +48,16 @@
              (col? (not (or nl? (eq char #\Return))))
              (prev-pos (meta-stream-line s))
              (pos (if (or col? nl?)
-                      (cons (if nl? (+i 1 (car prev-pos)) (car prev-pos))
-                            (if nl? 0 (if col? (+i 1 (cdr prev-pos)) (cdr prev-pos))))
+                      (cons (if nl? (+i 1 (car prev-pos))
+                                (car prev-pos))
+                            (cond (nl? 0)
+                                  (col? (+i 1 (cdr prev-pos)))
+                                  (#t (cdr prev-pos))))
                       prev-pos)))
-        (let ((result
-               (make-meta-input-stream
-                (+i (char-width char) (meta-stream-pos s))
-                (meta-stream-str s)
-                pos)))
-          (instance-set-ivar s 4 result)
-          result))))
+        (instance-set-ivar s 4 (make-meta-input-stream
+                                (+i (char-width char) (meta-stream-pos s))
+                                (meta-stream-str s)
+                                pos)))))
 
 
 (define (stream-peek s)

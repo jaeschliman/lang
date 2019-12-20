@@ -48,11 +48,12 @@ struct run_info {
 using std::string;
 
 #define GC_DEBUG 0
-#define PRIM_USE_GIANT_SWITCH 1
-#define INCLUDE_REPL 1
+#define PRIM_USE_GIANT_SWITCH 0
+#define INCLUDE_REPL 0
 #define DEBUG_IMAGE_SNAPSHOTS 0
 #define STATS 0
-#define UNCHECKED_UNWRAP 0
+#define UNCHECKED_UNWRAP 1
+#define BA_STATIC_MEM 0
 
 #define MOST_POSITIVE_FIXNUM 576460752303423487
 #define MOST_NEGATIVE_FIXNUM -576460752303423487
@@ -820,8 +821,6 @@ typedef enum {
   Image,
   Bignum
 } BAOType;
-
-#define BA_STATIC_MEM 1
 
 struct ByteArrayObject : Object {
   BAOType bao_type;
@@ -3208,11 +3207,14 @@ void im_move_heap(VM *vm);
 void _vm_update_collection_limit(VM *vm);
 
 void gc_static_mem(VM *vm) {
+
+    #if BA_STATIC_MEM
     vm_map_reachable_refs(vm, [&](Ptr it){
          if (!is(ByteArray, it)) return;
          auto ba = as(ByteArray, it);
          ba->mem->flags = 1;
       });
+    #endif
 
     auto count = 0;
     auto size = 0;
@@ -7831,10 +7833,12 @@ VM *vm_create_from_image(const char *path, run_info info) {
 
     scan_heap(vm->heap_mem, vm->heap_end, [&](Ptr it) {
         if (it == Nil || !is(ByteArray, it)) return;
+        #if BA_STATIC_MEM
         auto ba = as(ByteArray, it);
         auto mem = fixups[ba->mem];
         assert(mem);
         ba->mem = mem;
+        #endif
       });
   }
 

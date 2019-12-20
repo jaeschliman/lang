@@ -4328,14 +4328,11 @@ void _vm_reset_stack_from_root_frame(VM *vm) {
 
 void vm_prepare_for_tail_call(VM *vm, s64 argc) {
   // argc + 1 to account for the function, which is also on the stack.
-  Ptr args[argc + 1];
-  for (auto i = 0; i < argc + 1; i++) { //@speed could just 'move' these
-    args[i] = vm_pop(vm);
-  }
+  auto count = argc + 1;
+  Ptr *args = vm->curr_thd->stack;
   vm_pop_stack_frame(vm);
-  for (auto i = argc; i >= 0; i--) {
-    vm_push(vm, args[i]);
-  }
+  memmove(vm->curr_thd->stack - count, args, count * 8);
+  vm->curr_thd->stack -= count;
 }
 
 void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over);

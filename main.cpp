@@ -698,6 +698,7 @@ static_memory *alloc_static_memory(VM *vm, u64 byte_count) {
 // stats reporting
 
 Ptr reset_stats_reporting(VM *vm) {
+  maybe_unused(vm);
   #if STATS
   memset(vm->stats, 0, sizeof(stats));
   #endif
@@ -705,6 +706,7 @@ Ptr reset_stats_reporting(VM *vm) {
 }
 
 Ptr print_stats_reporting(VM *vm) {
+  maybe_unused(vm);
   #if STATS
   report_stats(vm->stats);
   #else
@@ -2578,6 +2580,7 @@ void debug_walk(VM *vm, Ptr it) {
 
 // @unsafe
 auto vm_map_thread_ctx_refs(VM *vm, thread_ctx *ctx, PtrFn fn) {
+  unused(vm);
   fn(ctx->thread);
   fn(to(Ptr, ctx->bc));
   StackFrameObject *fr = ctx->frame;
@@ -2780,12 +2783,14 @@ u16 vm_advance_color(VM *vm) {
 }
 
 bool vm_is_object_marked(VM *vm, Ptr it, u16 color) {
+  unused(vm);
   if (!is(NonNilObject,it)) return true;
   auto obj = as(Object, it);
   return (obj->header.flags & COLOR_MASK) == color;
 } 
 
 void vm_mark_object(VM *vm, Ptr it, u16 color) {
+  unused(vm);
   if (!is(NonNilObject,it)) return;
   auto obj = as(Object, it);
   obj->header.flags &= ~COLOR_MASK;

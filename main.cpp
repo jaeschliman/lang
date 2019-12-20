@@ -5572,11 +5572,15 @@ void vm_interp(VM* vm, interp_params params) {
     case PUSH_CLOSURE_ENV: {
       u64 count = vm_adv_instr(vm);
       auto array = alloc_closure_env(vm, count);
-      array_set(array, 0, vm->curr_frame->closed_over);
+      auto a = as(PtrArray, array);
+      auto d = a->data;
+      // array_set(array, 0, vm->curr_frame->closed_over);
+      d[0] = vm->curr_frame->closed_over;
       while (count--) { //@speed
         auto it = vm_pop(vm);
         // cout << " setting closure val " << it << endl;
-        array_set(array, count + 1, it);
+        d[count + 1] = it;
+        // array_set(array, count + 1, it);
       }
       vm->curr_frame->closed_over = array;
       break;

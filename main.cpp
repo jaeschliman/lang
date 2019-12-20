@@ -1036,18 +1036,17 @@ point rotate_point(point p, f32 degrees) {
   return (point){(s32)x, (s32)y};
 }
 
-// @cleanup -- there's gotta be a way to do this with fewer instructions
 prim_type(Point)
 create_ptr_for(Point, point p) {
   // cout << " p.x = " << bitset<32>(p.x) << " p.y =" << bitset<32>(p.y) << endl;
   auto mask      = (1ULL << 30) - 1;
   auto high_mask = mask << 34;
   auto low_mask  = mask << 4;
-  auto x_sign    = p.x < 0 ? (1ULL << 63) : 0;
-  u64 x_comp     = (((u64)p.x << 34) & high_mask) | x_sign;
-  auto y_sign    = p.y < 0 ? (1ULL << 33) : 0;
-  u64 y_comp     = (((u64)p.y << 4) & low_mask) | y_sign;
-  u64 value      = x_comp | y_comp | Point_Tag;
+
+  u64 x_comp = (((u64)p.x) << 34) & high_mask;
+  u64 y_comp = (((u64)p.y) << 4) & low_mask;
+
+  u64 value = x_comp | y_comp | Point_Tag;
   return (Ptr){value};
 }
 unwrap_ptr_for(Point, it) {

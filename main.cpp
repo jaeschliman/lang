@@ -915,8 +915,6 @@ unwrap_ptr_for(any, it) { return it; }
             (as(Object, it))->header.object_type == type##_ObjectType); \
   };                                                                    \
   unwrap_ptr_for(type, it) {                                            \
-   if (! is(type, it)) { die("unwrap of ", #type, " got ", it); } \
-    assert(is(type, it));                                               \
     return (type##Object *)as(Object, it);                              \
   }
 #else
@@ -926,6 +924,8 @@ unwrap_ptr_for(any, it) { return it; }
             (as(Object, it))->header.object_type == type##_ObjectType); \
   };                                                                    \
   unwrap_ptr_for(type, it) {                                            \
+   if (! is(type, it)) { die("unwrap of ", #type, " got ", it); }       \
+    assert(is(type, it));                                               \
     return (type##Object *)as(Object, it);                              \
   }
 #endif

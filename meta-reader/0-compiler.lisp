@@ -29,7 +29,7 @@
 
 
 (at-boot (define fail '(fail fail fail)))
-(define (failure? state) (eq state fail))
+(defmacro failure? (state) `(,eq ,state ',fail))
 
 (define (make-initial-state stream) (list stream '()))
 (define (state-stream state) (car state))
@@ -317,11 +317,7 @@
 
 (set-rule 'any --any)
 
-(set-rule 'nothing (lambda (st)
-                     (let ((s (state-stream st)))
-                       (if (stream-end? s)
-                           st
-                           fail))))
+(set-rule 'nothing (lambda (st) (if (stream-end? (state-stream st)) st fail)))
 
 ;; (define-compile (%base state symbol next)
 ;;     (let ((s (gensym)))
@@ -341,15 +337,15 @@
 ;;   (let ((result (apply-rule symbol state identity)))
 ;;     (if (failure? result) result (next result))))
 
-(define (--base state symbol next)
-  (apply-rule symbol state next))
+;; (define (--base state symbol next)
+;;   (apply-rule symbol state next))
 
 (define-compile (%base state symbol next)
     (if (eq symbol 'any)
         (if (or (eq next identity) (eq next 'identity))
             `(--any ,state)
             `(--any-2 ,state ,next))
-        `(--base ,state ',symbol ,next)))
+        `(apply-rule ',symbol ,state ,next)))
 
 ;; (define-apply (%base state symbol next)
 ;;     (let* ((rule (get-rule symbol))

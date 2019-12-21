@@ -3148,13 +3148,11 @@ void gc_update_protected_references(VM *vm) {
       *ref = new_obj;
     }
   }
-  /*for (auto pair : *vm->gc_protected_ptrs) {
-    gc_update_ptr(vm, pair.first);
-    }*/
   {
     auto prot = vm->gc_protected_ptrs_vec;
     auto dat = prot->data();
-    for (auto i = 0; i < prot->size(); i += 2) {
+    s64 cnt = prot->size();
+    for (auto i = 0; i < cnt; i++) {
       if (dat[i]) { gc_update_ptr(vm, dat[i]); }
     }
   }
@@ -3184,19 +3182,11 @@ Ptr im_offset_ptr(Ptr it, s64 delta) {
 }
 
 void im_offset_protected_references(VM *vm, s64 delta) {
-  /*
-  for (auto pair : *vm->gc_protected) {
-    Object **ref = pair.first;
-    auto obj = *ref;
-    auto ptr = im_offset_ptr(to(Ptr, obj), delta);
-    auto new_obj = as(Object, ptr);
-    *ref = new_obj;
-  }
-  */
   {
     auto prot = vm->gc_protected_vec;
     auto dat = prot->data();
-    for (auto i = 0; i < prot->size(); i+=2) {
+    s64 cnt = prot->size();
+    for (auto i = 0; i < cnt; i+=2) {
       Object **ref = (Object **)dat[i];
       auto obj = *ref;
       auto ptr = im_offset_ptr(to(Ptr, obj), delta);
@@ -3208,15 +3198,13 @@ void im_offset_protected_references(VM *vm, s64 delta) {
   {
     auto prot = vm->gc_protected_ptrs_vec;
     auto dat = prot->data();
-    for (auto i = 0; i < prot->size(); i+=2) {
+    s64 cnt = prot->size();
+    for (auto i = 0; i < cnt; i++) {
       if (dat[i]) {
         *dat[i] = im_offset_ptr(*dat[i], delta);
       }
     }
   }
-  // for (auto pair : *vm->gc_protected_ptrs) {
-  //   *pair.first = im_offset_ptr(*pair.first, delta);
-  // }
   for (auto pair : *vm->gc_protected_ptr_vectors) {
     auto start = pair.first;
     s64  count = pair.second;
@@ -3227,14 +3215,6 @@ void im_offset_protected_references(VM *vm, s64 delta) {
 }
 
 inline void gc_protect_reference(VM *vm, Object **ref){
-  /*
-  auto map = vm->gc_protected;
-  auto found = map->find(ref);
-  if (found == map->end()) {
-    vm->gc_protected->insert(std::make_pair(ref, 1));
-  } else {
-    found->second++;
-    } */
   auto prot = vm->gc_protected_vec;
   auto dat = prot->data();
   auto empty = -1;
@@ -3256,17 +3236,6 @@ inline void gc_protect_reference(VM *vm, Object **ref){
 }
 
 inline void gc_unprotect_reference(VM *vm, Object **ref){
-  /*
-  auto map = vm->gc_protected;
-  auto found = map->find(ref);
-  if (found == map->end()) {
-    die("tried to protect a non-protected reference");
-  } else {
-    found->second--;
-    if (found->second == 0) {
-      map->erase(ref);
-    }
-    } */
   auto prot = vm->gc_protected_vec;
   auto dat = prot->data();
   for (auto i = 0; i < prot->size(); i += 2) {
@@ -3282,55 +3251,23 @@ inline void gc_unprotect_reference(VM *vm, Object **ref){
 inline void gc_protect_ptr(VM *vm, Ptr *ref){
   auto prot = vm->gc_protected_ptrs_vec;
   auto dat = prot->data();
-  auto cnt = prot->size();
-  auto empty = -1;
-  for (auto i = 0; i < cnt; i += 2) {
-    if (dat[i] == ref) {
-      dat[i+1]++;
+  s64 cnt = prot->size();
+  for (s64 i = cnt - 1; i >= 0; i--) {
+    if (!dat[i]) {
+      dat[i] = ref;
       return;
     }
-    if (!dat[i]) empty = i;
-  }
-  if (empty > -1) {
-    dat[empty] = ref;
-    dat[empty + 1] = (Ptr *)1; // actually refcount;
-    return;
   }
   prot->push_back(ref);
-  prot->push_back((Ptr *)1);
-  /*
-  auto map = vm->gc_protected_ptrs;
-  auto found = map->find(ref);
-  if (found == map->end()) {
-    vm->gc_protected_ptrs->insert(std::make_pair(ref, 1));
-  } else {
-    found->second++;
-  }
-  */
 }
 
 inline void gc_unprotect_ptr(VM *vm, Ptr *ref){
-  /*
-  auto map = vm->gc_protected_ptrs;
-  auto found = map->find(ref);
-  if (found == map->end()) {
-    die("tried to unprotect a non-protected reference.");
-  } else {
-    found->second--;
-    if (found->second == 0) {
-      map->erase(ref);
-    }
-    } */
   auto prot = vm->gc_protected_ptrs_vec;
   auto dat = prot->data();
-  auto cnt = prot->size();
-  for (auto i = cnt - 2; i >= 0; i -= 2) {
+  s64 cnt = prot->size();
+  for (auto i = cnt - 1; i >= 0; i--) {
     if (dat[i] == ref) {
-      if (dat[i+1] == (Ptr *)1) {
-        dat[i] = (Ptr *)0;
-      } else {
-        dat[i+1]--;
-      }
+      dat[i] = (Ptr *)0;
       return;
     }
   }
@@ -7909,6 +7846,11 @@ VM *_vm_create() {
   // vm->gc_protected_ptrs->reserve(100);
   vm->gc_protected_vec->reserve(256);
   vm->gc_protected_ptrs_vec->reserve(256);
+  {
+    auto n = 256;
+      while (n--) 
+        vm->gc_protected_ptrs_vec->push_back(0);
+  }
   vm->gc_protected_ptr_vectors->reserve(100);
 
   _vm_update_collection_limit(vm);

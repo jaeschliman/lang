@@ -30,10 +30,8 @@
 
 (at-boot (define fail '(fail fail fail)))
 (define (failure? state) (eq state fail))
-(at-boot (define nothing '(nothing)))
-(define (nothing? result) (eq result nothing))
 
-(define (make-initial-state stream) (list stream nothing))
+(define (make-initial-state stream) (list stream '()))
 (define (state-stream state) (car state))
 (define (state-result state) (nth state 1))
 
@@ -76,10 +74,7 @@
 (define (state-position st) (meta-stream-pos (car st)))
 (define (state-col-row st) (meta-stream-line (car st)))
 
-(define (result-cons a b)
-  (cond ((nothing? a) b)
-        ((nothing? b) (list a))
-        (#t (cons a b))))
+(define result-cons cons)
 
 (define (state-result state) (nth state 1))
 (define (state+result state res) (list (car state) res))
@@ -88,10 +83,10 @@
 (define (state-cons a b) (state+result a (result-cons (state-result a) (state-result b))))
 (define (state-cons-result a b) (state+result b (result-cons (state-result a) (state-result b))))
 
-(define (reverse-result result) (if (nothing? result) nothing (reverse-list result)))
+(define reverse-result reverse-list)
 
 (define (state-reverse-result state)
-  (if (nothing? (state-result state)) state
+  (if (nil? (state-result state)) state
       (state+result state (reverse-list (state-result state)))))
 
 (at-boot (define sentinel (list 'sentinel)))

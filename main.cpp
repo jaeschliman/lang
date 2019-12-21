@@ -58,6 +58,12 @@ using std::string;
 #define UNCHECKED_UNWRAP 1
 #define BA_STATIC_MEM 0
 
+#if UNCHECKED_UNWRAP
+  #define check(arg)
+#else
+  #define check(arg) assert(arg)
+#endif
+
 #define MOST_POSITIVE_FIXNUM 576460752303423487
 #define MOST_NEGATIVE_FIXNUM -576460752303423487
 
@@ -296,7 +302,7 @@ void thdq_remove_next(thdq *q, thdq_node *p) {
   }
   q->count--;
   auto n = p->next;
-  assert(n);
+  check(n);
   if (n == q->back) q->back = p;
   p->next = n->next;
   
@@ -381,7 +387,7 @@ enum BuiltinClassIndex : u8 {
 };
 
 void object_set_custom_class(Object *obj, BuiltinClassIndex idx) {
-  assert(idx >= 0);
+  check(idx >= 0);
   u8 uidx = idx;
   obj->header.custom_class = (1 << 7) | uidx;
 }
@@ -618,7 +624,7 @@ _copy_state _copy_frame_to_new_stack(StackFrameObject *fr, Ptr *input_stack, Ptr
     top -= 1;
     was_aligned = false;
   }
-  assert(pointer_is_aligned(top));
+  check(pointer_is_aligned(top));
 
   auto new_frame = (StackFrameObject *)(void *)top;
   memcpy(new_frame, fr, sizeof(StackFrameObject));
@@ -627,7 +633,7 @@ _copy_state _copy_frame_to_new_stack(StackFrameObject *fr, Ptr *input_stack, Ptr
   new_frame->prev_stack = stack;
   new_frame->prev_frame = prev_frame;
 
-  assert(!prev_frame || ((void*)prev_frame <= (void*)a && (void*)prev_frame >= (void*)b));
+  check(!prev_frame || ((void*)prev_frame <= (void*)a && (void*)prev_frame >= (void*)b));
   auto new_stack = (Ptr *)(void *)new_frame;
 
   return (_copy_state){ new_stack, new_frame};
@@ -654,21 +660,21 @@ void grow_thread_ctx(VM *vm, thread_ctx *ctx) {
   if (new_curr_size > 1000000) { puts("it's all over folks"); exit(1); }
   auto new_count       = new_curr_size / sizeof(Ptr);
   auto new_stack_mem   = calloc(new_curr_size, 1);
-  assert(pointer_is_aligned(new_stack_mem));
+  check(pointer_is_aligned(new_stack_mem));
   auto new_ptr_mem     = (Ptr *)new_stack_mem;
   auto new_stack       = new_ptr_mem + (new_count - 1);
   auto new_stack_start = new_stack;
   auto new_stack_end   = new_ptr_mem;
-  assert(ctx->stack >= ctx->stack_end);
-  assert(new_stack > new_stack_end);
-  assert(new_stack <= new_stack_start);
+  check(ctx->stack >= ctx->stack_end);
+  check(new_stack > new_stack_end);
+  check(new_stack <= new_stack_start);
 
   if (vm->curr_thd && vm->curr_thd->frame) { vm->curr_thd->frame->prev_pc = vm->pc; }
   auto state = _copy_thread_stack_to_new_stack(ctx, new_stack, new_stack_start, new_stack_end);
   new_stack = state.stack;
   auto new_frame = state.frame;
   free(ctx->stack_mem);
-  assert(ctx->stack_start - ctx->stack == new_stack_start - new_stack);
+  check(ctx->stack_start - ctx->stack == new_stack_start - new_stack);
 
   ctx->stack_mem   = new_stack_mem;
   ctx->curr_size   = new_curr_size;
@@ -676,7 +682,7 @@ void grow_thread_ctx(VM *vm, thread_ctx *ctx) {
   ctx->stack_start = new_stack_start;
   ctx->stack_end   = new_stack_end;
   ctx->frame       = new_frame;
-  assert(ctx->stack <= ctx->stack_start && ctx->stack >= ctx->stack_end);
+  check(ctx->stack <= ctx->stack_start && ctx->stack >= ctx->stack_end);
 
   vm_refresh_frame_state(vm);
 }
@@ -1034,9 +1040,9 @@ create_ptr_for(PrimOp, u64 raw_value) {
   return (Ptr){raw_value};
 }
 
-point operator +(point a, point b) { return (point){a.x + b.x, a.y + b.y}; }
-point operator -(point a, point b) { return (point){a.x - b.x, a.y - b.y}; }
-point operator *(point a, float s) { return (point){(s32)(a.x * s), (s32)(a.y * s)}; }
+inline point operator +(point a, point b) { return (point){a.x + b.x, a.y + b.y}; }
+inline point operator -(point a, point b) { return (point){a.x - b.x, a.y - b.y}; }
+inline point operator *(point a, float s) { return (point){(s32)(a.x * s), (s32)(a.y * s)}; }
 
 point rotate_point(point p, f32 degrees) {
   f32 angle = _deg_to_rad(fmod(degrees, 360.0));
@@ -1050,9 +1056,9 @@ point rotate_point(point p, f32 degrees) {
 prim_type(Point)
 create_ptr_for(Point, point p) {
   // cout << " p.x = " << bitset<32>(p.x) << " p.y =" << bitset<32>(p.y) << endl;
-  auto mask      = (1ULL << 30) - 1;
-  auto high_mask = mask << 34;
-  auto low_mask  = mask << 4;
+  const auto mask      = (1ULL << 30) - 1;
+  const auto high_mask = mask << 34;
+  const auto low_mask  = mask << 4;
 
   u64 x_comp = (((u64)p.x) << 34) & high_mask;
   u64 y_comp = (((u64)p.y) << 4) & low_mask;
@@ -1221,7 +1227,7 @@ u32 image_height(ByteArrayObject *it) {
 }
 
 u8* image_data(ByteArrayObject *it) {
-  assert(it->bao_type == Image);
+  check(it->bao_type == Image);
   return (u8*)(((u32*)ba_data(it))+2);
 }
 
@@ -1328,12 +1334,14 @@ StandardObject *alloc_standard_object(VM *vm, StandardObject *klass, u64 ivar_co
 }
 
 Ptr standard_object_get_ivar(StandardObject *object, u64 idx) {
-  assert(idx < object->slots->length);
+  // TODO: trigger VM error on OOB
+  check(idx < object->slots->length);
   return object->slots->data[idx];
 }
 
 Ptr standard_object_set_ivar(StandardObject *object, u64 idx, Ptr value) {
-  assert(idx < object->slots->length);
+  // TODO: trigger VM error on OOB
+  check(idx < object->slots->length);
   return object->slots->data[idx] = value;
 }
 
@@ -1539,9 +1547,9 @@ inline s64 array_length(PtrArrayObject *it) {
   return it->length;
 }
 
-Ptr array_get(Ptr array, u64 index) {
+inline Ptr array_get(Ptr array, u64 index) {
   auto a = as(PtrArray, array);
-  assert(index < a->length);
+  check(index < a->length);
   return a->data[index];
 }
 
@@ -1555,9 +1563,9 @@ inline u16 aget(U16ArrayObject *a, u64 index) {
   return a->data[index];
 }
 
-void array_set(Ptr array, u64 index, Ptr value) {
+inline void array_set(Ptr array, u64 index, Ptr value) {
   auto a = as(PtrArray, array);
-  assert(index < a->length);
+  check(index < a->length);
   a->data[index] = value;
 }
 
@@ -1621,7 +1629,7 @@ ByteArrayObject *string_from_array(VM *vm, PtrArrayObject *chars) { gc_protect(c
 
 // using a 2 element array to hold count and buffer for now -- could be a defstruct
 Ptr make_xarray_with_capacity_and_used(VM *vm, u64 cap, u64 used) {
-  assert(used <= cap);
+  check(used <= cap);
   Ptr buffer = make_zf_array(vm, cap); prot_ptr(buffer);
   Ptr result = make_zf_array(vm, 2);
   array_set(result, 0, to(Fixnum,used));
@@ -1675,7 +1683,7 @@ s64 xarray_index_of(Ptr array, Ptr item) {
 
 
 Ptr xarray_at(Ptr array, u64 idx) {
-  assert(idx < xarray_used(array));
+  check(idx < xarray_used(array));
   return xarray_memory(array)[idx];
 }
 
@@ -2140,7 +2148,7 @@ enum StructTag : s64 {
 };
 
 StructTag struct_get_tag(Ptr it) {
-  assert(is(Struct, it));
+  check(is(Struct, it));
   return (StructTag)as(Fixnum, array_get(it, 0));
 }
 
@@ -2905,13 +2913,13 @@ bool gc_is_broken_heart(Object *obj) {
 }
 
 void gc_break_heart(Object *obj, Object *forwarding_address) {
-  assert(!gc_is_broken_heart(obj));
+  check(!gc_is_broken_heart(obj));
   obj->header.object_type = BrokenHeart;
   ((u64*)obj)[1] = (u64)forwarding_address;
 }
 
 Object *gc_forwarding_address(Object *obj) {
-  assert(gc_is_broken_heart(obj));
+  check(gc_is_broken_heart(obj));
   auto ptr = ((u64 *)obj) + 1;
   return (Object *)*ptr;
 }
@@ -2927,9 +2935,9 @@ auto gc_copy_object(VM *vm, Ptr it) {
 }
 
 Ptr gc_move_object(VM *vm, Object *obj) {
-  assert(!gc_is_broken_heart(obj));
+  check(!gc_is_broken_heart(obj));
   auto ptr = to(Ptr, obj);
-  assert(size_of(ptr) > 0);
+  check(size_of(ptr) > 0);
   auto new_ptr = gc_copy_object(vm, ptr);
   Object *addr = as(Object, new_ptr);
   gc_break_heart(obj, addr);
@@ -2944,7 +2952,7 @@ void gc_update_ptr(VM *vm, Ptr *p) {
   auto ptr = *p;
   if (!is(NonNilObject, ptr)) return;
   auto obj = as(Object, ptr);
-  assert(!gc_ptr_is_in_to_space(vm, obj));
+  check(!gc_ptr_is_in_to_space(vm, obj));
   if (!gc_is_broken_heart(obj)) {
     gc_move_object(vm, obj);
   }
@@ -3010,7 +3018,7 @@ void gc_update(VM *vm, StackFrameObject *it) {
 }
 
 void gc_update_copied_object(VM *vm, Ptr it) {
-  assert(is(Object, it));
+  check(is(Object, it));
   if (is(ByteCode, it)) return gc_update(vm, as(ByteCode, it));
   if (is(PtrArray, it)) return gc_update(vm, as(PtrArray, it));
   if (is(Standard, it)) return gc_update(vm, as(Standard, it));
@@ -3482,7 +3490,7 @@ Ptr ht_at(Ptr ht, Ptr key) {
   auto mem   = xarray_memory(array);
   auto hash  = hash_code(key);
   auto idx   = hash % used;
-  assert(idx < used); //:P
+  check(idx < used); //:P
   if (!mem[idx].value) return Nil;
   auto cons = mem[idx];
 
@@ -3555,7 +3563,7 @@ Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
   auto hash  = hash_code(key);
   auto idx   = hash % used;
 
-  assert(idx < used); //:P
+  check(idx < used); //:P
   if (!mem[idx].value) { // no entry
     prot_ptr(ht);
     auto list = cons(vm, cons(vm, key, value), Nil);
@@ -3842,7 +3850,7 @@ Ptr class_set_applicator(StandardObject *klass, Ptr fn) {
 
 Ptr set_global(VM *vm, Ptr sym, Ptr value) {
   maybe_unused(vm);
-  assert(is(Symbol, sym));
+  check(is(Symbol, sym));
   Symbol_set_value(sym, value);
   auto flags = from(Fixnum, Symbol_get_flags(sym)) | SYMBOL_FLAG_BOUNDP;
   Symbol_set_flags(sym, to(Fixnum, flags));
@@ -3892,13 +3900,13 @@ Ptr get_special(VM *vm, Ptr sym) {
 }
 
 Ptr set_symbol_value(VM *vm, Ptr sym, Ptr value) {
-  assert(is(Symbol, sym));
+  check(is(Symbol, sym));
   if (is_special_symbol(vm, sym)) return set_special(vm, sym, value); 
   else return set_global(vm, sym, value);
 }
 
 Ptr get_symbol_value(VM *vm, Ptr sym) {
-  assert(is(Symbol, sym));
+  check(is(Symbol, sym));
   if (is_special_symbol(vm, sym)) return get_special(vm, sym); 
   else return get_global(vm, sym);
 }
@@ -4297,7 +4305,7 @@ Ptr read_all(VM *vm, const char* input) {
   while (input <= end && !ptr_eq(item, done)) {
     xarray_push(vm, items, item);
     item = read(vm, &input, end, done);
-    assert(input <= end);
+    check(input <= end);
   }
   auto used = xarray_used(items);
   auto mem  = xarray_memory(items);
@@ -4373,14 +4381,15 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   // ensure new stack frame is properly aligned
   u64 padding = ((u64)top & TAG_MASK) ? 1 + STACK_PADDING : STACK_PADDING;
   top -= padding;
-  assert(((u64)top & TAG_MASK) == 0);
+  check(((u64)top & TAG_MASK) == 0);
 
   if ((Ptr *)top < thd->stack_end) {
     #ifndef NDEBUG
     auto ct = thd->curr_size;
+    maybe_unused(ct);
     grow_thread_ctx(vm, thd);
-    assert(ct * 2 == vm->curr_thd->curr_size);
-    assert(thd->stack_start - thd->stack_end > (ct / sizeof(Ptr)));
+    check(ct * 2 == vm->curr_thd->curr_size);
+    check(thd->stack_start - thd->stack_end > (ct / sizeof(Ptr)));
     vm_push_stack_frame(vm, argc, fn, closed_over);
     #else
     grow_thread_ctx(vm, thd);
@@ -4536,7 +4545,7 @@ Ptr snapshot_thread_ctx_with_predicate(VM *vm, thread_ctx *thd, StackPred fn) {
     }
 
     prev_fr = to(Ptr, nf);
-    assert(is(StackFrame, prev_fr));
+    check(is(StackFrame, prev_fr));
     if (top_fr == Nil) top_fr = prev_fr;
     fr = fr->prev_frame;
   }
@@ -4662,7 +4671,7 @@ void __vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
     top -= 1;
     was_aligned = false;
   }
-  assert(pointer_is_aligned(top));
+  check(pointer_is_aligned(top));
 
   auto new_frame = (StackFrameObject *)(void *)top;
   memcpy(new_frame, fr, sizeof(StackFrameObject));
@@ -4739,7 +4748,7 @@ Ptr vm_resume_stack_snapshot(VM *vm, Ptr cont, Ptr arg) { prot_ptr(arg);
 }
 
 Ptr signal_semaphore(Ptr a) {
-  assert(is(semaphore, a));
+  check(is(semaphore, a));
   auto it = semaphore_get_count(a);
   if (is(Fixnum, it)) {
     auto ct = as(Fixnum, it);
@@ -4751,7 +4760,7 @@ Ptr signal_semaphore(Ptr a) {
 }
 
 bool acquire_semaphore(Ptr a) {
-  assert(is(semaphore, a));
+  check(is(semaphore, a));
   auto it = semaphore_get_count(a);
   if (is(Fixnum, it)) {
     auto ct = as(Fixnum, it);
@@ -4970,7 +4979,7 @@ bool vm_maybe_start_next_thread(VM *vm) {
 
 void vm_add_thread_to_background_set(VM *vm, thread_ctx *thd){
   auto thread = thd->thread;
-  assert(is(thread, thread));
+  check(is(thread, thread));
   if (vm->curr_thd) assert(!(thread == vm->curr_thd->thread));
   if (!ptr_eq(thread_get_status(thread), THREAD_STATUS_SLEEPING) &&
       !ptr_eq(thread_get_status(thread), THREAD_STATUS_WAITING) &&
@@ -5410,27 +5419,27 @@ Ptr vm_get_stack_values_as_list(VM *vm, u32 count) { //@varargs
   return result;
 }
 
-auto vm_load_closure_value(VM *vm, u64 slot, u64 depth) {
+inline auto vm_load_closure_value(VM *vm, u64 slot, u64 depth) {
   auto curr = vm->curr_frame->closed_over;
   while (depth) {
     // if (isNil(curr)) _print_debug_stacktrace(vm->curr_thd);
-    assert(!isNil(curr));
+    check(!isNil(curr));
     curr = array_get(curr, 0);
     depth--;
   }
   // if (isNil(curr)) _print_debug_stacktrace(vm->curr_thd);
-  assert(!isNil(curr));
+  check(!isNil(curr));
   return array_get(curr, slot+1);
 }
 
-void vm_store_closure_value(VM *vm, u64 slot, u64 depth, Ptr value) {
+inline void vm_store_closure_value(VM *vm, u64 slot, u64 depth, Ptr value) {
   auto curr = vm->curr_frame->closed_over;
   while (depth) {
-    assert(!isNil(curr));
+    check(!isNil(curr));
     curr = array_get(curr, 0);
     depth--;
   }
-  assert(!isNil(curr));
+  check(!isNil(curr));
   array_set(curr, slot+1, value);
 }
 
@@ -5537,7 +5546,7 @@ void vm_interp(VM* vm, interp_params params) {
       u32 idx = data;
       if (idx == 255) idx = vm_adv_instr(vm);
       Ptr *stack_bottom = ((Ptr *)(void *)vm->curr_frame) - 1;
-      assert(stack_bottom - idx >= vm->curr_thd->stack);
+      check(stack_bottom - idx >= vm->curr_thd->stack);
       vm_push(vm, *(stack_bottom - idx));
       break;
     }

@@ -5414,7 +5414,11 @@ Ptr vm_get_stack_values_as_list(VM *vm, u32 count) { //@varargs
   Ptr result = Nil; prot_ptr(result);
   Ptr *ptrs = vm->curr_thd->stack; // unprotected to avoid double-copy
   for (u64 i = 0; i < count; i++) {
-    result = cons(vm, ptrs[i], result);
+    // faster than calling `cons` as we incur less gc_protect overhead
+    auto c = alloc_cons(vm);
+    cons_set_car(c, ptrs[i]);
+    cons_set_cdr(c, result);
+    result = c;
   }
   vm_stack_pop_n(vm, count);
   unprot_ptr(result);

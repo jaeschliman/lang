@@ -5714,14 +5714,7 @@ void vm_interp(VM* vm, interp_params params) {
 
         if (is_builtin) {
           switch(idx) {
-          case 0: goto lbl_apply;
-          case 1: goto lbl_send;
-          case 2: goto lbl_sleep;
-          case 3: goto lbl_sem_wait;
-          case 4: goto lbl_kill_thd;
-          }
-        lbl_apply:
-            { // APPLY
+          case 0: { // APPLY
             // TODO: multi-arity apply
             auto args = vm_pop(vm);
             auto to_apply = vm_pop(vm);
@@ -5735,13 +5728,13 @@ void vm_interp(VM* vm, interp_params params) {
             argc = count;
             goto reenter_call;
           }
-        lbl_send: { // SEND
+          case 1: { // SEND
             // dbg("preparing to send... ", idx);
             vm_interp_prepare_for_send(vm, argc);
             argc--;
             goto reenter_call;
           }
-        lbl_sleep: { // SLEEP
+          case 2: { // SLEEP
             auto ms = vm_pop(vm); 
             vm_push(vm, Nil);
             // dbg("sleeping for ", as(Fixnum, ms));
@@ -5754,7 +5747,7 @@ void vm_interp(VM* vm, interp_params params) {
             }
             break;
           }
-        lbl_sem_wait:{ // SEM_WAIT
+          case 3:{ // SEM_WAIT
             auto semaphore = vm_pop(vm);
             vm_push(vm, Nil);
             auto status = semaphore_get_count(semaphore);
@@ -5784,7 +5777,7 @@ void vm_interp(VM* vm, interp_params params) {
             }
             break;
           }
-        lbl_kill_thd: { // KILL_THD
+          case 4: { // KILL_THD
             auto thread = vm_pop(vm);
             vm_push(vm, Nil);
             thread_set_status(thread, THREAD_STATUS_DEAD);
@@ -5803,7 +5796,10 @@ void vm_interp(VM* vm, interp_params params) {
             }
             break;
           }
-        }
+          }
+
+          break; // from CALL
+        } // end special built-ins
 
         // cerr << " calling prim at idx: " << idx << " arg count = " << argc << endl;
 #if PRIM_USE_GIANT_SWITCH
@@ -5813,8 +5809,9 @@ void vm_interp(VM* vm, interp_params params) {
         Ptr result = (*fn)(vm, argc);
         vm_push(vm, result);
 #endif
-        break;
+        break; // from CALL
       }
+
       if (!is(Closure, fn)) {
         if (fn == Nil) {
           vm->error = "value is not a closure";

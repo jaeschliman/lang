@@ -732,6 +732,15 @@ Ptr print_stats_reporting(VM *vm) {
 
 // ----------------------------------------
 
+inline void unsafe_vm_refresh_frame_state(VM *vm){
+  auto thd = vm->curr_thd;
+  auto bc = thd->bc;
+  vm->curr_frame = thd->frame;
+  vm->curr_code  = bc->code->data ;
+  vm->curr_lits  = bc->literals->data ;
+  vm->pc = thd->frame->prev_pc ;
+}
+
 inline void vm_refresh_frame_state(VM *vm){
   auto thd = vm->curr_thd;
   if (thd) {
@@ -4421,7 +4430,7 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   thd->bc = fn;
   thd->stack_depth++;
 
-  vm_refresh_frame_state(vm);
+  unsafe_vm_refresh_frame_state(vm);
 }
 
 

@@ -467,7 +467,7 @@ struct StackFrameObject : Object {
   Ptr* prev_stack;
   StackFrameObject* prev_frame;
   ByteCodeObject* bc;
-  s64 pc;
+  s64 prev_pc;
   Ptr closed_over;
   Ptr special_variables;
   u64 special_count;
@@ -537,6 +537,61 @@ bool pointer_is_aligned(void* mem);
 
 struct _copy_state { Ptr *stack; StackFrameObject *frame; };
 
+struct blit_surface {
+  u8 *mem; s64 pitch, width, height;
+};
+
+struct static_memory {
+  static_memory *next;
+  u32 flags;
+  u32 byte_count;
+  u8 bytes[];
+};
+
+struct VM {
+  s64 pc;
+  u16 *curr_code;
+  thread_ctx* curr_thd;
+  StackFrameObject *curr_frame;
+  thdq *threads;
+  Ptr *curr_lits;
+  Ptr system_dictionary;
+  u16 current_color; // actual 'color' stored in top two bits
+  static_memory *static_mem;
+  u64 static_mem_size;
+  u64 static_mem_allocation_count;
+  void* heap_mem;
+  void* heap_end;
+  void* alt_heap_mem;
+  void* alt_heap_end;
+  void *collection_limit;
+  u64 allocation_count;
+  u64 heap_size_in_bytes;
+  const char* error;
+  u64 instruction_count;
+  Globals *globals;
+  bool gc_disabled;
+  bool in_gc;
+  u64 gc_count;
+  u64 gc_threshold_in_bytes;
+  u64 gc_compacted_size_in_bytes;
+  u64 allocation_high_watermark;
+  std::unordered_map<Object **, u64> *gc_protected;
+  std::unordered_map<Ptr *, u64> *gc_protected_ptrs;
+  std::unordered_map<Ptr *, u64> *gc_protected_ptr_vectors;
+  blit_surface *surface;
+  SDL_Window *window;
+  bool screen_dirty;
+  bool suspended;
+  s64 start_time_ms;
+  #if STATS
+  stats *stats;
+  #endif
+};
+
+// ----------------------------------------
+// growable stack
+
 // cf __vm_restore_stack_snapshot
 _copy_state _copy_frame_to_new_stack(StackFrameObject *fr, Ptr *input_stack, Ptr*a,Ptr*b) {
   if (!fr) return (_copy_state){input_stack, 0};
@@ -605,6 +660,7 @@ void grow_thread_ctx(VM *vm, thread_ctx *ctx) {
   assert(new_stack > new_stack_end);
   assert(new_stack <= new_stack_start);
 
+  if (vm->curr_thd && vm->curr_thd->frame) { vm->curr_thd->frame->prev_pc = vm->pc; }
   auto state = _copy_thread_stack_to_new_stack(ctx, new_stack, new_stack_start, new_stack_end);
   new_stack = state.stack;
   auto new_frame = state.frame;
@@ -629,56 +685,6 @@ inline void thread_ctx_ensure_bytes(VM *vm,thread_ctx *ctx, s64 byte_count) {
 }
 
 
-struct blit_surface {
-  u8 *mem; s64 pitch, width, height;
-};
-
-struct static_memory {
-  static_memory *next;
-  u32 flags;
-  u32 byte_count;
-  u8 bytes[];
-};
-
-struct VM {
-  Ptr system_dictionary;
-  u16 current_color; // actual 'color' stored in top two bits
-  static_memory *static_mem;
-  u64 static_mem_size;
-  u64 static_mem_allocation_count;
-  void* heap_mem;
-  void* heap_end;
-  void* alt_heap_mem;
-  void* alt_heap_end;
-  void *collection_limit;
-  u64 allocation_count;
-  u64 heap_size_in_bytes;
-  const char* error;
-  u64 instruction_count;
-  Globals *globals;
-  bool gc_disabled;
-  bool in_gc;
-  u64 gc_count;
-  u64 gc_threshold_in_bytes;
-  u64 gc_compacted_size_in_bytes;
-  u64 allocation_high_watermark;
-  std::unordered_map<Object **, u64> *gc_protected;
-  std::unordered_map<Ptr *, u64> *gc_protected_ptrs;
-  std::unordered_map<Ptr *, u64> *gc_protected_ptr_vectors;
-  blit_surface *surface;
-  SDL_Window *window;
-  bool screen_dirty;
-  thdq *threads;
-  thread_ctx* curr_thd;
-  u16 *curr_code;
-  StackFrameObject *curr_frame;
-  Ptr *curr_lits;
-  bool suspended;
-  s64 start_time_ms;
-  #if STATS
-  stats *stats;
-  #endif
-};
 
 // ----------------------------------------
 // static memory
@@ -720,17 +726,23 @@ Ptr print_stats_reporting(VM *vm) {
 inline void vm_refresh_frame_state(VM *vm){
   auto thd = vm->curr_thd;
   if (thd) {
+    auto bc = thd->bc;
     vm->curr_frame = thd->frame;
-    vm->curr_code  = thd->bc ? thd->bc->code->data : 0;
-    vm->curr_lits =  thd->bc ? thd->bc->literals->data : 0;
+    vm->curr_code  = bc ? bc->code->data : 0;
+    vm->curr_lits =  bc ? bc->literals->data : 0;
+    vm->pc = thd->frame ? thd->frame->prev_pc : 0;
   } else {
     vm->curr_frame = 0;
     vm->curr_code  = 0;
     vm->curr_lits  = 0;
+    vm->pc = 0;
   }
 }
 
 inline void vm_set_curr_thread(VM *vm, thread_ctx* thd) {
+  if (thd != vm->curr_thd && vm->curr_thd && vm->curr_thd && vm->curr_thd->frame) {
+    vm->curr_thd->frame->prev_pc = vm->pc;
+  }
   vm->curr_thd = thd;
   vm_refresh_frame_state(vm);
 }
@@ -2880,6 +2892,9 @@ void gc_prepare_vm(VM *vm) {
   vm->heap_end = vm->alt_heap_mem;
   vm->alt_heap_mem = start;
   vm->alt_heap_end = end;
+  if (vm->curr_thd && vm->curr_thd->frame) {
+    vm->curr_thd->frame->prev_pc = vm->pc;
+  }
 }
 
 bool gc_is_broken_heart(Object *obj) {
@@ -4293,7 +4308,7 @@ Ptr vm_pop(VM *vm);
 void vm_push(VM *vm, Ptr it);
 
 inline void vm_adv_pc(VM *vm) {
-  vm->curr_frame->pc++;
+  vm->pc++;
 }
 
 void vm_pop_stack_frame(VM* vm) {
@@ -4346,6 +4361,9 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn) {
 void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
 
   auto thd = vm->curr_thd;
+
+  if (thd->frame) { thd->frame->prev_pc = vm->pc; }
+
   uint offset = (sizeof(StackFrameObject) / sizeof(u64));
 
   u64 *top = &((thd->stack - offset)->value);
@@ -4378,7 +4396,7 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   new_frame->bc = fn;
   new_frame->prev_stack = thd->stack;
   new_frame->prev_frame = thd->frame;
-  new_frame->pc = 0;
+  new_frame->prev_pc = 0;
   new_frame->argc = argc;
   if (thd->frame) {
     new_frame->special_variables = thd->frame->special_variables;
@@ -4527,6 +4545,7 @@ Ptr snapshot_thread_ctx_with_predicate(VM *vm, thread_ctx *thd, StackPred fn) {
 
 Ptr vm_snapshot_stack_with_predicate(VM *vm, StackPred fn) {
   auto thd = vm->curr_thd;
+  thd->frame->prev_pc = vm->pc;
   return snapshot_thread_ctx_with_predicate(vm, thd, fn);
 }
 
@@ -4873,6 +4892,8 @@ void _vm_unwind_to_root_frame(VM *vm) {
 }
 
 thread_ctx *_vm_thread_suspend(VM *vm) {
+  auto frame = vm->curr_thd->frame;
+  if (frame) { frame->prev_pc = vm->pc; }
   thread_set_status(vm->curr_thd->thread, THREAD_STATUS_WAITING);
   return vm->curr_thd;
 }
@@ -4885,6 +4906,7 @@ void thread_ctx_suspend_in_continuation(VM *vm, thread_ctx *ctx) {
   auto cont = snapshot_thread_ctx_with_predicate(vm, ctx, predicate);
   thread_set_suspension(ctx->thread, cont);
   thread_set_status(ctx->thread, THREAD_STATUS_WAITING);
+  ctx->has_run = false;
 }
 
 ByteCodeObject *make_empty_bytecode(VM *vm);
@@ -4910,7 +4932,7 @@ void _vm_thread_resume(VM *vm, thread_ctx* thd) {
       auto bc = closure_code(thunk);
       auto env = closure_env(thunk);
       vm_push_stack_frame(vm, 0, bc, env);
-      vm->curr_frame->pc--;
+      vm->pc--;
       unprot_ptrs(thread, thunk);
     } else if (is(cont, cont)) {
       thread_set_suspension(thread, Nil);
@@ -5052,6 +5074,7 @@ void _im_prepare_vm_for_snapshot(VM *vm) {
   ht_at_put(vm, vm->system_dictionary, SYSTEM_OTHER_THREADS_KEY, threads);
 
   // suspend the current thread and store it in the system dictionary
+  vm->curr_thd->frame->prev_pc = vm->pc;
   thread_ctx_suspend_in_continuation(vm, vm->curr_thd);
   auto main = vm->curr_thd->thread;
   ht_at_put(vm, vm->system_dictionary, SYSTEM_CURRENT_THREAD_KEY, main);
@@ -5455,8 +5478,8 @@ bool vm_handle_error(VM *vm);
 
 // @speed need to have less indirection here,
 //        but also need to integrate with stack push/pop and gc both
-#define vm_curr_instr(vm) vm->curr_code[vm->curr_frame->pc]
-#define vm_adv_instr(vm) vm->curr_code[++(vm->curr_frame->pc)]
+#define vm_curr_instr(vm) vm->curr_code[vm->pc]
+#define vm_adv_instr(vm) vm->curr_code[++(vm->pc)]
 
 typedef struct {
   s64 thread_switch_instr_budget, total_execution_instr_budget;
@@ -5594,31 +5617,31 @@ void vm_interp(VM* vm, interp_params params) {
     }
     case BR_IF_ZERO: {
       auto it = vm_pop(vm);
-      u64 jump = vm_adv_instr(vm);
+      s64 jump = vm_adv_instr(vm);
       if ((u64)it.value == 0) {
-        vm->curr_frame->pc = jump - 1; //-1 to acct for pc advancing
+        vm->pc = jump - 1; //-1 to acct for pc advancing
       }
       break;
     }
     case BR_IF_NOT_ZERO: {
       auto it = vm_pop(vm);
-      u64 jump = vm_adv_instr(vm);
+      s64 jump = vm_adv_instr(vm);
       if ((u64)it.value != 0) {
-        vm->curr_frame->pc = jump - 1; //-1 to acct for pc advancing
+        vm->pc = jump - 1; //-1 to acct for pc advancing
       }
       break;
     }
     case BR_IF_False: {
       auto it = vm_pop(vm);
-      u64 jump = vm_adv_instr(vm);
+      s64 jump = vm_adv_instr(vm);
       if (ptr_eq(it, False)) {
-        vm->curr_frame->pc = jump - 1; //-1 to acct for pc advancing
+        vm->pc = jump - 1; //-1 to acct for pc advancing
       }
       break;
     }
     case JUMP: {
-      u64 jump = vm_adv_instr(vm);
-      vm->curr_frame->pc = jump - 1; //-1 to acct for pc advancing
+      s64 jump = vm_adv_instr(vm);
+      vm->pc = jump - 1; //-1 to acct for pc advancing
       break;
     }
     case PUSH_JUMP: {
@@ -5630,7 +5653,7 @@ void vm_interp(VM* vm, interp_params params) {
     case POP_JUMP: {
       s64 jump = from(Fixnum, vm_pop(vm));
       // dbg("POP JUMP: ", jump);
-      vm->curr_frame->pc = jump - 1; //-1 to acct for pc advancing
+      vm->pc = jump - 1; //-1 to acct for pc advancing
       break;
     }
     case DUP: {
@@ -5723,7 +5746,7 @@ void vm_interp(VM* vm, interp_params params) {
               }
             } 
             if (!available) {
-              vm->curr_frame->pc++;
+              vm->pc++;
               if (!vm_sem_wait_current_thread(vm, semaphore)) {
                 // if we failed to resume another thread, we are suspended
                 vm->suspended = true;
@@ -5803,7 +5826,7 @@ void vm_interp(VM* vm, interp_params params) {
         vm_push_stack_frame(vm, argc, bc, env);
       }
 
-      vm->curr_frame->pc--; // or, could insert a NOOP at start of each fn... (or continue)
+      vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
       // PC is now -1
 
       // we choose the end of a CALL as our safe point for ctx switching
@@ -5888,7 +5911,8 @@ void vm_interp(VM* vm, interp_params params) {
     // _debug_validate_stack(vm);
     // _debug_validate_background_threads(vm);
 
-    ++vm->curr_frame->pc;
+    ++vm->pc;
+    // if (vm->curr_thd && vm->curr_thd->frame) { vm->curr_thd->frame->prev_pc = vm->pc; }
   }
 
  exit:
@@ -5914,7 +5938,7 @@ void vm_interp(VM* vm, interp_params params) {
       if (restarting) {
         // dbg("restarting interpreter loop, remaining other threads: ", vm->threads->size());
         ctx_switch_budget = params.thread_switch_instr_budget;
-        ++vm->curr_thd->frame->pc;
+        ++vm->pc;
         goto restart_interp;
       } else {
         auto ms = _vm_threads_get_minimum_sleep_time(vm);
@@ -5949,7 +5973,7 @@ void vm_interp(VM* vm, interp_params params) {
   if (restarting) {
     // dbg("restarting interpreter loop, remaining other threads: ", vm->threads->size());
     ctx_switch_budget = params.thread_switch_instr_budget;
-    ++vm->curr_frame->pc;
+    ++vm->pc;
     goto restart_interp;
   }
 
@@ -6277,7 +6301,7 @@ void vm_run_until_completion(VM *vm) {
 
     auto success = vm_maybe_start_next_thread(vm);
     if (success) {
-      vm->curr_frame->pc++;
+      vm->pc++;
       vm_interp(vm, INTERP_PARAMS_MAIN_EXECUTION);
     } else {
       // TODO: some kind of event loop will be more appropriate in the long run
@@ -8280,7 +8304,7 @@ void run_event_loop_with_display(VM *vm, int w, int h, bool from_image = false) 
         if (can_run) {
           // thread resumption usually happens in the interpreter loop,
           // which means the pc is advanced. here we have to do it manually.
-          vm->curr_frame->pc++;
+          vm->pc++;
           vm_interp(vm, as_main_event);
         }
       }
@@ -8344,7 +8368,7 @@ void run_file_with_optional_display(const char * path, run_info info) {
 void start_up_and_run_image(const char* path, run_info info) {
   VM *vm = vm_create_from_image(path, info);
 
-  vm->curr_frame->pc++;
+  vm->pc++;
 
   auto wants_display = get_global(vm, root_intern(vm, "wants-display"));
   if (is(Point, wants_display)) {

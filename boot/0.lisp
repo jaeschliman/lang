@@ -26,14 +26,23 @@
 
 (set-symbol-value 'reverse-list (%nlambda reverse-list (lst) (%reverse-append lst '())))
 
-(set-symbol-value '%append2 (%nlambda %append2 (a b) (if (nil? b) a (%reverse-append (reverse-list a) b))))
+(set-symbol-value '%append2 (%nlambda %append2 (a b) (if (nil? b) a
+                                                         (if (nil? a) b
+                                                             (%reverse-append (reverse-list a) b)))))
 
 (maybe-set '%append3 #f)
 (set-symbol-value '%append3 (%nlambda %append3 (a b cs)
                          (if (nil? cs) (%append2 a b)
                              (%append3 (%append2 a b) (car cs) (cdr cs)))))
 
-(set-symbol-value 'append (%nlambda append args (%append3 (car args) (car (cdr args)) (cdr (cdr args)))))
+(maybe-set '%appendh #f)
+(set-symbol-value '%appendh (%nlambda %appendh (rev-lst-of-as b)
+                         (if (nil? rev-lst-of-as) b
+                             (%appendh (cdr rev-lst-of-as) (%append2 (car rev-lst-of-as) b)))))
+
+
+;; (set-symbol-value 'append (%nlambda append args (%append3 (car args) (car (cdr args)) (cdr (cdr args)))))
+(set-symbol-value 'append (%nlambda append args (%appendh (reverse-list args) '())))
 
 (maybe-set '%mapcar-helper #f)
 (set-symbol-value '%mapcar-helper (%nlambda %mapcar-helper (f lst acc)

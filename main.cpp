@@ -5309,6 +5309,13 @@ Ptr im_snapshot_to_path(VM *vm, ByteArrayObject* path) {
 
 Ptr im_snapshot_to_path_and_exit(VM *vm, ByteArrayObject *path) {
   im_snapshot_to_path(vm, path);
+
+  auto run_time = (current_time_ms() - vm->start_time_ms) / 1000.0;
+  s64 ops_per_second = vm->instruction_count / run_time;
+  dbg(" executed ", vm->instruction_count, " instructions over ", run_time, " seconds.");
+  dbg(" average of ", ops_per_second, " ops per second, including sleep. ");
+  dbg(" gc count: ", vm->gc_count);
+
   #if STATS
   report_stats(vm->stats);
   #endif

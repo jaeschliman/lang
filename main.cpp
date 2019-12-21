@@ -7846,11 +7846,6 @@ VM *_vm_create() {
   // vm->gc_protected_ptrs->reserve(100);
   vm->gc_protected_vec->reserve(256);
   vm->gc_protected_ptrs_vec->reserve(256);
-  {
-    auto n = 256;
-      while (n--) 
-        vm->gc_protected_ptrs_vec->push_back(0);
-  }
   vm->gc_protected_ptr_vectors->reserve(100);
 
   _vm_update_collection_limit(vm);

@@ -3849,18 +3849,18 @@ Ptr set_global(VM *vm, Ptr sym, Ptr value) {
   return sym;
 }
 
-Ptr set_global(VM *vm, const char* name, Ptr value) { prot_ptr(value);
+inline Ptr set_global(VM *vm, const char* name, Ptr value) { prot_ptr(value);
   auto result = set_global(vm, root_intern(vm, name), value);
   unprot_ptr(value);
   return result;
 }
 
-bool boundp(VM *vm, Ptr sym) {
+inline bool boundp(VM *vm, Ptr sym) {
   maybe_unused(vm);
   return as(Fixnum, Symbol_get_flags(sym)) & SYMBOL_FLAG_BOUNDP;
 }
 
-Ptr get_global(VM *vm,  Ptr sym) {
+inline Ptr get_global(VM *vm,  Ptr sym) {
   if (boundp(vm, sym)) return Symbol_get_value(sym);
   dbg("unbound global: ", sym);
   vm->error = "symbol is unbound";

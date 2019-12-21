@@ -296,6 +296,8 @@ void initialize_primitive_functions(VM *vm) {
 
   (prim set-symbol-value SET_SYM_VAL ((a any) (b any)) any
         "set_symbol_value(vm, a, b)")
+  (prim symbol-value SYM_VAL ((a any)) any
+        "get_symbol_value(vm, a)")
   (prim mark-symbol-as-special SET_SYM_SPECIAL ((a any)) any
         "mark_symbol_as_special(vm, a)")
   (prim special-symbol? SYM_SPECIAL_P ((a any)) Bool

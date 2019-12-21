@@ -688,7 +688,7 @@ void grow_thread_ctx(VM *vm, thread_ctx *ctx) {
 }
 
 inline void thread_ctx_ensure_bytes(VM *vm,thread_ctx *ctx, s64 byte_count) {
-  if (ctx->stack - (byte_count / sizeof(Ptr)) <= ctx->stack_end) {
+  if (unlikely(ctx->stack - (byte_count / sizeof(Ptr)) <= ctx->stack_end)) {
     grow_thread_ctx(vm, ctx);
   } 
 }
@@ -807,7 +807,7 @@ void * vm_alloc(VM *vm, u64 bytes) {
 
   auto past_end = new_heap_end > vm->collection_limit;
 
-  if (past_end && !vm->gc_disabled && !vm->in_gc) {
+  if (unlikely(past_end && !vm->gc_disabled && !vm->in_gc)) {
       gc(vm);
       if (vm_heap_used(vm) + bytes + 16 > vm->heap_size_in_bytes) {
         die("heap exhausted after gc");
@@ -1667,7 +1667,7 @@ void xarray_push(VM *vm, Ptr array, Ptr item) {
   array_set(array, 0, to(Fixnum, used + 1));
 }
 
-Ptr *xarray_memory(Ptr array) {
+inline Ptr *xarray_memory(Ptr array) {
   auto buff = as(PtrArray, array_get(array, 1));
   return buff->data;
 }
@@ -4325,7 +4325,7 @@ inline void vm_adv_pc(VM *vm) {
 void vm_pop_stack_frame(VM* vm) {
   auto thd = vm->curr_thd;
   auto fr = thd->frame;
-  if (!fr->prev_frame) {
+  if (unlikely(!fr->prev_frame)) {
     vm->error = "nowhere to return to";
     return;
   }
@@ -4383,7 +4383,7 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   top -= padding;
   check(((u64)top & TAG_MASK) == 0);
 
-  if ((Ptr *)top < thd->stack_end) {
+  if (unlikely((Ptr *)top < thd->stack_end)) {
     #ifndef NDEBUG
     auto ct = thd->curr_size;
     maybe_unused(ct);
@@ -5370,7 +5370,9 @@ enum OpCode : u8 {
 
 inline void vm_push(VM* vm, Ptr value) {
   auto thd = vm->curr_thd;
-  thread_ctx_ensure_bytes(vm, thd, sizeof(Ptr));
+  if (unlikely(thd->stack - 1 <= thd->stack_end)) {
+    grow_thread_ctx(vm,  thd);
+  }
   *(--thd->stack) = value;
 }
 

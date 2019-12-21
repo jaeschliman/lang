@@ -3923,11 +3923,11 @@ inline Ptr set_global(VM *vm, const char* name, Ptr value) { prot_ptr(value);
 
 inline bool boundp(VM *vm, Ptr sym) {
   maybe_unused(vm);
-  return as(Fixnum, Symbol_get_flags(sym)) & SYMBOL_FLAG_BOUNDP;
+  return Symbol_get_flags(sym).value & (SYMBOL_FLAG_BOUNDP << 4);
 }
 
 inline Ptr get_global(VM *vm,  Ptr sym) {
-  if (boundp(vm, sym)) return Symbol_get_value(sym);
+  if (likely(boundp(vm, sym))) return Symbol_get_value(sym);
   dbg("unbound global: ", sym);
   vm->error = "symbol is unbound";
   return Nil;
@@ -5641,7 +5641,7 @@ void vm_interp(VM* vm, interp_params params) {
       auto idx = data;
       if (idx == 255) idx = vm_adv_instr(vm);
       Ptr it = vm->curr_lits[idx];
-      vm_push(vm, get_global(vm, it));
+      vm_push(vm, Symbol_get_value(it));
       break;
     }
     case LOAD_CLOSURE: {

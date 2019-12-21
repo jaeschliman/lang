@@ -25,6 +25,7 @@ meta lisp {
   float        = "-"?:s digit+:xs "." digit+:ys -> (*f (digits-to-float xs ys) (if-nil? s 1.0 -1.0))
   point        = integer:x "@" integer:y -> (make-point x y)
   hex-integer  = "0x" [0-9a-f]+:chs -> (hex-chars-to-integer chs)
+  read-eval    = "#." ws expr:x -> (eval x)
   true         = "#t" -> #t
   false        = "#f" -> #f
   boolean      = true | false
@@ -34,6 +35,6 @@ meta lisp {
   unq-splicing = ",@" ws expr:x -> (list 'unquote-splicing x)
   unquoted     = ","  ws expr:x -> (list 'unquote x)
   quotation    = quoted | quasiquoted | unq-splicing | unquoted
-  expr         = ws ( "(" expr*:x ")" -> x | quotation | atom ):x ws -> x
+  expr         = ws ( "(" expr*:x ")" -> x | quotation | atom | read-eval):x ws -> x
 }
 

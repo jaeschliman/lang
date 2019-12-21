@@ -585,8 +585,10 @@ struct VM {
   u64 gc_threshold_in_bytes;
   u64 gc_compacted_size_in_bytes;
   u64 allocation_high_watermark;
-  std::unordered_map<Object **, u64> *gc_protected;
-  std::unordered_map<Ptr *, u64> *gc_protected_ptrs;
+  // std::unordered_map<Object **, u64> *gc_protected;
+  std::vector<u64> *gc_protected_vec;
+  // std::unordered_map<Ptr *, u64> *gc_protected_ptrs;
+  std::vector<Ptr *> *gc_protected_ptrs_vec;
   std::unordered_map<Ptr *, u64> *gc_protected_ptr_vectors;
   blit_surface *surface;
   SDL_Window *window;
@@ -3124,6 +3126,7 @@ void gc_copy_threads(VM *vm) {
 }
 
 void gc_update_protected_references(VM *vm) {
+  /*
   for (auto pair : *vm->gc_protected) {
     Object **ref = pair.first;
     auto obj = *ref;
@@ -3131,9 +3134,29 @@ void gc_update_protected_references(VM *vm) {
     gc_update_ptr(vm, &ptr);
     auto new_obj = as(Object, ptr);
     *ref = new_obj;
+    } */
+  {
+    auto prot = vm->gc_protected_vec;
+    auto dat = prot->data();
+    for (auto i = 0; i < prot->size(); i += 2) {
+      Object **ref = (Object **)dat[i];
+      if (!ref) continue;
+      auto obj = *ref;
+      auto ptr = to(Ptr, obj);
+      gc_update_ptr(vm, &ptr);
+      auto new_obj = as(Object, ptr);
+      *ref = new_obj;
+    }
   }
-  for (auto pair : *vm->gc_protected_ptrs) {
+  /*for (auto pair : *vm->gc_protected_ptrs) {
     gc_update_ptr(vm, pair.first);
+    }*/
+  {
+    auto prot = vm->gc_protected_ptrs_vec;
+    auto dat = prot->data();
+    for (auto i = 0; i < prot->size(); i += 2) {
+      if (dat[i]) { gc_update_ptr(vm, dat[i]); }
+    }
   }
   for (auto pair : *vm->gc_protected_ptr_vectors) {
     auto start = pair.first;
@@ -3161,6 +3184,7 @@ Ptr im_offset_ptr(Ptr it, s64 delta) {
 }
 
 void im_offset_protected_references(VM *vm, s64 delta) {
+  /*
   for (auto pair : *vm->gc_protected) {
     Object **ref = pair.first;
     auto obj = *ref;
@@ -3168,9 +3192,31 @@ void im_offset_protected_references(VM *vm, s64 delta) {
     auto new_obj = as(Object, ptr);
     *ref = new_obj;
   }
-  for (auto pair : *vm->gc_protected_ptrs) {
-    *pair.first = im_offset_ptr(*pair.first, delta);
+  */
+  {
+    auto prot = vm->gc_protected_vec;
+    auto dat = prot->data();
+    for (auto i = 0; i < prot->size(); i+=2) {
+      Object **ref = (Object **)dat[i];
+      auto obj = *ref;
+      auto ptr = im_offset_ptr(to(Ptr, obj), delta);
+      auto new_obj = as(Object, ptr);
+      *ref = new_obj;
+    }
   }
+
+  {
+    auto prot = vm->gc_protected_ptrs_vec;
+    auto dat = prot->data();
+    for (auto i = 0; i < prot->size(); i+=2) {
+      if (dat[i]) {
+        *dat[i] = im_offset_ptr(*dat[i], delta);
+      }
+    }
+  }
+  // for (auto pair : *vm->gc_protected_ptrs) {
+  //   *pair.first = im_offset_ptr(*pair.first, delta);
+  // }
   for (auto pair : *vm->gc_protected_ptr_vectors) {
     auto start = pair.first;
     s64  count = pair.second;
@@ -3181,15 +3227,36 @@ void im_offset_protected_references(VM *vm, s64 delta) {
 }
 
 inline void gc_protect_reference(VM *vm, Object **ref){
+  /*
   auto map = vm->gc_protected;
   auto found = map->find(ref);
   if (found == map->end()) {
     vm->gc_protected->insert(std::make_pair(ref, 1));
   } else {
     found->second++;
+    } */
+  auto prot = vm->gc_protected_vec;
+  auto dat = prot->data();
+  auto empty = -1;
+  for (auto i = 0; i < prot->size(); i += 2) {
+    Object **o = (Object **)dat[i];
+    if (ref == o) {
+      dat[i+1]++;
+      return;
+    }
+    if (!o) empty = i;
   }
+  if (empty > -1) {
+    dat[empty] = (u64)ref;
+    dat[empty+1] = 1;
+    return;
+  }
+  prot->push_back((u64)ref);
+  prot->push_back(1);
 }
+
 inline void gc_unprotect_reference(VM *vm, Object **ref){
+  /*
   auto map = vm->gc_protected;
   auto found = map->find(ref);
   if (found == map->end()) {
@@ -3199,10 +3266,39 @@ inline void gc_unprotect_reference(VM *vm, Object **ref){
     if (found->second == 0) {
       map->erase(ref);
     }
+    } */
+  auto prot = vm->gc_protected_vec;
+  auto dat = prot->data();
+  for (auto i = 0; i < prot->size(); i += 2) {
+    if (dat[i] == (u64)ref) {
+      if (dat[i+1] == 1) dat[i] = 0;
+      else dat[i+1]--;
+      return;
+    }
   }
+  die("tried to unprotect a non-protected reference");
 }
 
 inline void gc_protect_ptr(VM *vm, Ptr *ref){
+  auto prot = vm->gc_protected_ptrs_vec;
+  auto dat = prot->data();
+  auto cnt = prot->size();
+  auto empty = -1;
+  for (auto i = 0; i < cnt; i += 2) {
+    if (dat[i] == ref) {
+      dat[i+1]++;
+      return;
+    }
+    if (!dat[i]) empty = i;
+  }
+  if (empty > -1) {
+    dat[empty] = ref;
+    dat[empty + 1] = (Ptr *)1; // actually refcount;
+    return;
+  }
+  prot->push_back(ref);
+  prot->push_back((Ptr *)1);
+  /*
   auto map = vm->gc_protected_ptrs;
   auto found = map->find(ref);
   if (found == map->end()) {
@@ -3210,9 +3306,11 @@ inline void gc_protect_ptr(VM *vm, Ptr *ref){
   } else {
     found->second++;
   }
+  */
 }
 
 inline void gc_unprotect_ptr(VM *vm, Ptr *ref){
+  /*
   auto map = vm->gc_protected_ptrs;
   auto found = map->find(ref);
   if (found == map->end()) {
@@ -3222,7 +3320,21 @@ inline void gc_unprotect_ptr(VM *vm, Ptr *ref){
     if (found->second == 0) {
       map->erase(ref);
     }
+    } */
+  auto prot = vm->gc_protected_ptrs_vec;
+  auto dat = prot->data();
+  auto cnt = prot->size();
+  for (auto i = cnt - 2; i >= 0; i -= 2) {
+    if (dat[i] == ref) {
+      if (dat[i+1] == (Ptr *)1) {
+        dat[i] = (Ptr *)0;
+      } else {
+        dat[i+1]--;
+      }
+      return;
+    }
   }
+  die("tried to unprotect a non-protected reference.");
 }
 
 inline void gc_protect_ptr_vector(VM *vm, Ptr *ref, u64 count){
@@ -7788,11 +7900,15 @@ VM *_vm_create() {
   vm->gc_count = 0;
   vm->gc_threshold_in_bytes = heap_size_in_bytes * 0.5;
 
-  vm->gc_protected = new std::unordered_map<Object **, u64>;
-  vm->gc_protected_ptrs = new std::unordered_map<Ptr *, u64>;
+  // vm->gc_protected = new std::unordered_map<Object **, u64>;
+  vm->gc_protected_vec = new std::vector<u64>;
+  vm->gc_protected_ptrs_vec = new std::vector<Ptr *>;
+  // vm->gc_protected_ptrs = new std::unordered_map<Ptr *, u64>;
   vm->gc_protected_ptr_vectors = new std::unordered_map<Ptr *, u64>;
-  vm->gc_protected->reserve(100);
-  vm->gc_protected_ptrs->reserve(100);
+  // vm->gc_protected->reserve(100);
+  // vm->gc_protected_ptrs->reserve(100);
+  vm->gc_protected_vec->reserve(256);
+  vm->gc_protected_ptrs_vec->reserve(256);
   vm->gc_protected_ptr_vectors->reserve(100);
 
   _vm_update_collection_limit(vm);

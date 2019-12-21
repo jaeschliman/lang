@@ -1063,12 +1063,12 @@ create_ptr_for(Point, point p) {
 unwrap_ptr_for(Point, it) {
   point p;
   auto mask = (1ULL << 30) - 1;
-  u64 xbit = it.value & (1ULL << 63) ? 0b11 : 0b00;
-  u64 ybit = it.value & (1ULL << 33) ? 0b11 : 0b00;
+  u64 xbit = it.value & (1ULL << 63) ? 0b11 << 30 : 0b00 << 30;
+  u64 ybit = it.value & (1ULL << 33) ? 0b11 << 30 : 0b00 << 30;
   // cout << " x < 0 ? " << xbit << "   y < 0 ? " << ybit << endl;
   auto val = it.value >> 4;
-  u32 y = (val & mask) | (ybit << 30);
-  u32 x = ((val >> 30) & mask) | (xbit << 30);
+  u32 y = (val & mask) | (ybit);
+  u32 x = ((val >> 30) & mask) | (xbit);
   p.x = (s32)x;
   p.y = (s32)y;
   // cout << " p.x = " << bitset<32>(p.x) << " p.y =" << bitset<32>(p.y) << endl;

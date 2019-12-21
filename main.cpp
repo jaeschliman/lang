@@ -5349,6 +5349,7 @@ enum OpCode : u8 {
   POP_CLOSURE_ENV      ,
   PUSH_SPECIAL_BINDING ,
   POP_SPECIAL_BINDING  ,
+  LOAD_GLOBAL_AT_IDX   ,
 };
 
 inline void vm_push(VM* vm, Ptr value) {
@@ -5554,6 +5555,13 @@ void vm_interp(VM* vm, interp_params params) {
     case LOAD_GLOBAL: {
       // assumes it comes after a pushlit of a symbol
       *vm->curr_thd->stack = get_global(vm, *vm->curr_thd->stack);
+      break;
+    }
+    case LOAD_GLOBAL_AT_IDX: {
+      auto idx = data;
+      if (idx == 255) idx = vm_adv_instr(vm);
+      Ptr it = vm->curr_lits[idx];
+      vm_push(vm, get_global(vm, it));
       break;
     }
     case LOAD_CLOSURE: {

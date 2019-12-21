@@ -961,7 +961,7 @@ unwrap_ptr_for(Fixnum, it) {
 struct character { u32 code_point; };
 
 inline u8 character_byte_at(character c, u8 idx) {
-  return (u8)(c.code_point >> ((3 - idx) * 8));
+  return (u8)(c.code_point >> (idx * 8));
 }
 
 inline s64 utf8_byte_width_for_char(u8 byte) {
@@ -983,24 +983,21 @@ inline bool character_eq(character a, character b) {
 }
 
 inline u32 character_to_u32(character a) {
-  return character_byte_at(a, 0) |
-    (character_byte_at(a, 1) << 8) |
-    (character_byte_at(a, 2) << 16) |
-    (character_byte_at(a, 3) << 24);
+  return a.code_point;
 }
 
 inline s64 character_to_s64(character a) {
-  s64 result = character_to_u32(a);
+  s64 result = a.code_point;
   return result;
 }
 
 // FIXME is this the proper ordering?
 inline bool character_lt(character a, character b) {
-  return character_to_u32(a) < character_to_u32(b);
+  return a.code_point < b.code_point;
 }
 // FIXME is this the proper ordering?
 inline bool character_gt(character a, character b) {
-  return character_to_u32(a) > character_to_u32(b);
+  return a.code_point > b.code_point;
 }
 
 char *character_as_c_string(character c, char*result) {
@@ -1008,13 +1005,12 @@ char *character_as_c_string(character c, char*result) {
   for (auto i = 0; i < count; i++) {
     result[i] = character_byte_at(c, i);
   }
-  // ((u32 *)result)[0] = c.code_point; // this may not actually work
   return result;
 }
 
 prim_type(Char)
 create_ptr_for(Char, char ch) {
-  auto val = ((u64)ch << 56) | Char_Tag;
+  auto val = ((u64)ch << 32) | Char_Tag;
   return (Ptr){val};
 }
 create_ptr_for(Char, character ch) {
@@ -1426,28 +1422,31 @@ character string_char_at(VM *vm, ByteArrayObject *str, s64 index) {
   u8 *data = (u8 *)(ba_data(str)) + index;
   u8 byte = *data;
 
-  if (likely((byte & 0b10000000) == 0)) {
-    u32 code_point = byte << 24;
-    return (character){code_point};
-  } 
+  // if (likely((byte & 0b10000000) == 0)) {
+  //   u32 code_point = byte;
+  //   return (character){code_point};
+  // } 
 
   auto width = utf8_byte_width_for_char(byte);
-  u32 code_point = byte << 24;
+  u32 code_point = byte;
   data++;
   switch(width) {
-  case 2: {
-    code_point |= *data << 16;
-    break;
+  case 1: {
+    return (character){code_point};
   }
-  case 3: {
-    code_point |= *data << 16; data++;
+  case 2: {
     code_point |= *data << 8;
     break;
   }
-  case 4: {
-    code_point |= *data << 16; data++;
+  case 3: {
     code_point |= *data << 8; data++;
-    code_point |= *data;
+    code_point |= *data << 16;
+    break;
+  }
+  case 4: {
+    code_point |= *data << 8; data++;
+    code_point |= *data << 16; data++;
+    code_point |= *data << 24;
     break;
   }
   }

@@ -5393,7 +5393,7 @@ inline Ptr vm_stack_ref(VM *vm, u32 distance) {
   return vm->curr_thd->stack[distance];
 }
 
-inline Ptr vm_load_arg(VM *vm, u32 idx) {
+inline Ptr vm_load_arg(VM *vm, u8 idx) {
   auto fr = vm->curr_frame;
   u64 argc = fr->argc;
   u64 ofs  = fr->pad_count;
@@ -5443,10 +5443,10 @@ inline void vm_store_closure_value(VM *vm, u64 slot, u64 depth, Ptr value) {
   array_set(curr, slot+1, value);
 }
 
-inline u8 instr_code(u32 bc) {
+inline u8 instr_code(u16 bc) {
   return ((u8*)&bc)[0];
 }
-inline u8 instr_data(u32 bc) {
+inline u8 instr_data(u16 bc) {
   return ((u8*)&bc)[1];
 }
 
@@ -5518,7 +5518,7 @@ auto INTERP_PARAMS_EVAL = (interp_params){CTX_SWITCH,RUN_INDEFINITELY,true};
 void vm_interp(VM* vm, interp_params params) {
   auto counter = 0;
   auto init_thread = vm->curr_thd->thread; prot_ptr(init_thread);
-  u64 instr; u8 code; u32 data;
+  u16 instr; u8 code; u8 data;
   s64 ctx_switch_budget, spent_instructions;
   ctx_switch_budget = params.thread_switch_instr_budget;
   spent_instructions = 0;
@@ -5883,7 +5883,7 @@ void vm_interp(VM* vm, interp_params params) {
       break;
     }
     case LOAD_ARG: {
-      u64 idx = data;
+      u8 idx = data;
       auto it = vm_load_arg(vm, idx);
       vm_push(vm, it);
       // cout << " loading arg "<< idx << ": " << it << endl;

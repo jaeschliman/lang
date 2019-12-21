@@ -454,14 +454,24 @@
 ;;               (state ,state))
 ;;          ,run)))
 
+;; (define-compile (+ state args next)
+;;     `(let* ((run1 (lambda (state) ,(compile-rule (car args) 'state 'identity)))
+;;             (init (run1 ,state)))
+;;        (if (failure? init) fail
+;;            (let loop ((last-state (state+result init (list (state-result init)))))
+;;                 (let ((r (run1 last-state)))
+;;                   (if (failure? r) (,next (state-reverse-result last-state))
+;;                       (loop (state-cons r last-state))))))))
+
 (define-compile (+ state args next)
-    `(let* ((run1 (lambda (state) ,(compile-rule (car args) 'state 'identity)))
-            (init (run1 ,state)))
-       (if (failure? init) fail
-           (let loop ((last-state (state+result init (list (state-result init)))))
-                (let ((r (run1 last-state)))
-                  (if (failure? r) (,next (state-reverse-result last-state))
-                      (loop (state-cons r last-state))))))))
+    `(let loop ((last-state ,state)
+                (first-run #t)
+                (results '()))
+          (let ((r ,(compile-rule (car args) 'last-state 'identity)))
+            (if (failure? r)
+                (if first-run fail
+                    (,next (state+result last-state (reverse-list results))))
+                (loop r #f (cons (state-result r) results))))))
 
 
 (define-compile (or state rules next)

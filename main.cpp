@@ -965,14 +965,14 @@ inline u8 character_byte_at(character c, u8 idx) {
 }
 
 inline s64 utf8_byte_width_for_char(u8 byte) {
-  if ((byte & 0b10000000) == 0) return 1;
+  if (likely((byte & 0b10000000) == 0)) return 1;
   if ((byte & 0b00100000) == 0) return 2;
   if ((byte & 0b00010000) == 0) return 3;
   if ((byte & 0b00001000) == 0) return 4;
   return -1;
 }
 
-s64 character_byte_width(character c) {
+inline s64 character_byte_width(character c) {
   auto byte = character_byte_at(c, 0);
   auto result = utf8_byte_width_for_char(byte);
   return result;
@@ -1419,31 +1419,32 @@ char string_byte_at(VM *vm, ByteArrayObject *str, s64 index) {
 }
 
 character string_char_at(VM *vm, ByteArrayObject *str, s64 index) {
-  if (index >= ba_length(str)) {
+  if (unlikely(index >= ba_length(str))) {
     vm->error = "string index out of range";
     return (character){0};
   }
-  u32 code_point = 0;
   u8 *data = (u8 *)(ba_data(str)) + index;
-  auto width = utf8_byte_width_for_char(*data);
+  u8 byte = *data;
+
+  if (likely((byte & 0b10000000) == 0)) {
+    u32 code_point = byte << 24;
+    return (character){code_point};
+  } 
+
+  auto width = utf8_byte_width_for_char(byte);
+  u32 code_point = byte << 24;
+  data++;
   switch(width) {
-  case 1: {
-    code_point |= *data << 24;
-    break;
-  }
   case 2: {
-    code_point |= *data << 24; data++;
     code_point |= *data << 16;
     break;
   }
   case 3: {
-    code_point |= *data << 24; data++;
     code_point |= *data << 16; data++;
     code_point |= *data << 8;
     break;
   }
   case 4: {
-    code_point |= *data << 24; data++;
     code_point |= *data << 16; data++;
     code_point |= *data << 8; data++;
     code_point |= *data;

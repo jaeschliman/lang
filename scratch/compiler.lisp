@@ -38,7 +38,8 @@
   STORE_FRAME_RELATIVE
   POP_CLOSURE_ENV
   PUSH_SPECIAL_BINDING
-  POP_SPECIAL_BINDING)
+  POP_SPECIAL_BINDING
+  LOAD_GLOBAL_AT_IDX)
 
 (#/lang/at-boot (defparameter *trace-eval* #f))
 (#/lang/at-boot (defparameter *enable-jump-opts* #t))
@@ -850,8 +851,11 @@
        ;;   (print `(loading symbol ,it of type ,type)))
        (case type
          (()
-          (emit-pair PUSHLIT (emit-lit it))
-          (emit-u16 (if (special-symbol? it) LOAD_SPECIAL LOAD_GLOBAL)))
+          (cond ((special-symbol? it)
+                 (emit-pair PUSHLIT (emit-lit it))
+                 (emit-u16 LOAD_SPECIAL))
+                (#t
+                 (emit-pair LOAD_GLOBAL_AT_IDX (emit-lit it)))))
          (local
           (load-tmp (expr-meta it 'index)))
          (argument

@@ -38,6 +38,9 @@
 #include "./stacktrace.h"
 #include "./macro_support.h"
 
+#define likely(x)   __builtin_expect((x),1)
+#define unlikely(x) __builtin_expect((x),0)
+
 #define _ostream_prefix(x) << x
 #define dbg(...) std::cerr MAP(_ostream_prefix, __VA_ARGS__) << std::endl
 
@@ -1115,7 +1118,7 @@ inline Ptr prefetch(Ptr p) {
 
 #define VM_ARG(fname, type, name)                                       \
   Ptr _##name = vm_pop(vm);                                             \
-  if (!is(type, _##name)) {                                             \
+  if (unlikely(!is(type, _##name))) {                                   \
     vm->error = "in: " fname " argument " #name " is not a " #type;     \
     return Nil;                                                         \
   }                                                                     \
@@ -1730,19 +1733,19 @@ Ptr s128_to_bignum(VM *vm, s128 r) {
 
 inline Ptr fixnum_mul(VM *vm, s64 a, s64 b) {
   s128 r = (s128)a * (s128)b;
-  if (r <= MOST_POSITIVE_FIXNUM && r >= MOST_NEGATIVE_FIXNUM) { return to(Fixnum, r); }
+  if (likely(r <= MOST_POSITIVE_FIXNUM && r >= MOST_NEGATIVE_FIXNUM)) { return to(Fixnum, r); }
   return s128_to_bignum(vm, r);
 }
 
 inline Ptr fixnum_add(VM *vm, s64 a, s64 b) {
   s128 r = (s128)a + (s128)b;
-  if (r <= MOST_POSITIVE_FIXNUM && r >= MOST_NEGATIVE_FIXNUM) { return to(Fixnum, r); }
+  if (likely(r <= MOST_POSITIVE_FIXNUM && r >= MOST_NEGATIVE_FIXNUM)) { return to(Fixnum, r); }
   return s128_to_bignum(vm, r);
 }
 
 inline Ptr fixnum_sub(VM *vm, s64 a, s64 b) {
   s128 r = (s128)a -(s128)b;
-  if (r <= MOST_POSITIVE_FIXNUM && r >= MOST_NEGATIVE_FIXNUM) { return to(Fixnum, r); }
+  if (likely(r <= MOST_POSITIVE_FIXNUM && r >= MOST_NEGATIVE_FIXNUM)) { return to(Fixnum, r); }
   return s128_to_bignum(vm, r);
 }
 

@@ -1,8 +1,9 @@
 /*
 
-(setq flycheck-clang-language-standard "c++14")
-(setq flycheck-clang-include-path '("/Users/jsn/Library/Frameworks"))
-(setq flycheck-clang-args '("-F" "/Users/jsn/Library/Frameworks"))
+(progn
+  (setq flycheck-clang-language-standard "c++14")
+  (setq flycheck-clang-include-path '("/Users/jsn/Library/Frameworks"))
+  (setq flycheck-clang-args '("-F" "/Users/jsn/Library/Frameworks")))
 
 */
 

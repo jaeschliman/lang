@@ -5268,17 +5268,16 @@ Ptr im_snapshot_to_path(VM *vm, const char *path){
   _im_prepare_vm_for_snapshot(vm);
 
   // allocate new heap
-  auto new_heap = calloc(vm->heap_size_in_bytes, 1);
+  auto used_bytes = vm_heap_used(vm);
+  auto new_heap = calloc(used_bytes, 1);
 
   // copy in the old heap
   auto new_heap_end = new_heap;
   {
-    auto used = vm_heap_used(vm);
-    // could be used, but is something missing?
-    memcpy(new_heap, vm->heap_mem, vm->heap_size_in_bytes);
-    new_heap_end = (u8*)new_heap + used;
-    assert(((u64)new_heap_end - (u64)new_heap) ==
-           ((u64)vm->heap_end - (u64)vm->heap_mem));
+    std::memmove(new_heap, vm->heap_mem, used_bytes);
+    new_heap_end = (u8*)new_heap + used_bytes;
+    // assert(((u64)new_heap_end - (u64)new_heap) ==
+    //        ((u64)vm->heap_end - (u64)vm->heap_mem));
   }
 
   dbg("moving references");

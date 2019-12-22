@@ -1441,11 +1441,6 @@ character string_char_at(VM *vm, ByteArrayObject *str, s64 index) {
   u8 *data = (u8 *)(ba_data(str)) + index;
   u8 byte = *data;
 
-  // if (likely((byte & 0b10000000) == 0)) {
-  //   u32 code_point = byte;
-  //   return (character){code_point};
-  // } 
-
   auto width = utf8_byte_width_for_char(byte);
   u32 code_point = byte;
   data++;

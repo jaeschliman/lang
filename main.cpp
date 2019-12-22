@@ -5569,7 +5569,6 @@ typedef struct {
   bool block_for_initial_thread;
 } interp_params;
 
-//absurdly low for testing
 #define CTX_SWITCH 10000
 #define RUN_QUICK 10000
 #define RUN_AWHILE 1000000

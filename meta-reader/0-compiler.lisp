@@ -21,25 +21,32 @@
     (instance-set-ivar r 4 '#f)
     r))
 
-(define (meta-stream-pos it)  (instance-get-ivar it 0))
-(define (meta-stream-str it)  (instance-get-ivar it 1))
-(define (meta-stream-line it) (instance-get-ivar it 2))
-(define (meta-stream-memo it) (instance-get-ivar it 3))
-(define (meta-stream-next it) (instance-get-ivar it 4))
-
+(defmacro meta-stream-pos  (it) `(instance-get-ivar ,it 0))
+(defmacro meta-stream-str  (it) `(instance-get-ivar ,it 1))
+(defmacro meta-stream-line (it) `(instance-get-ivar ,it 2))
+(defmacro meta-stream-memo (it) `(instance-get-ivar ,it 3))
+(defmacro meta-stream-next (it) `(instance-get-ivar ,it 4))
 
 (at-boot (define fail '(fail fail fail)))
 (defmacro failure? (state) `(,eq ,state ',fail))
 
 (define (make-initial-state stream) (list stream '()))
-(define (state-stream state) (car state))
-(define (state-result state) (nth state 1))
+(define state-stream car)
+(define state-result cadr)
 
 (define (make-stream str) (make-meta-input-stream 0 str (cons 0 0)))
 (define (stream-line-position s) (car (meta-stream-line s)))
 (define (stream-col-position s)  (cdr (meta-stream-line s)))
-(define (stream-read s) (char-at (meta-stream-str s) (meta-stream-pos s)))
-(define (stream-end? s) (>i (+i 1 (meta-stream-pos s)) (string-byte-length (meta-stream-str s))))
+;; (define (stream-read s) (char-at (meta-stream-str s) (meta-stream-pos s)))
+
+(defmacro stream-read (str)
+  (let ((s (gensym)))
+    `(let ((,s ,str))
+       (char-at (meta-stream-str ,s) (meta-stream-pos ,s)))))
+
+(define (stream-end? s)
+  (eq (meta-stream-pos s) (string-byte-length (meta-stream-str s))))
+
 (define (stream-advance s char)
   (or (meta-stream-next s)
       (let* ((nl? (eq char #\Newline))
@@ -76,7 +83,7 @@
 
 (define result-cons cons)
 
-(define (state-result state) (nth state 1))
+(define state-result cadr)
 (define (state+result state res) (list (car state) res))
 (define (state+stream state stream) (cons stream (cdr state)))
 (define (state+stream+result state stream result) (list stream result))

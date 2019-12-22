@@ -5870,7 +5870,8 @@ void vm_interp(VM* vm, interp_params params) {
 #else
         PrimitiveFunction fn = PrimLookupTable[idx];
         Ptr result = (*fn)(vm, argc);
-        vm_push(vm, result);
+        // safe as we know function was previously there.
+        *(--vm->curr_thd->stack) = result;
 #endif
         break; // from CALL
       }
@@ -5942,7 +5943,8 @@ void vm_interp(VM* vm, interp_params params) {
     case RET: {
       auto it = vm_pop(vm);
       vm_pop_stack_frame(vm);
-      vm_push(vm, it);
+      // safe as we know there was enough room for a stack frame
+      *(--vm->curr_thd->stack) = it;
       break;
     }
     case LOAD_ARG: {

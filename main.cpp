@@ -6640,16 +6640,18 @@ auto emit_flat_lambda(VM *vm, Ptr it, Ptr env) {
   vm->stats->flat_lambda_count++;
   #endif
   prot_ptrs(it, env);
-  auto builder = new BCBuilder(vm);
-  auto name = car(cdr(it));
-  builder->setName(name);
-  auto arglist = car(cdr(cdr(it)));
-  if (is(Symbol, arglist)) builder->isVarargs();
-  auto body = cdr(cdr(cdr(it)));
-  emit_lambda_body(vm, builder, body, env);
-  builder->ret();
-  auto bc = to(Ptr, builder->build());
-  delete builder;
+  Ptr bc;
+  {
+    auto builder = BCBuilder(vm);
+    auto name = car(cdr(it));
+    builder.setName(name);
+    auto arglist = car(cdr(cdr(it)));
+    if (is(Symbol, arglist)) builder.isVarargs();
+    auto body = cdr(cdr(cdr(it)));
+    emit_lambda_body(vm, &builder, body, env);
+    builder.ret();
+    bc = to(Ptr, builder.build());
+  }
   unprot_ptrs(it, env);
   return make_closure(vm, bc, Nil);
 }
@@ -6665,27 +6667,28 @@ void emit_lambda(VM *vm, BCBuilder *parent, Ptr it, Ptr p_env) {  prot_ptrs(it, 
     auto closed = cenv_get_closed_over(env);                      prot_ptrs(closed);
     auto closed_count = xarray_used(closed);
 
-    auto builder = new BCBuilder(vm);
+    {
+      auto builder = BCBuilder(vm);
 
-    auto name = car(cdr(it));
-    builder->setName(name);
-    auto arglist = car(cdr(cdr(it)));
-    if (is(Symbol, arglist)) builder->isVarargs();
+      auto name = car(cdr(it));
+      builder.setName(name);
+      auto arglist = car(cdr(cdr(it)));
+      if (is(Symbol, arglist)) builder.isVarargs();
 
-    for (u64 i = 0; i < closed_count; i++) {
-      auto ptr     = xarray_at(closed, i);
-      auto binding = compiler_env_binding(vm, env, ptr);
-      auto index   = as(Fixnum, varinfo_get_argument_index(binding.variable_info));
-      builder->loadArg(index);
+      for (u64 i = 0; i < closed_count; i++) {
+        auto ptr     = xarray_at(closed, i);
+        auto binding = compiler_env_binding(vm, env, ptr);
+        auto index   = as(Fixnum, varinfo_get_argument_index(binding.variable_info));
+        builder.loadArg(index);
+      }
+      unprot_ptrs(closed);
+
+      builder.pushClosureEnv(closed_count);
+      auto body = cdr(cdr(cdr(it)));
+      emit_lambda_body(vm, &builder, body, env);
+      builder.ret();
+      parent->pushLit(to(Ptr, builder.build()));
     }
-    unprot_ptrs(closed);
-
-    builder->pushClosureEnv(closed_count);
-    auto body = cdr(cdr(cdr(it)));
-    emit_lambda_body(vm, builder, body, env);
-    builder->ret();
-    parent->pushLit(to(Ptr, builder->build()));
-    delete builder;
     parent->buildClosure();
   } else {
     auto closure = emit_flat_lambda(vm, it, env);

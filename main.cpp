@@ -906,7 +906,7 @@ struct StandardObject : Object {
 
 #define _type_test_name(type) is_##type##__Impl
 #define _ptr_creation_name(type) to_##type##_Ptr__Impl
-#define _ptr_conversion_name(type) as##type##__Impl
+#define _ptr_conversion_name(type) as_##type##__Impl
 
 // IS Ptr it of this type Ptr -> bool
 #define is(type, it) _type_test_name(type)(it)

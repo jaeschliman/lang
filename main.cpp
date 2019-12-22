@@ -5897,7 +5897,7 @@ void vm_interp(VM* vm, interp_params params) {
         break;
       }
       auto bc = closure_code(fn);
-      if (bc->is_varargs) {
+      if (unlikely(bc->is_varargs)) {
         prot_ptrs(fn);
         vm_push(vm, vm_get_stack_values_as_list(vm, argc));
         unprot_ptrs(fn);

@@ -1300,12 +1300,11 @@ PtrArrayObject *alloc_pao(VM *vm, PAOType ty, uint len) {
   return obj;
 }
 
-inline Ptr alloc_closure_env(VM *vm, uint count) {
+inline PtrArrayObject *alloc_closure_env(VM *vm, uint count) {
   #if STATS
   vm->stats->total_closure_bytes_allocated += sizeof(PtrArrayObject) + (count + 1) * 8;
   #endif
-  auto array = to(Ptr, alloc_pao(vm, Array, count + 1));
-  return array;
+  return alloc_pao(vm, Array, count + 1);
 }
 
 type_test(Array, it) {
@@ -5681,19 +5680,15 @@ void vm_interp(VM* vm, interp_params params) {
       break;
     }
     case PUSH_CLOSURE_ENV: {
-      u64 count = vm_adv_instr(vm);
-      auto array = alloc_closure_env(vm, count);
-      auto a = as(PtrArray, array);
+      u32 count = vm_adv_instr(vm);
+      auto a = alloc_closure_env(vm, count);
       auto d = a->data;
-      // array_set(array, 0, vm->curr_frame->closed_over);
       d[0] = vm->curr_frame->closed_over;
-      while (count--) { //@speed
-        auto it = vm_pop(vm);
-        // cout << " setting closure val " << it << endl;
-        d[count + 1] = it;
-        // array_set(array, count + 1, it);
+      count++;
+      while (--count) {
+        d[count] = vm_pop(vm);
       }
-      vm->curr_frame->closed_over = array;
+      vm->curr_frame->closed_over = to(Ptr, a);
       break;
     }
     case POP_CLOSURE_ENV: {

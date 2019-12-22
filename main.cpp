@@ -484,6 +484,7 @@ struct StackFrameObject : Object {
   Ptr mark;
   u64 preserved_argc; // used for snapshots;
   s64 argc;
+  Ptr *arg0;
   u64 pad_count; // must be 0 or 1
   Ptr argv[]; // MUST be trailing element
 };
@@ -635,6 +636,7 @@ _copy_state _copy_frame_to_new_stack(StackFrameObject *fr, Ptr *input_stack, Ptr
   new_frame->pad_count = was_aligned ? 0 : 1;
   new_frame->prev_stack = stack;
   new_frame->prev_frame = prev_frame;
+  new_frame->arg0 = new_frame->argv + new_frame->argc - (was_aligned ? 1 : 0);
 
   check(!prev_frame || ((void*)prev_frame <= (void*)a && (void*)prev_frame >= (void*)b));
   auto new_stack = (Ptr *)(void *)new_frame;
@@ -4462,6 +4464,7 @@ void vm_push_stack_frame(VM* vm, u64 argc, ByteCodeObject*fn, Ptr closed_over) {
   new_frame->prev_frame = thd->frame;
   new_frame->prev_pc = 0;
   new_frame->argc = argc;
+  new_frame->arg0 = new_frame->argv + new_frame->argc - (padding ? 0 : 1);
   if (thd->frame) {
     new_frame->special_variables = thd->frame->special_variables;
   } else {
@@ -4731,6 +4734,7 @@ void __vm_restore_stack_snapshot(VM *vm, StackFrameObject *fr) {
   new_frame->prev_stack = thd->stack;
   new_frame->pad_count = was_aligned ? 0 : 1;
   new_frame->argc = new_frame->preserved_argc;
+  new_frame->arg0 = new_frame->argv + new_frame->argc - (was_aligned ? 1 : 0);
 
   #if DEBUG_IMAGE_SNAPSHOTS
   {
@@ -5454,16 +5458,12 @@ inline Ptr vm_stack_ref(VM *vm, u32 distance) {
 
 inline Ptr vm_load_arg(VM *vm, u8 idx) {
   auto fr = vm->curr_frame;
-  u64 argc = fr->argc;
-  u64 ofs  = fr->pad_count;
-  return fr->argv[ofs + (argc - (idx + 1))];
+  return *(fr->arg0 - idx);
 }
 
 inline void vm_store_arg(VM *vm, u32 idx, Ptr it) {
   auto fr = vm->curr_frame;
-  u64 argc = fr->argc;
-  u64 ofs  = fr->pad_count;
-  fr->argv[ofs + (argc - (idx + 1))] = it;
+  *(fr->arg0 - idx) = it;
 }
 
 // N.B. must not double-prot the ptrs on the stack to avoid double-copy

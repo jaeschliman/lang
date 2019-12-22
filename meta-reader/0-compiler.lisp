@@ -560,12 +560,22 @@
        ,(compile-rule (cons 'seq (cdr forms))
                       state next)))
 
+;; (define-compile (set! state forms next)
+;;     (let ((var (car forms))
+;;           (rule (car (cdr forms))))
+;;       (compile-rule rule state `(lambda (_st_)
+;;                                   (set! ,var (state-result _st_))
+;;                                   (,next _st_)))))
+
 (define-compile (set! state forms next)
     (let ((var (car forms))
           (rule (car (cdr forms))))
-      (compile-rule rule state `(lambda (_st_)
-                                  (set! ,var (state-result _st_))
-                                  (,next _st_)))))
+      `(let ((_r ,(compile-rule rule state 'identity)))
+         (if (failure? _r) fail
+             (let ()
+               (set! ,var (state-result _r))
+               (,next _r))))))
+
 
 (define-compile (where state forms next)
     (let ((test (car forms)))

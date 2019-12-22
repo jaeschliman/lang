@@ -1511,7 +1511,7 @@ Ptr string_substr_byte_range(VM *vm, ByteArrayObject *str, s64 start, s64 end) {
 }
 
 
-s64 string_byte_length(ByteArrayObject *str) {
+inline s64 string_byte_length(ByteArrayObject *str) {
   return ba_length(str);
 }
 
@@ -3928,7 +3928,7 @@ inline Ptr get_global(VM *vm,  Ptr sym) {
   return Nil;
 }
 
-Ptr get_global(VM *vm,  const char*name) {
+inline Ptr get_global(VM *vm,  const char*name) {
   return get_global(vm, root_intern(vm, name));
 }
 

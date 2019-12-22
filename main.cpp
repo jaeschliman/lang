@@ -4389,11 +4389,11 @@ void vm_pop_stack_frame(VM* vm) {
   thd->frame = fr->prev_frame;
   // assert(vm->curr_thread->stack <= vm->curr_thread->stack_start &&
   //        vm->curr_thread->stack >= vm->curr_thread->stack_end);
-  thd->bc = thd->frame->bc;
+  thd->bc = fr->prev_frame->bc;
   thd->stack_depth--;
   // dbg("--- popped stack frame.");
   // vm_dump_args(vm);
-  vm_refresh_frame_state(vm);
+  unsafe_vm_refresh_frame_state(vm);
 }
 
 void _vm_reset_stack_from_root_frame(VM *vm) {

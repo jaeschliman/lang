@@ -5608,7 +5608,7 @@ void vm_interp(VM* vm, interp_params params) {
     }
     case LOAD_FRAME_RELATIVE: {
       u32 idx = data;
-      if (idx == 255) idx = vm_adv_instr(vm);
+      if (unlikely(idx == 255)) idx = vm_adv_instr(vm);
       Ptr *stack_bottom = ((Ptr *)(void *)vm->curr_frame) - 1;
       check(stack_bottom - idx >= vm->curr_thd->stack);
       vm_push(vm, *(stack_bottom - idx));
@@ -5616,7 +5616,7 @@ void vm_interp(VM* vm, interp_params params) {
     }
     case STORE_FRAME_RELATIVE: {
       u32 idx = data;
-      if (idx == 255) idx = vm_adv_instr(vm);
+      if (unlikely(idx == 255)) idx = vm_adv_instr(vm);
       Ptr it = vm_pop(vm);
       Ptr *stack_bottom = ((Ptr *)(void *)vm->curr_frame) - 1;
       *(stack_bottom - idx) = it;
@@ -5627,7 +5627,7 @@ void vm_interp(VM* vm, interp_params params) {
       break;
     case PUSHLIT: {
       u32 idx = data;
-      if (idx == 255) idx = vm_adv_instr(vm);
+      if (unlikely(idx == 255)) idx = vm_adv_instr(vm);
       Ptr it = vm->curr_lits[idx];
       vm_push(vm, it);
       break;
@@ -5639,7 +5639,7 @@ void vm_interp(VM* vm, interp_params params) {
     }
     case LOAD_GLOBAL_AT_IDX: {
       auto idx = data;
-      if (idx == 255) idx = vm_adv_instr(vm);
+      if (unlikely(idx == 255)) idx = vm_adv_instr(vm);
       Ptr it = vm->curr_lits[idx];
       vm_push(vm, Symbol_get_value(it));
       break;

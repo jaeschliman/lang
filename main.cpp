@@ -4370,11 +4370,10 @@ Ptr read_all(VM *vm, const char* input) {
 
 /* -------------------------------------------------- */
 Ptr vm_pop(VM *vm);
+Ptr vm_peek(VM *vm);
 void vm_push(VM *vm, Ptr it);
+void vm_unsafe_store(VM *vm, Ptr it);
 
-inline void vm_adv_pc(VM *vm) {
-  vm->pc++;
-}
 
 void vm_pop_stack_frame(VM* vm) {
   auto thd = vm->curr_thd;
@@ -5435,6 +5434,12 @@ inline void vm_stack_reserve_n(VM* vm, u64 n){
   thd->stack -= n;
   memset(thd->stack, 0, n * 8);
 }
+inline Ptr vm_peek(VM *vm) {
+  return *vm->curr_thd->stack;
+} 
+inline void vm_unsafe_store(VM *vm, Ptr it) {
+  *vm->curr_thd->stack = it;
+}
 
 inline Ptr vm_pop(VM* vm) {
   return *(vm->curr_thd->stack++);
@@ -5654,10 +5659,10 @@ void vm_interp(VM* vm, interp_params params) {
       break;
     }
     case BUILD_CLOSURE: {
-      auto lambda = vm_pop(vm);
+      auto lambda = vm_peek(vm);
       auto array = vm->curr_frame->closed_over;
       auto closure = make_closure(vm, lambda, array);
-      vm_push(vm, closure);
+      vm_unsafe_store(vm, closure);
       break;
     }
     case SAVE_CLOSURE_ENV: {
@@ -5743,8 +5748,7 @@ void vm_interp(VM* vm, interp_params params) {
       break;
     }
     case DUP: {
-      auto it = vm_pop(vm);
-      vm_push(vm, it);
+      auto it = vm_peek(vm);
       vm_push(vm, it);
       break;
     }

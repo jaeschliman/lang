@@ -68,23 +68,6 @@ using std::string;
 #define MOST_POSITIVE_FIXNUM 576460752303423487
 #define MOST_NEGATIVE_FIXNUM -576460752303423487
 
-/*
- latest perf reports on bouncers-2.
-  
- GIANT_SWITCH OFF:
- executed 1443278943 instructions over 29.156 seconds.
- average of 49501953 ops per second, including sleep. 
- gc count: 12
- GIANT_SWITCH ON:
- executed 1611884478 instructions over 31.383 seconds.
- average of 51361707 ops per second, including sleep. 
- gc count: 14
- GIANT_SWITCH ON + NDEBUG:
- executed 5182630820 instructions over 78.84 seconds.
- average of 65736058 ops per second, including sleep. 
- gc count: 43
- */
-
 #define unused(x) (void)(x)
 #define maybe_unused(x) (void)(x)
 #define KNOWN(symbol) vm->globals->known._##symbol

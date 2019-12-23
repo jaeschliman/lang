@@ -3924,10 +3924,12 @@ inline bool boundp(VM *vm, Ptr sym) {
 }
 
 inline Ptr get_global(VM *vm,  Ptr sym) {
-  if (likely(boundp(vm, sym))) return Symbol_get_value(sym);
-  dbg("unbound global: ", sym);
-  vm->error = "symbol is unbound";
-  return Nil;
+  auto data = ((PtrArrayObject *)(void *)(sym.value & EXTRACT_PTR_MASK))->data;
+  auto flags = data[4].value;
+  bool bound = flags & 0b10000;
+  const char *errors[2] = { "symbol is unbound", 0 };
+  vm->error = errors[(int)bound];
+  return data[3];
 }
 
 inline Ptr get_global(VM *vm,  const char*name) {

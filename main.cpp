@@ -39,6 +39,9 @@
 #include "./stacktrace.h"
 #include "./macro_support.h"
 
+
+#pragma pack(1)
+
 #define likely(x)   __builtin_expect((x),1)
 #define unlikely(x) __builtin_expect((x),0)
 

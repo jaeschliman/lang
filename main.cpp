@@ -5566,6 +5566,31 @@ bool vm_handle_error(VM *vm);
 #define vm_curr_instr(vm) vm->curr_code[vm->pc]
 #define vm_adv_instr(vm) vm->curr_code[++(vm->pc)]
 
+#if 1
+#define maybe_advance_idx(idx) if (unlikely(idx == 255)) idx = vm_adv_instr(vm)
+#else
+#if 1
+#define maybe_advance_idx(idx)                  \
+  {                                             \
+    u32 next_instr = vm->curr_code[vm->pc+1];   \
+    int choice = idx == 255;                    \
+    u32 pick[2] = { idx, next_instr };          \
+    idx = pick[choice];                         \
+    vm->pc += choice;                           \
+  }
+#else
+u32 _maybe_advance_idx(VM *vm, u32 idx)                  
+{                                             
+  u32 next_instr = vm->curr_code[vm->pc+1];
+  int choice = !(idx ^ 255);
+  u32 pick[2] = { idx, next_instr };
+  vm->pc += choice;
+  return pick[choice];
+}
+#define maybe_advance_idx(idx) idx = _maybe_advance_idx(vm, idx)
+#endif
+#endif
+
 typedef struct {
   s64 thread_switch_instr_budget, total_execution_instr_budget;
   bool block_for_initial_thread;

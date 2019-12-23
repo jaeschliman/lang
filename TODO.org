@@ -485,7 +485,7 @@ https://www.youtube.com/watch?v=FJQmjhOvjUs&list=PL843D1D545F9F52B6&index=7
 * DONE rework the definitions in boot/0 to be amenable to TL jump opts
   right now we special-case forms with `set-symbol-value` in the call position,
   not `set`
-* TODO rewrite meta `seq` to use `if` for failure?
+* DONE rewrite meta `seq` to use `if` for failure?
 * DONE asm: we are probably creating more closures than needed.
   e.g. if the parent contains closed over, but (this) child does /not/, then
   do not allocate/push closures in this child.
@@ -521,7 +521,7 @@ https://www.sandeepnambiar.com/setting-up-emacs-for-c++/
   -- but do we /want/ progv? (or similar)
 * TODO sws: some kind of labeled slider
 * TODO `fill-rect-with-mask` needs a better interface...
-* TODO make off-heap storage fully conditional on define flag
+* DONE make off-heap storage fully conditional on define flag
 
 * notes
 maybe have a stack of compilers? can push/pop...

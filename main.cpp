@@ -5605,39 +5605,41 @@ auto INTERP_PARAMS_MAIN_EVENT_HANDLER = (interp_params){CTX_SWITCH,RUN_AWHILE, f
 auto INTERP_PARAMS_EVAL = (interp_params){CTX_SWITCH,RUN_INDEFINITELY,true};
 
 void vm_interp(VM* vm, interp_params params) {
-  void *jump_table[] = {
-                         && _END,
-                         && _RET                  ,
-                         && _PUSHLIT              ,
-                         && _POP                  ,
-                         && _BR_IF_ZERO           ,
-                         && _BR_IF_NOT_ZERO       ,
-                         && _DUP                  ,
-                         && _SWAP                 ,
-                         && _CALL                 ,
-                         && _TAIL_CALL            ,
-                         && _LOAD_ARG             ,
-                         && _STORE_ARG            ,
-                         && _LOAD_GLOBAL          ,
-                         && _LOAD_SPECIAL         ,
-                         && _LOAD_CLOSURE         ,
-                         && _STORE_CLOSURE        ,
-                         && _BUILD_CLOSURE        ,
-                         && _SAVE_CLOSURE_ENV     ,
-                         && _RESTORE_CLOSURE_ENV  ,
-                         && _PUSH_CLOSURE_ENV     ,
-                         && _BR_IF_False          ,
-                         && _JUMP                 ,
-                         && _PUSH_JUMP            ,
-                         && _POP_JUMP             ,
-                         && _STACK_RESERVE        ,
-                         && _LOAD_FRAME_RELATIVE  ,
-                         && _STORE_FRAME_RELATIVE ,
-                         && _POP_CLOSURE_ENV      ,
-                         && _PUSH_SPECIAL_BINDING ,
-                         && _POP_SPECIAL_BINDING  ,
-                         && _LOAD_GLOBAL_AT_IDX   
-  };
+  void *jump_table[] =
+    {
+     && _END                  ,
+     && _RET                  ,
+     && _PUSHLIT              ,
+     && _POP                  ,
+     && _BR_IF_ZERO           ,
+     && _BR_IF_NOT_ZERO       ,
+     && _DUP                  ,
+     && _SWAP                 ,
+     && _CALL                 ,
+     && _TAIL_CALL            ,
+     && _LOAD_ARG             ,
+     && _STORE_ARG            ,
+     && _LOAD_GLOBAL          ,
+     && _LOAD_SPECIAL         ,
+     && _LOAD_CLOSURE         ,
+     && _STORE_CLOSURE        ,
+     && _BUILD_CLOSURE        ,
+     && _SAVE_CLOSURE_ENV     ,
+     && _RESTORE_CLOSURE_ENV  ,
+     && _PUSH_CLOSURE_ENV     ,
+     && _BR_IF_False          ,
+     && _JUMP                 ,
+     && _PUSH_JUMP            ,
+     && _POP_JUMP             ,
+     && _STACK_RESERVE        ,
+     && _LOAD_FRAME_RELATIVE  ,
+     && _STORE_FRAME_RELATIVE ,
+     && _POP_CLOSURE_ENV      ,
+     && _PUSH_SPECIAL_BINDING ,
+     && _POP_SPECIAL_BINDING  ,
+     && _LOAD_GLOBAL_AT_IDX   
+    };
+  // TODO: fill out the rest with jump to invalid bytecode handler
 
   auto counter = 0;
   auto init_thread = vm->curr_thd->thread; prot_ptr(init_thread);
@@ -5646,20 +5648,16 @@ void vm_interp(VM* vm, interp_params params) {
   ctx_switch_budget = params.thread_switch_instr_budget;
   spent_instructions = 0;
 
-  if (!vm->start_time_ms) vm->start_time_ms = current_time_ms();
-
- restart_interp:
-
-  vm->suspended = false;
-
-#define NEXT                                    \
+#define END_CURR_INSTR                          \
   if (vm->error) {                              \
     if (!vm_handle_error(vm)) {                 \
       vm->suspended = true;                     \
       goto exit;                                \
     }                                           \
   }                                             \
-  vm->pc++;                                     \
+  vm->pc++;
+
+#define BEGIN_NEXT_INSTR                        \
   instr = vm_curr_instr(vm);                    \
   vm->instruction_count++;                      \
   spent_instructions++;                         \
@@ -5668,475 +5666,439 @@ void vm_interp(VM* vm, interp_params params) {
   data = instr_data(instr);                     \
   goto *jump_table[code];
 
-  while ((instr = vm_curr_instr(vm))) {
-    vm->instruction_count++;
-    spent_instructions++;
-    ctx_switch_budget--;
-    code = instr_code(instr);
-    data = instr_data(instr);
-    goto *jump_table[code];
+#define NEXT                                    \
+  END_CURR_INSTR;                               \
+  BEGIN_NEXT_INSTR;
 
-    switch (code){
-    case STACK_RESERVE: {
-      _STACK_RESERVE:
-      u64 count = vm_adv_instr(vm);
-      vm_stack_reserve_n(vm, count);
-      NEXT;
-      break;
-    }
-    case LOAD_FRAME_RELATIVE: {
-      _LOAD_FRAME_RELATIVE:
-      u32 idx = data;
-      maybe_advance_idx(idx);
-      Ptr *stack_bottom = ((Ptr *)(void *)vm->curr_frame) - 1;
-      check(stack_bottom - idx >= vm->curr_thd->stack);
-      vm_push(vm, *(stack_bottom - idx));
-      NEXT;
-      break;
-    }
-    case STORE_FRAME_RELATIVE: {
-      _STORE_FRAME_RELATIVE:
-      u32 idx = data;
-      maybe_advance_idx(idx);
-      Ptr it = vm_pop(vm);
-      Ptr *stack_bottom = ((Ptr *)(void *)vm->curr_frame) - 1;
-      *(stack_bottom - idx) = it;
-      NEXT;
-      break;
-    }
-    case POP:
-      _POP:
-      vm_pop(vm);
-      break;
-    case PUSHLIT: {
-      _PUSHLIT:
-      u32 idx = data;
-      maybe_advance_idx(idx);
-      Ptr it = vm->curr_lits[idx];
-      vm_push(vm, it);
-      NEXT;
-      break;
-    }
-    case LOAD_GLOBAL: {
-      _LOAD_GLOBAL:
-      // assumes it comes after a pushlit of a symbol
-      *vm->curr_thd->stack = get_global(vm, *vm->curr_thd->stack);
-      NEXT;
-      break;
-    }
-    case LOAD_GLOBAL_AT_IDX: {
-      _LOAD_GLOBAL_AT_IDX:
-      u32 idx = data;
-      maybe_advance_idx(idx);
-      Ptr it = vm->curr_lits[idx];
-      auto sym_data = ((PtrArrayObject *)(void *)(it.value & EXTRACT_PTR_MASK))->data;
-      auto flags = sym_data[4].value;
-      bool bound = flags & 0b10000;
-      const char *errors[2] = { "symbol is unbound", 0 };
-      vm->error = errors[(int)bound];
-      vm_push(vm, sym_data[3]);
-      NEXT;
-      break;
-    }
-    case LOAD_CLOSURE: {
-      _LOAD_CLOSURE:
-      u64 slot  = vm_adv_instr(vm);
-      u64 depth = vm_adv_instr(vm);
-      auto it = vm_load_closure_value(vm, slot, depth);
-      vm_push(vm, it);
-      NEXT;
-      break;
-    }
-    case STORE_CLOSURE: {
-      _STORE_CLOSURE:
-      u64 slot  = vm_adv_instr(vm);
-      u64 depth = vm_adv_instr(vm);
-      auto value = vm_pop(vm);
-      vm_store_closure_value(vm, slot, depth, value);
-      NEXT;
-      break;
-    }
-    case BUILD_CLOSURE: {
-      _BUILD_CLOSURE:
-      auto lambda = vm_peek(vm);
-      auto array = vm->curr_frame->closed_over;
-      auto closure = make_closure(vm, lambda, array);
-      vm_unsafe_store(vm, closure);
-      NEXT;
-      break;
-    }
-    case SAVE_CLOSURE_ENV: {
-      _SAVE_CLOSURE_ENV:
-      s64 count = vm_adv_instr(vm);
-      // dbg("SAVE: ", count);
-      auto top = vm->curr_frame->closed_over;
-      vm_push(vm, top);
-      while (count--) {
-        vm->curr_frame->closed_over = array_get(vm->curr_frame->closed_over, 0);
-      }
-      NEXT;
-      break;
-    }
-    case RESTORE_CLOSURE_ENV: {
-      _RESTORE_CLOSURE_ENV:
-      vm->curr_frame->closed_over = vm_pop(vm);
-      // dbg("RESTORE: ", vm->curr_frame->closed_over);
-      NEXT;
-      break;
-    }
-    case PUSH_CLOSURE_ENV: {
-      _PUSH_CLOSURE_ENV:
-      u32 count = vm_adv_instr(vm);
-      auto a = alloc_closure_env(vm, count);
-      auto d = a->data;
-      d[0] = vm->curr_frame->closed_over;
-      count++;
-      while (--count) {
-        d[count] = vm_pop(vm);
-      }
-      vm->curr_frame->closed_over = to(Ptr, a);
-      NEXT;
-      break;
-    }
-    case POP_CLOSURE_ENV: {
-      _POP_CLOSURE_ENV:
-      auto curr = vm->curr_frame->closed_over;
-      if (isNil(curr)) {
-        vm->error = "cannot pop null closure env ";
-      } else {
-        auto prev = array_get(curr, 0);
-        vm->curr_frame->closed_over = prev;
-      }
-      NEXT;
-      break;
-    }
-    case BR_IF_ZERO: {
-      _BR_IF_ZERO:
-      auto it = vm_pop(vm);
-      s64 jump = vm_adv_instr(vm);
-      if ((u64)it.value == 0) {
-        vm->pc = jump - 1; //-1 to acct for pc advancing
-      }
-      NEXT;
-      break;
-    }
-    case BR_IF_NOT_ZERO: {
-      _BR_IF_NOT_ZERO:
-      auto it = vm_pop(vm);
-      s64 jump = vm_adv_instr(vm);
-      if ((u64)it.value != 0) {
-        vm->pc = jump - 1; //-1 to acct for pc advancing
-      }
-      NEXT;
-      break;
-    }
-    case BR_IF_False: {
-      _BR_IF_False:
-      auto it = vm_pop(vm);
-      s64 jump = vm_adv_instr(vm);
-      if (ptr_eq(it, False)) {
-        vm->pc = jump - 1; //-1 to acct for pc advancing
-      }
-      NEXT;
-      break;
-    }
-    case JUMP: {
-      _JUMP:
-      s64 jump = vm_adv_instr(vm);
-      vm->pc = jump - 1; //-1 to acct for pc advancing
-      NEXT;
-      break;
-    }
-    case PUSH_JUMP: {
-      _PUSH_JUMP:
-      s64 jump = vm_adv_instr(vm);
-      // dbg("PUSH_JUMP: ", jump);
-      vm_push(vm,to(Fixnum, jump));
-      NEXT;
-      break;
-    }
-    case POP_JUMP: {
-      _POP_JUMP:
-      s64 jump = from(Fixnum, vm_pop(vm));
-      // dbg("POP JUMP: ", jump);
-      vm->pc = jump - 1; //-1 to acct for pc advancing
-      NEXT;
-      break;
-    }
-    case DUP: {
-      _DUP:
-      auto it = vm_peek(vm);
-      vm_push(vm, it);
-      NEXT;
-      break;
-    }
-    case SWAP: {
-      _SWAP:
-      auto a = vm_pop(vm);
-      auto b = vm_pop(vm);
-      vm_push(vm, a);
-      vm_push(vm, b);
-      NEXT;
-      break;
-    }
-    case TAIL_CALL: {
-      _TAIL_CALL:
-      u32 argc = data;
-      vm_prepare_for_tail_call(vm, argc);
-      // fallthrough
-    }
-    case CALL: {
-      _CALL:
-      u32 argc = data;
-      reenter_call:
-      auto fn = vm_pop(vm);
-      if (is(PrimOp, fn)) {
-        u64 v = fn.value;
-        // TODO: validate argc against prim op
-        // auto argc = (v >> 16) & 0xFF;
-        auto idx  = (v >> 32);// & 0xFFFF;
-        auto not_builtin = (idx & ~0b111);
+  if (!vm->start_time_ms) vm->start_time_ms = current_time_ms();
 
-        if (likely(not_builtin)) {
-          // cerr << " calling prim at idx: " << idx << " arg count = " << argc << endl;
+ restart_interp:
+
+  vm->suspended = false;
+
+  BEGIN_NEXT_INSTR;
+    
+ _STACK_RESERVE: {
+    u64 count = vm_adv_instr(vm);
+    vm_stack_reserve_n(vm, count);
+  }
+  NEXT;
+
+ _LOAD_FRAME_RELATIVE: {
+    u32 idx = data;
+    maybe_advance_idx(idx);
+    Ptr *stack_bottom = ((Ptr *)(void *)vm->curr_frame) - 1;
+    check(stack_bottom - idx >= vm->curr_thd->stack);
+    vm_push(vm, *(stack_bottom - idx));
+  }
+  NEXT;
+
+ _STORE_FRAME_RELATIVE: {
+    u32 idx = data;
+    maybe_advance_idx(idx);
+    Ptr it = vm_pop(vm);
+    Ptr *stack_bottom = ((Ptr *)(void *)vm->curr_frame) - 1;
+    *(stack_bottom - idx) = it;
+  }
+  NEXT;
+
+ _POP:{
+    vm_pop(vm);
+  }
+  NEXT;
+
+ _PUSHLIT: {
+    u32 idx = data;
+    maybe_advance_idx(idx);
+    Ptr it = vm->curr_lits[idx];
+    vm_push(vm, it);
+  }
+  NEXT;
+
+ _LOAD_GLOBAL: {
+    // assumes it comes after a pushlit of a symbol
+    *vm->curr_thd->stack = get_global(vm, *vm->curr_thd->stack);
+  }
+  NEXT;
+
+ _LOAD_GLOBAL_AT_IDX: {
+    u32 idx = data;
+    maybe_advance_idx(idx);
+    Ptr it = vm->curr_lits[idx];
+    auto sym_data = ((PtrArrayObject *)(void *)(it.value & EXTRACT_PTR_MASK))->data;
+    auto flags = sym_data[4].value;
+    bool bound = flags & 0b10000;
+    const char *errors[2] = { "symbol is unbound", 0 };
+    vm->error = errors[(int)bound];
+    vm_push(vm, sym_data[3]);
+  }
+  NEXT;
+
+ _LOAD_CLOSURE: {
+    u64 slot  = vm_adv_instr(vm);
+    u64 depth = vm_adv_instr(vm);
+    auto it = vm_load_closure_value(vm, slot, depth);
+    vm_push(vm, it);
+  }
+  NEXT;
+
+ _STORE_CLOSURE: {
+    u64 slot  = vm_adv_instr(vm);
+    u64 depth = vm_adv_instr(vm);
+    auto value = vm_pop(vm);
+    vm_store_closure_value(vm, slot, depth, value);
+  }
+  NEXT;
+
+ _BUILD_CLOSURE: {
+    auto lambda = vm_peek(vm);
+    auto array = vm->curr_frame->closed_over;
+    auto closure = make_closure(vm, lambda, array);
+    vm_unsafe_store(vm, closure);
+  }
+  NEXT;
+
+ _SAVE_CLOSURE_ENV: {
+    s64 count = vm_adv_instr(vm);
+    // dbg("SAVE: ", count);
+    auto top = vm->curr_frame->closed_over;
+    vm_push(vm, top);
+    while (count--) {
+      vm->curr_frame->closed_over = array_get(vm->curr_frame->closed_over, 0);
+    }
+  }
+  NEXT;
+
+ _RESTORE_CLOSURE_ENV: {
+    vm->curr_frame->closed_over = vm_pop(vm);
+    // dbg("RESTORE: ", vm->curr_frame->closed_over);
+  }
+  NEXT;
+
+ _PUSH_CLOSURE_ENV: {
+    u32 count = vm_adv_instr(vm);
+    auto a = alloc_closure_env(vm, count);
+    auto d = a->data;
+    d[0] = vm->curr_frame->closed_over;
+    count++;
+    while (--count) {
+      d[count] = vm_pop(vm);
+    }
+    vm->curr_frame->closed_over = to(Ptr, a);
+  }
+  NEXT;
+
+ _POP_CLOSURE_ENV: {
+    auto curr = vm->curr_frame->closed_over;
+    if (isNil(curr)) {
+      vm->error = "cannot pop null closure env ";
+    } else {
+      auto prev = array_get(curr, 0);
+      vm->curr_frame->closed_over = prev;
+    }
+  }
+  NEXT;
+
+ _BR_IF_ZERO: {
+    auto it = vm_pop(vm);
+    s64 jump = vm_adv_instr(vm);
+    if ((u64)it.value == 0) {
+      vm->pc = jump - 1; //-1 to acct for pc advancing
+    }
+  }
+  NEXT;
+
+ _BR_IF_NOT_ZERO: {
+    auto it = vm_pop(vm);
+    s64 jump = vm_adv_instr(vm);
+    if ((u64)it.value != 0) {
+      vm->pc = jump - 1; //-1 to acct for pc advancing
+    }
+  }
+  NEXT;
+
+ _BR_IF_False: {
+    auto it = vm_pop(vm);
+    s64 jump = vm_adv_instr(vm);
+    if (ptr_eq(it, False)) {
+      vm->pc = jump - 1; //-1 to acct for pc advancing
+    }
+  }
+  NEXT;
+
+ _JUMP: {
+    s64 jump = vm_adv_instr(vm);
+    vm->pc = jump - 1; //-1 to acct for pc advancing
+  }
+  NEXT;
+
+ _PUSH_JUMP: {
+    s64 jump = vm_adv_instr(vm);
+    // dbg("PUSH_JUMP: ", jump);
+    vm_push(vm,to(Fixnum, jump));
+  }
+  NEXT;
+
+ _POP_JUMP: {
+    s64 jump = from(Fixnum, vm_pop(vm));
+    // dbg("POP JUMP: ", jump);
+    vm->pc = jump - 1; //-1 to acct for pc advancing
+  }
+  NEXT;
+
+ _DUP: {
+    auto it = vm_peek(vm);
+    vm_push(vm, it);
+  }
+  NEXT;
+
+ _SWAP: {
+    auto a = vm_pop(vm);
+    auto b = vm_pop(vm);
+    vm_push(vm, a);
+    vm_push(vm, b);
+  }
+  NEXT;
+
+ _TAIL_CALL: {
+    u32 argc = data;
+    vm_prepare_for_tail_call(vm, argc);
+  }
+  // fallthrough
+ _CALL: {
+    u32 argc = data;
+  reenter_call:
+    auto fn = vm_pop(vm);
+    if (is(PrimOp, fn)) {
+      u64 v = fn.value;
+      // TODO: validate argc against prim op
+      // auto argc = (v >> 16) & 0xFF;
+      auto idx  = (v >> 32);// & 0xFFFF;
+      auto not_builtin = (idx & ~0b111);
+
+      if (likely(not_builtin)) {
+        // cerr << " calling prim at idx: " << idx << " arg count = " << argc << endl;
 #if PRIM_USE_GIANT_SWITCH
-          vm_push(vm, giant_switch(vm, argc, idx));
+        vm_push(vm, giant_switch(vm, argc, idx));
 #else
-          PrimitiveFunction fn = PrimLookupTable[idx];
-          Ptr result = (*fn)(vm, argc);
-          // safe as we know function was previously there.
-          *(--vm->curr_thd->stack) = result;
+        PrimitiveFunction fn = PrimLookupTable[idx];
+        Ptr result = (*fn)(vm, argc);
+        // safe as we know function was previously there.
+        *(--vm->curr_thd->stack) = result;
 #endif
-        } else {
-          switch(idx) {
-          case 0: { // APPLY
-            // TODO: multi-arity apply
-            auto args = vm_pop(vm);
-            auto to_apply = vm_pop(vm);
-            if (!is(cons, args)) {
-              vm->error = "bad call to apply. args is not a list.";
-              break;
+      } else {
+        switch(idx) {
+        case 0: { // APPLY
+          // TODO: multi-arity apply
+          auto args = vm_pop(vm);
+          auto to_apply = vm_pop(vm);
+          if (!is(cons, args)) {
+            vm->error = "bad call to apply. args is not a list.";
+            break;
+          }
+          u32 count = 0;
+          do_list(vm, args, [&](Ptr arg){ vm_push(vm, arg); count++; });
+          vm_push(vm, to_apply);
+          argc = count;
+          goto reenter_call;
+        }
+        case 1: { // SEND
+          // dbg("preparing to send... ", idx);
+          vm_interp_prepare_for_send(vm, argc);
+          argc--;
+          goto reenter_call;
+        }
+        case 2: { // SLEEP
+          auto ms = vm_pop(vm); 
+          vm_push(vm, Nil);
+          // dbg("sleeping for ", as(Fixnum, ms));
+          if (!vm_sleep_current_thread(vm, as(Fixnum, ms))) {
+            // if we failed to resume another thread, we are suspended
+            vm->suspended = true;
+            goto exit;
+          } else {
+            // do nothing, we have another thread ready to go
+          }
+          break;
+        }
+        case 3:{ // SEM_WAIT
+          auto semaphore = vm_pop(vm);
+          vm_push(vm, Nil);
+          auto status = semaphore_get_count(semaphore);
+          auto available = false;
+          if (is(Bool, status)) {
+            if (status == True) {
+              available = true;
+              semaphore_set_count(semaphore, False);
             }
-            u32 count = 0;
-            do_list(vm, args, [&](Ptr arg){ vm_push(vm, arg); count++; });
-            vm_push(vm, to_apply);
-            argc = count;
-            goto reenter_call;
-          }
-          case 1: { // SEND
-            // dbg("preparing to send... ", idx);
-            vm_interp_prepare_for_send(vm, argc);
-            argc--;
-            goto reenter_call;
-          }
-          case 2: { // SLEEP
-            auto ms = vm_pop(vm); 
-            vm_push(vm, Nil);
-            // dbg("sleeping for ", as(Fixnum, ms));
-            if (!vm_sleep_current_thread(vm, as(Fixnum, ms))) {
+          } else {
+            auto ct = as(Fixnum, status);
+            // dbg("in semaphore-wait, count is: ", ct);
+            if (ct > 0) {
+              available = true;
+              semaphore_set_count(semaphore, to(Fixnum, ct - 1));
+            }
+          } 
+          if (!available) {
+            vm->pc++;
+            if (!vm_sem_wait_current_thread(vm, semaphore)) {
               // if we failed to resume another thread, we are suspended
               vm->suspended = true;
               goto exit;
             } else {
               // do nothing, we have another thread ready to go
             }
-            break;
           }
-          case 3:{ // SEM_WAIT
-            auto semaphore = vm_pop(vm);
-            vm_push(vm, Nil);
-            auto status = semaphore_get_count(semaphore);
-            auto available = false;
-            if (is(Bool, status)) {
-              if (status == True) {
-                available = true;
-                semaphore_set_count(semaphore, False);
-              }
-            } else {
-              auto ct = as(Fixnum, status);
-              // dbg("in semaphore-wait, count is: ", ct);
-              if (ct > 0) {
-                available = true;
-                semaphore_set_count(semaphore, to(Fixnum, ct - 1));
-              }
-            } 
-            if (!available) {
-              vm->pc++;
-              if (!vm_sem_wait_current_thread(vm, semaphore)) {
-                // if we failed to resume another thread, we are suspended
-                vm->suspended = true;
-                goto exit;
-              } else {
-                // do nothing, we have another thread ready to go
-              }
-            }
-            break;
-          }
-          case 4: { // KILL_THD
-            auto thread = vm_pop(vm);
-            vm_push(vm, Nil);
-            thread_set_status(thread, THREAD_STATUS_DEAD);
-            if (thread == vm->curr_thd->thread) {
-              auto exclusive = params.block_for_initial_thread;
-              // FIXME: the check here should not be needed
-              // if (!exclusive) _vm_unwind_to_root_frame(vm);
-              if (exclusive || !vm_maybe_start_next_thread(vm)) {
-                vm->suspended = true;
-                goto exit;
-              } else {
-              }
-            } else {
-              // FIXME: leak
-              thdq_remove_ptr(vm->threads, thread);
-            }
-            break;
-          }
-          }
-
-        } // end special built-ins
-        NEXT;
-        break; // from CALL
-      }
-
-      if (!is(Closure, fn)) {
-        if (fn == Nil) {
-          vm->error = "value is not a closure";
-        } else {
-          {
-            // rotate fn into first position
-            vm_push(vm, fn);
-            for (auto n = 0; n < argc; n++) {
-              vm->curr_thd->stack[n] = vm->curr_thd->stack[n+1];
-            }
-            vm->curr_thd->stack[argc] = fn;
-          }
-          argc++;
-          vm_push(vm, applicator_for_object(vm, fn));
-          goto reenter_call;
+          break;
         }
+        case 4: { // KILL_THD
+          auto thread = vm_pop(vm);
+          vm_push(vm, Nil);
+          thread_set_status(thread, THREAD_STATUS_DEAD);
+          if (thread == vm->curr_thd->thread) {
+            auto exclusive = params.block_for_initial_thread;
+            // FIXME: the check here should not be needed
+            // if (!exclusive) _vm_unwind_to_root_frame(vm);
+            if (exclusive || !vm_maybe_start_next_thread(vm)) {
+              vm->suspended = true;
+              goto exit;
+            } else {
+            }
+          } else {
+            // FIXME: leak
+            thdq_remove_ptr(vm->threads, thread);
+          }
+          break;
+        }
+        }
+
+      } // end special built-ins
+      NEXT; // exit CALL
+    }
+
+    if (!is(Closure, fn)) {
+      if (fn == Nil) {
+        vm->error = "value is not a closure";
+      } else {
+        {
+          // rotate fn into first position
+          vm_push(vm, fn);
+          for (auto n = 0; n < argc; n++) {
+            vm->curr_thd->stack[n] = vm->curr_thd->stack[n+1];
+          }
+          vm->curr_thd->stack[argc] = fn;
+        }
+        argc++;
+        vm_push(vm, applicator_for_object(vm, fn));
+        goto reenter_call;
+      }
 
 #if GC_DEBUG
-        if (is(BrokenHeart, fn)) {
-          auto other = to(Ptr, gc_forwarding_address(as(Object, fn)));
-          dbg("attempted to call broken heart, fwd:", other);
-        }
+      if (is(BrokenHeart, fn)) {
+        auto other = to(Ptr, gc_forwarding_address(as(Object, fn)));
+        dbg("attempted to call broken heart, fwd:", other);
+      }
 #endif
-        NEXT;
-        break; // from CALL
-      }
-      auto bc = closure_code(fn);
-      if (unlikely(bc->is_varargs)) {
-        prot_ptrs(fn);
-        vm_push(vm, vm_get_stack_values_as_list(vm, argc));
-        unprot_ptrs(fn);
-        bc  = closure_code(fn); // bc may have moved
-        argc = 1;
-      }
-      auto env = closure_env(fn);
-      vm_push_stack_frame(vm, argc, bc, env);
 
-      vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
-      // PC is now -1
+      NEXT; // exit CALL
+    }
 
-      // we choose the end of a CALL as our safe point for ctx switching
-      if (params.thread_switch_instr_budget && ctx_switch_budget <= 0) {
-        // check if we need to poll for events
-        if (params.total_execution_instr_budget &&
-            spent_instructions >= params.total_execution_instr_budget) {
-          // dbg("suspending execution");
-          vm_suspend_current_thread(vm);
-          if (vm->error) { dbg("error suspending: ", vm->error); }
-          // dbg("suspended.");
-          unprot_ptr(init_thread);
-          return;
-        }
+    auto bc = closure_code(fn);
+    if (unlikely(bc->is_varargs)) {
+      prot_ptrs(fn);
+      vm_push(vm, vm_get_stack_values_as_list(vm, argc));
+      unprot_ptrs(fn);
+      bc  = closure_code(fn); // bc may have moved
+      argc = 1;
+    }
+    auto env = closure_env(fn);
+    vm_push_stack_frame(vm, argc, bc, env);
 
-        if (vm_swap_threads(vm)) {
-          counter++;
-        } else {
-          // dbg("did not swap threads. ", vm->threads->size());
-        }
-        ctx_switch_budget = params.thread_switch_instr_budget;
+    vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
+    // PC is now -1
+
+    // we choose the end of a CALL as our safe point for ctx switching
+    if (params.thread_switch_instr_budget && ctx_switch_budget <= 0) {
+      // check if we need to poll for events
+      if (params.total_execution_instr_budget &&
+          spent_instructions >= params.total_execution_instr_budget) {
+        // dbg("suspending execution");
+        vm_suspend_current_thread(vm);
+        if (vm->error) { dbg("error suspending: ", vm->error); }
+        // dbg("suspended.");
+        unprot_ptr(init_thread);
+        return;
       }
 
-      NEXT;
-      break; // from CALL
-    }
-    case RET: {
-      _RET:
-      auto it = vm_pop(vm);
-      vm_pop_stack_frame(vm);
-      // safe as we know there was enough room for a stack frame
-      *(--vm->curr_thd->stack) = it;
-      NEXT;
-      break;
-    }
-    case LOAD_ARG: {
-      _LOAD_ARG:
-      u8 idx = data;
-      auto it = vm_load_arg(vm, idx);
-      vm_push(vm, it);
-      // cout << " loading arg "<< idx << ": " << it << endl;
-      // vm_dump_args(vm);
-      NEXT;
-      break;
-    }
-    case STORE_ARG: {
-      _STORE_ARG:
-      u64 idx = data;
-      auto it = vm_pop(vm);
-      vm_store_arg(vm, idx, it);
-      NEXT;
-      break;
-    }
-    case PUSH_SPECIAL_BINDING: {
-      _PUSH_SPECIAL_BINDING:
-      auto val = vm_pop(vm);
-      auto var = vm_pop(vm);
-      _thread_local_binding_push(vm, var, val);
-      NEXT;
-      break;
-    }
-    case POP_SPECIAL_BINDING: {
-      _POP_SPECIAL_BINDING:
-      _thread_local_binding_pop(vm);
-      NEXT;
-      break;
-    }
-    case LOAD_SPECIAL: {
-      _LOAD_SPECIAL:
-      // assumes it comes after a pushlit of a special symbol
-      *vm->curr_thd->stack = get_special(vm, *vm->curr_thd->stack);
-      NEXT;
-      break;
-    }
-    default:
-      dbg("instr = ", instr, " code = ", (int)code, " data = ", data);
-      dbg("bc = ", vm->curr_thd->bc);
-      dbg("mk = ", vm->curr_thd->frame->mark);
-      vm->error = "unexpected BC";
-      print_stacktrace();
-      exit(1);
-      return;
-    }
-
-    if (vm->error) {
-      if (!vm_handle_error(vm)) {
-        vm->suspended = true;
-        // vm->curr_thread->thread = Nil;
-        goto exit;
+      if (vm_swap_threads(vm)) {
+        counter++;
+      } else {
+        // dbg("did not swap threads. ", vm->threads->size());
       }
+      ctx_switch_budget = params.thread_switch_instr_budget;
     }
 
-    // assert(vm->curr_thread->stack <= vm->curr_thread->stack_start &&
-    //        vm->curr_thread->stack >= vm->curr_thread->stack_end);
-    // assert(vm->curr_thread->frame->argc < 100 && vm->curr_thread->frame->argc >= 0);
-    // _debug_validate_stack(vm);
-    // _debug_validate_background_threads(vm);
-
-    ++vm->pc;
-    // if (vm->curr_thd && vm->curr_thd->frame) { vm->curr_thd->frame->prev_pc = vm->pc; }
+    NEXT;
   }
+
+ _RET: {
+    auto it = vm_pop(vm);
+    vm_pop_stack_frame(vm);
+    // safe as we know there was enough room for a stack frame
+    *(--vm->curr_thd->stack) = it;
+  }
+  NEXT;
+
+ _LOAD_ARG: {
+    u8 idx = data;
+    auto it = vm_load_arg(vm, idx);
+    vm_push(vm, it);
+    // cout << " loading arg "<< idx << ": " << it << endl;
+    // vm_dump_args(vm);
+  }
+  NEXT;
+
+ _STORE_ARG: {
+    u64 idx = data;
+    auto it = vm_pop(vm);
+    vm_store_arg(vm, idx, it);
+  }
+  NEXT;
+
+ _PUSH_SPECIAL_BINDING: {
+    auto val = vm_pop(vm);
+    auto var = vm_pop(vm);
+    _thread_local_binding_push(vm, var, val);
+  }
+  NEXT;
+
+ _POP_SPECIAL_BINDING: {
+    _thread_local_binding_pop(vm);
+  }
+  NEXT;
+
+ _LOAD_SPECIAL: {
+    // assumes it comes after a pushlit of a special symbol
+    *vm->curr_thd->stack = get_special(vm, *vm->curr_thd->stack);
+  }
+  NEXT;
+
+
+  // default:
+  //   dbg("instr = ", instr, " code = ", (int)code, " data = ", data);
+  //   dbg("bc = ", vm->curr_thd->bc);
+  //   dbg("mk = ", vm->curr_thd->frame->mark);
+  //   vm->error = "unexpected BC";
+  //   print_stacktrace();
+  //   exit(1);
+  //   return;
+
+
+  // assert(vm->curr_thread->stack <= vm->curr_thread->stack_start &&
+  //        vm->curr_thread->stack >= vm->curr_thread->stack_end);
+  // assert(vm->curr_thread->frame->argc < 100 && vm->curr_thread->frame->argc >= 0);
+  // _debug_validate_stack(vm);
+
 
  _END:
  exit:

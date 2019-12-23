@@ -1,0 +1,7 @@
+(set '*package* (symbol-package 'define))
+(%load "./boot/1.lisp")
+(let ()
+  (save-snapshot-and-exit "./build/latest.image")
+  (if (> (length *command-line-args*) 2)
+      (binding ((*package* %user-package))
+        (load-as "script" (third *command-line-args*)))))

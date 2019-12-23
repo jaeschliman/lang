@@ -5605,6 +5605,40 @@ auto INTERP_PARAMS_MAIN_EVENT_HANDLER = (interp_params){CTX_SWITCH,RUN_AWHILE, f
 auto INTERP_PARAMS_EVAL = (interp_params){CTX_SWITCH,RUN_INDEFINITELY,true};
 
 void vm_interp(VM* vm, interp_params params) {
+  void *jump_table[] = {
+                         && _END,
+                         && _RET                  ,
+                         && _PUSHLIT              ,
+                         && _POP                  ,
+                         && _BR_IF_ZERO           ,
+                         && _BR_IF_NOT_ZERO       ,
+                         && _DUP                  ,
+                         && _SWAP                 ,
+                         && _CALL                 ,
+                         && _TAIL_CALL            ,
+                         && _LOAD_ARG             ,
+                         && _STORE_ARG            ,
+                         && _LOAD_GLOBAL          ,
+                         && _LOAD_SPECIAL         ,
+                         && _LOAD_CLOSURE         ,
+                         && _STORE_CLOSURE        ,
+                         && _BUILD_CLOSURE        ,
+                         && _SAVE_CLOSURE_ENV     ,
+                         && _RESTORE_CLOSURE_ENV  ,
+                         && _PUSH_CLOSURE_ENV     ,
+                         && _BR_IF_False          ,
+                         && _JUMP                 ,
+                         && _PUSH_JUMP            ,
+                         && _POP_JUMP             ,
+                         && _STACK_RESERVE        ,
+                         && _LOAD_FRAME_RELATIVE  ,
+                         && _STORE_FRAME_RELATIVE ,
+                         && _POP_CLOSURE_ENV      ,
+                         && _PUSH_SPECIAL_BINDING ,
+                         && _POP_SPECIAL_BINDING  ,
+                         && _LOAD_GLOBAL_AT_IDX   
+  };
+
   auto counter = 0;
   auto init_thread = vm->curr_thd->thread; prot_ptr(init_thread);
   u16 instr; u8 code; u8 data;
@@ -5618,79 +5652,121 @@ void vm_interp(VM* vm, interp_params params) {
 
   vm->suspended = false;
 
+#define NEXT                                    \
+  if (vm->error) {                              \
+    if (!vm_handle_error(vm)) {                 \
+      vm->suspended = true;                     \
+      goto exit;                                \
+    }                                           \
+  }                                             \
+  vm->pc++;                                     \
+  instr = vm_curr_instr(vm);                    \
+  vm->instruction_count++;                      \
+  spent_instructions++;                         \
+  ctx_switch_budget--;                          \
+  code = instr_code(instr);                     \
+  data = instr_data(instr);                     \
+  goto *jump_table[code];
+
   while ((instr = vm_curr_instr(vm))) {
     vm->instruction_count++;
     spent_instructions++;
     ctx_switch_budget--;
     code = instr_code(instr);
     data = instr_data(instr);
+    goto *jump_table[code];
 
     switch (code){
     case STACK_RESERVE: {
+      _STACK_RESERVE:
       u64 count = vm_adv_instr(vm);
       vm_stack_reserve_n(vm, count);
+      NEXT;
       break;
     }
     case LOAD_FRAME_RELATIVE: {
+      _LOAD_FRAME_RELATIVE:
       u32 idx = data;
-      if (unlikely(idx == 255)) idx = vm_adv_instr(vm);
+      maybe_advance_idx(idx);
       Ptr *stack_bottom = ((Ptr *)(void *)vm->curr_frame) - 1;
       check(stack_bottom - idx >= vm->curr_thd->stack);
       vm_push(vm, *(stack_bottom - idx));
+      NEXT;
       break;
     }
     case STORE_FRAME_RELATIVE: {
+      _STORE_FRAME_RELATIVE:
       u32 idx = data;
-      if (unlikely(idx == 255)) idx = vm_adv_instr(vm);
+      maybe_advance_idx(idx);
       Ptr it = vm_pop(vm);
       Ptr *stack_bottom = ((Ptr *)(void *)vm->curr_frame) - 1;
       *(stack_bottom - idx) = it;
+      NEXT;
       break;
     }
     case POP:
+      _POP:
       vm_pop(vm);
       break;
     case PUSHLIT: {
+      _PUSHLIT:
       u32 idx = data;
-      if (unlikely(idx == 255)) idx = vm_adv_instr(vm);
+      maybe_advance_idx(idx);
       Ptr it = vm->curr_lits[idx];
       vm_push(vm, it);
+      NEXT;
       break;
     }
     case LOAD_GLOBAL: {
+      _LOAD_GLOBAL:
       // assumes it comes after a pushlit of a symbol
       *vm->curr_thd->stack = get_global(vm, *vm->curr_thd->stack);
+      NEXT;
       break;
     }
     case LOAD_GLOBAL_AT_IDX: {
-      auto idx = data;
-      if (unlikely(idx == 255)) idx = vm_adv_instr(vm);
+      _LOAD_GLOBAL_AT_IDX:
+      u32 idx = data;
+      maybe_advance_idx(idx);
       Ptr it = vm->curr_lits[idx];
-      vm_push(vm, Symbol_get_value(it));
+      auto sym_data = ((PtrArrayObject *)(void *)(it.value & EXTRACT_PTR_MASK))->data;
+      auto flags = sym_data[4].value;
+      bool bound = flags & 0b10000;
+      const char *errors[2] = { "symbol is unbound", 0 };
+      vm->error = errors[(int)bound];
+      vm_push(vm, sym_data[3]);
+      NEXT;
       break;
     }
     case LOAD_CLOSURE: {
+      _LOAD_CLOSURE:
       u64 slot  = vm_adv_instr(vm);
       u64 depth = vm_adv_instr(vm);
       auto it = vm_load_closure_value(vm, slot, depth);
       vm_push(vm, it);
+      NEXT;
       break;
     }
     case STORE_CLOSURE: {
+      _STORE_CLOSURE:
       u64 slot  = vm_adv_instr(vm);
       u64 depth = vm_adv_instr(vm);
       auto value = vm_pop(vm);
       vm_store_closure_value(vm, slot, depth, value);
+      NEXT;
       break;
     }
     case BUILD_CLOSURE: {
+      _BUILD_CLOSURE:
       auto lambda = vm_peek(vm);
       auto array = vm->curr_frame->closed_over;
       auto closure = make_closure(vm, lambda, array);
       vm_unsafe_store(vm, closure);
+      NEXT;
       break;
     }
     case SAVE_CLOSURE_ENV: {
+      _SAVE_CLOSURE_ENV:
       s64 count = vm_adv_instr(vm);
       // dbg("SAVE: ", count);
       auto top = vm->curr_frame->closed_over;
@@ -5698,14 +5774,18 @@ void vm_interp(VM* vm, interp_params params) {
       while (count--) {
         vm->curr_frame->closed_over = array_get(vm->curr_frame->closed_over, 0);
       }
+      NEXT;
       break;
     }
     case RESTORE_CLOSURE_ENV: {
+      _RESTORE_CLOSURE_ENV:
       vm->curr_frame->closed_over = vm_pop(vm);
       // dbg("RESTORE: ", vm->curr_frame->closed_over);
+      NEXT;
       break;
     }
     case PUSH_CLOSURE_ENV: {
+      _PUSH_CLOSURE_ENV:
       u32 count = vm_adv_instr(vm);
       auto a = alloc_closure_env(vm, count);
       auto d = a->data;
@@ -5715,9 +5795,11 @@ void vm_interp(VM* vm, interp_params params) {
         d[count] = vm_pop(vm);
       }
       vm->curr_frame->closed_over = to(Ptr, a);
+      NEXT;
       break;
     }
     case POP_CLOSURE_ENV: {
+      _POP_CLOSURE_ENV:
       auto curr = vm->curr_frame->closed_over;
       if (isNil(curr)) {
         vm->error = "cannot pop null closure env ";
@@ -5725,67 +5807,86 @@ void vm_interp(VM* vm, interp_params params) {
         auto prev = array_get(curr, 0);
         vm->curr_frame->closed_over = prev;
       }
+      NEXT;
       break;
     }
     case BR_IF_ZERO: {
+      _BR_IF_ZERO:
       auto it = vm_pop(vm);
       s64 jump = vm_adv_instr(vm);
       if ((u64)it.value == 0) {
         vm->pc = jump - 1; //-1 to acct for pc advancing
       }
+      NEXT;
       break;
     }
     case BR_IF_NOT_ZERO: {
+      _BR_IF_NOT_ZERO:
       auto it = vm_pop(vm);
       s64 jump = vm_adv_instr(vm);
       if ((u64)it.value != 0) {
         vm->pc = jump - 1; //-1 to acct for pc advancing
       }
+      NEXT;
       break;
     }
     case BR_IF_False: {
+      _BR_IF_False:
       auto it = vm_pop(vm);
       s64 jump = vm_adv_instr(vm);
       if (ptr_eq(it, False)) {
         vm->pc = jump - 1; //-1 to acct for pc advancing
       }
+      NEXT;
       break;
     }
     case JUMP: {
+      _JUMP:
       s64 jump = vm_adv_instr(vm);
       vm->pc = jump - 1; //-1 to acct for pc advancing
+      NEXT;
       break;
     }
     case PUSH_JUMP: {
+      _PUSH_JUMP:
       s64 jump = vm_adv_instr(vm);
       // dbg("PUSH_JUMP: ", jump);
       vm_push(vm,to(Fixnum, jump));
+      NEXT;
       break;
     }
     case POP_JUMP: {
+      _POP_JUMP:
       s64 jump = from(Fixnum, vm_pop(vm));
       // dbg("POP JUMP: ", jump);
       vm->pc = jump - 1; //-1 to acct for pc advancing
+      NEXT;
       break;
     }
     case DUP: {
+      _DUP:
       auto it = vm_peek(vm);
       vm_push(vm, it);
+      NEXT;
       break;
     }
     case SWAP: {
+      _SWAP:
       auto a = vm_pop(vm);
       auto b = vm_pop(vm);
       vm_push(vm, a);
       vm_push(vm, b);
+      NEXT;
       break;
     }
     case TAIL_CALL: {
+      _TAIL_CALL:
       u32 argc = data;
       vm_prepare_for_tail_call(vm, argc);
       // fallthrough
     }
     case CALL: {
+      _CALL:
       u32 argc = data;
       reenter_call:
       auto fn = vm_pop(vm);
@@ -5793,10 +5894,20 @@ void vm_interp(VM* vm, interp_params params) {
         u64 v = fn.value;
         // TODO: validate argc against prim op
         // auto argc = (v >> 16) & 0xFF;
-        auto idx  = (v >> 32) & 0xFFFF;
-        auto is_builtin = !(idx & ~0b111);
+        auto idx  = (v >> 32);// & 0xFFFF;
+        auto not_builtin = (idx & ~0b111);
 
-        if (is_builtin) {
+        if (likely(not_builtin)) {
+          // cerr << " calling prim at idx: " << idx << " arg count = " << argc << endl;
+#if PRIM_USE_GIANT_SWITCH
+          vm_push(vm, giant_switch(vm, argc, idx));
+#else
+          PrimitiveFunction fn = PrimLookupTable[idx];
+          Ptr result = (*fn)(vm, argc);
+          // safe as we know function was previously there.
+          *(--vm->curr_thd->stack) = result;
+#endif
+        } else {
           switch(idx) {
           case 0: { // APPLY
             // TODO: multi-arity apply
@@ -5882,18 +5993,8 @@ void vm_interp(VM* vm, interp_params params) {
           }
           }
 
-          break; // from CALL
         } // end special built-ins
-
-        // cerr << " calling prim at idx: " << idx << " arg count = " << argc << endl;
-#if PRIM_USE_GIANT_SWITCH
-        vm_push(vm, giant_switch(vm, argc, idx));
-#else
-        PrimitiveFunction fn = PrimLookupTable[idx];
-        Ptr result = (*fn)(vm, argc);
-        // safe as we know function was previously there.
-        *(--vm->curr_thd->stack) = result;
-#endif
+        NEXT;
         break; // from CALL
       }
 
@@ -5920,20 +6021,19 @@ void vm_interp(VM* vm, interp_params params) {
           dbg("attempted to call broken heart, fwd:", other);
         }
 #endif
-        break;
+        NEXT;
+        break; // from CALL
       }
       auto bc = closure_code(fn);
       if (unlikely(bc->is_varargs)) {
         prot_ptrs(fn);
         vm_push(vm, vm_get_stack_values_as_list(vm, argc));
         unprot_ptrs(fn);
-        auto bc  = closure_code(fn); // bc may have moved
-        auto env = closure_env(fn);
-        vm_push_stack_frame(vm, 1, bc, env);
-      } else {
-        auto env = closure_env(fn);
-        vm_push_stack_frame(vm, argc, bc, env);
+        bc  = closure_code(fn); // bc may have moved
+        argc = 1;
       }
+      auto env = closure_env(fn);
+      vm_push_stack_frame(vm, argc, bc, env);
 
       vm->pc--; // or, could insert a NOOP at start of each fn... (or continue)
       // PC is now -1
@@ -5959,42 +6059,55 @@ void vm_interp(VM* vm, interp_params params) {
         ctx_switch_budget = params.thread_switch_instr_budget;
       }
 
-      break;
+      NEXT;
+      break; // from CALL
     }
     case RET: {
+      _RET:
       auto it = vm_pop(vm);
       vm_pop_stack_frame(vm);
       // safe as we know there was enough room for a stack frame
       *(--vm->curr_thd->stack) = it;
+      NEXT;
       break;
     }
     case LOAD_ARG: {
+      _LOAD_ARG:
       u8 idx = data;
       auto it = vm_load_arg(vm, idx);
       vm_push(vm, it);
       // cout << " loading arg "<< idx << ": " << it << endl;
       // vm_dump_args(vm);
+      NEXT;
       break;
     }
     case STORE_ARG: {
+      _STORE_ARG:
       u64 idx = data;
       auto it = vm_pop(vm);
       vm_store_arg(vm, idx, it);
+      NEXT;
       break;
     }
     case PUSH_SPECIAL_BINDING: {
+      _PUSH_SPECIAL_BINDING:
       auto val = vm_pop(vm);
       auto var = vm_pop(vm);
       _thread_local_binding_push(vm, var, val);
+      NEXT;
       break;
     }
     case POP_SPECIAL_BINDING: {
+      _POP_SPECIAL_BINDING:
       _thread_local_binding_pop(vm);
+      NEXT;
       break;
     }
     case LOAD_SPECIAL: {
+      _LOAD_SPECIAL:
       // assumes it comes after a pushlit of a special symbol
       *vm->curr_thd->stack = get_special(vm, *vm->curr_thd->stack);
+      NEXT;
       break;
     }
     default:
@@ -6025,6 +6138,7 @@ void vm_interp(VM* vm, interp_params params) {
     // if (vm->curr_thd && vm->curr_thd->frame) { vm->curr_thd->frame->prev_pc = vm->pc; }
   }
 
+ _END:
  exit:
 
   // should ONLY be used by our EVAL, (not userspace one)

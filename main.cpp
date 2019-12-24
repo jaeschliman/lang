@@ -596,6 +596,7 @@ struct VM {
   #if STATS
   stats *stats;
   #endif
+  ByteCodeObject *empty_bytecode;
 };
 
 // ----------------------------------------
@@ -3089,6 +3090,12 @@ void gc_update_base_class(VM *vm, StandardObject **it) {
 void gc_update_globals(VM *vm) {
   gc_update_ptr(vm, &vm->globals->call1);
   gc_update_ptr(vm, &vm->globals->lang_package);
+
+  if (vm->empty_bytecode) {
+    auto p = to(Ptr, vm->empty_bytecode);
+    gc_update_ptr(vm, &p);
+    vm->empty_bytecode = as(ByteCode, p);
+  }
 
 #define X(...) MAP(handle_class, __VA_ARGS__)
 #include "./primitive-classes.include"
@@ -6452,10 +6459,13 @@ public:
 };
 
 ByteCodeObject *make_empty_bytecode(VM *vm){
-  auto builder = new BCBuilder(vm);
-  auto result = builder->build();
-  delete builder;
-  return result;
+  if (!vm->empty_bytecode) {
+    auto builder = new BCBuilder(vm);
+    auto result = builder->build();
+    delete builder;
+    vm->empty_bytecode = result;
+  }
+  return vm->empty_bytecode;
 }
 
 

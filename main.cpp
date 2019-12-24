@@ -185,14 +185,24 @@ void _print_debug_stacktrace(thread_ctx *thd);
 struct thdq_node { thread_ctx *val;  thdq_node *next; };
 struct thdq { thdq_node *front, *back; thdq_node *free_list;  s64 count; };
 
+void thdq_grow_free_list(thdq *q) {
+  auto count = 1000;
+  auto nodes = (thdq_node *)calloc(sizeof(thdq_node), count);
+  for (auto i = 0; i < count - 1; i++) {
+    nodes[i].next = nodes + i + 1;
+  }
+  nodes[count - 1].next = q->free_list;
+  q->free_list = nodes;
+}
+
 thdq_node *thdq_get_node(thdq *q) {
   if (q->free_list) {
     auto res = q->free_list;
     q->free_list = q->free_list->next;
     return res;
   }
-  auto result = (thdq_node *)calloc(sizeof(thdq_node), 1);
-  return result;
+  thdq_grow_free_list(q);
+  return thdq_get_node(q);
 }
 
 void thdq_push(thdq *q, thdq_node *n) {

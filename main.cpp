@@ -6195,9 +6195,10 @@ private:
   Ptr name;
 
   void _reserveInstruction() {
-    if (bc_index - 1 >= bc_capacity) {
+    if (bc_index + 1 >= bc_capacity) {
       bc_capacity *= 2;
       bc_mem = (u16 *)realloc(bc_mem, bc_capacity * sizeof(u16));
+      temp_count = &bc_mem[1];
     }
   }
   // FIXME: audit all uses of pushPair
@@ -6299,7 +6300,7 @@ public:
     prot_ptr(this->name);
 
     pushOp(STACK_RESERVE);
-    temp_count = &bc_mem[bc_index];
+    temp_count = &bc_mem[1];
     pushU16(0);
     assert(*temp_count == 0);
   }

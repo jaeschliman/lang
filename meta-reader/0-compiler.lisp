@@ -400,11 +400,10 @@
          (if (failure? result) (next (state+result _state_ '())) (next result)))))
 
 (define-compile (* state args next)
-    `(let ((run1 (lambda (state) ,(compile-rule (car args) 'state 'identity))))
-       (let loop ((last-state (state+result ,state '())))
-            (let ((r (run1 last-state)))
-              (if (failure? r) (,next (state-reverse-result last-state))
-                  (loop (state-cons r last-state)))))))
+    `(let loop ((last-state (state+result ,state '())))
+          (let ((r ,(compile-rule (car args) 'last-state 'identity)))
+            (if (failure? r) (,next (state-reverse-result last-state))
+                (loop (state-cons r last-state))))))
 
 (define-compile (+ state args next)
     `(let loop ((last-state ,state)

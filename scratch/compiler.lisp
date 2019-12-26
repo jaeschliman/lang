@@ -1,5 +1,11 @@
 (define (ensure-list x) (if (or (nil? x) (pair? x)) x (list x)))
 
+(defmacro prog1 (result-form & body)
+  (let ((r (gensym)))
+    `(let ((,r ,result-form))
+       ,@body
+       ,r)))
+
 (defmacro define-bytecodes (& codes)
   (let ((counter -1))
     `(let ()
@@ -197,17 +203,17 @@
 (define (agg-items agg) (reverse-list (iget agg 'list)))
 
 (define (agg-push agg it)
-  (iset agg 'count (+ 1 (iget agg 'count)))
+  (iset agg 'count (+i 1 (iget agg 'count)))
   (iset agg 'list (cons it (iget agg 'list))))
 
 (define (agg-push-uniq agg it)
   (let loop ((idx (-i (agg-count agg) 1)) (rem (iget agg 'list)))
        (if (nil? rem)
-           (let () (agg-push agg it) (-i (agg-count agg) 1))
+           (prog1 (agg-count agg) (agg-push agg it))
            (if (eq it (car rem)) idx
                (loop (-i idx 1) (cdr rem))))))
 
-(define (emit-u16 it) (agg-push *code* it) (- (agg-count *code*) 1))
+(define (emit-u16 it) (prog1 (agg-count *code*) (agg-push *code* it)))
 (define (emit-lit it) (agg-push-uniq *lits* it))
 (define (emit-pair a b) (emit-u16 (bit-or (ash b 8) a)))
 
@@ -227,9 +233,8 @@
   (save-jump-location label))
 
 (define (reserve-tmps count)
-  (let ((r *tmp-count*))
-    (set '*tmp-count* (+ count *tmp-count*))
-    r))
+  (prog1 *tmp-count*
+    (set '*tmp-count* (+ count *tmp-count*))))
 
 (define (store-tmp idx) (emit-pair STORE_FRAME_RELATIVE idx))
 (define (load-tmp idx)  (emit-pair LOAD_FRAME_RELATIVE idx))
@@ -259,13 +264,13 @@
 (define (finalize-bytecode name varargs)
   (let ((code (make-array-u16 (agg-count *code*)))
         (lits (make-array (agg-count *lits*))))
-    (let ((i -1))
-      (dolist (it (agg-items *code*))
-        (set! i (+ 1 i))
+    (let ((i (agg-count *code*)))
+      (dolist (it (iget *code* 'list))
+        (set! i (-i i 1))
         (aset-u16 code i it)))
-    (let ((i -1))
-      (dolist (it (agg-items *lits*))
-        (set! i (+ 1 i))
+    (let ((i (agg-count *lits*)))
+      (dolist (it (iget *lits* 'list))
+        (set! i (- i 1))
         (aset lits i it)))
     (fixup-jump-locations code)
     (aset-u16 code 1 *tmp-count*)
@@ -505,14 +510,16 @@
       *binding-name*))
 
 (define (emit-body it env)
-  (let ((last (- (length it) 1))
-        (idx 0))
-    (emit-pair PUSHLIT (emit-lit '()))
-    (dolist (e it)
-      (emit-u16 POP)
-      (binding ((*tail-position* (and *tail-position* (= idx last))))
-        (emit-expr e env))
-      (set! idx (+ 1 idx)))))
+  (if (nil? it)
+      (emit-pair PUSHLIT (emit-lit '()))
+      (let ((last (- (length it) 1))
+            (idx 0))
+        (dolist (e it)
+          (binding ((*tail-position* (and *tail-position* (eq idx last))))
+            (emit-expr e env))
+          (unless (eq idx last)
+            (emit-u16 POP))
+          (set! idx (+i 1 idx))))))
 
 (define (emit-let it env &opt (binds (cadr it)) (body (cddr it)))
   (cond
@@ -532,15 +539,15 @@
                     ;; do nothing
                     (inline)
                     (local
-                     (store-tmp (+ idx start))
-                     (expr-set-meta sym 'index (+ idx start)))
+                     (store-tmp (+i idx start))
+                     (expr-set-meta sym 'index (+i idx start)))
                     (closure
                      ;; leave on stack to be picked up by push-closure
                      (expr-set-meta sym 'closure-index closure-idx)
                      (set! closure-idx (+ 1 closure-idx)))))
-                (set! idx (+ 1 idx))))
+                (set! idx (+i 1 idx))))
             (with-expression-context (body)
-              (binding ((*closure-depth* (+ (if closed? 1 0) *closure-depth*)))
+              (binding ((*closure-depth* (+i (if closed? 1 0) *closure-depth*)))
                 (when closed? (push-closure closure-idx))
                 (emit-body body env)
                 (when closed? (pop-closure)))))))))

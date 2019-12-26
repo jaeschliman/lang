@@ -229,6 +229,8 @@
   (cons (append (xf-vars a) (xf-vars b))
         (append (xf-form a) (xf-form b))))
 
+(define (xf-primary-form a) (car (xf-form a)))
+
 (forward xf-rule)
 (define xf-acc (lambda (acc r) (xf+ acc (xf-rule r))))
 
@@ -237,8 +239,8 @@
           (xf-vars xf)))
 
 (define (xf-un-xf xf)
-  (if (nil? (xf-vars xf)) (car (xf-form xf))
-      `(let ,(xf-un-vars xf) ,(car (xf-form xf)))))
+  (if (nil? (xf-vars xf)) (xf-primary-form xf)
+      `(let ,(xf-un-vars xf) ,(xf-primary-form xf))))
 
 (define (xf-rule-body b)
   (reduce-list xf-acc (cons '() '()) b))
@@ -251,14 +253,14 @@
 (define (xf-pass-thru r)
   (let ((xf (xf-rule-body (cdr r))))
     (cons (car xf)
-          (list (cons (car r) (cdr xf))))))
+          (list (cons (car r) (xf-form xf))))))
 
 (define (xf-transform-set! r)
   (let* ((var (second r))
          (body (third r))
          (xf  (xf-rule body))
          (vars (cons var (xf-vars xf)))
-         (new-body (first (xf-form xf))))
+         (new-body (xf-primary-form xf)))
     (cons vars (list `(set! ,var ,new-body)))))
 
 (define (xf-ignore r)

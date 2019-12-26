@@ -3592,7 +3592,6 @@ bool ht_contains(Ptr ht, Ptr key) {
       auto pair = car(cons);
       auto it = car(pair);
       if (is(String, it) && hash_code(it) == hash) return true;
-      else if (it == key) return true;
       cons = cdr(cons);
     }
   } else {

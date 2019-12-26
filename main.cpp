@@ -6209,7 +6209,7 @@ void vm_interp(VM* vm, interp_params params) {
 #undef vm_adv_instr
 
 
-typedef std::tuple<u16*, string> branch_entry;
+typedef std::tuple<u32, string> branch_entry;
 
 class BCBuilder {
 private:
@@ -6254,8 +6254,8 @@ private:
     bc_mem[bc_index++] = it;
     return this;
   }
-  u16* pushEmptyRef() {
-    auto location = bc_mem + bc_index;
+  u32 pushEmptyRef() {
+    auto location = bc_index;
     pushU16(0);
     return location;
   }
@@ -6274,7 +6274,7 @@ private:
     auto skip_stack = *temp_count == 0;
     auto offset = skip_stack ? -2 : 0;
     for (branch_entry it : *branchLocations) {
-      auto loc = std::get<0>(it);
+      auto loc = bc_mem + std::get<0>(it);
       auto lbl = std::get<1>(it);
       auto tgt = (*labelsMap)[lbl] + offset;
       *loc = tgt;

@@ -5755,10 +5755,13 @@ void vm_interp(VM* vm, interp_params params) {
   NEXT;
 
  _BUILD_CLOSURE: {
+    auto it = alloc_pao(vm, Closure, 2);
+    set_obj_tag(it, Closure);
     auto lambda = vm_peek(vm);
     auto array = vm->curr_frame->closed_over;
-    auto closure = make_closure(vm, lambda, array);
-    vm_unsafe_store(vm, closure);
+    it->data[0] = lambda;
+    it->data[1] = array;
+    vm_unsafe_store(vm, to(Ptr, it));
   }
   NEXT;
 

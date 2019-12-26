@@ -201,12 +201,11 @@
   (iset agg 'list (cons it (iget agg 'list))))
 
 (define (agg-push-uniq agg it)
-  (let ((items (agg-items agg)))
-    (let loop ((idx 0) (rem items))
-         (if (nil? rem)
-             (let () (agg-push agg it) (- (agg-count agg) 1))
-             (if (eq it (car rem)) idx
-                 (loop (+ 1 idx) (cdr rem)))))))
+  (let loop ((idx (-i (agg-count agg) 1)) (rem (iget agg 'list)))
+       (if (nil? rem)
+           (let () (agg-push agg it) (-i (agg-count agg) 1))
+           (if (eq it (car rem)) idx
+               (loop (-i idx 1) (cdr rem))))))
 
 (define (emit-u16 it) (agg-push *code* it) (- (agg-count *code*) 1))
 (define (emit-lit it) (agg-push-uniq *lits* it))

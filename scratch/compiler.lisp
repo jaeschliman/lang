@@ -636,7 +636,7 @@
       (store-tmp idx))
     ;; prepare closure depth for inlined env
     (when closed?
-      (when (and (not self-call?) (> closure-diff 0))
+      (when (and (not self-call?) (>i closure-diff 0))
         (emit-u16 SAVE_CLOSURE_ENV)
         (emit-u16 closure-diff))
       (when self-call?
@@ -652,7 +652,7 @@
       ;; write return label
       (label return-label))
     ;; restore closure (now beneath call's return value)
-    (when (and closed? (not self-call?) (> closure-diff 0))
+    (when (and closed? (not self-call?) (>i closure-diff 0))
       (emit-u16 SWAP)
       (emit-u16 RESTORE_CLOSURE_ENV))))
 
@@ -803,7 +803,7 @@
      (binding ((*tail-position* #f))
        ;; (print `(jumping to start: ,it))
        (let* ((idx 0)
-              (closed? (> *closure-depth* 1))
+              (closed? (>i *closure-depth* 1))
               (bound-form
                (if (nil? (expr-meta (car it) 'type))
                    ;; XXX hack this is nasty
@@ -903,10 +903,9 @@
                    (binding ((*toplevel-form* expanded))
                      (analyse-forms expanded)
                      (when *trace-eval* (print `(emitting bytecode)))
-                     (XX
-                      (bytecode->closure (with-output-to-bytecode ()
-                                           (with-expression-context (expanded)
-                                             (emit-expr expanded '())))))))))
+                     (bytecode->closure (with-output-to-bytecode ()
+                                          (with-expression-context (expanded)
+                                            (emit-expr expanded '()))))))))
       (when *trace-eval* (print `(evaluating: ,thunk)))
       (thunk))))
 

@@ -251,9 +251,11 @@
       toplevel-rule))
 
 (define (xf-pass-thru r)
-  (let ((xf (xf-rule-body (cdr r))))
-    (cons (car xf)
-          (list (cons (car r) (xf-form xf))))))
+  (let* ((rule-head (car r))
+         (rule-body (cdr r))
+         (xf (xf-rule-body rule-body)))
+    (cons (xf-vars xf)
+          (list (cons rule-head (xf-form xf))))))
 
 (define (xf-transform-set! r)
   (let* ((var (second r))
@@ -269,7 +271,7 @@
 (define (xf-rule r)
   (if (pair? r)
       (case (car r)
-        (or     (cons '() (list (cons 'or (mapcar xf-tl (cdr r))))))
+        (or     (xf-ignore (cons 'or (mapcar xf-tl (cdr r)))))
         (set!   (xf-transform-set! r))
         (seq    (xf-pass-thru r))
         (*      (xf-pass-thru r))

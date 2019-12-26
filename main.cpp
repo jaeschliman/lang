@@ -6327,16 +6327,18 @@ public:
     is_varargs = true;
     return this;
   }
-  auto pushLit(Ptr literal) {
+  s64 emitLit(Ptr literal) {
     auto literals = to(Ptr, this->literals);
     auto idx = xarray_index_of(literals, literal);
     if (idx == -1) {
       xarray_push(vm, literals, literal);
-      pushPair(PUSHLIT, lit_index);
-      lit_index++;
+      return lit_index++;
     } else {
-      pushPair(PUSHLIT, idx);
+      return idx;
     }
+  }
+  auto pushLit(Ptr literal) {
+    pushPair(PUSHLIT, emitLit(literal));
     return this;
   }
   auto loadFrameRel(u16 idx) {
@@ -6414,8 +6416,7 @@ public:
     if (!boundp(vm, sym)) { 
       die(sym, " is not defined in the global environment.");
     }
-    pushLit(sym);
-    pushOp(LOAD_GLOBAL);
+    pushPair(LOAD_GLOBAL_AT_IDX, emitLit(sym));
     return this;
   }
   auto loadSpecial(Ptr sym) {

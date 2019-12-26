@@ -393,6 +393,7 @@ bool object_has_custom_class(Object *obj) {
 }
 
 #define set_obj_tag(obj,name) object_set_custom_class(obj, BuiltinClassIndex_##name)
+#define has_obj_tag(obj,name) ((obj->header.custom_class & 0b01111111) == BuiltinClassIndex_##name)
 
 
 struct VM;
@@ -2220,7 +2221,7 @@ inline Ptr make_closure(VM *vm, Ptr code, Ptr env) { prot_ptrs(code, env);
 }
 
 type_test(Closure, it) {
-  return is(PtrArray, it) && (as(PtrArray, it))->pao_type == Closure;
+  return is(NonNilObject, it) && has_obj_tag(as(Object, it), Closure);
 }
 
 ByteCodeObject *closure_code(Ptr closure) {

@@ -1587,9 +1587,14 @@ inline Ptr aset(U16ArrayObject *a, u64 index, s64 value) {
   return Nil;
 }
 
-u64 array_capacity(Ptr array) {
+inline u64 array_capacity(Ptr array) {
   auto a = as(PtrArray, array);
   return a->length;
+}
+
+Ptr* array_memory(Ptr array) {
+  auto a = as(PtrArray, array);
+  return a->data;
 }
 
 PtrArrayObject *array_from_string(VM *vm, ByteArrayObject *str) { gc_protect(str);
@@ -3536,17 +3541,17 @@ Ptr make_vector_from_list(VM *vm, Ptr lst) { prot_ptr(lst);
 /* ---------------------------------------- */
 
 Ptr ht(VM *vm) {
-  return make_ht(vm, make_xarray_with_capacity_and_used(vm, 16, 16), False, FIXNUM(0));
+  return make_ht(vm, make_zf_array(vm, 16), False, FIXNUM(0));
 }
 Ptr string_table(VM *vm) {
-  return make_ht(vm, make_xarray_with_capacity_and_used(vm, 64, 64), True, FIXNUM(0));
+  return make_ht(vm, make_zf_array(vm, 64), True, FIXNUM(0));
 }
 
 Ptr ht_at(Ptr ht, Ptr key) {
   auto strs  = ht_get_dedupe_strings(ht) == True && is(String, key); 
   auto array = ht_get_array(ht);
-  auto used  = xarray_used(array);
-  auto mem   = xarray_memory(array);
+  auto used  = array_capacity(array);
+  auto mem   = array_memory(array);
   auto hash  = hash_code(key);
   auto idx   = hash % used;
   check(idx < used); //:P
@@ -3571,12 +3576,41 @@ Ptr ht_at(Ptr ht, Ptr key) {
   return Nil;
 }
 
+bool ht_contains(Ptr ht, Ptr key) {
+  auto strs  = ht_get_dedupe_strings(ht) == True && is(String, key); 
+  auto array = ht_get_array(ht);
+  auto used  = array_capacity(array);
+  auto mem   = array_memory(array);
+  auto hash  = hash_code(key);
+  auto idx   = hash % used;
+  check(idx < used); //:P
+  if (!mem[idx].value) return false;
+  auto cons = mem[idx];
+
+  if (strs) {
+    while (!isNil(cons)) {
+      auto pair = car(cons);
+      auto it = car(pair);
+      if (is(String, it) && hash_code(it) == hash) return true;
+      else if (it == key) return true;
+      cons = cdr(cons);
+    }
+  } else {
+    while (!isNil(cons)) {
+      auto pair = car(cons);
+      if (car(pair) == key) return true;
+      cons = cdr(cons);
+    }
+  }
+  return false;
+}
+
 Ptr ht_listed_entries(VM *vm, Ptr ht) { prot_ptr(ht);
   auto result = Nil;
   auto array = ht_get_array(ht);        prot_ptr(array); 
-  auto count = xarray_used(array);
+  auto count = array_capacity(array);
   for (auto i = 0; i < count; i++) {
-    auto it = xarray_at(array, i);
+    auto it = array_get(array, i);
     if (it.value) {
       result = cons(vm, it, result);
     }
@@ -3590,8 +3624,8 @@ Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value);
 void ht_grow(VM *vm, Ptr ht) {              prot_ptr(ht);
   auto entries = ht_listed_entries(vm, ht); prot_ptr(entries);
   auto array = ht_get_array(ht); 
-  auto new_size = xarray_capacity(array) * 2;
-  auto new_storage = make_xarray_with_capacity_and_used(vm, new_size, new_size);
+  auto new_size = array_capacity(array) * 2;
+  auto new_storage = make_zf_array(vm, new_size);
   ht_set_array(ht, new_storage);
   do_list(vm, entries, [&](Ptr assoc_list) {
       do_list(vm, assoc_list, [&](Ptr pair) {
@@ -3605,10 +3639,11 @@ Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
   auto count = from(Fixnum, ht_get_count(ht));
   auto strs  = ht_get_dedupe_strings(ht) == True && is(String, key); 
   auto array = ht_get_array(ht); 
+  auto used  = array_capacity(array);
   auto load_factor = 0.8; // just a guess, can be tweaked
 
   u64 new_size = count + 1;
-  if (new_size >= xarray_capacity(array) * load_factor) {
+  if (new_size >= used * load_factor) {
     prot_ptr(ht);
     ht_grow(vm, ht);
     unprot_ptrs(ht, key, value);
@@ -3617,8 +3652,7 @@ Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
 
   prot_ptr(array);
 
-  auto used  = xarray_used(array);
-  auto mem   = xarray_memory(array);
+  auto mem   = array_memory(array);
   auto hash  = hash_code(key);
   auto idx   = hash % used;
 
@@ -3626,7 +3660,7 @@ Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
   if (!mem[idx].value) { // no entry
     prot_ptr(ht);
     auto list = cons(vm, cons(vm, key, value), Nil);
-    auto mem  = xarray_memory(array); // mem may have moved
+    auto mem  = array_memory(array); // mem may have moved
     mem[idx] = list;
     unprot_ptrs(ht, key, value, array);
     ht_set_count(ht, to(Fixnum, count + 1));
@@ -3661,8 +3695,8 @@ Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
   // not found
   prot_ptr(ht);
   auto pair = cons(vm, key, value);
-  auto list = cons(vm, pair, xarray_memory(array)[idx]);
-  xarray_memory(array)[idx] = list;
+  auto list = cons(vm, pair, array_memory(array)[idx]);
+  array_memory(array)[idx] = list;
   unprot_ptrs(ht, key, value, array);
   ht_set_count(ht, to(Fixnum, count + 1));
   return Nil;

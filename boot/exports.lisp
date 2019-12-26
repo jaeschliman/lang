@@ -41,7 +41,7 @@
 
 
 (export
- make-ht make-st ht-at ht-at-put)
+ make-ht make-st ht-at ht-contains? ht-at-put)
 
 (export
  make-array aget aset array->list array-length)

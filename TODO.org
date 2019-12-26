@@ -199,7 +199,7 @@ e.g.
  y = (binding *bar* 2 (resume x))
  y should return 2
 * TODO weak refs, weak hash tables
-* TODO there's no reason for hash tables to use xarray
+* DONE there's no reason for hash tables to use xarray
 * TODO use a lookup table on tag bits for class_of
 * TODO correct rebase specials alist for initial thread bindings
 * TODO process abstraction

@@ -289,6 +289,7 @@ void initialize_primitive_functions(VM *vm) {
   (prim make-st   MK_ST     ()                             any "string_table(vm)")
   (prim ht-at     HT_AT     ((ht any) (key any))           any "ht_at(ht, key)")
   (prim ht-at-put HT_AT_PUT ((ht any) (key any) (val any)) any "ht_at_put(vm, ht, key, val)")
+  (prim ht-contains? HT_HAS ((ht any) (key any)) Bool "ht_contains(ht, key)")
 
   (prim symbol-name SYM_NAME ((a any)) any "Symbol_get_name(a)")
   (prim symbol-package SYM_PKG ((a any)) any "Symbol_get_package(a)")

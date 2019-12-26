@@ -183,7 +183,7 @@ http://www.t3x.org/bits/prolog6.html
 * DONE replace `lambda` with `%nlambda`
   lambda with a name, that can be included in stack traces
 * DONE put %nlambda names into stack frames for debugging
-* TODO replace `let` with `%let`
+* DONE replace `let` with `%let`
   so we can do some type checking etc in `let`
   also named let
 * DONE have make-semaphore take a boolean or fixnum param

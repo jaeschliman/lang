@@ -29,7 +29,7 @@
  eq if not when unless cond case and or)
 
 (export
- list cons append nil? nth
+ list cons append nil? nth list-length
  first second third fourth
  mapcar reverse-list list-every
  dolist

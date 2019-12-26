@@ -10,7 +10,7 @@
   (let ((counter -1))
     `(let ()
        ,@(mapcar (lambda (code)
-                  (set! counter (+ 1 counter))
+                  (set! counter (+i 1 counter))
                   `(define ,code ,counter))
                 codes))))
 
@@ -120,7 +120,7 @@
        (if (nil? ctx) -1
            (let ((ht (ht-at (cdr ctx) e)))
              (if (nil? ht)
-                 (loop (car ctx) e (+ acc (if (%ctx-will-be-fully-inlined? ctx) 0 1)))
+                 (loop (car ctx) e (+i acc (if (%ctx-will-be-fully-inlined? ctx) 0 1)))
                  acc)))))
 
 (define (binding-context sym)
@@ -159,7 +159,7 @@
        (cond
          ((nil? ctx) -1)
          ((%bound-at? sym ctx) acc)
-         (#t (loop (car ctx) sym (+ acc (if (%ctx-counts-in-closure-depth ctx) 1 0)))))))
+         (#t (loop (car ctx) sym (+i acc (if (%ctx-counts-in-closure-depth ctx) 1 0)))))))
 
 (define (expression-context-is-closed-over e)
   (with-expression-context (e)
@@ -188,7 +188,7 @@
              (not-here (nil? ht))
              (crossed-lambda (and (eq type 'lambda) not-here)))
         (if not-here
-            (%enclosing-lambda-count (car ctx) e (if crossed-lambda (+ 1 acc) acc))
+            (%enclosing-lambda-count (car ctx) e (if crossed-lambda (+i 1 acc) acc))
             acc))))
 
 (define Aggregator (create-class 'Aggregator '(count list)))
@@ -222,7 +222,7 @@
 
 (define (save-jump-location label)
   (emit-u16 0) ;; to be filled in by fixup-jump-locations
-  (set '*jump-locations* (cons (cons label (- (agg-count *code*) 1)) *jump-locations*)))
+  (set '*jump-locations* (cons (cons label (-i (agg-count *code*) 1)) *jump-locations*)))
 
 (define (jump label)
   (emit-u16 JUMP)
@@ -270,7 +270,7 @@
         (aset-u16 code i it)))
     (let ((i (agg-count *lits*)))
       (dolist (it (iget *lits* 'list))
-        (set! i (- i 1))
+        (set! i (-i i 1))
         (aset lits i it)))
     (fixup-jump-locations code)
     (aset-u16 code 1 *tmp-count*)
@@ -306,10 +306,10 @@
 (forward walk-form)
 
 (define (walk-body es walk)
-  (let ((last (- (length es) 1))
+  (let ((last (-i (list-length es) 1))
         (idx 0))
     (dolist (e es)
-      (binding ((*tail-position* (and *tail-position* (= idx last))))
+      (binding ((*tail-position* (and *tail-position* (eq idx last))))
         (walk-form e walk))
       (set! idx (+ 1 idx)))))
 
@@ -457,11 +457,11 @@
   (walk-scopes
    e (lambda (name binds body)
        (cond
-         ((and *enable-inline-letrec-bound-lambdas* (eq name 'letrec) (eq 1 (length binds)))
+         ((and *enable-inline-letrec-bound-lambdas* (eq name 'letrec) (eq 1 (list-length binds)))
           (when (%binding-is-inlineable-lambda? (first binds))
             ;; (print `(could inline letrec-bound lambda: ,(first binds)))
             (%binding-prepare-for-lambda-inlining (first binds))))
-         ((and *enable-inline-let-bound-lambdas* (eq name 'let) (eq 1 (length binds)))
+         ((and *enable-inline-let-bound-lambdas* (eq name 'let) (eq 1 (list-length binds)))
           (dolist (b binds)
             (when (%binding-is-inlineable-lambda? b)
               ;; (print `(could inline let-bound lambda: (,(expr-meta sym 'reference-count)) ,b))
@@ -512,7 +512,7 @@
 (define (emit-body it env)
   (if (nil? it)
       (emit-pair PUSHLIT (emit-lit '()))
-      (let ((last (- (length it) 1))
+      (let ((last (-i (list-length it) 1))
             (idx 0))
         (dolist (e it)
           (binding ((*tail-position* (and *tail-position* (eq idx last))))
@@ -524,7 +524,7 @@
 (define (emit-let it env &opt (binds (cadr it)) (body (cddr it)))
   (cond
     ((nil? binds) (emit-body body env))
-    (#t (let* ((count (length binds))
+    (#t (let* ((count (list-length binds))
                (closed? (expression-context-is-closed-over body)))
           (let* ((idx 0)
                  (closure-idx 0)
@@ -544,7 +544,7 @@
                     (closure
                      ;; leave on stack to be picked up by push-closure
                      (expr-set-meta sym 'closure-index closure-idx)
-                     (set! closure-idx (+ 1 closure-idx)))))
+                     (set! closure-idx (+i 1 closure-idx)))))
                 (set! idx (+i 1 idx))))
             (with-expression-context (body)
               (binding ((*closure-depth* (+i (if closed? 1 0) *closure-depth*)))
@@ -587,8 +587,8 @@
                       (#t
                        (expr-set-meta arg 'type 'local)
                        (expr-set-meta arg 'index (+ idx start))))
-                (set! idx (+ 1 idx)))
-              (binding ((*closure-depth* (+ (if closed? 1 0) *closure-depth*)))
+                (set! idx (+i 1 idx)))
+              (binding ((*closure-depth* (+i (if closed? 1 0) *closure-depth*)))
                 (when closed? (push-closure idx))
                 (emit-body body env)
                 (when closed? (pop-closure)))))))))
@@ -600,7 +600,7 @@
            (body (cdddr it))
            (hop (gensym)))
       ;; save initial arg index
-      (context-write body 'initial-arg-index (reserve-tmps (length args)))
+      (context-write body 'initial-arg-index (reserve-tmps (list-length args)))
       ;; jump over inlined code
       (jump hop)
       ;; write entry label
@@ -622,17 +622,17 @@
   (let* ((sym (car it))
          (args (cdr it))
          (body (expr-meta sym 'body))
-         (closure-diff (- *closure-depth* (context-read body 'closure-depth)))
+         (closure-diff (-i *closure-depth* (context-read body 'closure-depth)))
          (closed? (context-read body 'closed))
          (idx (context-read body 'initial-arg-index))
          (self-call? (and *tail-position* (eq (car it) *binding-name*))))
     ;; (print `(emitting inlined call: ,it for: ,(expr-meta sym 'body)))
     ;; write args to temp slots
     (dolist (arg args)
-      (set! idx (+ 1 idx))
+      (set! idx (+i 1 idx))
       (binding ((*tail-position* #f)) (emit-expr arg env)))
     (dolist (arg args)
-      (set! idx (- idx 1))
+      (set! idx (-i idx 1))
       (store-tmp idx))
     ;; prepare closure depth for inlined env
     (when closed?
@@ -659,7 +659,7 @@
 (define (emit-letrec it env)
   (let* ((binds (cadr it))
          (body (cddr it))
-         (count (length binds))
+         (count (list-length binds))
          (closed? (expression-context-is-closed-over body)))
     (let* ((idx 0)
            (closure-idx 0)
@@ -670,14 +670,14 @@
         (dolist (pair binds)
           (let ((sym (car pair)))
             (case (expr-meta sym 'type)
-              (local (expr-set-meta sym 'index (+ idx start)))
+              (local (expr-set-meta sym 'index (+i idx start)))
               (closure (expr-set-meta sym 'closure-index closure-idx)
-                       (set! closure-idx (+ 1 closure-idx))
+                       (set! closure-idx (+i 1 closure-idx))
                        ;; set initial closure value as nil (picked up by push-closure)
                        (emit-pair PUSHLIT (emit-lit '())))))
-          (set! idx (+ 1 idx))))
+          (set! idx (+i 1 idx))))
       (with-expression-context (body)
-        (binding ((*closure-depth* (+ (if closed? 1 0) *closure-depth*)))
+        (binding ((*closure-depth* (+i (if closed? 1 0) *closure-depth*)))
           (when closed? (push-closure closure-idx))
           (dolist (pair binds)
             (let ((sym (car pair)))
@@ -723,9 +723,9 @@
                             (dolist (a (ensure-list args))
                               (when (eq 'closure (expr-meta a 'type))
                                 (expr-set-meta a 'closure-index closure-idx)
-                                (set! closure-idx (+ 1 closure-idx))
+                                (set! closure-idx (+i 1 closure-idx))
                                 (load-arg arg-idx))
-                              (set! arg-idx (+ 1 arg-idx)))
+                              (set! arg-idx (+i 1 arg-idx)))
                             (push-closure closure-idx)
                             (label 're-entry)
                             (binding ((*tail-position* #t)
@@ -811,13 +811,13 @@
                    (third *toplevel-form*)
                    (expr-meta (car it) 'bound-form)))
               (args (caddr bound-form)))
-         (when (not (eq (length args) (length (cdr it))))
+         (when (not (eq (list-length args) (length (cdr it))))
            (throw `(bad inlined call arg count does not match: ,args ,it)))
          (dolist (e (cdr it))
            (emit-expr e env)
-           (set! idx (+ 1 idx)))
+           (set! idx (+i 1 idx)))
          (dolist (e (reverse-list args))
-           (set! idx (- idx 1))
+           (set! idx (-i idx 1))
            ;; (print `(saving expr ,e as arg ,idx))
            (case (expr-meta e 'type)
              (argument (emit-pair STORE_ARG idx))
@@ -827,13 +827,13 @@
                              (closure-depth e)))))
          ;; (print `(exiting from ,*closure-depth* closures))
          (when closed?
-           (dotimes (_ (- *closure-depth* 1))
+           (dotimes (_ (-i *closure-depth* 1))
              (pop-closure))))
        (jump 're-entry)))
     (#t (let ((argc 0))
           (binding ((*tail-position* #f))
             (dolist (e (cdr it))
-              (set! argc (+ 1 argc))
+              (set! argc (+i 1 argc))
               (emit-expr e env))
             (emit-expr (car it) env))
           (emit-pair (if (and *tail-position* (not *inlining-lambda*)) TAIL_CALL CALL) argc))) ))

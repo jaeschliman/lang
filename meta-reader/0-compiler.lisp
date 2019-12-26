@@ -208,6 +208,7 @@
   (let ((r ((get-rule rule) state)))
     (if (failure? r) r (next r))))
 
+
 (at-boot (define compilers-table (make-ht)))
 
 (defmacro define-compile (defn & body)
@@ -257,7 +258,7 @@
          (body (third r))
          (xf  (xf-rule body))
          (vars (cons var (xf-vars xf)))
-         (new-body (first (cdr xf))))
+         (new-body (first (xf-form xf))))
     (cons vars (list `(set! ,var ,new-body)))))
 
 (define (xf-ignore r)
@@ -361,17 +362,6 @@
 
 (define-apply (%base state symbol next) (failcall next ((get-rule symbol) state)))
 
-;; (define (--exactly state item next)
-;;   (apply-rule 'any state (lambda (s)
-;;                            (let ((r (state-result s)))
-;;                              (if (eq r item) (next s) fail)))))
-
-;; (define (--exactly state item next)
-;;   (let* ((s (apply-rule 'any state identity)))
-;;     (if (failure? s) fail
-;;         (let ((r (state-result s)))
-;;           (if (eq r item) (next s) fail)))))
-
 (define (--exactly state item next)
   (let* ((s (--any state)))
     (if (failure? s) fail
@@ -379,12 +369,6 @@
 
 (define (--exactly-char s item next)
   (if (eq (stream-peek (state-stream s)) item) (next (--any s)) fail))
-
-;; (define-compile (%exactly state item next)
-;;     (let ((x (gensym)))
-;;       `(apply-rule 'any ,state (lambda (st)
-;;                                  (let ((,x (state-result st)))
-;;                                    (if (eq ,x ,item) (,next st) fail))))))
 
 (define-compile (%exactly state item next)
     (if (char? item)
@@ -411,64 +395,12 @@
               (next   ,next))
          (if (failure? result) (next (state+result _state_ '())) (next result)))))
 
-;; (define-compile (* state args next)
-;;     (let ((rule (compile-rule (cons '? args) 'last-state 'apply-next)))
-;;       `(let* ((apply-next #f)
-;;               (last-state (state+result ,state (list))) ;; should always return a list
-;;               (_next_ ,next)
-;;               (_run_1_ (lambda () ,rule)))
-;;          (set! apply-next (lambda (new-state)
-;;                             (if (eq (state-position new-state)
-;;                                     (state-position last-state))
-;;                                 (_next_ (state-reverse-result last-state))
-;;                                 (let ((acc-state (state-cons new-state last-state)))
-;;                                   (set! last-state acc-state)
-;;                                   (_run_1_)))))
-;;          (_run_1_))))
-
-;; (define-compile (* state args next)
-;;     `(let* ((last-state (state+result ,state (list))))
-;;        (%letrec
-;;         ((_next_ (lambda (result) (,next result)))
-;;          (_run_1_ (lambda () ,(compile-rule (cons '? args) 'last-state 'apply-next)))
-;;          (apply-next (lambda (new-state)
-;;                        (if (eq (state-position new-state)
-;;                                (state-position last-state))
-;;                            (_next_ (state-reverse-result last-state))
-;;                            (let ((acc-state (state-cons new-state last-state)))
-;;                              (set! last-state acc-state)
-;;                              (_run_1_))))))
-;;         (_run_1_))))
-
 (define-compile (* state args next)
     `(let ((run1 (lambda (state) ,(compile-rule (car args) 'state 'identity))))
        (let loop ((last-state (state+result ,state '())))
             (let ((r (run1 last-state)))
               (if (failure? r) (,next (state-reverse-result last-state))
                   (loop (state-cons r last-state)))))))
-
-
-;; (define-compile (+ state args next)
-;;     (let* ((rule (car args))
-;;            (gather
-;;             `(lambda (st)
-;;                (let ((next-state ,(compile-rule (list '* rule) 'st 'identity)))
-;;                  (if (eq next-state st)
-;;                      (next (state+result st (result-cons (state-result st) nothing)))
-;;                      (next (state-cons-result st next-state))))))
-;;            (run (compile-rule rule 'state gather)))
-;;       `(let* ((next ,next)
-;;               (state ,state))
-;;          ,run)))
-
-;; (define-compile (+ state args next)
-;;     `(let* ((run1 (lambda (state) ,(compile-rule (car args) 'state 'identity)))
-;;             (init (run1 ,state)))
-;;        (if (failure? init) fail
-;;            (let loop ((last-state (state+result init (list (state-result init)))))
-;;                 (let ((r (run1 last-state)))
-;;                   (if (failure? r) (,next (state-reverse-result last-state))
-;;                       (loop (state-cons r last-state))))))))
 
 (define-compile (+ state args next)
     `(let loop ((last-state ,state)
@@ -499,47 +431,6 @@
                  (next-state #f))
              ,body))))
 
-;; (define-compile (or state rules next)
-;;     (if (eq 1 (list-length rules))
-;;         (compile-rule (first rules) state next)
-;;         (let ((compiled (cons 'list (mapcar (lambda (rule)
-;;                                               `(lambda (state)
-;;                                                  ,(compile-rule rule 'state 'identity)))
-;;                                             rules))))
-;;           `(let ((state ,state)
-;;                  (next  ,next))
-;;              (let loop ((rules ,compiled))
-;;                   (if (nil? rules) fail
-;;                       (let ((result ((car rules) state)))
-;;                         (if (failure? result)
-;;                             (loop (cdr rules))
-;;                             (next result)))))))))
-
-;; changed to _not_ aggregate results as I'm not sure we actually need
-;; that from seq.
-;; (define-compile (seq state rules next)
-;;     (if (eq 1 (list-length rules))
-;;         (compile-rule (first rules) state next)
-;;         (let ((body
-;;                (reduce-list (lambda (run-next rule)
-;;                               `(lambda (_st_) ,(compile-rule rule '_st_ run-next)))
-;;                             next
-;;                             (reverse-list rules))))
-;;           `(,body ,state))))
-
-;; (define-compile (seq state rules next)
-;;     (if (eq 1 (list-length rules))
-;;         (compile-rule (first rules) state next)
-;;         (let* ((rev (reverse-list rules))
-;;                (final (compile-rule (car rev) 'state next)))
-;;           `(let ((state ,state))
-;;              ,(reduce-list (lambda (nxt rule)
-;;                              `(let ((state ,(compile-rule rule 'state 'identity)))
-;;                                 (if (failure? state) fail
-;;                                     ,nxt)))
-;;                            final
-;;                            (cdr rev))))))
-
 (define-compile (seq state rules next)
     (if (eq 1 (list-length rules))
         (compile-rule (first rules) state next)
@@ -559,13 +450,6 @@
     `(let ,(car forms)
        ,(compile-rule (cons 'seq (cdr forms))
                       state next)))
-
-;; (define-compile (set! state forms next)
-;;     (let ((var (car forms))
-;;           (rule (car (cdr forms))))
-;;       (compile-rule rule state `(lambda (_st_)
-;;                                   (set! ,var (state-result _st_))
-;;                                   (,next _st_)))))
 
 (define-compile (set! state forms next)
     (let ((var (car forms))
@@ -589,17 +473,10 @@
          (if (failure? ,(compile-rule rule _state 'identity)) (,next ,_state)
              fail))))
 
-;; (define-compile (return state forms next)
-;;     (let ((form (car forms))
-;;           (s (gensym)))
-;;       `(let* ((,s ,state)
-;;               (s2 (binding ((*match-end* ,s)) (state+result ,s ,form))))
-;;          (,next s2))))
-
 (define-compile (return state forms next)
     (let ((form (car forms))
           (s (gensym)))
-      `(let* ((,s ,state))
+      `(let ((,s ,state))
          (,next (binding ((*match-end* ,s)) (state+result ,s ,form))))))
 
 ;;;;  base rules ----------------------------

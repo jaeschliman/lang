@@ -26,6 +26,8 @@
      color output font point font-char-size scale rotation
      origin (point+ origin font-char-size) scale rotation)))
 
+(define *star-rot 0.0)
+
 (define (%display-xvec output at color scale rotation vec)
   (let ((left 0.0) (top 0.0)
         (w (* font-char-width scale))
@@ -39,7 +41,7 @@
             (blit-charcode-at
              output (char-code ch)
              (point+ at (make-point (f->i left) (f->i top)))
-             color scale rotation)
+             color scale (if (eq ch #\*) *star-rot rotation))
             (set! left (+ left w)))))))
 
 (define (draw-xvec output vec at-point color height rotation)
@@ -72,9 +74,14 @@
 
 (define (draw!)
   (clear-screen!)
-  (draw-xvec buffer *text 0@0 0xff00cc00 16.0 0.0)
+  (draw-xvec buffer *text 0@0 0xff00cc00 20.0 0.0)
   (flip-buffer!))
 
 (define onshow draw!)
+
+(fork-with-priority 0 (forever
+                       (sleep-ms 20)
+                       (set '*star-rot (%f (+f 2.0 *star-rot) 360.0))
+                       (draw!)))
 
 (request-display screen-w screen-h)

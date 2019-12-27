@@ -81,6 +81,30 @@
 
 (define (xvec-count v) (iget v 'count))
 
+(defmacro with-gensyms (syms & body)
+  `(let ,(mapcar (lambda (s) (list s '(gensym))) syms)
+     ,@body))
+
+(defmacro each-with-index (binds & body)
+  (lambda-bind (item idx vec) binds
+    (with-gensyms (buckets bucket-max bucket outer ai inner bi max v) 
+      `(let* ((,v ,vec)
+              (,idx 0)
+              (,item '())
+              (,buckets (iget ,v 'buckets))
+              (,bucket-max (iget ,v 'bucket-max)))
+         (let ,outer ((,bi 0))
+              (unless (>i ,bi ,bucket-max)
+                (let* ((,bucket (aget ,buckets ,bi))
+                       (,max (aget ,bucket 0)))
+                  (let ,inner ((,ai 1))
+                       (unless (>i ,ai ,max)
+                         (set! ,item (aget ,bucket ,ai))
+                         (let () ,@body)
+                         (set! ,idx (+i 1 ,idx))
+                         (,inner (+i 1 ,ai)))))
+                (,outer (+i 1 ,bi))))))) )
+
 ;; (let ((x (make-xvec)))
 ;;   (print (xvec-count x))
 ;;   (xvec-push x 'hello)

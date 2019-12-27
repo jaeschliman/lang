@@ -53,11 +53,13 @@
   (stream-write-char *standard-output* #\Newline))
 
 (define (onkey k)
-  (let ((c (char-code k)))
-    (when (or (and (>i c 31) (<i c 128))
-              (eq k #\Newline) (eq k #\Return))
-      (xvec/xvec-push *text (if (eq k #\Return) #\Newline k))
-      (draw!))))
+  (if (eq k #\Backspace)
+      (xvec/xvec-pop *text)
+      (let ((c (char-code k)))
+        (when (or (and (>i c 31) (<i c 128))
+                  (eq k #\Newline) (eq k #\Return))
+          (xvec/xvec-push *text (if (eq k #\Return) #\Newline k)))))
+  (draw!))
 
 (define (draw!)
   (clear-screen!)

@@ -523,6 +523,8 @@ https://www.sandeepnambiar.com/setting-up-emacs-for-c++/
 * TODO `fill-rect-with-mask` needs a better interface...
 * DONE make off-heap storage fully conditional on define flag
 
+* TODO maybe auto-gensym like clojure?
+  - have a hash table around each macroexpand?
 * notes
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack

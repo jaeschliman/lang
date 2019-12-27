@@ -60,6 +60,25 @@
                     (inner (+i 1 ai)))))
            (outer (+i 1 bi))))))
 
+(define (xvec-push-new v item)
+  (let ((buckets (iget v 'buckets))
+        (bucket-max (iget v 'bucket-max))
+        (stop #f)
+        (idx -1))
+    (let outer ((bi 0))
+         (unless (or stop (>i bi bucket-max))
+           (let* ((bucket (aget buckets bi))
+                  (max (aget bucket 0)))
+             (let inner ((ai 1))
+                  (unless (>i ai max)
+                    (set! idx (+i idx 1))
+                    (if (eq (aget bucket ai) item)
+                        (set! stop #t)
+                        (inner (+i 1 ai))))))
+           (outer (+i 1 bi))))
+    (if stop idx
+        (-i (xvec-push v item) 1))))
+
 (define (xvec-count v) (iget v 'count))
 
 ;; (let ((x (make-xvec)))

@@ -1,5 +1,8 @@
 (define XVec (create-class 'XVec '(buckets count bucket-max)))
 
+
+(define (xvec-count v) (iget v 'count))
+
 (define bucket-size 128)
 
 (define (grow-array a)
@@ -47,6 +50,19 @@
            (aset bucket 0 used)
            (iset v 'count (+i 1 (iget v 'count)))))))
 
+(define (xvec-pop v)
+  (let ((idx (-i (xvec-count v) 1)))
+    (when (>i idx -1)
+      (let* ((bucket-idx (/i idx (-i bucket-size 1)))
+             (bucket (aget (iget v 'buckets) bucket-idx))
+             (count (aget bucket 0)))
+        (cond ((and (>i bucket-idx 0) (eq count 1))
+               (aset (iget v 'buckets) bucket-idx 0)
+               (iset v 'bucket-max (-i (iget v 'bucket-max) 1)))
+              (#t
+               (aset bucket 0 (-i count 1))))
+        (iset v 'count idx)))))
+
 (define (xvec-iter v fn)
   (let ((buckets (iget v 'buckets))
         (bucket-max (iget v 'bucket-max)))
@@ -78,8 +94,6 @@
            (outer (+i 1 bi))))
     (if stop idx
         (-i (xvec-push v item) 1))))
-
-(define (xvec-count v) (iget v 'count))
 
 (defmacro with-gensyms (syms & body)
   `(let ,(mapcar (lambda (s) (list s '(gensym))) syms)

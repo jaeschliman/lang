@@ -1,13 +1,14 @@
 (define XVec (create-class 'XVec '(buckets count bucket-max)))
 
-(define bucket-size 64)
+(define bucket-size 128)
 
 (define (grow-array a)
   (let* ((len (array-length a))
          (res (make-array (*i 2 len))))
     (let loop ((idx 0))
-         (aset res idx (aget a idx))
-         (loop (i+ idx 1)))
+         (unless (eq idx len)
+           (aset res idx (aget a idx))
+           (loop (+i idx 1))))
     res))
 
 (define (alloc-bucket)
@@ -24,6 +25,7 @@
     (iset r 'bucket-max 0)
     r))
 
+(forward xvec-add-bucket)
 (define (xvec-add-bucket v)
   (cond
     ((eq (iget v 'bucket-max) (-i (array-length (iget v 'buckets)) 1))
@@ -32,10 +34,11 @@
     (#t (iset v 'bucket-max (+i 1 (iget v 'bucket-max)))
         (aset (iget v 'buckets) (iget v 'bucket-max) (alloc-bucket)))))
 
+(forward xvec-push)
 (define (xvec-push v item)
   (let* ((bucket (aget (iget v 'buckets) (iget v 'bucket-max)))
          (used (aget bucket 0)))
-    (cond ((eq used 63)
+    (cond ((eq used 127)
            (xvec-add-bucket v)
            (xvec-push v item))
           (#t

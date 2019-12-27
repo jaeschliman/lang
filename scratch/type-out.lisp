@@ -1,11 +1,20 @@
 (load-as "xvec" "./scratch/xvec.lisp")
 
-(define font (load-image "./res/charmap-futuristic_black.png"))
-(define font-start 32)
-(define font-chars-per-row 18)
-(define font-char-width 7)
-(define font-char-height 9)
+
+;; (define font (load-image "./res/charmap-futuristic_black.png"))
+;; (define font-start 32)
+;; (define font-chars-per-row 18)
+;; (define font-char-width 7)
+;; (define font-char-height 9)
+;; (define font-char-size (make-point font-char-width font-char-height))
+
+(define font (load-image "./res/another-font.png"))
+(define font-start 0)
+(define font-chars-per-row 16)
+(define font-char-width 10)
+(define font-char-height 10)
 (define font-char-size (make-point font-char-width font-char-height))
+
 
 (define (blit-charcode-at output raw-code point color scale rotation)
   (let* ((code (- raw-code font-start))

@@ -1,3 +1,5 @@
+(load-as "xvec" "./scratch/xvec.lisp")
+
 (define (ensure-list x) (if (or (nil? x) (pair? x)) x (list x)))
 
 (defmacro prog1 (result-form & body)
@@ -191,38 +193,24 @@
             (%enclosing-lambda-count (car ctx) e (if crossed-lambda (+i 1 acc) acc))
             acc))))
 
-(define Aggregator (create-class 'Aggregator '(count list)))
 
-(define (make-agg)
-  (let ((r (instantiate-class Aggregator)))
-    (iset r 'count 0)
-    (iset r 'list '())
-    r))
+(define make-vec xvec/make-xvec)
+(define vec-push xvec/xvec-push)
+(define vec-count xvec/xvec-count)
+(define vec-push-uniq xvec/xvec-push-new)
 
-(define (agg-count agg) (iget agg 'count))
-(define (agg-items agg) (reverse-list (iget agg 'list)))
+(define (emit-u16 it)
+  (prog1 (vec-count *code*) (vec-push *code* it)))
 
-(define (agg-push agg it)
-  (iset agg 'count (+i 1 (iget agg 'count)))
-  (iset agg 'list (cons it (iget agg 'list))))
-
-(define (agg-push-uniq agg it)
-  (let loop ((idx (-i (agg-count agg) 1)) (rem (iget agg 'list)))
-       (if (nil? rem)
-           (prog1 (agg-count agg) (agg-push agg it))
-           (if (eq it (car rem)) idx
-               (loop (-i idx 1) (cdr rem))))))
-
-(define (emit-u16 it) (prog1 (agg-count *code*) (agg-push *code* it)))
-(define (emit-lit it) (agg-push-uniq *lits* it))
+(define (emit-lit it) (vec-push-uniq *lits* it))
 (define (emit-pair a b) (emit-u16 (bit-or (ash b 8) a)))
 
 (define (label name)
-  (ht-at-put *labels* name (agg-count *code*)))
+  (ht-at-put *labels* name (vec-count *code*)))
 
 (define (save-jump-location label)
   (emit-u16 0) ;; to be filled in by fixup-jump-locations
-  (set '*jump-locations* (cons (cons label (-i (agg-count *code*) 1)) *jump-locations*)))
+  (set '*jump-locations* (cons (cons label (-i (vec-count *code*) 1)) *jump-locations*)))
 
 (define (jump label)
   (emit-u16 JUMP)
@@ -262,16 +250,10 @@
       (aset-u16 code code-location jump-target))))
 
 (define (finalize-bytecode name varargs)
-  (let ((code (make-array-u16 (agg-count *code*)))
-        (lits (make-array (agg-count *lits*))))
-    (let ((i (agg-count *code*)))
-      (dolist (it (iget *code* 'list))
-        (set! i (-i i 1))
-        (aset-u16 code i it)))
-    (let ((i (agg-count *lits*)))
-      (dolist (it (iget *lits* 'list))
-        (set! i (-i i 1))
-        (aset lits i it)))
+  (let ((code (make-array-u16 (vec-count *code*)))
+        (lits (make-array (vec-count *lits*))))
+    (xvec/each-with-index (byte i *code*) (aset-u16 code i byte))
+    (xvec/each-with-index (item i *lits*) (aset lits i item))
     (fixup-jump-locations code)
     (aset-u16 code 1 *tmp-count*)
     (when *trace-eval*
@@ -284,8 +266,8 @@
 
 (defmacro with-output-to-bytecode (_ & body)
   `(binding ((*lambda-name* '())
-             (*code* (make-agg))
-             (*lits* (make-agg))
+             (*code* (make-vec))
+             (*lits* (make-vec))
              (*labels* (make-ht))
              (*jump-locations* '())
              (*varargs* #f)

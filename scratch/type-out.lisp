@@ -108,7 +108,7 @@
            (let ((c (char-code k)))
              (when (or (and (>i c 31) (<i c 128))
                        (eq k #\Newline) (eq k #\Return))
-               (xvec/xvec-push *text (if (eq k #\Return) #\Newline k))
+               (xvec/xvec-insert-at-index *text (if (eq k #\Return) #\Newline k) *cursor)
                (set '*cursor (+i *cursor 1))))))))
 
 (define (draw!)

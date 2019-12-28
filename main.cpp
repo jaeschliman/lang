@@ -8512,6 +8512,12 @@ void run_event_loop_with_display(VM *vm, int w, int h, bool from_image = false) 
       }
       case SDL_KEYDOWN : {
         char key = event.key.keysym.sym;
+        auto kc = SDL_GetKeyFromScancode(event.key.keysym.scancode);
+        // XXX hack map arrow keys to Dc1 - Dc4
+        if (kc == SDLK_LEFT)  key = 17;
+        if (kc == SDLK_UP)    key = 18;
+        if (kc == SDLK_RIGHT) key = 19;
+        if (kc == SDLK_DOWN)  key = 20;
         if (key > 31) break;
         Ptr num = to(Char, key);
         vm_poke_event(vm, pending_events, event_ready_semaphore, onkey, num);

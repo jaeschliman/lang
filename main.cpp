@@ -3620,19 +3620,32 @@ Ptr ht_listed_entries(VM *vm, Ptr ht) { prot_ptr(ht);
 
 Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value);
 
-void ht_grow(VM *vm, Ptr ht) {              prot_ptr(ht);
-  auto entries = ht_listed_entries(vm, ht); prot_ptr(entries);
-  auto array = ht_get_array(ht); 
+void ht_grow(VM *vm, Ptr ht) {                    prot_ptr(ht);
+  auto array = ht_get_array(ht);                  prot_ptr(array);
   auto new_size = array_capacity(array) * 2;
-  auto new_storage = make_zf_array(vm, new_size);
+  auto new_storage = make_zf_array(vm, new_size); prot_ptr(new_storage);
   ht_set_array(ht, new_storage);
-  do_list(vm, entries, [&](Ptr assoc_list) {
-      do_list(vm, assoc_list, [&](Ptr pair) {
-          ht_at_put(vm, ht, car(pair), cdr(pair));
-        });
-    });
-  unprot_ptrs(ht, entries);
+  auto len = array_capacity(array);
+  for (auto i = 0; i < len; i++) {
+    auto assoc_list = array_get(array, i);
+    if (!assoc_list.value) continue;
+    do_list(vm, assoc_list, [&](Ptr pair) {
+                              auto key = car(pair);
+                              auto idx = hash_code(key) % new_size;
+                              auto mem = array_memory(new_storage);
+                              if (!mem[idx].value) {
+                                auto res = cons(vm, pair, Nil);
+                                array_memory(new_storage)[idx] = res;
+                              } else {
+                                auto res = cons(vm, pair, mem[idx]);
+                                array_memory(new_storage)[idx] = res;
+                              }
+                            });
+  }
+  unprot_ptrs(ht, array, new_storage);
 }
+
+
 
 Ptr ht_at_put(VM *vm, Ptr ht, Ptr key, Ptr value) { prot_ptrs(key, value);
   auto count = from(Fixnum, ht_get_count(ht));

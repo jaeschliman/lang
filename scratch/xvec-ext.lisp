@@ -84,11 +84,11 @@
 
 (define (xvec-delete-range v idx count)
   (let ((xa (xursor-for-index v idx))
-        (xb (xursor-for-index v (+i idx count))))
+        (xb (xursor-for-index v (+i idx (+i -1 count)))))
     (if (eq (xursor-bucket xa) (xursor-bucket xb))
         (%bucket-remove v xa count)
         (%cross-bucket-remove v xa xb count))
-    (iset v (-i (iget v 'count) count))))
+    (iset v 'count (-i (iget v 'count) count))))
 
 ;; (let* ((v (make-xvec)))
 ;;   (dotimes (i 200) (xvec-push v i))

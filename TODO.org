@@ -525,6 +525,12 @@ https://www.sandeepnambiar.com/setting-up-emacs-for-c++/
 
 * TODO maybe auto-gensym like clojure?
   - have a hash table around each macroexpand?
+* IN-PROGRESS easy-to-use mutable ordered collection
+  xvec
+* IN-PROGRESS bignums
+  - division
+  - pow / mod / sin / cos etc
+
 * notes
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack

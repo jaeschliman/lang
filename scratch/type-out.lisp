@@ -1,5 +1,12 @@
 (load-as "xvec" "./scratch/xvec.lisp")
 
+(define %xvec-write-char xvec/xvec-push)
+(define (%xvec-write-string v str) (string-do-chars (ch str) (xvec/xvec-push v ch)))
+(generic-function-add-method stream-write-char (list xvec/XVec #t)
+                             %xvec-write-char)
+(generic-function-add-method stream-write-string (list xvec/XVec #t)
+                             %xvec-write-string)
+
 
 ;; (define font (load-image "./res/charmap-futuristic_black.png"))
 ;; (define font-start 32)
@@ -14,35 +21,46 @@
 (define font-char-width 10)
 (define font-char-height 10)
 (define font-char-size (make-point font-char-width font-char-height))
+(define font-letter-width 8)
+(define font-letter-height 10)
 
+(define %font-origins (make-array 256))
+(define %font-extents (make-array 256))
+(let loop ((raw-code 0))
+     (when (<i raw-code 256)
+       (let* ((code (-i raw-code font-start))
+              (col (%i code font-chars-per-row))
+              (row (/i code font-chars-per-row))
+              (origin (make-point (*i col font-char-width)
+                                  (*i row font-char-height))))
+         (aset %font-origins raw-code origin)
+         (aset %font-extents raw-code (point+ origin font-char-size))
+         (loop (+i raw-code 1)))))
 
 (define (blit-charcode-at output raw-code point color scale rotation)
-  (let* ((code (- raw-code font-start))
-         (col (% code font-chars-per-row))
-         (row (/ code font-chars-per-row))
-         (origin (make-point (* col font-char-width)
-                             (* row font-char-height))))
+  (when (<i raw-code 256)
     (fill-rect-with-mask
      color output font point font-char-size scale rotation
-     origin (point+ origin font-char-size) scale rotation)))
+     (aget %font-origins raw-code)
+     (aget %font-extents raw-code) scale rotation)))
 
 (define *star-rot 0.0)
 
 (define (%display-xvec output at color scale rotation vec)
   (let ((left 0.0) (top 0.0)
-        (w (* font-char-width scale))
-        (h (* font-char-height scale)))
+        (w (* font-letter-width scale))
+        (h (* font-letter-height scale)))
     (xvec/each-with-index
      (ch idx vec)
      (cond ((eq ch #\Newline)
             (set! left 0.0)
-            (set! top (+ top h)))
+            (set! top (+f top h)))
            (#t
             (blit-charcode-at
              output (char-code ch)
              (point+ at (make-point (f->i left) (f->i top)))
              color scale (if (eq ch #\*) *star-rot rotation))
-            (set! left (+ left w)))))))
+            (set! left (+f left w)))))))
 
 (define (draw-xvec output vec at-point color height rotation)
   (let ((scale (/ height (i->f font-char-height))))
@@ -58,6 +76,7 @@
 
 
 (define *text (xvec/make-xvec))
+(binding ((*standard-output* *text)) (print `(hello from: ,*text)))
 
 (define (debug-dump)
   (xvec/each-with-index (ch i *text) (stream-write-char *standard-output* ch))
@@ -69,12 +88,11 @@
       (let ((c (char-code k)))
         (when (or (and (>i c 31) (<i c 128))
                   (eq k #\Newline) (eq k #\Return))
-          (xvec/xvec-push *text (if (eq k #\Return) #\Newline k)))))
-  (draw!))
+          (xvec/xvec-push *text (if (eq k #\Return) #\Newline k))))))
 
 (define (draw!)
   (clear-screen!)
-  (draw-xvec buffer *text 0@0 0xff00cc00 20.0 0.0)
+  (draw-xvec buffer *text 0@0 0xff00cc00 14.5 0.0)
   (flip-buffer!))
 
 (define onshow draw!)

@@ -60,6 +60,27 @@
 (define (xvec-at v i)
   (xvec-at-xursor v (xursor-for-index v i)))
 
+(define (%bucket-remove v xi count)
+  (let* ((bucket (aget (iget v 'buckets) (xursor-bucket xi)))
+         (end-idx (+i (xursor-item xi) count))
+         (bucket-cnt (aget bucket 0))
+         (bucket-rem (-i bucket-cnt (-i end-idx 1))))
+    (array-copy-elements bucket bucket
+                         end-idx (xursor-item xi) bucket-rem)
+    (aset bucket 0 (-i bucket-cnt count))))
+
+(define (xvec-delete-range v idx count)
+  (let ((xa (xursor-for-index v idx))
+        (xb (xursor-for-index v (+i idx count))))
+    (if (eq (xursor-bucket xa) (xursor-bucket xb))
+        (%bucket-remove v xa count)
+        (print '(TODO)))))
+
 ;; (let* ((v (make-xvec)))
 ;;   (dotimes (i 200) (xvec-push v i))
 ;;   (dotimes (i 200) (print `(,i = ,(xvec-at v i)))))
+
+(let ((v (make-xvec)))
+  (stream-write-string v "hello, xxworld!")
+  (xvec-delete-range v 7 2)
+  (print (char-array->string (xvec-to-array v))))

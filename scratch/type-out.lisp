@@ -1,19 +1,5 @@
 (load-as "xvec" "./scratch/xvec.lisp")
-
-(define %xvec-write-char xvec/xvec-push)
-(define (%xvec-write-string v str) (string-do-chars (ch str) (xvec/xvec-push v ch)))
-(generic-function-add-method stream-write-char (list xvec/XVec #t)
-                             %xvec-write-char)
-(generic-function-add-method stream-write-string (list xvec/XVec #t)
-                             %xvec-write-string)
-
-
-;; (define font (load-image "./res/charmap-futuristic_black.png"))
-;; (define font-start 32)
-;; (define font-chars-per-row 18)
-;; (define font-char-width 7)
-;; (define font-char-height 9)
-;; (define font-char-size (make-point font-char-width font-char-height))
+(load-as "xvec" "./scratch/xvec-ext.lisp")
 
 (define font (load-image "./res/another-font.png"))
 (define font-start 0)

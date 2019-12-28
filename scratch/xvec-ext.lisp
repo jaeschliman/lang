@@ -1,0 +1,40 @@
+;; xvec as a writeable stream
+(define %xvec-write-char xvec-push)
+(define (%xvec-write-string v str) (string-do-chars (ch str) (xvec-push v ch)))
+(generic-function-add-method stream-write-char (list XVec #t) %xvec-write-char)
+(generic-function-add-method stream-write-string (list XVec #t) %xvec-write-string)
+
+(define (%array-copy-forward a from-idx to-idx count)
+  (let ((max (-i count 1)))
+    (let loop ((i (+i from-idx max)) (j (+i to-idx max)) (rem count))
+       (unless (eq 0 rem)
+         (aset a j (aget a i))
+         (loop (+i -1 i) (+i -1 j) (-i rem 1))))))
+
+(define (%array-copy-backward a from-idx to-idx count)
+  (let loop ((i from-idx) (j to-idx) (rem count))
+     (unless (eq 0 rem)
+       (aset a j (aget a i))
+       (loop (+i 1 i) (+i 1 j) (-i rem 1)))))
+
+(define (%array-copy-from-to a b from-idx to-idx count)
+   (let loop ((i from-idx) (j to-idx) (rem count))
+     (unless (eq 0 rem)
+       (aset b j (aget a i))
+       (loop (+i 1 i) (+i 1 j) (-i rem 1)))))
+
+(define (array-copy-elements a b from-idx to-idx count)
+  (if (eq a b)
+      (if (<i from-idx to-idx) (%array-copy-forward a from-idx to-idx count)
+          (%array-copy-backward a from-idx to-idx count))
+      (%array-copy-from-to a b from-idx to-idx count)))
+
+(let ((a (vector 0 0 1 2 3 4 0 0)))
+  (array-copy-elements a a 3 2 3)
+  (print a)
+  (print `(expecting 2 3 4 4)))
+
+(let ((a (vector 0 0 1 2 3 4 0 0)))
+  (array-copy-elements a a 2 3 3)
+  (print a)
+  (print `(expecting  1 1 2 3)))

@@ -1,6 +1,5 @@
 (define XVec (create-class 'XVec '(buckets count bucket-max)))
 
-
 (define (xvec-count v) (iget v 'count))
 
 (define bucket-size 128)
@@ -118,15 +117,3 @@
                          (set! ,idx (+i 1 ,idx))
                          (,inner (+i 1 ,ai)))))
                 (,outer (+i 1 ,bi))))))) )
-
-;; (let ((x (make-xvec)))
-;;   (print (xvec-count x))
-;;   (xvec-push x 'hello)
-;;   (print (xvec-count x))
-;;   (xvec-iter x (lambda (x) (print `(saw: ,x)))))
-
-;; (let ((x (make-xvec)))
-;;   (dotimes (n 100)
-;;     (xvec-push x n))
-;;   (print (xvec-count x))
-;;   (xvec-iter x (lambda (x) (print `(saw: ,x)))))

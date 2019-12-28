@@ -29,12 +29,37 @@
           (%array-copy-backward a from-idx to-idx count))
       (%array-copy-from-to a b from-idx to-idx count)))
 
-(let ((a (vector 0 0 1 2 3 4 0 0)))
-  (array-copy-elements a a 3 2 3)
-  (print a)
-  (print `(expecting 2 3 4 4)))
+;; (let ((a (vector 0 0 1 2 3 4 0 0)))
+;;   (array-copy-elements a a 3 2 3)
+;;   (print a)
+;;   (print `(expecting 2 3 4 4)))
 
-(let ((a (vector 0 0 1 2 3 4 0 0)))
-  (array-copy-elements a a 2 3 3)
-  (print a)
-  (print `(expecting  1 1 2 3)))
+;; (let ((a (vector 0 0 1 2 3 4 0 0)))
+;;   (array-copy-elements a a 2 3 3)
+;;   (print a)
+;;   (print `(expecting  1 1 2 3)))
+
+(define (xvec-to-array v)
+  (let ((r (make-array (iget v 'count))))
+    (each-with-index (it i v) (aset r i it))
+    r))
+
+(define xursor-bucket point-x)
+(define xursor-item point-y)
+
+(define (xursor-for-index v i)
+  (let* ((buckets (iget v 'buckets)))
+    (let loop ((bidx 0) (iidx i))
+         (let ((used (aget (aget buckets bidx) 0)))
+           (if (or (>i iidx used) (eq iidx used)) (loop (+i bidx 1) (-i iidx used))
+               (make-point bidx (+i 1 iidx)))))))
+
+(define (xvec-at-xursor v p)
+  (aget (aget (iget v 'buckets) (xursor-bucket p)) (xursor-item p)))
+
+(define (xvec-at v i)
+  (xvec-at-xursor v (xursor-for-index v i)))
+
+;; (let* ((v (make-xvec)))
+;;   (dotimes (i 200) (xvec-push v i))
+;;   (dotimes (i 200) (print `(,i = ,(xvec-at v i)))))

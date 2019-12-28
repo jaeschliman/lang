@@ -2075,7 +2075,8 @@ u32 hash_code(Ptr it) {
       auto str = as(String, it);
       obj->header.hashcode = djb2((u8*)ba_data(str), ba_length(str));
     } else {
-      obj->header.hashcode = hash6432shift(it.value) | 1;
+      auto code = hash6432shift(it.value);
+      obj->header.hashcode = code == 0 ? 1 : code;
     }
   }
   return obj->header.hashcode;

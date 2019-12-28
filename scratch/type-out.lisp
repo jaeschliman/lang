@@ -32,21 +32,30 @@
 
 (define *star-rot 0.0)
 
+(define *cursor 0)
+
+(define (draw-cursor output at w h)
+  (fill-rect output at (point+ at (make-point (f->i w) (f->i h))) 0xffffff00))
+
 (define (%display-xvec output at color scale rotation vec)
-  (let ((left 0.0) (top 0.0)
-        (w (* font-letter-width scale))
-        (h (* font-letter-height scale)))
+  (let* ((left 0.0) (top 0.0)
+         (w (* font-letter-width scale))
+         (h (* font-letter-height scale))
+         (cnt (xvec/xvec-count vec))
+         (here  (point+ at (make-point (f->i left) (f->i top)))))
     (xvec/each-with-index
      (ch idx vec)
+     (when (eq *cursor idx) (draw-cursor output here w h))
      (cond ((eq ch #\Newline)
             (set! left 0.0)
             (set! top (+f top h)))
            (#t
             (blit-charcode-at
-             output (char-code ch)
-             (point+ at (make-point (f->i left) (f->i top)))
-             color scale (if (eq ch #\*) *star-rot rotation))
-            (set! left (+f left w)))))))
+             output (char-code ch) here color scale (if (eq ch #\*) *star-rot rotation))
+            (set! left (+f left w))))
+     (set! here (point+ at (make-point (f->i left) (f->i top)))))
+    (when (eq *cursor cnt)
+      (draw-cursor output here w h))))
 
 (define (draw-xvec output vec at-point color height rotation)
   (let ((scale (/ height (i->f font-char-height))))
@@ -62,19 +71,23 @@
 
 
 (define *text (xvec/make-xvec))
-(binding ((*standard-output* *text)) (print `(hello from: ,*text)))
+;; (binding ((*standard-output* *text)) (print `(hello from: ,*text)))
 
 (define (debug-dump)
   (xvec/each-with-index (ch i *text) (stream-write-char *standard-output* ch))
   (stream-write-char *standard-output* #\Newline))
 
 (define (onkey k)
-  (if (eq k #\Backspace)
-      (xvec/xvec-pop *text)
-      (let ((c (char-code k)))
-        (when (or (and (>i c 31) (<i c 128))
-                  (eq k #\Newline) (eq k #\Return))
-          (xvec/xvec-push *text (if (eq k #\Return) #\Newline k))))))
+  (cond
+    ((eq k #\Backspace)
+     (xvec/xvec-pop *text)
+     (set '*cursor (-i *cursor 1)))
+    (#t
+     (let ((c (char-code k)))
+       (when (or (and (>i c 31) (<i c 128))
+                 (eq k #\Newline) (eq k #\Return))
+         (xvec/xvec-push *text (if (eq k #\Return) #\Newline k))
+         (set '*cursor (+i *cursor 1)))))))
 
 (define (draw!)
   (clear-screen!)

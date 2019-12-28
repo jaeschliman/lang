@@ -3562,8 +3562,7 @@ Ptr ht_at(Ptr ht, Ptr key) {
     while (!isNil(cons)) {
       auto pair = car(cons);
       auto it = car(pair);
-      if (is(String, it) && hash_code(it) == hash) return cdr(pair);
-      else if (it == key) return cdr(pair);
+      if (hash_code(it) == hash && is(String, it)) return cdr(pair);
       cons = cdr(cons);
     }
   } else {

@@ -1,6 +1,21 @@
 (load-as "xvec" "./scratch/xvec.lisp")
 (load-as "xvec" "./scratch/xvec-ext.lisp")
 
+(define (mini a b) (if (<i a b) a b))
+(define (maxi a b) (if (<i a b) b a))
+
+(defmacro sync (semaphore & body)
+  (let ((sem (gensym))
+        (res (gensym)))
+    `(let ((,sem ,semaphore)
+           (,res '()))
+       (semaphore-wait ,sem)
+       (set! ,res (let () ,@body))
+       (signal-semaphore ,sem)
+       ,res)))
+
+(define *text-lock (make-semaphore #t))
+
 (define font (load-image "./res/another-font.png"))
 (define font-start 0)
 (define font-chars-per-row 16)
@@ -77,22 +92,30 @@
   (xvec/each-with-index (ch i *text) (stream-write-char *standard-output* ch))
   (stream-write-char *standard-output* #\Newline))
 
+(define (onleft)  (set '*cursor (maxi 0 (+i *cursor -1))))
+(define (onright) (set '*cursor (mini (+i *cursor 1) (xvec/xvec-count *text))))
+
 (define (onkey k)
-  (cond
-    ((eq k #\Backspace)
-     (xvec/xvec-pop *text)
-     (set '*cursor (-i *cursor 1)))
-    (#t
-     (let ((c (char-code k)))
-       (when (or (and (>i c 31) (<i c 128))
-                 (eq k #\Newline) (eq k #\Return))
-         (xvec/xvec-push *text (if (eq k #\Return) #\Newline k))
-         (set '*cursor (+i *cursor 1)))))))
+  (sync *text-lock
+        (cond
+          ((eq k #\Dc1) (onleft))
+          ((eq k #\Dc3) (onright))
+          ((eq k #\Backspace)
+           (when (>i *cursor 0)
+             (set '*cursor (-i *cursor 1))
+             (xvec/xvec-delete-range *text *cursor 1)))
+          (#t
+           (let ((c (char-code k)))
+             (when (or (and (>i c 31) (<i c 128))
+                       (eq k #\Newline) (eq k #\Return))
+               (xvec/xvec-push *text (if (eq k #\Return) #\Newline k))
+               (set '*cursor (+i *cursor 1))))))))
 
 (define (draw!)
-  (clear-screen!)
-  (draw-xvec buffer *text 0@0 0xff00cc00 14.5 0.0)
-  (flip-buffer!))
+  (sync *text-lock
+        (clear-screen!)
+        (draw-xvec buffer *text 0@0 0xff00cc00 14.5 0.0)
+        (flip-buffer!)))
 
 (define onshow draw!)
 

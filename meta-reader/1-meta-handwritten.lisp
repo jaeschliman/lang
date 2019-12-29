@@ -43,12 +43,14 @@
   "[" (set! chs (+ (or bracket-char-range bracket-char))) "]"
   (return (cons 'or chs)))
 
+(define (as-rule-name lst-of-chars) (intern (charlist-to-string lst-of-chars) %meta-package))
+
 (define-rule sym
   (not "->")
-  (set! xs (+ (or alpha #\-))) (return (implode xs)))
+  (set! xs (+ (or alpha #\-))) (return (as-rule-name xs)))
 
 (define-rule extern
-  (set! ns sym) #\. (set! rule sym) (return `(extern ,ns ,rule)))
+  (set! ns ident) #\. (set! rule sym) (return `(extern ,ns ,rule)))
 
 (define-rule grouped "(" (set! b rule-body) ")" (return b))
 

@@ -2,10 +2,10 @@
   (let ((exports (mapcar (lambda (s) `(package-extern-symbol *package* ',s)) syms)))
     `(let () ,@exports)))
 
-(export load-as)
+(export load-as meta lisp)
 
 (export apply let lambda let* define symbol-value set-symbol-value binding set set!
-        *package* defparameter symbol-package forward)
+        *meta-context* *package* defparameter symbol-package forward)
 
 (export defmacro gensym intern & &opt quasiquote-expand macroexpand eval lambda-bind
         special-symbol? mark-symbol-as-special with-special-binding symbol-bound?)

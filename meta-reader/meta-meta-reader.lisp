@@ -1,6 +1,6 @@
 meta meta {
   mod = [*?+]:x -> (implode (list x))
-  sym = ~"->" (alpha | "-")+:xs -> (implode xs)
+  sym = ~"->" (alpha | "-")+:xs -> (as-rule-name xs)
 
   string-lit = lisp.string:x -> (cons 'seq (string-to-charlist x))
 
@@ -10,7 +10,7 @@ meta meta {
   br-char-range = br-char:a "-" br-char:b -> (make-bracket-char-range a b)
   bracket-lit   = "[" (br-char-range | br-char)+:chs "]" -> (cons 'or chs)
 
-  extern = sym:ns "." sym:rule -> `(extern ,ns ,rule)
+  extern = ident:ns "." sym:rule -> `(extern ,ns ,rule)
 
   grouped = "(" rule-body:b ")" -> b
 
@@ -31,8 +31,8 @@ meta meta {
 
   rule = ws sym:name ws "=" ws rule-body:b -> `(define-rule ,name ,b)
 
-  par   = "<" ws sym:par -> par
-  block = ws "meta" ws sym:n ws par?:mp ws "{" ws rule+:rs ws "}" -> (make-meta-definition n mp rs)
+  par   = "<" ws ident:par -> par
+  block = ws "meta" ws ident:n ws par?:mp ws "{" ws rule+:rs ws "}" -> (make-meta-definition n mp rs)
 
   main = lisp.ws (block | lisp.expr):x lisp.ws -> x
 }

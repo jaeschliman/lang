@@ -57,13 +57,16 @@
 (at-boot (%print `(loading meta meta reader)))
 (at-boot (meta1-runfile "./meta-reader/meta-meta-reader.lisp"))
 
+(at-boot (define meta-entry-point (intern "main" %meta-package)))
+(at-boot (define meta-meta-name 'meta))
+
 (define (%load path)
   ;; (%print path)
   (let ((input (slurp path)))
     (binding ((*current-file* path)
-              (*meta-context* (list 'meta)))
+              (*meta-context* (list meta-meta-name)))
       ;; TODO: we don't need to keep the results
-      (match-map *load-evaluator* 'main input))))
+      (match-map *load-evaluator* meta-entry-point input))))
 
 (when *recompiling*
   (%print `(reloading meta lisp reader))

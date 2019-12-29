@@ -4,6 +4,10 @@
 (at-boot (defparameter *match-start*))
 (at-boot (defparameter *match-end*))
 (at-boot (defparameter *current-rule-name*))
+(at-boot (define %meta-package (%make-package "meta")))
+(at-boot (package-add-subpackage %root-package %meta-package "meta"))
+(package-import-symbol %meta-package 'any)
+(package-import-symbol %meta-package 'nothing)
 
 (defmacro trace (form)
   `(let ((_res ,form))
@@ -506,6 +510,7 @@
 
 (defmacro define-base-rule (name & body)
   `(binding ((*meta-context* (list 'Base)))
+     (package-import-symbol %meta-package ',name)
      (define-rule ,name ,@body)))
 
 (define-base-rule space

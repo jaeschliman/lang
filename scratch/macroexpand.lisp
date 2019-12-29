@@ -1,20 +1,27 @@
 (define (ensure-list x) (if (or (nil? x) (pair? x)) x (list x)))
+(define (ensure-car x) (if (pair? x) (car x) x))
 
 (define (assoc key alist)
-  (cond ((nil? alist) '())
-        ((eq (caar alist) key) (car alist))
-        (#t (assoc key (cdr alist)))))
+  (let loop ((key key) (alist alist))
+       (cond ((nil? alist) '())
+             ((eq (caar alist) key) (car alist))
+             (#t (loop key (cdr alist))))))
 
 (#/lang/at-boot (defparameter *binds* '()))
 
 (define (local? sym) (not (nil? (assoc sym *binds*))))
 
-(define (%to-locals syms)
-  (mapcar (lambda (s) (cons (car (ensure-list s)) 'local)) (ensure-list syms)))
+(define (%to-locals syms binds)
+  (let ((r binds))
+    (dolist (s (ensure-list syms))
+      (set! r (cons (cons (ensure-car s) 'local) r)))
+    r))
 
 (defmacro with-bindings (binds & body)
-  `(binding ((*binds* (append (%to-locals ,(car binds)) *binds*)))
+  `(binding ((*binds* (%to-locals ,(car binds) *binds*)))
      ,@body))
+
+(#/lang/forward %macroexpand)
 
 (define (expand-if form)
   (cons 'if (mapcar %macroexpand (cdr form))))

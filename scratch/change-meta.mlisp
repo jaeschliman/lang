@@ -1,18 +1,24 @@
+;; hello
 
 meta mymeta < meta {
   main = mylisp.ws ( block | mylisp.expr ):x mylisp.ws -> x
 }
 
 (print '-------------------------------------------------------------------)
+
 (define (banger l r)
-  (if (pair? l) `(aset ,(second l) ,(third l) ,r)
-      `(set! ,l ,r)))
+  (if (pair? l)
+      (case (car l)
+        (aget `(aset ,(second l) ,(third l) ,r))
+        (iget `(iset ,(second l) ,(third l) ,r)))
+    `(set! ,l ,r)))
 
 meta mylisp < lisp {
   aref = symbol:s "[" expr:e "]" -> `(aget ,s ,e)
-  lhs = aref | symbol
+  iref = symbol:o "." symbol:s -> `(iget ,o ',s)
+  lhs = iref | aref | symbol
   assign = lhs:l ws ":=" ws expr:r -> (banger l r)
-  expr = assign | aref | ^expr
+  expr = assign | iref | aref | ^expr
 }
 
 (print *meta-context*)
@@ -28,3 +34,4 @@ meta mylisp < lisp {
 (print '-------------------------------------------------------------------)
 (print "hello again")
 (print *x)
+(print 'x.y := 5)

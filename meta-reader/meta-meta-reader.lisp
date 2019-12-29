@@ -11,10 +11,11 @@ meta meta {
   bracket-lit   = "[" (br-char-range | br-char)+:chs "]" -> (cons 'or chs)
 
   extern = ident:ns "." sym:rule -> `(extern ,ns ,rule)
+  super  = "^" ws sym:rule -> `(super ,rule)
 
   grouped = "(" rule-body:b ")" -> b
 
-  lit     = extern | sym | string-lit | bracket-lit | grouped
+  lit     = extern | sym | string-lit | bracket-lit | grouped | super
   lit-mod = lit:lit mod:mod -> (list mod lit)
 
   atom = "~"?:negated (lit-mod | lit):item -> (if-nil? negated item `(not ,item))

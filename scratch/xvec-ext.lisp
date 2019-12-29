@@ -98,7 +98,24 @@
     (array-copy-elements bs bs bidx (+i bidx 1) (-i max bidx))
     (aset bs bidx bnew)))
 
-;; FIXME: this fn feels way too long for what it does
+(define (%get-bucket v idx) (aget (iget v 'buckets) idx))
+
+(define (%bucket-insert-at-start-of-next v bidx item)
+  (cond
+    ((or (eq bidx (iget v 'bucket-max))
+         (eq 127 (aget (%get-bucket v (+i 1 bidx)) 0)))
+     (%insert-new-bucket-at v (+i 1 bidx))
+     (let ((new-bucket (%get-bucket v (+i 1 bidx))))
+       (aset new-bucket 1 item)
+       (aset new-bucket 0 1)))
+    (#t
+     (let* ((next-bucket (%get-bucket v (+i 1 bidx)))
+            (used (aget next-bucket 0))
+            (cap (-i 127 used)))
+       (array-copy-elements next-bucket next-bucket 1 2 used)
+       (aset next-bucket 1 item)
+       (aset next-bucket 0 (+i 1 used))))))
+
 (define (%bucket-insert v xa item)
   (let* ((buckets (iget v 'buckets))
          (bidx (xursor-bucket xa))
@@ -114,26 +131,7 @@
            (let ((last (aget b 127)))
              (array-copy-elements b b idx (+i 1 idx) (-i 127 (+i 0 idx)))
              (aset b idx item)
-             (cond
-               ((eq bidx (iget v 'bucket-max))
-                (xvec-add-bucket v)
-                (let ((new-bucket (aget buckets (+i 1 bidx))))
-                  (aset new-bucket 1 last)
-                  (aset new-bucket 0 1)))
-               (#t
-                (let* ((next-bucket (aget buckets (+i 1 bidx)))
-                       (used (aget next-bucket 0))
-                       (cap (-i 127 used)))
-                  (cond ((>i cap 0)
-                         (array-copy-elements next-bucket next-bucket 1 2 used)
-                         (aset next-bucket 1 last)
-                         (aset next-bucket 0 (+i 1 used)))
-                        (#t
-                         (%insert-new-bucket-at v (+i 1 bidx))
-                         (let ((new-bucket (aget (iget v 'buckets) (+i 1 bidx))))
-                           (when #t
-                             (aset new-bucket 1 last)
-                             (aset new-bucket 0 1)))))))))))))
+             (%bucket-insert-at-start-of-next v bidx last))))))
 
 (define (xvec-insert-at-index v item idx)
   (if (eq idx (iget v 'count))

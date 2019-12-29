@@ -200,7 +200,7 @@
                                 (sleep-ms budget))))))))
 
 (define (clear-screen)
-  (fill-rect back-buffer 0@0 screen-size 0xffffffff))
+  (fill-rect back-buffer 0@0 screen-size 0xff1f1f1f))
 (clear-screen)
 
 (define (flip-buffer)

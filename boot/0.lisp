@@ -548,14 +548,14 @@
 (define (character-name? str) (not (nil? (char-by-name str))))
 
 
-(let ((chars '(#f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
-               #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f
-               #f #t #f #t #t #t #t #f #f #f #t #t #f #t #t #t
-               #t #t #t #t #t #t #t #t #t #t #t #f #t #t #t #t
-               #t #t #t #t #t #t #t #t #t #t #t #t #t #t #t #t
-               #t #t #t #t #t #t #t #t #t #t #t #f #f #f #t #t
-               #f #t #t #t #t #t #t #t #t #t #t #t #t #t #t #t
-               #t #t #t #t #t #t #t #t #t #t #t #f #f #f #t #f))
+(let ((chars '(#f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f ;16
+               #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f ;32
+               #f #t #f #t #t #t #t #f #f #f #t #t #f #t #t #t ;48
+               #t #t #t #t #t #t #t #t #t #t #t #f #t #t #t #t ;64
+               #t #t #t #t #t #t #t #t #t #t #t #t #t #t #t #t ;80
+               #t #t #t #t #t #t #t #t #t #t #t #f #f #f #t #t ;96
+               #f #t #t #t #t #t #t #t #t #t #t #t #t #t #t #t ;112
+               #t #t #t #t #t #t #t #t #t #t #t #f #f #f #t #f)) ;128
       (table (make-array 128)))
   (dotimes (i 128)
     (aset table i (car chars))

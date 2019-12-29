@@ -533,7 +533,7 @@ https://www.sandeepnambiar.com/setting-up-emacs-for-c++/
 
 * TODO ease one-off customization of meta reader
   - some kind of 'super' rule
-  - intern rule names in a special package
+  - intern rule names in a special package (DONE)
 * notes
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack

@@ -550,7 +550,7 @@
 
 (let ((chars '(#f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f ;16
                #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f #f ;32
-               #f #t #f #t #t #t #t #f #f #f #t #t #f #t #t #t ;48
+               #f #t #f #t #t #t #t #f #f #f #t #t #f #t #f #t ;48
                #t #t #t #t #t #t #t #t #t #t #t #f #t #t #t #t ;64
                #t #t #t #t #t #t #t #t #t #t #t #t #t #t #t #t ;80
                #t #t #t #t #t #t #t #t #t #t #t #f #f #f #t #t ;96

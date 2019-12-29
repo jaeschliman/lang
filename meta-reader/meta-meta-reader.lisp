@@ -31,7 +31,8 @@ meta meta {
 
   rule = ws sym:name ws "=" ws rule-body:b -> `(define-rule ,name ,b)
 
-  block = ws "meta" ws sym:n ws "{" ws rule+:rs ws "}" -> (make-meta-definition n rs)
+  par   = "<" ws sym:par -> par
+  block = ws "meta" ws sym:n ws par?:mp ws "{" ws rule+:rs ws "}" -> (make-meta-definition n mp rs)
 
   main = lisp.ws (block | lisp.expr):x lisp.ws -> x
 }

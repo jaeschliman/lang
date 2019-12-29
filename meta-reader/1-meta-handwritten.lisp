@@ -103,17 +103,20 @@
             ;; (print "----------------------------------------")
             `(define-rule ,-name ,-body))))
 
-(define (make-meta-definition name rules)
+(define (make-meta-definition name super rules)
   `(let ()
-     (ht-at-put meta-by-name ',name (make-meta 'Base))
+     (ht-at-put meta-by-name ',name (make-meta ',(if (nil? super) 'Base super)))
      (binding ((*meta-context* (list ',name)))
        ,@rules)))
 
+(define-rule meta-parent
+  "<" ws (set! n ident) (return n))
+
 (define-rule meta-block
-  ws "meta" ws (set! -n ident) ws #\{ ws
+  ws "meta" ws (set! -n ident) ws (set! -s (? meta-parent)) ws #\{ ws
   (set! -rs (+ rule))
   ws #\} ws
-  (return (make-meta-definition -n -rs)))
+  (return (make-meta-definition -n -s -rs)))
 
 (define-rule meta-main
   (set! -it (or meta-block (extern Lisp expr)))

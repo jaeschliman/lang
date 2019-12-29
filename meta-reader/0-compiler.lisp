@@ -306,13 +306,15 @@
 (define (pop-meta-context)
   (set-symbol-value '*meta-context* (cdr *meta-context*)))
 
+(define meta-super first)
+
 (define (meta-lookup rulename)
   (let* ((top (first *meta-context*)))
     (let lookup ((meta top))
          (if (nil? meta) '()
              (let ((Meta (find-meta meta)))
                (let ((exist (ht-at (second Meta) rulename)))
-                 (if (nil? exist) (lookup (first Meta))
+                 (if (nil? exist) (lookup (meta-super Meta))
                      exist)))))))
 
 (define (get-rule x)

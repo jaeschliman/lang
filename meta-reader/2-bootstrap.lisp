@@ -17,10 +17,10 @@
 
 (define (match-map xf rule string)
   (let* ((stream (make-stream string))
-         (state  (make-initial-state stream))
-         (fn (get-rule rule)))
+         (state  (make-initial-state stream)))
     (let loop ((state state))
-         (let ((newstate (fn state)))
+         (let* ((fn (get-rule rule))
+                (newstate (fn state)))
            (if (failure? newstate) (throw `(syntax error in ,*current-file* at ,(state-col-row state)))
                (let ((r (binding ((*match-start* state)
                                   (*match-end*  newstate))

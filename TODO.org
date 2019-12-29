@@ -468,7 +468,7 @@ Assertion failed: (false), function cont_get_stack_top, file main.cpp, line 1456
   - make the boot files reentrant
   - load the compiler, then reload the boot files
   - _then_ dump the image.
-* IN-PROGRESS clean up the compiler swap mess
+* DONE clean up the compiler swap mess
 * TODO some bug in qq support with `(expr a b c ,@d e f g (x `(y)))
   y is unquoted when it shouldn't be
 * TODO review this smalltalk paper:
@@ -531,6 +531,9 @@ https://www.sandeepnambiar.com/setting-up-emacs-for-c++/
   - division
   - pow / mod / sin / cos etc
 
+* TODO ease one-off customization of meta reader
+  - some kind of 'super' rule
+  - intern rule names in a special package
 * notes
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack

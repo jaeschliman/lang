@@ -305,6 +305,8 @@ void initialize_primitive_functions(VM *vm) {
         "is_special_symbol(vm, a)")
   (prim package-extern-symbol PKG_EXT_SYM ((a any) (b any)) any
         "package_extern_symbol(vm, a, b)")
+  (prim package-import-symbol PKG_IMP_SYM ((pkg any) (sym any)) any
+        "package_import_symbol(vm, pkg, sym)")
   (prim make-user-package MK_USR_PKG ((name any)) any
         "make_user_package(vm, name)")
   (prim %make-package MK_PKG ((name any)) any

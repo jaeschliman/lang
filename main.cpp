@@ -3726,6 +3726,11 @@ void initialize_struct_printers() {
 /* ---------------------------------------- */
 Ptr get_symbol_value(VM *vm, Ptr sym);
 
+Ptr package_import_symbol(VM *vm, Ptr pkg, Ptr sym) {
+  ht_at_put(vm, package_get_symtab(pkg), Symbol_get_name(sym), sym);
+  return Nil;
+}
+
 Ptr package_lookup_string(Ptr pkg, Ptr str) {
   auto exist = ht_at(package_get_symtab(pkg), str);
   auto curr  = package_get_use_list(pkg);

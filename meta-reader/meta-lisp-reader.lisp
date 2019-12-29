@@ -35,6 +35,7 @@ meta lisp {
   unq-splicing = ",@" ws expr:x -> (list 'unquote-splicing x)
   unquoted     = ","  ws expr:x -> (list 'unquote x)
   quotation    = quoted | quasiquoted | unq-splicing | unquoted
-  expr         = ws ( "(" expr*:x ")" -> x | quotation | atom | read-eval):x ws -> x
+  expr-inner   = quotation | atom | read-eval
+  expr         = ws ( "(" expr*:x ")" -> x | expr-inner):x ws -> x
 }
 

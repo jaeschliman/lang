@@ -45,16 +45,16 @@
     (ash (+i (/i ca 2) (/i cb 2)) shiftl)))
 
 (define (proper-blend-colors a b)
-  (bit-or 0xff000000
+  (bit-or 0x33000000
           (bit-or (blend-components 2 a b)
                   (bit-or (blend-components 1 a b)
                           (blend-components 0 a b)))))
 
 (define (extend-rainbow colors)
   (mappend (lambda (colors)
-             (list (first colors)
+             (list (proper-blend-colors (first colors) (first colors))
                    (proper-blend-colors (first colors) (second colors))
-                   (second colors)))
+                   (proper-blend-colors (second colors) (second colors))))
            (list-to-pairs colors)))
 
 (define (stretch-colors colors)

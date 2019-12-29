@@ -95,11 +95,22 @@
 (define (onleft)  (set '*cursor (maxi 0 (+i *cursor -1))))
 (define (onright) (set '*cursor (mini (+i *cursor 1) (xvec/xvec-count *text))))
 
+(define (onup)
+  (let ((found (xvec/xvec-reverse-find-from-index *text #\Newline (+i -1 *cursor))))
+    (if (or (eq found -1) (eq found 0) (set '*cursor 0))
+        (set '*cursor (+i 1 (xvec/xvec-reverse-find-from-index *text #\Newline (+i -1 found)))))))
+
+(define (ondown)
+  (let ((found (xvec/xvec-find-from-index *text #\Newline *cursor)))
+    (set '*cursor (if (eq found -1) (xvec/xvec-count *text) (+i 1 found)))))
+
 (define (onkey k)
   (sync *text-lock
         (cond
           ((eq k #\Dc1) (onleft))
+          ((eq k #\Dc2) (onup))
           ((eq k #\Dc3) (onright))
+          ((eq k #\Dc4) (ondown))
           ((eq k #\Backspace)
            (when (>i *cursor 0)
              (set '*cursor (-i *cursor 1))

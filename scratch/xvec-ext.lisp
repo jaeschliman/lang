@@ -140,6 +140,20 @@
         (%bucket-insert v xa item)
         (iset v 'count (+i 1 (iget v 'count))))))
 
+(define (xvec-find-from-index v item idx)
+  (if (or (>i idx (+i -1 (iget v 'count))) (<i idx 0)) (throw "index out of bounds")
+      (let loop ((i idx) (end (xvec-count v)))
+           (if (eq i end) -1
+               (if (eq (xvec-at v i) item) i
+                   (loop (+i 1 i) end))))))
+
+(define (xvec-reverse-find-from-index v item idx)
+  (if (or (>i idx (+i -1 (iget v 'count))) (<i idx 0)) (throw "index out of bounds")
+      (let loop ((i idx) (end -1))
+           (if (eq i end) -1
+               (if (eq (xvec-at v i) item) i
+                   (loop (+i -1 i) end))))))
+
 ;; (let* ((v (make-xvec)))
 ;;   (dotimes (i 200) (xvec-push v i))
 ;;   (dotimes (i 200) (print `(,i = ,(xvec-at v i)))))

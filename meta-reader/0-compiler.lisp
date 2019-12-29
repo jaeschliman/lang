@@ -170,6 +170,7 @@
           (next (state+stream+result st (stream-advance s ch) ch))))))
 
 (forward get-rule)
+(forward get-super-rule)
 
 ;; (define (apply-rule rule state next)
 ;;   (let ((fn (get-rule rule))
@@ -223,6 +224,9 @@
   (let ((r ((get-rule rule) state)))
     (if (failure? r) r (next r))))
 
+(define (super-apply-rule here rule state next)
+  (let ((r ((get-super-rule here rule) state)))
+    (if (failure? r) r (next r))))
 
 (at-boot (define compilers-table (make-ht)))
 
@@ -303,6 +307,7 @@
         (return (xf-ignore r))
         (where  (xf-ignore r))
         (extern (xf-ignore r))
+        (super  (xf-ignore r))
         (let    (xf-ignore r))) ;; punting on let for now -- should be generated
 
       (if (symbol? r) (cons '() (list r))
@@ -344,6 +349,15 @@
       (let ((r (meta-lookup x)))
         (when (nil? r) (throw `(rule ,x is undefined)))
         r)))
+
+(define (get-super-rule here rulename)
+  (let* ((top (meta-super (find-meta here))))
+    (let lookup ((meta top))
+         (if (nil? meta) '()
+             (let ((Meta (find-meta meta)))
+               (let ((exist (ht-at (second Meta) rulename)))
+                 (if (nil? exist) (lookup (meta-super Meta))
+                     exist)))))))
 
 (define (set-rule x fn) (ht-at-put (second (find-meta (first *meta-context*))) x fn))
 
@@ -415,6 +429,10 @@
          (binding ((*meta-context* (list ',meta)))
            (set! _result_ ,(compile-rule rule state 'identity)))
          (if (failure? _result_) fail (,next _result_)))))
+
+(define-compile (super state args next)
+    (let ((rule (first args)))
+      `(super-apply-rule (first *meta-context*) ',rule ,state ,next)))
 
 (define-compile (? state args next)
     (let* ((comp (compile-rule (car args) '_state_ 'identity)))

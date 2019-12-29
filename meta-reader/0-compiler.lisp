@@ -78,6 +78,10 @@
     (if-nil? (meta-stream-memo s) (instance-set-ivar s 3 (make-ht)))
     (ht-at-put (meta-stream-memo s) key val)))
 
+(define (stream-contains? s key)
+   (let ((ht (meta-stream-memo s)))
+    (if-nil? ht #f (ht-contains? ht key))))
+
 (define (state-position st) (meta-stream-pos (car st)))
 (define (state-col-row st) (meta-stream-line (car st)))
 
@@ -200,6 +204,13 @@
 ;;       (if (failure? result) result
 ;;           (next result)))))
 
+;; (define (apply-rule rule state next)
+;;   (let ((fn (get-rule rule))
+;;         (stream (state-stream state)))
+;;     (unless (stream-contains? stream rule)
+;;       (stream-at-put stream rule (fn state)))
+;;     (stream-at stream rule)))
+
 (define (failcall next result) (if (failure? result) result (next result)))
 
 ;; (define (apply-rule rule state next) (failcall next ((get-rule rule) state)))
@@ -225,9 +236,16 @@
 
 (define xf-vars car)
 (define xf-form cdr)
+(define (xf-join-forms a b)
+  (let ((fa (xf-form a))
+        (fb (xf-form b)))
+    (cond ((nil? fa) fb)
+          ((nil? fb) fa)
+          (#t (append fa fb)))))
+
 (define (xf+ a b)
   (cons (append (xf-vars a) (xf-vars b))
-        (append (xf-form a) (xf-form b))))
+        (xf-join-forms a b)))
 
 (define (xf-primary-form a) (car (xf-form a)))
 

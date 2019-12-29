@@ -1,4 +1,3 @@
-(set '*package* (symbol-package 'define))
 
 meta mymeta < meta {
   main = mylisp.ws ( block | mylisp.expr ):x mylisp.ws -> x

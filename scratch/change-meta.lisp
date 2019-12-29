@@ -12,8 +12,7 @@ meta mylisp < lisp {
   aref = symbol:s "[" expr:e "]" -> `(aget ,s ,e)
   lhs = aref | symbol
   assign = lhs:l ws ":=" ws expr:r -> (banger l r)
-  my-expr = ws (assign | aref):x ws -> x
-  expr-inner =  my-expr | quotation | atom | read-eval 
+  expr = assign | aref | ^expr
 }
 
 (print *meta-context*)

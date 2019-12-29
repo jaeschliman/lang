@@ -48,9 +48,11 @@
 (define *star-rot 0.0)
 
 (define *cursor 0)
+(define *blink #t)
 
 (define (draw-cursor output at w h)
-  (fill-rect output at (point+ at (make-point (f->i w) (f->i h))) 0xffffff00))
+  (when *blink
+    (fill-rect output at (point+ at (make-point (f->i w) (f->i h))) 0xff999900)))
 
 (define (%display-xvec output at color scale rotation vec)
   (let* ((left 0.0) (top 0.0)
@@ -151,5 +153,9 @@
                        (sleep-ms 20)
                        (set '*star-rot (%f (+f 2.0 *star-rot) 360.0))
                        (draw!)))
+
+(fork-with-priority 0 (forever
+                       (sleep-ms 500)
+                       (set '*blink (not *blink))))
 
 (request-display screen-w screen-h)

@@ -15,6 +15,20 @@
      _res))
 
 (at-boot (define MetaInputStream (create-class 'MetaInputStream '(pos str line memo next))))
+(at-boot (define Failer (create-class 'Failer '(used))))
+(at-boot (define Memo (create-class 'Memo '(ans))))
+
+(define (make-failer)
+  (let ((r (instantiate-class Failer)))
+    (iset r 'used #f)
+    r))
+
+(define (make-memo ans)
+  (let ((r (instantiate-class Memo)))
+    (iset r 'ans ans)
+    r))
+
+(define (is-Failer? x) (isa? x Failer))
 
 (define (make-meta-input-stream pos str line)
   (let ((r (instantiate-class MetaInputStream)))
@@ -220,9 +234,42 @@
 
 ;; (define (apply-rule rule state next) (failcall next ((get-rule rule) state)))
 
+;; (define (apply-rule rule state next)
+;;   (let ((r ((get-rule rule) state)))
+;;     (if (failure? r) r (next r))))
+
 (define (apply-rule rule state next)
-  (let ((r ((get-rule rule) state)))
-    (if (failure? r) r (next r))))
+  (let* ((stream (state-stream state))
+         (memo (stream-at stream rule)))
+    (let ((result
+           (cond
+             ((is-Failer? memo)
+              (iset memo 'used #t)
+              fail)
+             ((nil? memo)
+              (let ((app  (get-rule rule))
+                    (orig state)
+                    (failer (make-failer)))
+                (stream-at-put stream rule failer)
+                (let ((res (app orig)))
+                  (cond ((failure? res) res)
+                        (#t
+                         (set! memo (make-memo res))
+                         (stream-at-put stream rule memo)
+                         (cond ((iget failer 'used)
+                                (let ((sentinel (state-stream res)))
+                                  (let loop ()
+                                       (let ((ans (app orig)))
+                                         (cond ((failure? ans)
+                                                (iget memo 'ans))
+                                               ((eq (state-stream ans) sentinel)
+                                                (iget memo 'ans))
+                                               (#t
+                                                (iset memo 'ans ans)
+                                                (loop)))))))
+                               (#t (iget memo 'ans))))))))
+             (#t (iget memo 'ans)))))
+      (if (failure? result) result (next result)))))
 
 (define (super-apply-rule here rule state next)
   (let ((r ((get-super-rule here rule) state)))

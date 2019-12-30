@@ -1,33 +1,18 @@
-(defmacro sync (semaphore & body)
-  (let ((sem (gensym))
-        (res (gensym)))
-    `(let ((,sem ,semaphore)
-           (,res '()))
-       (semaphore-wait ,sem)
-       (set! ,res (let () ,@body))
-       (signal-semaphore ,sem)
-       ,res)))
-
-(define (now) (#/lang/current-time-ms))
+(define now #/lang/current-time-ms)
 
 (defmacro timing ( & body)
   `(let ((start (now)))
      ,@body
      (print (list 'took: (-i (now) start)))))
 
-(define (atom val)
-  (let ((r (make-array 2)))
-    (aset r 0 (make-semaphore #t))
-    (aset r 1 val)
-    r))
+(define (atom val) (vector val))
 
-(define (deref atom)
-  (sync (aget atom 0)
-        (aget atom 1)))
+(define (deref atom) (aget atom 0))
 
 (define (swap! atom fn)
-  (sync (aget atom 0)
-        (aset atom 1 (fn (aget atom 1)))))
+  (let loop ((expect (deref atom)))
+       (unless (#/lang/cas-vector atom 0 expect (fn expect))
+         (loop (deref atom)))))
 
 (define (inc n) (+i n 1))
 
@@ -36,11 +21,18 @@
         (unless ,condition
           (loop))))
 
-(let ((it (atom 0)))
-  (timing
-   (dotimes (_ 1000000)
-     (#/lang/fork-thunk 0 (lambda () (swap! it inc))))
-   (spin-wait (eq 1000000 (deref it))))
-  (print (deref it)))
+;; (set '#/lang/compiler/*trace-eval* #t)
+(forever
+ (print '--------------------------------------------------)
+ (let* ((it (atom 0))
+        (thunk (lambda () (swap! it inc))))
+   (timing
+    (dotimes (_ 1000000) (#/lang/fork-thunk 0 thunk))
+    (spin-wait (eq 1000000 (deref it))))
+   (print (deref it))
+   (swap! it (lambda (_) 0))
+   (timing (dotimes (_ 1000000) (thunk)))
+   (print (deref it)))
+ (sleep-ms 100))
 
 

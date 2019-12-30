@@ -1,0 +1,21 @@
+meta lrec {
+     ws = space*
+     number = [0-9]+
+
+     add = expr:a ws "+" ws expr:b -> `(+ ,a ,b)
+     mul = expr:a ws "*" ws expr:b -> `(* ,a ,b)
+     eexpr = add | number
+
+     expr = expr:a ws "+" ws expr:b -> `(+ ,a ,b)
+          | expr:a ws "*" ws expr:b -> `(* ,a ,b)
+          | "(" ws expr:e ws ")" -> e
+          | number
+     main = ws expr:x ws -> `(print '(saw:,x))
+}
+
+(let ()
+(set '#/lang/*meta-trace* #t)
+(set '*meta-context* (list 'lrec)))
+1234 + 4567
+2 * 4 + 3
+(2 * 4) + 3

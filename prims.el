@@ -421,6 +421,8 @@ void initialize_primitive_functions(VM *vm) {
   (prim current-thread CURR_THD () any "vm->curr_thd->thread")
   (prim thread-count THD_CNT () Fixnum "vm->threads->count")
   (prim list-all-threads ALL_THDS () any "list_all_threads(vm)")
+  (prim cas-vector CAS_VEC ((vec any) (idx Fixnum) (expect any) (replace any)) Bool
+        "cas_vector(vec, idx, expect, replace)")
 
   (prim slurp SLURP ((path String)) any "slurp(vm, path)")
 

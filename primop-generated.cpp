@@ -151,24 +151,25 @@ enum PrimitiveOperation : u64 {
   PRIM_CURR_THD = ((148ULL << 32) | (255ULL << 16) | PrimOp_Tag),
   PRIM_THD_CNT = ((149ULL << 32) | (255ULL << 16) | PrimOp_Tag),
   PRIM_ALL_THDS = ((150ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_SLURP = ((151ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_OS_WSTR = ((152ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_OS_WCH = ((153ULL << 32) | (2ULL << 16) | PrimOp_Tag),
-  PRIM_THD_DBG_INFO = ((154ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_IM_SAV = ((155ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_IM_SAV_DIE = ((156ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_TIME_MS = ((157ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_CL_SRC_LOC = ((158ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_UPD_WIN = ((159ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_BLTQ = ((160ULL << 32) | (10ULL << 16) | PrimOp_Tag),
-  PRIM_EXIT = ((161ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_PF = ((162ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_BCTOCLS = ((163ULL << 32) | (1ULL << 16) | PrimOp_Tag),
-  PRIM_MKBTC = ((164ULL << 32) | (4ULL << 16) | PrimOp_Tag),
-  PRIM_STKDPTH = ((165ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_STKDPTHB = ((166ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_CLRSTAT = ((167ULL << 32) | (255ULL << 16) | PrimOp_Tag),
-  PRIM_PRNSTAT = ((168ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_CAS_VEC = ((151ULL << 32) | (4ULL << 16) | PrimOp_Tag),
+  PRIM_SLURP = ((152ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_OS_WSTR = ((153ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_OS_WCH = ((154ULL << 32) | (2ULL << 16) | PrimOp_Tag),
+  PRIM_THD_DBG_INFO = ((155ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_IM_SAV = ((156ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_IM_SAV_DIE = ((157ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_TIME_MS = ((158ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_CL_SRC_LOC = ((159ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_UPD_WIN = ((160ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_BLTQ = ((161ULL << 32) | (10ULL << 16) | PrimOp_Tag),
+  PRIM_EXIT = ((162ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_PF = ((163ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_BCTOCLS = ((164ULL << 32) | (1ULL << 16) | PrimOp_Tag),
+  PRIM_MKBTC = ((165ULL << 32) | (4ULL << 16) | PrimOp_Tag),
+  PRIM_STKDPTH = ((166ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_STKDPTHB = ((167ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_CLRSTAT = ((168ULL << 32) | (255ULL << 16) | PrimOp_Tag),
+  PRIM_PRNSTAT = ((169ULL << 32) | (255ULL << 16) | PrimOp_Tag),
 
   PRIM_UNUSED = 0
 };
@@ -1478,6 +1479,17 @@ Ptr PRIM_ALL_THDS_impl(VM *vm, u32 argc) {
 }
 
 // Primitive 150
+Ptr PRIM_CAS_VEC_impl(VM *vm, u32 argc) {
+  maybe_unused(vm); maybe_unused(argc);
+   VM_ARG("cas-vector",any,replace);
+   VM_ARG("cas-vector",any,expect);
+   VM_ARG("cas-vector",Fixnum,idx);
+   VM_ARG("cas-vector",any,vec);
+
+  return to(Bool,(cas_vector(vec, idx, expect, replace)));
+}
+
+// Primitive 151
 Ptr PRIM_SLURP_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("slurp",String,path);
@@ -1485,7 +1497,7 @@ Ptr PRIM_SLURP_impl(VM *vm, u32 argc) {
  return slurp(vm, path);
 }
 
-// Primitive 151
+// Primitive 152
 Ptr PRIM_OS_WSTR_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("%file-output-stream-write-string",String,str);
@@ -1494,7 +1506,7 @@ Ptr PRIM_OS_WSTR_impl(VM *vm, u32 argc) {
   return to(Bool,(file_output_stream_write_string(s, str)));
 }
 
-// Primitive 152
+// Primitive 153
 Ptr PRIM_OS_WCH_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("%file-output-stream-write-char",Char,ch);
@@ -1503,7 +1515,7 @@ Ptr PRIM_OS_WCH_impl(VM *vm, u32 argc) {
   return to(Bool,(file_output_stream_write_char(s, ch)));
 }
 
-// Primitive 153
+// Primitive 154
 Ptr PRIM_THD_DBG_INFO_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("thread-get-debug-info",any,a);
@@ -1511,7 +1523,7 @@ Ptr PRIM_THD_DBG_INFO_impl(VM *vm, u32 argc) {
  return thread_get_debug_info(vm, a);
 }
 
-// Primitive 154
+// Primitive 155
 Ptr PRIM_IM_SAV_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("save-snapshot",String,path);
@@ -1519,7 +1531,7 @@ Ptr PRIM_IM_SAV_impl(VM *vm, u32 argc) {
  return im_snapshot_to_path(vm, path);
 }
 
-// Primitive 155
+// Primitive 156
 Ptr PRIM_IM_SAV_DIE_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("save-snapshot-and-exit",String,path);
@@ -1527,14 +1539,14 @@ Ptr PRIM_IM_SAV_DIE_impl(VM *vm, u32 argc) {
  return im_snapshot_to_path_and_exit(vm, path);
 }
 
-// Primitive 156
+// Primitive 157
 Ptr PRIM_TIME_MS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
   return to(Fixnum,(current_time_ms()));
 }
 
-// Primitive 157
+// Primitive 158
 Ptr PRIM_CL_SRC_LOC_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("closure-source-location",any,a);
@@ -1542,14 +1554,14 @@ Ptr PRIM_CL_SRC_LOC_impl(VM *vm, u32 argc) {
  return get_source_location(a);
 }
 
-// Primitive 158
+// Primitive 159
 Ptr PRIM_UPD_WIN_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
  return update_display(vm);
 }
 
-// Primitive 159
+// Primitive 160
 Ptr PRIM_BLTQ_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("blitq",Point,dd);
@@ -1566,7 +1578,7 @@ Ptr PRIM_BLTQ_impl(VM *vm, u32 argc) {
  return gfx_blit_image_into_quad(s,d, sa,sb,sc,sd,da,db,dc,dd);
 }
 
-// Primitive 160
+// Primitive 161
 Ptr PRIM_EXIT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("exit",Fixnum,status);
@@ -1574,7 +1586,7 @@ Ptr PRIM_EXIT_impl(VM *vm, u32 argc) {
  return (exit(status), Nil);
 }
 
-// Primitive 161
+// Primitive 162
 Ptr PRIM_PF_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("prefetch",any,it);
@@ -1582,7 +1594,7 @@ Ptr PRIM_PF_impl(VM *vm, u32 argc) {
  return prefetch(it);
 }
 
-// Primitive 162
+// Primitive 163
 Ptr PRIM_BCTOCLS_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("bytecode->closure",any,it);
@@ -1590,7 +1602,7 @@ Ptr PRIM_BCTOCLS_impl(VM *vm, u32 argc) {
  return make_closure(vm, it, Nil);
 }
 
-// Primitive 163
+// Primitive 164
 Ptr PRIM_MKBTC_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
    VM_ARG("make-bytecode",PtrArray,literals);
@@ -1601,28 +1613,28 @@ Ptr PRIM_MKBTC_impl(VM *vm, u32 argc) {
  return create_bytecode(vm, varargs, name, code, literals);
 }
 
-// Primitive 164
+// Primitive 165
 Ptr PRIM_STKDPTH_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
   return to(Fixnum,(vm->curr_thd->stack_depth));
 }
 
-// Primitive 165
+// Primitive 166
 Ptr PRIM_STKDPTHB_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
   return to(Fixnum,((vm->curr_thd->stack_start - vm->curr_thd->stack) * 8));
 }
 
-// Primitive 166
+// Primitive 167
 Ptr PRIM_CLRSTAT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
  return reset_stats_reporting(vm);
 }
 
-// Primitive 167
+// Primitive 168
 Ptr PRIM_PRNSTAT_impl(VM *vm, u32 argc) {
   maybe_unused(vm); maybe_unused(argc);
 
@@ -1782,6 +1794,7 @@ PrimitiveFunction PrimLookupTable[] = {
   &PRIM_CURR_THD_impl,
   &PRIM_THD_CNT_impl,
   &PRIM_ALL_THDS_impl,
+  &PRIM_CAS_VEC_impl,
   &PRIM_SLURP_impl,
   &PRIM_OS_WSTR_impl,
   &PRIM_OS_WCH_impl,
@@ -1957,6 +1970,7 @@ void initialize_primitive_functions(VM *vm) {
   set_global(vm, "current-thread", to(PrimOp, PRIM_CURR_THD));
   set_global(vm, "thread-count", to(PrimOp, PRIM_THD_CNT));
   set_global(vm, "list-all-threads", to(PrimOp, PRIM_ALL_THDS));
+  set_global(vm, "cas-vector", to(PrimOp, PRIM_CAS_VEC));
   set_global(vm, "slurp", to(PrimOp, PRIM_SLURP));
   set_global(vm, "%file-output-stream-write-string", to(PrimOp, PRIM_OS_WSTR));
   set_global(vm, "%file-output-stream-write-char", to(PrimOp, PRIM_OS_WCH));
@@ -3136,13 +3150,23 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
   }
 
   case 151: {
+   VM_ARG("cas-vector",any,replace);
+   VM_ARG("cas-vector",any,expect);
+   VM_ARG("cas-vector",Fixnum,idx);
+   VM_ARG("cas-vector",any,vec);
+
+     return(to(Bool,(cas_vector(vec, idx, expect, replace))));
+    break;
+  }
+
+  case 152: {
    VM_ARG("slurp",String,path);
 
     return(slurp(vm, path));
     break;
   }
 
-  case 152: {
+  case 153: {
    VM_ARG("%file-output-stream-write-string",String,str);
    VM_ARG("%file-output-stream-write-string",any,s);
 
@@ -3150,7 +3174,7 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 153: {
+  case 154: {
    VM_ARG("%file-output-stream-write-char",Char,ch);
    VM_ARG("%file-output-stream-write-char",any,s);
 
@@ -3158,47 +3182,47 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 154: {
+  case 155: {
    VM_ARG("thread-get-debug-info",any,a);
 
     return(thread_get_debug_info(vm, a));
     break;
   }
 
-  case 155: {
+  case 156: {
    VM_ARG("save-snapshot",String,path);
 
     return(im_snapshot_to_path(vm, path));
     break;
   }
 
-  case 156: {
+  case 157: {
    VM_ARG("save-snapshot-and-exit",String,path);
 
     return(im_snapshot_to_path_and_exit(vm, path));
     break;
   }
 
-  case 157: {
+  case 158: {
 
      return(to(Fixnum,(current_time_ms())));
     break;
   }
 
-  case 158: {
+  case 159: {
    VM_ARG("closure-source-location",any,a);
 
     return(get_source_location(a));
     break;
   }
 
-  case 159: {
+  case 160: {
 
     return(update_display(vm));
     break;
   }
 
-  case 160: {
+  case 161: {
    VM_ARG("blitq",Point,dd);
    VM_ARG("blitq",Point,dc);
    VM_ARG("blitq",Point,db);
@@ -3214,28 +3238,28 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 161: {
+  case 162: {
    VM_ARG("exit",Fixnum,status);
 
     return((exit(status), Nil));
     break;
   }
 
-  case 162: {
+  case 163: {
    VM_ARG("prefetch",any,it);
 
     return(prefetch(it));
     break;
   }
 
-  case 163: {
+  case 164: {
    VM_ARG("bytecode->closure",any,it);
 
     return(make_closure(vm, it, Nil));
     break;
   }
 
-  case 164: {
+  case 165: {
    VM_ARG("make-bytecode",PtrArray,literals);
    VM_ARG("make-bytecode",U16Array,code);
    VM_ARG("make-bytecode",any,name);
@@ -3245,25 +3269,25 @@ Ptr as = vm_get_stack_values_as_list(vm, argc);
     break;
   }
 
-  case 165: {
+  case 166: {
 
      return(to(Fixnum,(vm->curr_thd->stack_depth)));
     break;
   }
 
-  case 166: {
+  case 167: {
 
      return(to(Fixnum,((vm->curr_thd->stack_start - vm->curr_thd->stack) * 8)));
     break;
   }
 
-  case 167: {
+  case 168: {
 
     return(reset_stats_reporting(vm));
     break;
   }
 
-  case 168: {
+  case 169: {
 
     return(print_stats_reporting(vm));
     break;

@@ -4970,6 +4970,15 @@ Ptr list_all_threads(VM *vm) {
   return result;
 }
 
+bool cas_vector(Ptr array, s64 idx, Ptr expected, Ptr replace) {
+  // pseudo-cas, as we only run in one OS thread
+  if (array_get(array, idx) == expected) {
+    array_set(array, idx, replace);
+    return true;
+  }
+  return false;
+}
+
 Ptr _list_rev(Ptr lst) {
   if (lst == Nil) return Nil;
   auto prev = lst;

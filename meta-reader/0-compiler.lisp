@@ -14,21 +14,7 @@
      (print (list ',form '= _res))
      _res))
 
-(at-boot (define MetaInputStream (create-class 'MetaInputStream '(pos str line memo next))))
-(at-boot (define Failer (create-class 'Failer '(used))))
-(at-boot (define Memo (create-class 'Memo '(ans))))
-
-(define (make-failer)
-  (let ((r (instantiate-class Failer)))
-    (iset r 'used #f)
-    r))
-
-(define (make-memo ans)
-  (let ((r (instantiate-class Memo)))
-    (iset r 'ans ans)
-    r))
-
-(define (is-Failer? x) (isa? x Failer))
+(at-boot (define MetaInputStream (create-class 'MetaInputStream '(pos str line memo next head-rule))))
 
 (define (make-meta-input-stream pos str line)
   (let ((r (instantiate-class MetaInputStream)))
@@ -37,6 +23,7 @@
     (instance-set-ivar r 2 line)
     (instance-set-ivar r 3 '())
     (instance-set-ivar r 4 '#f)
+    (instance-set-ivar r 5 '())
     r))
 
 (defmacro meta-stream-pos  (it) `(instance-get-ivar ,it 0))
@@ -44,6 +31,8 @@
 (defmacro meta-stream-line (it) `(instance-get-ivar ,it 2))
 (defmacro meta-stream-memo (it) `(instance-get-ivar ,it 3))
 (defmacro meta-stream-next (it) `(instance-get-ivar ,it 4))
+(defmacro meta-stream-head-rule (it) `(instance-get-ivar ,it 5))
+(define (set-meta-stream-head-rule stream head) (instance-set-ivar stream 5 head))
 
 (at-boot (define fail '(fail fail fail)))
 (defmacro failure? (state) `(,eq ,state ',fail))
@@ -237,6 +226,133 @@
 ;; (define (apply-rule rule state next)
 ;;   (let ((r ((get-rule rule) state)))
 ;;     (if (failure? r) r (next r))))
+
+(defmacro defdata (maker classname slots)
+  (unless (symbol-bound? classname) (set classname #f))
+  `(let ()
+     (at-boot (define ,classname (create-class ',classname ',slots)))
+     (define (,maker ,@slots)
+       (let ((_r (instantiate-class ,classname)))
+         ,@(mapcar (lambda (slot) `(iset _r ',slot ,slot)) slots)
+         _r))))
+
+(at-boot (defparameter *LR-stack* '()))
+
+(forward list-member?)
+(define (list-member? item lst)
+  (if-nil? lst #f
+           (or (eq (car lst) item)
+               (list-member? item (cdr lst)))))
+
+(defdata %make-failer Failer (used))
+(define (make-failer) (%make-failer #f))
+(define (is-Failer? x) (isa? x Failer))
+
+(defdata make-memo Memo (ans))
+
+
+(defdata make-LR LR (seed rule head next))
+(defdata make-Head Head (rule involvedSet evalSet))
+
+(define (state-leq? a b)
+  (let ((pa (meta-stream-pos a))
+        (pb (meta-stream-pos b)))
+    (or (eq pa pb) (<i pa pb))))
+
+(define (Grow-LR rule state memo head)
+  (let ((stream (state-stream state))
+        (app (get-rule rule)))
+    ;; Line A
+    (set-meta-stream-head-rule stream head)
+    (let loop ()
+         ;; Pos <- P
+         ;; Line B ?
+         (iset head 'evalSet (iget head 'involvedSet))
+         (let ((ans (app state)))
+           (unless (or (failure? ans)
+                       (state-leq? ans state))
+             (iset memo 'ans ans)
+             (loop))))
+    ;; Line C
+    (set-meta-stream-head-rule stream '())
+    ;; Pos <- M.Pos ?
+    (iget memo 'ans)))
+
+(defmacro while (condition & body)
+  `(let loop ()
+        (when ,condition
+          ,@body
+          (loop))))
+(define (neq a b) (not (eq a b)))
+
+(define (Setup-LR rule L)
+  (when (nil? (iget L 'head))
+    (iset L 'head (make-Head rule '() '())))
+  (let ((s *LR-stack*))
+    (while (neq (iget s 'head) (iget L 'head))
+      (let ((newhead (iget L 'head)))
+        (iset s 'head newhead)
+        (iset newhead 'involvedSet
+              (cons (iget s 'rule)
+                    (iget newhead 'involvedSet)))
+        (set! s (iget s 'next))))))
+
+(define (list-set-remove set item)
+  (let ((r '()))
+    (dolist (i set) (unless (eq i item) (set! r (cons i r))))
+    r))
+
+(define (Recall rule state)
+  (let* ((stream (state-stream state))
+         (m (stream-at stream rule))
+         (h (meta-stream-head-rule stream)))
+    (cond
+      ((nil? h) m)
+      ((and (nil? m)
+            (not (list-member? rule (cons (iget h 'head)
+                                          (iget h 'involvedSet)))))
+       (make-memo fail))
+      ((list-member? rule (iget h 'evalSet))
+       (iset h 'evalSet (list-set-remove (iget h 'evalSet) rule))
+       (let ((ans ((get-rule rule) state)))
+         (iset m 'ans ans)
+         m))
+      (#t m))))
+
+(define (LR-Answer rule state M)
+  (let ((h (iget (iget M 'ans) 'head)))
+    (cond
+      ((not (eq (iget h 'rule) rule))
+       (iget (iget M 'ans) 'seed))
+      (#t
+       (iset M 'ans (iget (iget M 'ans) 'seed))
+       (if (failure? (iget M 'ans)) fail
+           (Grow-LR rule state M h))))))
+
+(define (Apply-Rule rule state)
+  (let ((m (Recall rule state))
+        (stream (state-stream state)))
+    (cond ((nil? m)
+           (let ((lr (make-LR fail rule '() *LR-stack*)))
+             (set '*LR-stack* lr)
+             (set! m (make-memo lr))
+             (stream-at-put stream rule m)
+             (let* ((next-state ((get-rule rule) state)))
+               (set '*LR-stack* (iget *LR-stack* 'next))
+               ;; m.pos <- Pos
+               (cond ((not (nil? (iget lr 'head)))
+                      (iset lr 'seed next-state)
+                      (LR-Answer rule state m))
+                     (#t
+                      (iset m 'ans next-state)
+                      next-state)))))
+          (#t
+           ;; Pos <- m.pos
+           (if (isa? (iget m 'ans) LR)
+               (let ()
+                 (Setup-LR rule (iget m 'ans))
+                 (iget (iget m 'ans) 'seed))
+               (iget m 'ans))))))
 
 (define (apply-rule rule state next)
   (let* ((stream (state-stream state))

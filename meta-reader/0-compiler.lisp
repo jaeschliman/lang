@@ -354,6 +354,10 @@
                (iget m 'ans))))))
 
 (define (apply-rule rule state next)
+  (let ((result (Apply-Rule rule state)))
+    (if (failure? result) fail (next result))))
+
+(define (x-apply-rule rule state next)
   (let* ((stream (state-stream state))
          (memo (stream-at stream rule)))
     (let ((result

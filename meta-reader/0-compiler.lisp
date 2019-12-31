@@ -255,8 +255,8 @@
 (defdata make-Head Head (rule involvedSet evalSet))
 
 (define (state-leq? a b)
-  (let ((pa (meta-stream-pos a))
-        (pb (meta-stream-pos b)))
+  (let ((pa (meta-stream-pos (state-stream a)))
+        (pb (meta-stream-pos (state-stream b))))
     (or (eq pa pb) (<i pa pb))))
 
 (define (Grow-LR rule state memo head)
@@ -266,11 +266,10 @@
     (set-meta-stream-head-rule stream head)
     (let loop ()
          ;; Pos <- P
-         ;; Line B ?
          (iset head 'evalSet (iget head 'involvedSet))
          (let ((ans (app state)))
            (unless (or (failure? ans)
-                       (state-leq? ans state))
+                       (state-leq? ans (iget memo 'ans)))
              (iset memo 'ans ans)
              (loop))))
     ;; Line C

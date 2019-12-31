@@ -7304,6 +7304,10 @@ struct blit_sampler {
   f32 scale, iscale, angle,
     du_col, dv_col,
     du_row, dv_row,
+    scaled_du_row,
+    scaled_dv_row,
+    scaled_du_col,
+    scaled_dv_col,
     u, v, row_u, row_v,
     src_x, src_y;
   s32 min_x, min_y, max_x, max_y;
@@ -7349,6 +7353,11 @@ inline void blit_sampler_init(blit_sampler *s, blit_surface *src,
   s->max_x = std::min(from->x + from->width,  src->width);
   s->min_y = std::max(from->y, 0LL);
   s->max_y = std::min(from->y + from->height, src->height);
+
+  s->scaled_du_row = s->du_row * s->iscale;
+  s->scaled_dv_row = s->dv_row * s->iscale;
+  s->scaled_du_col = s->du_col * s->iscale;
+  s->scaled_dv_col = s->dv_col * s->iscale;
 }
 
 inline void blit_sampler_start_row(blit_sampler *s) {
@@ -7368,12 +7377,12 @@ inline bool blit_sampler_sample(blit_sampler *s, u8**out) {
 }
 
 inline void blit_sampler_step_col(blit_sampler *s) {
-  s->u += s->du_col * s->iscale;
-  s->v += s->dv_col * s->iscale;
+  s->u += s->scaled_du_col;
+  s->v += s->scaled_dv_col;
 }
 inline void blit_sampler_step_row(blit_sampler *s) {
-  s->row_u += s->du_row * s->iscale;
-  s->row_v += s->dv_row * s->iscale;
+  s->row_u += s->scaled_du_row;
+  s->row_v += s->scaled_dv_row;
 }
 
 #define DEBUG_FILL 0

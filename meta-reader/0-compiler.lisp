@@ -308,50 +308,47 @@
     (cond
       ((nil? h) m)
       ((and (nil? m)
-            (not (list-member? rule (cons (iget h 'head)
-                                          (iget h 'involvedSet)))))
+            (not (or (eq rule (iget h 'head))
+                     (list-member? rule (iget h 'involvedSet)))))
        (make-memo fail))
       ((list-member? rule (iget h 'evalSet))
        (iset h 'evalSet (list-set-remove (iget h 'evalSet) rule))
-       (let ((ans ((get-rule rule) state)))
-         (iset m 'ans ans)
-         m))
+       (iset m 'ans ((get-rule rule) state))
+       m)
       (#t m))))
 
-(define (LR-Answer rule state M)
-  (let ((h (iget (iget M 'ans) 'head)))
+(define (LR-Answer rule state memo)
+  (let* ((ans (iget memo 'ans))
+         (head (iget ans 'head))
+         (seed (iget ans 'seed)))
     (cond
-      ((not (eq (iget h 'rule) rule))
-       (iget (iget M 'ans) 'seed))
+      ((not (eq (iget head 'rule) rule))
+       seed)
       (#t
-       (iset M 'ans (iget (iget M 'ans) 'seed))
-       (if (failure? (iget M 'ans)) fail
-           (Grow-LR rule state M h))))))
+       (iset memo 'ans seed)
+       (if (failure? ans) fail
+           (Grow-LR rule state memo head))))))
 
 (define (Apply-Rule rule state)
   (let ((m (Recall rule state))
         (stream (state-stream state)))
     (cond ((nil? m)
            (let ((lr (make-LR fail rule '() *LR-stack*)))
-             (set '*LR-stack* lr)
              (set! m (make-memo lr))
              (stream-at-put stream rule m)
-             (let* ((next-state ((get-rule rule) state)))
-               (set '*LR-stack* (iget *LR-stack* 'next))
-               ;; m.pos <- Pos
-               (cond ((not (nil? (iget lr 'head)))
-                      (iset lr 'seed next-state)
-                      (LR-Answer rule state m))
-                     (#t
-                      (iset m 'ans next-state)
-                      next-state)))))
-          (#t
-           ;; Pos <- m.pos
-           (if (isa? (iget m 'ans) LR)
-               (let ()
-                 (Setup-LR rule (iget m 'ans))
-                 (iget (iget m 'ans) 'seed))
-               (iget m 'ans))))))
+             (let* ((next-state (binding ((*LR-stack* lr))
+                                  ((get-rule rule) state))))
+               (cond
+                 ((nil? (iget lr 'head))
+                  (iset m 'ans next-state)
+                  next-state)
+                 (#t
+                  (iset lr 'seed next-state)
+                  (LR-Answer rule state m))))))
+          ((isa? (iget m 'ans) LR)
+           (Setup-LR rule (iget m 'ans))
+           (iget (iget m 'ans) 'seed))
+          (#t (iget m 'ans)))))
 
 (define (apply-rule rule state next)
   (let ((result (Apply-Rule rule state)))

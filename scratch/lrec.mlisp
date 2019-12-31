@@ -2,12 +2,13 @@ meta lrec {
      ws = space*
      number = [0-9]+
 
-     add = expr:a ws "+" ws expr:b -> `(+ ,a ,b)
-     mul = expr:a ws "*" ws expr:b -> `(* ,a ,b)
-     eexpr = add | number
+     add   = expr:a ws "+" ws expr:b -> `(+ ,a ,b)
+     mul   = expr:a ws "*" ws expr:b -> `(* ,a ,b)
+     group = "(" ws expr:e ws ")" -> e
+     expr  = add | mul | group | number
 
-     expr = expr:a ws "+" ws expr:b -> `(+ ,a ,b)
-          | expr:a ws "*" ws expr:b -> `(* ,a ,b)
+     xexpr = expr:a ws "*" ws expr:b -> `(* ,a ,b)
+          | expr:a ws "+" ws expr:b -> `(+ ,a ,b)
           | "(" ws expr:e ws ")" -> e
           | number
      main = ws expr:x ws -> `(print '(saw:,x))
@@ -19,3 +20,4 @@ meta lrec {
 1234 + 4567
 2 * 4 + 3
 (2 * 4) + 3
+1 + 2 * 3

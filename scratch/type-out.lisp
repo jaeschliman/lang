@@ -41,7 +41,7 @@
 (define (blit-charcode-at output raw-code point color scale rotation)
   (when (<i raw-code 256)
     (fill-rect-with-mask
-     color output font point font-char-size scale rotation
+     color output font point (point+ point font-char-size) scale rotation
      (aget %font-origins raw-code)
      (aget %font-extents raw-code) scale rotation)))
 

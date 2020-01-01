@@ -90,7 +90,8 @@
 
 
 (define *text (xvec/make-xvec))
-;; (binding ((*standard-output* *text)) (print `(hello from: ,*text)))
+
+(#/lang/stream-write-string *text (#/lang/slurp "./scratch/type-out.lisp"))
 
 (define (debug-dump)
   (xvec/each-with-index (ch i *text) (stream-write-char *standard-output* ch))

@@ -7376,6 +7376,48 @@ inline bool blit_sampler_sample(blit_sampler *s, u8**out) {
   }
 }
 
+struct pixel_bytes {
+  u8 a, r, g, b;
+};
+
+struct pixelb {
+  union {
+    u8 first_byte;
+    u32 pixel;
+    pixel_bytes bytes;
+  };
+};
+
+inline bool blit_sampler_sample_aa(blit_sampler *s, pixelb*out) {
+  f32 x_rem, y_rem;
+  f32 _sx, _sy;
+  x_rem = modf(s->u, &_sx); y_rem = modf(s->v, &_sy);
+  s32 sx = _sx, sy = _sy; 
+  if (sx >= s->min_x && sx < s->max_x &&
+      sy > s->min_y && sy < s->max_y) {
+    auto src = s->src;
+    f32 by1 = y_rem, by0 = 1.0 - y_rem;
+    auto s0 = (src->mem + (sy -1) * src->pitch + sx * 4);
+    auto s1 = (src->mem + sy * src->pitch + sx * 4);
+    pixelb result;
+    result.bytes.a = s0[0] * by0 + s1[0] * by1;
+    result.bytes.r = s0[1] * by0 + s1[1] * by1;
+    result.bytes.g = s0[2] * by0 + s1[2] * by1;
+    result.bytes.b = s0[3] * by0 + s1[3] * by1;
+    *out = result;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+inline bool blit_sampler_sample_unchecked(blit_sampler *s, u8**out) {
+  s32 sx = floorf(s->u), sy = floorf(s->v);
+  auto src = s->src;
+  *out = src->mem + sy * src->pitch + sx * 4;
+  return true;
+}
+
 inline void blit_sampler_step_col(blit_sampler *s) {
   s->u += s->scaled_du_col;
   s->v += s->scaled_dv_col;
@@ -7588,11 +7630,12 @@ Ptr _gfx_fill_rect_with_mask(u32 color, blit_surface *dst, blit_surface *msk,
 
     for (s32 x = 0; x < right; x++) {
       u8 *over = (u8*)(u32*)&color;
-      u8 *mask;
+      pixelb sample;
+      u8 *mask = &sample.first_byte;;
 
       // it would be great if there were a way to do fewer checks here.
       if (at_x + x >= 0L && at_y + y >= 0L &&
-          blit_sampler_sample(&bs_msk, &mask)) {
+          blit_sampler_sample_aa(&bs_msk, &sample)) {
 
         u8* under = dst->mem + dest_row + (at_x + x) * 4;
         u8 alpha  = over[3] * mask[0] / 255;

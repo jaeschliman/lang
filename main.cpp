@@ -7393,16 +7393,25 @@ Ptr gfx_blit_image(blit_surface *src, blit_surface *dst,
                    f32 deg_rot,
                    u32 tint) {
 
-  u32 scan_width; u32 scan_height;
-  // TODO: @speed properly calculate scan width and height (rotate rect and get bounds)
-  {
+  s32 scan_width; s32 scan_height;
+  if (deg_rot == 0.0) {
+    scan_width  = from->width  * scale;
+    scan_height = from->height * scale;
+  } else {
+    // TODO: @speed properly calculate scan width and height (rotate rect and get bounds)
     f32 sw = from->width  * scale;
     f32 sh = from->height * scale;
     scan_width = scan_height = (u32)floorf(sqrtf(sw * sw + sh * sh));
   }
 
-  s32 right  = std::min((s32)scan_width, (s32)dst->width - at.x);
-  s32 bottom = std::min((s32)scan_height, (s32)dst->height - at.y);
+  s32 right  = scan_width;
+  s32 bottom = scan_height;
+  {
+    s32 right_edge = at.x + scan_width;
+    s32 bottom_edge = at.y + scan_height;
+    if (right_edge >= dst->width) right -= right_edge - dst->width;
+    if (bottom_edge >= dst->height) bottom -= bottom_edge - dst->height;
+  }
 
   blit_sampler bs_src;
   blit_sampler_init(&bs_src, src, scale, deg_rot, from);

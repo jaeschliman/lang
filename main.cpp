@@ -7546,16 +7546,28 @@ Ptr _gfx_fill_rect_with_mask(u32 color, blit_surface *dst, blit_surface *msk,
 
   auto at_y = from->y, at_x = from->x;
   
-  u32 scan_width; u32 scan_height;
-  // TODO: @speed properly calculate scan width and height (rotate rect and get bounds)
-  {
+  s32 scan_width; s32 scan_height;
+  if (m_deg_rot == 0.0) {
+    scan_width  = from->width  * scale;
+    scan_height = from->height * scale;
+  } else {
+    // TODO: @speed properly calculate scan width and height (rotate rect and get bounds)
     f32 sw = from->width  * scale;
     f32 sh = from->height * scale;
     scan_width = scan_height = (u32)floorf(sqrtf(sw * sw + sh * sh));
   }
+  // TODO: should normalize the rects coming in rather than dealing with these here
+  scan_width = scan_width < 0 ? scan_width * -1 : scan_width;
+  scan_height = scan_height < 0 ? scan_height * -1 : scan_height;
 
-  s32 right  = std::min((s32)scan_width, (s32)(dst->width - at_x));
-  s32 bottom = std::min((s32)scan_height, (s32)(dst->height - at_y));
+  s32 right  = scan_width;
+  s32 bottom = scan_height;
+  {
+    s32 right_edge = at_x + scan_width;
+    s32 bottom_edge = at_y + scan_height;
+    if (right_edge >= dst->width) right -= right_edge - dst->width;
+    if (bottom_edge >= dst->height) bottom -= bottom_edge - dst->height;
+  }
 
   blit_sampler bs_msk;
   blit_sampler_init(&bs_msk, msk, m_scale, m_deg_rot, m_from);

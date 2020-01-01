@@ -5053,37 +5053,31 @@ void _vm_thread_resume(VM *vm, thread_ctx* thd) {
   thd->has_run = true;
   auto thunk = thread_get_thunk(thread);
   auto cont  = thread_get_suspension(thread);
-  if (thunk != Nil || cont != Nil) {
-    if (is(Closure, thunk)) {
-      thread_set_thunk(thread, Nil);
-      prot_ptrs(thread, thunk);
-      _vm_unwind_to_root_frame(vm);
-      if (!vm->curr_frame) {
-        auto bc = make_empty_bytecode(vm);
-        vm_push_stack_frame(vm, 0, bc, Nil);
-        vm->curr_frame->mark = KNOWN(exception);
-      }
-      auto bc = closure_code(thunk);
-      auto env = closure_env(thunk);
-      vm_push_stack_frame(vm, 0, bc, env);
-      vm->pc--;
-      unprot_ptrs(thread, thunk);
-    } else if (is(cont, cont)) {
-      thread_set_suspension(thread, Nil);
-      prot_ptrs(thread, cont);
-      _vm_unwind_to_root_frame(vm);
-      if (!vm->curr_frame) {
-        auto bc = make_empty_bytecode(vm);
-        vm_push_stack_frame(vm, 0, bc, Nil);
-        vm->curr_frame->mark = KNOWN(exception);
-      }
-      vm_restore_stack_snapshot(vm, cont);
-      unprot_ptrs(thread, cont);
-    } else {
-      assert(false);
+  if (is(Closure, thunk)) {
+    thread_set_thunk(thread, Nil);
+    // _vm_unwind_to_root_frame(vm);
+    {
+      auto bc = make_empty_bytecode(vm);
+      vm_push_stack_frame(vm, 0, bc, Nil);
+      vm->curr_frame->mark = KNOWN(exception);
     }
+    auto bc = closure_code(thunk);
+    auto env = closure_env(thunk);
+    vm_push_stack_frame(vm, 0, bc, env);
+    vm->pc--;
+  } else if (is(cont, cont)) {
+    thread_set_suspension(thread, Nil);
+    prot_ptrs(thread, cont);
+    _vm_unwind_to_root_frame(vm);
+    if (!vm->curr_frame) {
+      auto bc = make_empty_bytecode(vm);
+      vm_push_stack_frame(vm, 0, bc, Nil);
+      vm->curr_frame->mark = KNOWN(exception);
+    }
+    vm_restore_stack_snapshot(vm, cont);
+    unprot_ptrs(thread, cont);
   } else {
-      assert(false);
+    assert(false);
   }
 }
 

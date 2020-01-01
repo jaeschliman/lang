@@ -7371,18 +7371,41 @@ inline bool blit_sampler_sample(blit_sampler *s, u8**out) {
 }
 
 struct pixel_bytes {
-  u8 a, r, g, b;
+  u8 r, g, b, a;
 };
 
 struct pixelb {
   union {
-    u8 first_byte;
     u32 pixel;
+    u8 first_byte;
     pixel_bytes bytes;
   };
 };
 
-inline bool blit_sampler_sample_aa(blit_sampler *s, pixelb*out) {
+inline bool blit_sampler_sample_aa(blit_sampler *s, pixelb *out) {
+  f32 x_rem, y_rem;
+  f32 _sx, _sy;
+  x_rem = modf(s->u, &_sx); y_rem = modf(s->v, &_sy);
+  s32 sx = _sx, sy = _sy; 
+  if (sx >= s->min_x && sx < s->max_x &&
+      sy > s->min_y && sy < s->max_y) {
+    auto src = s->src;
+    f32 /*by1 = y_rem,*/ by0 = 1.0 - y_rem;
+    auto s0 = (src->mem + (sy -1) * src->pitch + sx * 4);
+    auto s1 = (src->mem + sy * src->pitch + sx * 4);
+    pixelb result;
+    result.bytes.r = (s0[0] - s1[0]) * by0 + s1[0];
+    result.bytes.g = (s0[1] - s1[1]) * by0 + s1[1];
+    result.bytes.b = (s0[2] - s1[2]) * by0 + s1[2];
+    result.bytes.a = (s0[3] - s1[3]) * by0 + s1[3];
+    *out = result;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+inline bool blit_sampler_sample_aa_alpha_only(blit_sampler *s, pixelb *out) {
   f32 x_rem, y_rem;
   f32 _sx, _sy;
   x_rem = modf(s->u, &_sx); y_rem = modf(s->v, &_sy);
@@ -7393,11 +7416,9 @@ inline bool blit_sampler_sample_aa(blit_sampler *s, pixelb*out) {
     f32 by1 = y_rem, by0 = 1.0 - y_rem;
     auto s0 = (src->mem + (sy -1) * src->pitch + sx * 4);
     auto s1 = (src->mem + sy * src->pitch + sx * 4);
+    // sampling red channel as proxy for luminance ATM.
     pixelb result;
     result.bytes.a = s0[0] * by0 + s1[0] * by1;
-    result.bytes.r = s0[1] * by0 + s1[1] * by1;
-    result.bytes.g = s0[2] * by0 + s1[2] * by1;
-    result.bytes.b = s0[3] * by0 + s1[3] * by1;
     *out = result;
     return true;
   } else {
@@ -7624,15 +7645,14 @@ Ptr _gfx_fill_rect_with_mask(u32 color, blit_surface *dst, blit_surface *msk,
 
     for (s32 x = 0; x < right; x++) {
       u8 *over = (u8*)(u32*)&color;
-      pixelb sample;
-      u8 *mask = &sample.first_byte;;
+      pixelb mask;
 
       // it would be great if there were a way to do fewer checks here.
       if (at_x + x >= 0L && at_y + y >= 0L &&
-          blit_sampler_sample_aa(&bs_msk, &sample)) {
+          blit_sampler_sample_aa_alpha_only(&bs_msk, &mask)) {
 
         u8* under = dst->mem + dest_row + (at_x + x) * 4;
-        u8 alpha  = over[3] * mask[0] / 255;
+        u8 alpha  = over[3] * mask.bytes.a / 255;
 
         // aA + (1-a)B = a(A-B)+B
         under[0] = ((over[0] - under[0]) * alpha /  255)  + under[0];

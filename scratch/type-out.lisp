@@ -67,8 +67,10 @@
             (set! left 0.0)
             (set! top (+f top h)))
            (#t
-            (blit-charcode-at
-             output (char-code ch) here color scale (if (eq ch #\*) *star-rot rotation))
+            (unless (or (>i (point-x here) screen-w)
+                        (>i (point-y here) screen-h))
+              (blit-charcode-at
+               output (char-code ch) here color scale (if (eq ch #\*) *star-rot rotation)))
             (set! left (+f left w))))
      (set! here (point+ at (make-point (f->i left) (f->i top)))))
     (when (eq *cursor cnt)
@@ -78,7 +80,7 @@
   (let ((scale (/ height (i->f font-char-height))))
     (%display-xvec output at-point color scale rotation vec)))
 
-(define screen-w 500)
+(define screen-w 600)
 (define screen-h 800)
 (define screen-size (make-point screen-w screen-h))
 (define buffer (make-image screen-w screen-h))
@@ -118,44 +120,59 @@
 
 (define (ondown)
   (unless (eq *cursor (xvec/xvec-count *text))
-    (let ((col (column-pos))
+    (let ((col (if (eq *cursor 0) 0 (column-pos)))
           (found (xvec/xvec-find-from-index *text #\Newline *cursor)))
       (set '*cursor (if (eq found -1) (xvec/xvec-count *text) (+i 1 found)))
       (set '*cursor (mini (+i *cursor col) (end-of-line-pos))))))
 
-(define (onkey k)
+(define *pending-input '())
+
+(define (handle-input)
+  (let ((events '()))
+    (sync *text-lock
+          (set! events *pending-input)
+          (set '*pending-input '()))
+    (dolist (fn (reverse-list events)) (fn))))
+
+(define (queue-input fn)
   (sync *text-lock
-        (cond
-          ((eq k #\Dc1) (onleft))
-          ((eq k #\Dc2) (onup))
-          ((eq k #\Dc3) (onright))
-          ((eq k #\Dc4) (ondown))
-          ((eq k #\Backspace)
-           (when (>i *cursor 0)
-             (set '*cursor (-i *cursor 1))
-             (xvec/xvec-delete-range *text *cursor 1)))
-          (#t
+        (set '*pending-input (cons fn *pending-input))))
+
+(define (backspace)
+  (when (>i *cursor 0)
+    (set '*cursor (-i *cursor 1))
+    (xvec/xvec-delete-range *text *cursor 1)))
+
+(define (onkey k)
+  (queue-input
+   (cond
+     ((eq k #\Dc1) onleft)
+     ((eq k #\Dc2) onup)
+     ((eq k #\Dc3) onright)
+     ((eq k #\Dc4) ondown)
+     ((eq k #\Backspace) backspace)
+     (#t (lambda ()
            (let ((c (char-code k)))
              (when (or (and (>i c 31) (<i c 128))
                        (eq k #\Newline) (eq k #\Return))
                (xvec/xvec-insert-at-index *text (if (eq k #\Return) #\Newline k) *cursor)
-               (set '*cursor (+i *cursor 1))))))))
+               (set '*cursor (+i *cursor 1)))))))))
 
 (define (draw!)
-  (sync *text-lock
-        (clear-screen!)
-        (draw-xvec buffer *text 0@0 0xff00cc00 14.5 0.0)
-        (flip-buffer!)))
+  (clear-screen!)
+  (handle-input)
+  (draw-xvec buffer *text 0@0 0xff00cc00 14.5 0.0)
+  (flip-buffer!))
 
 (define onshow draw!)
 
 (fork-with-priority 0 (forever
-                       (sleep-ms 20)
+                       (sleep-ms 40)
                        (set '*star-rot (%f (+f 2.0 *star-rot) 360.0))
                        (draw!)))
 
 (fork-with-priority 0 (forever
-                       (sleep-ms 500)
+                       (sleep-ms 200)
                        (set '*blink (not *blink))))
 
 (request-display screen-w screen-h)

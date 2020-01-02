@@ -531,9 +531,21 @@ https://www.sandeepnambiar.com/setting-up-emacs-for-c++/
   - division
   - pow / mod / sin / cos etc
 
-* TODO ease one-off customization of meta reader
-  - some kind of 'super' rule
-  - intern rule names in a special package (DONE)
+* DONE ease one-off customization of meta reader
+  x some kind of 'super' rule
+  x intern rule names in a special package (DONE)
+* IN-PROGRESS think about stack-allocated closures
+  could reserve two temps on the stack, one for code, one for closure env
+  introduce a new tag type, StackClosure which is basically an offset from
+  the the stack root (this allows to handle resizing the stack without issue)
+  would require one new bytecode, and a new special form?
+    - PUSH_STACK_CLOSURE (localFrameOffset) -> pushes a StackClosure and calculates proper offset
+    - (%stack-nlambda ) -> declares a lambda with dynamic extent
+  some care will be required to ensure jump-optimizations still take effect
+  some care will probably be required around TCO
+
+   
+
 * notes
 maybe have a stack of compilers? can push/pop...
 have each compiler pass output to previous one in the stack

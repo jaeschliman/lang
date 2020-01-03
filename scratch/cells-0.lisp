@@ -105,9 +105,9 @@
     (binding ((*updating-cells* (list cell)))
       (%update-dependents! cell))))
 
-(define (run fn)
+(define (run context fn)
   (binding ((*current-cell* '%toplevel%)
-            (*active-cells* (make-ht)))
+            (*active-cells* context))
     (fn)))
 
 (defmacro ? (cell) `(cell-value ',cell))
@@ -141,10 +141,36 @@
   (stream-write-string *standard-output* "[;f"))
 
 (clear-terminal)
+(define *context (make-ht))
 
-(run (lambda ()
-       (pull-output! 'spending-money)
-       (print '----------------------------------------)
-       (set-input! 'tax 0.04)
-       (print '----------------------------------------)
-       (set-input! 'earned-bonus #t)))
+(run *context (lambda ()
+                (pull-output! 'spending-money)
+                (print '----------------------------------------)
+                (set-input! 'tax 0.04)
+                (print '----------------------------------------)
+                (set-input! 'earned-bonus #t)))
+
+(load-as "sws" "./scratch/sws.lisp")
+
+(define screen-width 200)
+(define screen-height 200)
+(define screen-size (make-point screen-width screen-height))
+
+(define root-widget (sws/make-root screen-width screen-height))
+(define slider (sws/make-slider 10 10 100 30 100.0 900.0 500.0))
+(sws/add-kid root-widget slider)
+(sws/add-observer slider :val (lambda (w k v)
+                                (print `(slider value: ,v))
+                                (run *context (lambda () (set-input! 'food v)))))
+
+(let ((package *package*))
+  (define (onmousedown p)
+    (binding ((*package* package)) ;; so symbols will print nicely
+      (sws/accept-click root-widget p))))
+
+(request-display screen-width screen-height)
+
+(fork-with-priority 0
+                    (forever
+                     (sleep-ms 200)
+                     (sws/draw-root root-widget)))

@@ -6,7 +6,12 @@
 (defparameter *buffer* '())
 
 (define (wget w k) (ht-at w k))
-(define (wset w k v) (ht-at-put w k v))
+(define (wset w k v)
+  (ht-at-put w k v)
+  (let ((observers (ht-at w 'observers)))
+    (unless (nil? observers)
+      (dolist (fn (ht-at observers k))
+        (fn w k v)))))
 
 (defmacro with-widget (binds & body)
   `(binding ((*translation* (point+ *translation* (wget ,(car binds) :pos)))
@@ -17,6 +22,12 @@
   (fill-rect *buffer* (point+ origin *translation*)
              (point+ size (point+ origin *translation*))
              color))
+
+(define (add-observer w key fn)
+  (when (nil? (wget w 'observers))
+    (wset w 'observers (make-ht)))
+  (let ((tbl (wget w 'observers)))
+    (ht-at-put tbl key (cons fn (ht-at tbl key)))))
 
 (define (make-root w h)
   (let ((r (make-ht)))

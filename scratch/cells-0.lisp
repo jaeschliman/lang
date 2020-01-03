@@ -22,6 +22,7 @@
   `(ht-at-put *cells* ',name
               (vector #t ;; is an input
                       ,value ;; value
+                      '() ;; listeners
                       )))
 
 (define (add-listener cell fn)
@@ -100,6 +101,7 @@
 (define (set-input! cell value)
   (let ((c (ht-at *cells* cell)))
     (aset c 1 value)
+    (dolist (fn (aget c 2)) (fn (aget c 1)))
     (binding ((*updating-cells* (list cell)))
       (%update-dependents! cell))))
 
@@ -115,10 +117,12 @@
 (input salary 100000)
 (input tax 0.06)
 
-(formula take-home (let ((base (- (? salary) (* (? salary) (? tax)))))
-                     (if (? earned-bonus)
-                         (+ base (* (? bonus) (? salary) (? tax)))
-                         base)))
+(define (taxed amount)
+  (- amount (* amount (? tax))))
+
+(formula take-home (if (? earned-bonus)
+                       (taxed (+ (? salary) (* (? bonus) (? salary))))
+                       (taxed (? salary))))
 
 (formula monthly (/ (? take-home) 12.0))
 (input rent 1000)

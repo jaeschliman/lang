@@ -130,10 +130,17 @@
               (lambda (v) (print `(spending money updated to: ,v
                                             inputs = ,(%all-inputs 'spending-money)))))
 
+(define (clear-terminal)
+  (stream-write-char *standard-output* #\Esc)
+  (stream-write-string *standard-output* "[2J")
+  (stream-write-char *standard-output* #\Esc)
+  (stream-write-string *standard-output* "[;f"))
+
+(clear-terminal)
+
 (run (lambda ()
        (pull-output! 'spending-money)
        (print '----------------------------------------)
        (set-input! 'tax 0.04)
        (print '----------------------------------------)
-       (set-input! 'earned-bonus #t)
-       ))
+       (set-input! 'earned-bonus #t)))

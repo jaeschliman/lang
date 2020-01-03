@@ -74,6 +74,7 @@
     (unless (aget c 0)
       (when (aget c 3)
         (binding ((*current-cell* cell))
+          (%cell-meta-at-put cell 'inputs '())
           (aset c 1 ((aget c 4)))
           (aset c 3 #f)
           (dolist (fn (aget c 2)) (fn (aget c 1)))
@@ -84,6 +85,13 @@
 (define (cell-value cell)
   (%note-read *current-cell* cell)
   (%cell-value cell))
+
+(define (mappend fn lst)
+  (#/lang/reduce-list append '() (mapcar fn lst)))
+
+(define (%all-inputs cell)
+  (let ((direct-inputs (%cell-meta-at cell 'inputs)))
+    (append direct-inputs (mappend %all-inputs direct-inputs))))
 
 (define (pull-output! cell)
   (binding ((*updating-cells* (list cell)))
@@ -102,18 +110,30 @@
 
 (defmacro ? (cell) `(cell-value ',cell))
 
+(input bonus 0.2)
+(input earned-bonus #f)
 (input salary 100000)
 (input tax 0.06)
-(formula take-home (- (? salary) (* (? salary) (? tax))))
+
+(formula take-home (let ((base (- (? salary) (* (? salary) (? tax)))))
+                     (if (? earned-bonus)
+                         (+ base (* (? bonus) (? salary) (? tax)))
+                         base)))
+
 (formula monthly (/ (? take-home) 12.0))
 (input rent 1000)
 (input food 500)
 (formula spending-money (- (? monthly) (? rent) (? food)))
 
 (add-listener 'take-home (lambda (v) (print `(take-home updated to: ,v))))
-(add-listener 'spending-money (lambda (v) (print `(spending money updated to: ,v))))
+(add-listener 'spending-money
+              (lambda (v) (print `(spending money updated to: ,v
+                                            inputs = ,(%all-inputs 'spending-money)))))
 
 (run (lambda ()
        (pull-output! 'spending-money)
        (print '----------------------------------------)
-       (set-input! 'tax 0.04)))
+       (set-input! 'tax 0.04)
+       (print '----------------------------------------)
+       (set-input! 'earned-bonus #t)
+       ))

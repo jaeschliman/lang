@@ -26,8 +26,21 @@
     (instance-set-ivar r 5 '())
     r))
 
+(define (%meta-string-stream-read pos table)
+  (char-at (aget table 3) pos))
+(define (%meta-string-stream-advance char pos table)
+  (+i pos (char-width char)))
+(define (%meta-string-stream-at-end? pos table)
+  (eq pos (string-byte-length (aget table 3))))
+
+(define (make-meta-string-input string)
+  (vector %meta-string-stream-read
+          %meta-string-stream-advance
+          %meta-string-stream-at-end?
+          string))
+
 (defmacro meta-stream-pos  (it) `(instance-get-ivar ,it 0))
-(defmacro meta-stream-str  (it) `(instance-get-ivar ,it 1))
+(defmacro meta-stream-input  (it) `(instance-get-ivar ,it 1))
 (defmacro meta-stream-line (it) `(instance-get-ivar ,it 2))
 (defmacro meta-stream-memo (it) `(instance-get-ivar ,it 3))
 (defmacro meta-stream-next (it) `(instance-get-ivar ,it 4))
@@ -41,18 +54,28 @@
 (define state-stream car)
 (define state-result cadr)
 
-(define (make-stream str) (make-meta-input-stream 0 str (cons 0 0)))
+(define (make-stream string) (make-meta-input-stream
+                              0
+                              (make-meta-string-input string)
+                              (cons 0 0)))
+
 (define (stream-line-position s) (car (meta-stream-line s)))
 (define (stream-col-position s)  (cdr (meta-stream-line s)))
-;; (define (stream-read s) (char-at (meta-stream-str s) (meta-stream-pos s)))
 
-(defmacro stream-read (str)
-  (let ((s (gensym)))
-    `(let ((,s ,str))
-       (char-at (meta-stream-str ,s) (meta-stream-pos ,s)))))
+(define (stream-read-pos s pos)
+  (let ((tbl (meta-stream-input s)))
+    ((aget tbl 0) pos tbl)))
+
+(define (stream-read s)
+  (stream-read-pos s (meta-stream-pos s)))
 
 (define (stream-end? s)
-  (eq (meta-stream-pos s) (string-byte-length (meta-stream-str s))))
+  (let ((tbl (meta-stream-input s)))
+    ((aget tbl 2) (meta-stream-pos s) tbl)))
+
+(define (stream-next-position s char)
+  (let ((tbl (meta-stream-input s)))
+    ((aget tbl 1) char (meta-stream-pos s) tbl)))
 
 (define (stream-advance s char)
   (or (meta-stream-next s)
@@ -67,14 +90,14 @@
                                   (#t (cdr prev-pos))))
                       prev-pos)))
         (instance-set-ivar s 4 (make-meta-input-stream
-                                (+i (char-width char) (meta-stream-pos s))
-                                (meta-stream-str s)
+                                (stream-next-position s char)
+                                (meta-stream-input s)
                                 pos)))))
 
 
 (define (stream-peek s)
   (if (stream-end? s) '()
-      (char-at (meta-stream-str s) (meta-stream-pos s))))
+      (stream-read-pos s (meta-stream-pos s))))
 
 (define (%vec-grow v)
   (let* ((len (array-length v))
@@ -328,6 +351,7 @@
         (when ,condition
           ,@body
           (loop))))
+
 (define (neq a b) (not (eq a b)))
 
 (define (Setup-LR rule L)

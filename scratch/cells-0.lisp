@@ -160,8 +160,14 @@
 (define root-widget (sws/make-root screen-width screen-height))
 (define slider (sws/make-slider 10 10 100 30 100.0 900.0 500.0))
 (define slider-2 (sws/make-slider 10 50 100 30 100.0 900.0 500.0))
+
+(define results-label (sws/make-label 10 100 300 16 0.0))
+
 (sws/add-kid root-widget slider)
 (sws/add-kid root-widget slider-2)
+(sws/add-kid root-widget results-label)
+
+(add-listener 'spending-money (lambda (v) (sws/wset results-label :val v)))
 
 (define (bind-to-input input-cell widget)
   (add-listener input-cell (lambda (v) (sws/wset widget :val v)))

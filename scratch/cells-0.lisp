@@ -94,7 +94,7 @@
   (let ((direct-inputs (%cell-meta-at cell 'inputs)))
     (append direct-inputs (mappend %all-inputs direct-inputs))))
 
-(define (pull-output! cell)
+(define (observe! cell)
   (binding ((*updating-cells* (list cell)))
     (%cell-value cell)))
 
@@ -145,13 +145,26 @@
 (define *context (make-ht))
 
 (run *context (lambda ()
-                (pull-output! 'spending-money)
+                (observe! 'spending-money)
                 (print '----------------------------------------)
                 (set-input! 'tax 0.04)
                 (print '----------------------------------------)
                 (set-input! 'earned-bonus #t)))
 
 (load-as "sws" "./scratch/sws.lisp")
+
+(define (%bind-to-input input-cell widget)
+  (add-listener input-cell (lambda (v) (sws/wset widget :val v)))
+  (sws/add-observer widget :val (lambda (w k v) (run *context (lambda () (set-input! input-cell v))))))
+
+(define (%bind-to-output output-cell widget)
+  (add-listener output-cell (lambda (v) (sws/wset widget :val v))))
+
+(define (bind cell-name widget)
+  (let ((cell (ht-at *cells* cell-name)))
+    (if (aget cell 0)
+        (%bind-to-input cell-name widget)
+        (%bind-to-output cell-name widget))))
 
 (define screen-width 200)
 (define screen-height 200)
@@ -167,14 +180,9 @@
 (sws/add-kid root-widget slider-2)
 (sws/add-kid root-widget results-label)
 
-(add-listener 'spending-money (lambda (v) (sws/wset results-label :val v)))
-
-(define (bind-to-input input-cell widget)
-  (add-listener input-cell (lambda (v) (sws/wset widget :val v)))
-  (sws/add-observer widget :val (lambda (w k v) (run *context (lambda () (set-input! input-cell v))))))
-
-(bind-to-input 'food slider)
-(bind-to-input 'food slider-2)
+(bind 'food slider)
+(bind 'food slider-2)
+(bind 'spending-money results-label)
 
 (let ((package *package*))
   (define (onmousedown p)

@@ -1,5 +1,6 @@
 ;; simple widget system
 
+(load-as "text" "./scratch/text.lisp")
 
 (defparameter *translation* 0@0)
 (defparameter *widget* '())
@@ -117,3 +118,19 @@
     (wset r :val val)
     r))
 
+(define (%label-draw w)
+  (%rect-draw w)
+  (let ((s (wget w :val)))
+    (unless (string? s)
+      (set! s (with-output-to-string (stream)
+                (#/lang/print-object s stream))))
+    (text/draw-string *buffer* s *translation* 0xff000000 (point-y (wget w :size)) 0.0)))
+
+(define (make-label x y w h val)
+  (let ((r (make-ht)))
+    (wset r :pos (make-point x y))
+    (wset r :size (make-point w h))
+    (wset r :color 0xffffffff)
+    (wset r :draw %label-draw)
+    (wset r :val val)
+    r))

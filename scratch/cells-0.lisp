@@ -175,20 +175,29 @@
 (define slider (sws/make-slider 10 10 100 30 100.0 900.0 500.0))
 (define slider-2 (sws/make-slider 10 50 100 30 100.0 900.0 500.0))
 
-(define results-label (sws/make-label 10 100 300 16 0.0))
+(define salary-input (sws/make-numeric-input 10 100 300 16 0))
+(define results-label (sws/make-label 10 120 300 16 0.0))
 
 (sws/add-kid root-widget slider)
 (sws/add-kid root-widget slider-2)
+(sws/add-kid root-widget salary-input)
 (sws/add-kid root-widget results-label)
 
 (bind 'food slider)
 (bind 'food slider-2)
 (bind 'spending-money results-label)
+(bind 'salary salary-input)
 
 (let ((package *package*))
   (define (onmousedown p)
     (binding ((*package* package)) ;; so symbols will print nicely
       (sws/accept-click root-widget p)
+      (sws/draw-root root-widget))))
+
+(let ((package *package*))
+  (define (onkey k)
+    (binding ((*package* package)) ;; so symbols will print nicely
+      (sws/accept-key root-widget k)
       (sws/draw-root root-widget))))
 
 (request-display screen-width screen-height)

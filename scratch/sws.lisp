@@ -103,6 +103,13 @@
         (unless (nil? fn) (fn w (point- p *translation*))))
       (dolist (k (wget w :kids)) (%accept-click k p)))))
 
+(define (accept-key w k)
+  (let ((target (wget w :focused-control)))
+    (unless (nil? target)
+      (let ((fn (wget target :onkey)))
+        (unless (nil? fn)
+          (fn target k))))))
+
 (define (%slider-draw w)
   (%rect-draw w)
   (let* ((range (- (wget w :max) (wget w :min)))
@@ -156,6 +163,22 @@
       (wset *root* :focused-control w)
       (wset w :focused #t))))
 
+(define (%numeric-input-onkey w k)
+  (let ((add-number (lambda (n)
+                      (wset w :val (+ n (* 10 (wget w :val)))))))
+    (cond
+      ((eq k #\Backspace) (wset w :val (/ (wget w :val) 10)))
+      ((eq k #\0) (add-number 0))
+      ((eq k #\1) (add-number 1))
+      ((eq k #\2) (add-number 2))
+      ((eq k #\3) (add-number 3))
+      ((eq k #\4) (add-number 4))
+      ((eq k #\5) (add-number 5))
+      ((eq k #\6) (add-number 6))
+      ((eq k #\7) (add-number 7))
+      ((eq k #\8) (add-number 8))
+      ((eq k #\9) (add-number 9)))))
+
 (define (make-numeric-input x y w h val)
   (make-widget
    'numeric-input
@@ -164,5 +187,6 @@
    :color 0xffcccccc
    :focused #f
    :click %focus-control
+   :onkey %numeric-input-onkey
    :draw %label-draw
    :val val))

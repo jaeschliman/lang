@@ -83,6 +83,18 @@
             (%load path)))
         (binding ((*package* exist)) (%load path)))))
 
+(define (import-file! path) (binding ((*package* *package*)) (%load path)))
+
+(define *required-files (make-ht))
+
+(define (use-package symbol path)
+  (let ((module-name (intern path *package*)))
+    (when (nil? (ht-at *required-files module-name))
+      (let ((pkg (make-user-package "anon")))
+        (binding ((*package* pkg)) (import-file! path))
+        (ht-at-put *required-files module-name pkg)))
+    (package-add-subpackage *package* (ht-at *required-files module-name) (symbol-name symbol))))
+
 (ht-at-put meta-by-name 'Meta '())
 (ht-at-put meta-by-name 'Lisp '())
 

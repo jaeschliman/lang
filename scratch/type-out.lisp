@@ -1,4 +1,5 @@
 (use-package :xvec "./scratch/xvec-pkg.lisp")
+(use-package :font "./scratch/lib/font.lisp")
 
 (define (mini a b) (if (<i a b) a b))
 (define (maxi a b) (if (<i a b) b a))
@@ -15,35 +16,6 @@
 
 (define *text-lock (make-semaphore #t))
 
-(define font (load-image "./res/another-font.png"))
-(define font-start 0)
-(define font-chars-per-row 16)
-(define font-char-width 10)
-(define font-char-height 10)
-(define font-char-size (make-point font-char-width font-char-height))
-(define font-letter-width 8)
-(define font-letter-height 10)
-
-(define %font-origins (make-array 256))
-(define %font-extents (make-array 256))
-(let loop ((raw-code 0))
-     (when (<i raw-code 256)
-       (let* ((code (-i raw-code font-start))
-              (col (%i code font-chars-per-row))
-              (row (/i code font-chars-per-row))
-              (origin (make-point (*i col font-char-width)
-                                  (*i row font-char-height))))
-         (aset %font-origins raw-code origin)
-         (aset %font-extents raw-code (point+ origin font-char-size))
-         (loop (+i raw-code 1)))))
-
-(define (blit-charcode-at output raw-code point color scale rotation)
-  (when (<i raw-code 256)
-    (fill-rect-with-mask
-     color output font point (point+ point font-char-size) scale rotation
-     (aget %font-origins raw-code)
-     (aget %font-extents raw-code) scale rotation)))
-
 (define *star-rot 0.0)
 
 (define *cursor 0)
@@ -55,8 +27,8 @@
 
 (define (%display-xvec output at color scale rotation vec)
   (let* ((left 0.0) (top 0.0)
-         (w (* font-letter-width scale))
-         (h (* font-letter-height scale))
+         (w (* font/font-letter-width scale))
+         (h (* font/font-letter-height scale))
          (cnt (xvec/xvec-count vec))
          (here  (point+ at (make-point (f->i left) (f->i top)))))
     (xvec/each-with-index
@@ -68,7 +40,7 @@
            (#t
             (unless (or (>i (point-x here) screen-w)
                         (>i (point-y here) screen-h))
-              (blit-charcode-at
+              (font/blit-charcode-at
                output (char-code ch) here color scale (if (eq ch #\*) *star-rot rotation)))
             (set! left (+f left w))))
      (set! here (point+ at (make-point (f->i left) (f->i top)))))
@@ -76,7 +48,7 @@
       (draw-cursor output here w h))))
 
 (define (draw-xvec output vec at-point color height rotation)
-  (let ((scale (/ height (i->f font-char-height))))
+  (let ((scale (/ height (i->f font/font-char-height))))
     (%display-xvec output at-point color scale rotation vec)))
 
 (define screen-w 600)

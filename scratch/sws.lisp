@@ -1,6 +1,5 @@
 ;; simple widget system
-
-(load-as "text" "./scratch/text.lisp")
+(use-package :text "./scratch/text.lisp")
 
 (defparameter *translation* 0@0)
 (defparameter *widget* '())

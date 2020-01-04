@@ -1,5 +1,4 @@
-(load-as "xvec" "./scratch/xvec.lisp")
-(load-as "xvec" "./scratch/xvec-ext.lisp")
+(use-package :xvec "./scratch/xvec-pkg.lisp")
 
 (define (mini a b) (if (<i a b) a b))
 (define (maxi a b) (if (<i a b) b a))

@@ -1,3 +1,5 @@
+(use-package :sws "./scratch/sws.lisp")
+
 (define (list-member? item lst)
   (if (nil? lst) #f
       (or (eq (car lst) item)
@@ -151,8 +153,6 @@
                 (print '----------------------------------------)
                 (set-input! 'earned-bonus #t)))
 
-(load-as "sws" "./scratch/sws.lisp")
-
 (define (%bind-to-input input-cell widget)
   (add-listener input-cell (lambda (v) (sws/wset widget :val v)))
   (sws/add-observer widget :val (lambda (w k v) (run *context (lambda () (set-input! input-cell v))))))
@@ -200,7 +200,8 @@
       (sws/accept-key root-widget k)
       (sws/draw-root root-widget))))
 
-(request-display screen-width screen-height)
-
 (define (onshow)
   (sws/draw-root root-widget))
+
+(request-display screen-width screen-height)
+

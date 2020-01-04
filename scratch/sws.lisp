@@ -5,6 +5,7 @@
 (defparameter *translation* 0@0)
 (defparameter *widget* '())
 (defparameter *buffer* '())
+(defparameter *root* '())
 
 (define (%binding-value b)
   (if (nil? b) '() (aget b 0)))
@@ -93,12 +94,14 @@
            (>i (point-x p) (point-x (point+ (wget *widget* :size) *translation*)))
            (>i (point-y p) (point-y (point+ (wget *widget* :size) *translation*))))))
 
-(define (accept-click w p)
+(define (accept-click w p) (binding ((*root* w)) (%accept-click w p)))
+
+(define (%accept-click w p)
   (with-widget (w)
     (when (point-in-bounds? p)
       (let ((fn (wget w :click)))
         (unless (nil? fn) (fn w (point- p *translation*))))
-      (dolist (k (wget w :kids)) (accept-click k p)))))
+      (dolist (k (wget w :kids)) (%accept-click k p)))))
 
 (define (%slider-draw w)
   (%rect-draw w)
@@ -133,7 +136,7 @@
   (let ((s (wget w :val)))
     (unless (string? s)
       (set! s (with-output-to-string (stream)
-                (#/lang/print-object s stream))))
+                (print-object s stream))))
     (text/draw-string *buffer* s *translation* 0xff000000 (point-y (wget w :size)) 0.0)))
 
 (define (make-label x y w h val)
@@ -142,5 +145,24 @@
    :pos (make-point x y)
    :size (make-point w h)
    :color 0xffffffff
+   :draw %label-draw
+   :val val))
+
+(define (%focus-control w p)
+  (let ((exist (wget *root* :focused-control)))
+    (unless (eq exist w)
+      (unless (nil? exist)
+        (wset exist :focused #f))
+      (wset *root* :focused-control w)
+      (wset w :focused #t))))
+
+(define (make-numeric-input x y w h val)
+  (make-widget
+   'numeric-input
+   :pos (make-point x y)
+   :size (make-point w h)
+   :color 0xffcccccc
+   :focused #f
+   :click %focus-control
    :draw %label-draw
    :val val))

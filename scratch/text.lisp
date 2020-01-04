@@ -15,7 +15,7 @@
          (origin (make-point (* col font-char-width)
                              (* row font-char-height))))
     (fill-rect-with-mask
-     color output font point font-char-size scale rotation
+     color output font point (point+ point font-char-size) scale rotation
      origin (point+ origin font-char-size) scale rotation)))
 
 (defmacro %do-char-codes (binds & body)

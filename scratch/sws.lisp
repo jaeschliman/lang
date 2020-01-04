@@ -5,13 +5,27 @@
 (defparameter *widget* '())
 (defparameter *buffer* '())
 
-(define (wget w k) (ht-at w k))
+(define (%binding-value b)
+  (if (nil? b) '() (aget b 0)))
+(define (%ensure-binding w k)
+  (let ((exist (ht-at w k)))
+    (when (nil? exist)
+      (set! exist (vector '() #f))
+      (ht-at-put w k exist))
+    exist))
+
+(define (wget w k) (%binding-value (ht-at w k)))
+
 (define (wset w k v)
-  (ht-at-put w k v)
-  (let ((observers (ht-at w 'observers)))
-    (unless (nil? observers)
-      (dolist (fn (ht-at observers k))
-        (fn w k v)))))
+  (let ((b (%ensure-binding w k)))
+    (unless (aget b 1)
+      (aset b 1 #t)
+      (aset b 0 v)
+      (let ((observers (ht-at w 'observers)))
+        (unless (nil? observers)
+          (dolist (fn (ht-at observers k))
+            (fn w k v))))
+      (aset b 1 #f))))
 
 (defmacro with-widget (binds & body)
   `(binding ((*translation* (point+ *translation* (wget ,(car binds) :pos)))
@@ -24,9 +38,9 @@
              color))
 
 (define (add-observer w key fn)
-  (when (nil? (wget w 'observers))
-    (wset w 'observers (make-ht)))
-  (let ((tbl (wget w 'observers)))
+  (when (nil? (ht-at w 'observers))
+    (ht-at-put w 'observers (make-ht)))
+  (let ((tbl (ht-at w 'observers)))
     (ht-at-put tbl key (cons fn (ht-at tbl key)))))
 
 (define (make-root w h)
@@ -102,3 +116,4 @@
     (wset r :max max)
     (wset r :val val)
     r))
+

@@ -99,11 +99,12 @@
     (%cell-value cell)))
 
 (define (set-input! cell value)
-  (let ((c (ht-at *cells* cell)))
-    (aset c 1 value)
-    (dolist (fn (aget c 2)) (fn (aget c 1)))
-    (binding ((*updating-cells* (list cell)))
-      (%update-dependents! cell))))
+  (unless (list-member? cell *updating-cells*)
+    (let ((c (ht-at *cells* cell)))
+      (aset c 1 value)
+      (binding ((*updating-cells* (list cell)))
+        (dolist (fn (aget c 2)) (fn (aget c 1)))
+        (%update-dependents! cell)))))
 
 (define (run context fn)
   (binding ((*current-cell* '%toplevel%)
@@ -158,19 +159,24 @@
 
 (define root-widget (sws/make-root screen-width screen-height))
 (define slider (sws/make-slider 10 10 100 30 100.0 900.0 500.0))
+(define slider-2 (sws/make-slider 10 50 100 30 100.0 900.0 500.0))
 (sws/add-kid root-widget slider)
-(sws/add-observer slider :val (lambda (w k v)
-                                (print `(slider value: ,v))
-                                (run *context (lambda () (set-input! 'food v)))))
+(sws/add-kid root-widget slider-2)
+
+(define (bind-to-input input-cell widget)
+  (add-listener input-cell (lambda (v) (sws/wset widget :val v)))
+  (sws/add-observer widget :val (lambda (w k v) (run *context (lambda () (set-input! input-cell v))))))
+
+(bind-to-input 'food slider)
+(bind-to-input 'food slider-2)
 
 (let ((package *package*))
   (define (onmousedown p)
     (binding ((*package* package)) ;; so symbols will print nicely
-      (sws/accept-click root-widget p))))
+      (sws/accept-click root-widget p)
+      (sws/draw-root root-widget))))
 
 (request-display screen-width screen-height)
 
-(fork-with-priority 0
-                    (forever
-                     (sleep-ms 200)
-                     (sws/draw-root root-widget)))
+(define (onshow)
+  (sws/draw-root root-widget))

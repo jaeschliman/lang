@@ -164,7 +164,8 @@
   (let ((cell (ht-at *cells* cell-name)))
     (if (aget cell 0)
         (%bind-to-input cell-name widget)
-        (%bind-to-output cell-name widget))))
+        (%bind-to-output cell-name widget))
+    (run *context (lambda () (sws/wset widget :val (observe! cell-name))))))
 
 (define screen-width 200)
 (define screen-height 200)

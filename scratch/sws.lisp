@@ -28,6 +28,16 @@
             (fn w k v))))
       (aset b 1 #f))))
 
+(define make-widget
+  (lambda plist
+    (let ((r (make-ht)))
+      (wset r :type (car plist))
+      (let loop ((lst (cdr plist)))
+           (unless (nil? lst)
+             (wset r (car lst) (cadr lst))
+             (loop (cddr lst))))
+      r)))
+
 (defmacro with-widget (binds & body)
   `(binding ((*translation* (point+ *translation* (wget ,(car binds) :pos)))
              (*widget* ,(car binds)))
@@ -45,11 +55,11 @@
     (ht-at-put tbl key (cons fn (ht-at tbl key)))))
 
 (define (make-root w h)
-  (let ((r (make-ht)))
-    (wset r :buffer (make-image w h))
-    (wset r :pos 0@0)
-    (wset r :size (make-point w h))
-    r))
+  (make-widget 
+   'root
+   :buffer (make-image w h)
+   :pos 0@0
+   :size (make-point w h)))
 
 (define (add-kid w k)
   (wset w :kids (cons k (wget w :kids))))
@@ -69,13 +79,13 @@
   (paint-rect 0@0 (wget w :size) (wget w :color)))
 
 (define (make-rect x y w h color &opt (click '()))
-  (let ((r (make-ht)))
-    (wset r :pos (make-point x y))
-    (wset r :size (make-point w h))
-    (wset r :color color)
-    (wset r :draw %rect-draw)
-    (wset r :click click)
-    r))
+  (make-widget
+   'rect
+   :pos (make-point x y)
+   :size (make-point w h)
+   :color color
+   :draw %rect-draw
+   :click click))
 
 (define (point-in-bounds? p)
   (not (or (<i (point-x p) (point-x *translation*))
@@ -107,16 +117,16 @@
     (wset w :val (+ (wget w :min) (* pct range)))))
 
 (define (make-slider x y w h min max val)
-  (let ((r (make-ht)))
-    (wset r :pos (make-point x y))
-    (wset r :size (make-point w h))
-    (wset r :color 0xff00ff00)
-    (wset r :draw %slider-draw)
-    (wset r :click %slider-click)
-    (wset r :min min)
-    (wset r :max max)
-    (wset r :val val)
-    r))
+  (make-widget
+   'slider
+   :pos (make-point x y)
+   :size (make-point w h)
+   :color 0xff00ff00
+   :draw %slider-draw
+   :click %slider-click
+   :min min
+   :max max
+   :val val))
 
 (define (%label-draw w)
   (%rect-draw w)
@@ -127,10 +137,10 @@
     (text/draw-string *buffer* s *translation* 0xff000000 (point-y (wget w :size)) 0.0)))
 
 (define (make-label x y w h val)
-  (let ((r (make-ht)))
-    (wset r :pos (make-point x y))
-    (wset r :size (make-point w h))
-    (wset r :color 0xffffffff)
-    (wset r :draw %label-draw)
-    (wset r :val val)
-    r))
+  (make-widget
+   'label
+   :pos (make-point x y)
+   :size (make-point w h)
+   :color 0xffffffff
+   :draw %label-draw
+   :val val))

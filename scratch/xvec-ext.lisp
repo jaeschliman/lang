@@ -154,6 +154,35 @@
                (if (eq (xvec-at v i) item) i
                    (loop (+i -1 i) end))))))
 
+(define (xursor-past-end? v p)
+  (>i (xursor-bucket p) (iget v 'bucket-max)))
+
+(define (xursor-advance v p)
+  (if (xursor-past-end? v p) p
+      (let* ((bidx (xursor-bucket p))
+             (iidx (xursor-item p))
+             (bucket (aget (iget v 'buckets) bidx))
+             (maxidx (aget bucket 0)))
+        (if (eq iidx maxidx)
+            (make-point (+i 1 bidx) 1)
+            (make-point bidx (+i 1 iidx))))))
+
+(define (%meta-xvec-stream-read pos table)
+  (xvec-at-xursor (aget table 4) pos))
+(define (%meta-xvec-stream-advance char pos table)
+  (xursor-advance (aget table 4) pos))
+(define (%meta-xvec-stream-at-end? pos table)
+  (xursor-past-end? (aget table 4) pos))
+(define (%meta-xvec-stream-initial-position table)
+  (xursor-for-index (aget table 4) 0))
+
+(define (make-meta-xvec-input vec)
+  (vector %meta-xvec-stream-read
+          %meta-xvec-stream-advance
+          %meta-xvec-stream-at-end?
+          %meta-xvec-stream-initial-position
+          vec))
+
 ;; (let* ((v (make-xvec)))
 ;;   (dotimes (i 200) (xvec-push v i))
 ;;   (dotimes (i 200) (print `(,i = ,(xvec-at v i)))))

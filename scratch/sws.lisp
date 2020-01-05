@@ -1,5 +1,6 @@
 ;; simple widget system
 (use-package :text "./scratch/text.lisp")
+(use-package :xvec "./scratch/xvec-pkg.lisp")
 
 (defparameter *translation* 0@0)
 (defparameter *widget* '())
@@ -189,3 +190,26 @@
    :onkey %numeric-input-onkey
    :draw %label-draw
    :val val))
+
+(define (%text-input-onkey w k)
+  (let ((vec (wget w :val))
+        (code (char-code k)))
+    (cond ((eq k #\Backspace) (xvec/xvec-pop vec))
+          ((and (>i code 31) (<i code 128)) (xvec/xvec-push vec k)))))
+
+(define (%text-input-draw w)
+  (%rect-draw w)
+  (let ((s (wget w :val)))
+    (text/draw-xvec *buffer* s *translation* 0xff000000 (point-y (wget w :size)) 0.0)))
+
+(define (make-text-input x y w h val)
+   (make-widget
+   'text-input
+   :pos (make-point x y)
+   :size (make-point w h)
+   :color 0xffccffcc
+   :focused #f
+   :click %focus-control
+   :onkey %text-input-onkey
+   :draw %text-input-draw
+   :val (xvec/make-xvec)))

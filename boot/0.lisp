@@ -575,10 +575,22 @@
 (define (char-to-digit ch)
   (-i (char-code ch) (char-code #\0)))
 
+(define (maparr fn arr)
+  (let ((r (make-array (array-length arr))))
+    (let loop ((idx 0))
+         (unless (eq idx (array-length arr))
+           (aset r idx (fn (aget arr idx)))
+           (loop (+i 1 idx))))
+    r))
+
 (define (%slot-index object slot)
   (let ((slotnames (instance-get-ivar (class-of object) 5)))
     (let loop ((idx 0))
-         (if (eq idx (array-length slotnames)) -1
+         (if (eq idx (array-length slotnames)) (let ()
+                                                 (%print `(object ,object missing slot ,slot ,slotnames))
+                                                 (%print (symbol-package slot))
+                                                 (%print (maparr symbol-package slotnames))
+                                                 (throw "whoops"))
              (if (eq slot (aget slotnames idx)) idx
                  (loop (+i idx 1)))))))
 

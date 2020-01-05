@@ -87,8 +87,9 @@
 
 (define *required-files (make-ht))
 
+(at-boot (define *module-package (make-user-package "anon")))
 (define (use-package symbol path)
-  (let ((module-name (intern path *package*)))
+  (let ((module-name (intern path *module-package)))
     (when (nil? (ht-at *required-files module-name))
       (let ((pkg (make-user-package "anon")))
         (binding ((*package* pkg)) (import-file! path))

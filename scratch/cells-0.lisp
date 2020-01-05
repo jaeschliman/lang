@@ -177,11 +177,13 @@
 
 (define salary-input (sws/make-numeric-input 10 100 300 16 0))
 (define results-label (sws/make-label 10 120 300 16 0.0))
+(define text-input (sws/make-text-input 10 140 300 16 0.0))
 
 (sws/add-kid root-widget slider)
 (sws/add-kid root-widget slider-2)
 (sws/add-kid root-widget salary-input)
 (sws/add-kid root-widget results-label)
+(sws/add-kid root-widget text-input)
 
 (bind 'food slider)
 (bind 'food slider-2)

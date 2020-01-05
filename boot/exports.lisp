@@ -4,6 +4,7 @@
 
 (export load-as meta lisp)
 (export import-file! use-package)
+(export parse-input parse-failure? make-meta-string-input)
 
 (export apply let lambda let* define symbol-value set-symbol-value binding set set!
         *meta-context* *package* defparameter symbol-package forward)

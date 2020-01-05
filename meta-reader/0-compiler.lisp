@@ -57,13 +57,12 @@
 (define state-stream car)
 (define state-result cadr)
 
+(define (make-meta-stream-from-input input)
+  (let ((initial-position ((aget input 3) input)))
+    (make-meta-input-stream initial-position input (cons 0 0))))
+
 (define (make-stream string)
-  (let* ((input (make-meta-string-input string))
-         (initial-position ((aget input 3) input)))
-    (make-meta-input-stream
-     initial-position
-     input
-     (cons 0 0))))
+  (make-meta-stream-from-input (make-meta-string-input string)))
 
 (define (stream-line-position s) (car (meta-stream-line s)))
 (define (stream-col-position s)  (cdr (meta-stream-line s)))

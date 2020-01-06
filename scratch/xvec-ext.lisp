@@ -183,6 +183,16 @@
           %meta-xvec-stream-initial-position
           vec))
 
+(define (xvec-reset! v)
+  (let ((bs (iget v 'buckets))
+        (max (iget v 'bucket-max)))
+    (let loop ((i 0))
+         (aset (aget bs i) 0 0)
+         (unless (eq i max)
+           (loop (+i 1 i))))
+    (iset v 'bucket-max 0)
+    (iset v 'count 0)))
+
 ;; (let* ((v (make-xvec)))
 ;;   (dotimes (i 200) (xvec-push v i))
 ;;   (dotimes (i 200) (print `(,i = ,(xvec-at v i)))))

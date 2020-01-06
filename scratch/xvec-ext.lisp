@@ -188,8 +188,7 @@
         (max (iget v 'bucket-max)))
     (let loop ((i 0))
          (aset (aget bs i) 0 0)
-         (unless (eq i max)
-           (loop (+i 1 i))))
+         (unless (eq i max) (loop (+i 1 i))))
     (iset v 'bucket-max 0)
     (iset v 'count 0)))
 

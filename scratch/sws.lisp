@@ -197,10 +197,16 @@
         (curs (wget w :cursor)))
     (cond ((eq k #\Backspace)
            (when (>i (xvec/xvec-count vec) 0)
-             (xvec/xvec-pop vec)
+             (xvec/xvec-delete-range vec (-i curs 1) 1)
              (wset w :cursor (+i -1 curs))))
+          ((eq k #\Dc1) ;;left
+           (when (>i curs 0)
+             (wset w :cursor (+i -1 curs))))
+          ((eq k #\Dc3) ;;right
+           (when (<i curs (xvec/xvec-count vec))
+             (wset w :cursor (+i 1 curs))))
           ((and (>i code 31) (<i code 128))
-           (xvec/xvec-push vec k)
+           (xvec/xvec-insert-at-index vec k curs)
            (wset w :cursor (+i 1 curs))))))
 
 (define (%text-input-draw w)

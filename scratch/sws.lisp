@@ -193,14 +193,21 @@
 
 (define (%text-input-onkey w k)
   (let ((vec (wget w :val))
-        (code (char-code k)))
-    (cond ((eq k #\Backspace) (xvec/xvec-pop vec))
-          ((and (>i code 31) (<i code 128)) (xvec/xvec-push vec k)))))
+        (code (char-code k))
+        (curs (wget w :cursor)))
+    (cond ((eq k #\Backspace)
+           (when (>i (xvec/xvec-count vec) 0)
+             (xvec/xvec-pop vec)
+             (wset w :cursor (+i -1 curs))))
+          ((and (>i code 31) (<i code 128))
+           (xvec/xvec-push vec k)
+           (wset w :cursor (+i 1 curs))))))
 
 (define (%text-input-draw w)
   (%rect-draw w)
-  (let ((s (wget w :val)))
-    (text/draw-xvec *buffer* s *translation* 0xff000000 (point-y (wget w :size)) 0.0)))
+  (let ((s (wget w :val))
+        (cursor (if (wget w :focused) (wget w :cursor) -1)))
+    (text/draw-xvec *buffer* s *translation* 0xff000000 (point-y (wget w :size)) 0.0 cursor)))
 
 (define (make-text-input x y w h val)
    (make-widget
@@ -212,4 +219,5 @@
    :click %focus-control
    :onkey %text-input-onkey
    :draw %text-input-draw
-   :val (xvec/make-xvec)))
+   :val (xvec/make-xvec)
+   :cursor 0))

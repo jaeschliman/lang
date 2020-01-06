@@ -46,6 +46,6 @@
     (when (eq cursor cnt)
       (draw-cursor output here w h))))
 
-(define (draw-xvec output vec at-point color height rotation)
+(define (draw-xvec output vec at-point color height rotation &opt (cursor -1))
   (let ((scale (/ height (i->f font/font-char-height))))
-    (%display-xvec output at-point color scale rotation -1 vec)))
+    (%display-xvec output at-point color scale rotation cursor vec)))

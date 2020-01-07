@@ -32,8 +32,9 @@
   (+i pos (char-width char)))
 (define (%meta-string-stream-at-end? pos table)
   (eq pos (string-byte-length (aget table 4))))
-(define (%meta-string-stream-initial-position table)
-  0)
+(define (%meta-string-stream-initial-position table character-index)
+  ;; TODO: handle utf-8 for initial stream offset
+  character-index)
 
 (define (make-meta-string-input string)
   (vector %meta-string-stream-read
@@ -57,12 +58,12 @@
 (define state-stream car)
 (define state-result cadr)
 
-(define (make-meta-stream-from-input input)
-  (let ((initial-position ((aget input 3) input)))
+(define (make-meta-stream-from-input input idx)
+  (let ((initial-position ((aget input 3) input idx)))
     (make-meta-input-stream initial-position input (cons 0 0))))
 
 (define (make-stream string)
-  (make-meta-stream-from-input (make-meta-string-input string)))
+  (make-meta-stream-from-input (make-meta-string-input string) 0))
 
 (define (stream-line-position s) (car (meta-stream-line s)))
 (define (stream-col-position s)  (cdr (meta-stream-line s)))

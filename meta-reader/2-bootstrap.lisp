@@ -60,14 +60,17 @@
 (at-boot (define meta-entry-point (intern "main" %meta-package)))
 (at-boot (define meta-meta-name 'meta))
 
-(define (parse-input meta-name meta-input)
-  (let* ((stream (make-meta-stream-from-input meta-input))
+(define (parse-input-from-position meta-name meta-input position)
+  (let* ((stream (make-meta-stream-from-input meta-input position))
          (state  (make-initial-state stream)))
     (binding ((*meta-context* (list meta-name)))
       (let* ((fn (get-rule meta-entry-point))
              (newstate (fn state)))
         (if (failure? newstate) newstate
             (state-result newstate))))))
+
+(define (parse-input meta-name meta-input)
+  (parse-input-from-position meta-name meta-input 0))
 
 (define (parse-failure? result) (failure? result))
 

@@ -173,8 +173,8 @@
   (xursor-advance (aget table 4) pos))
 (define (%meta-xvec-stream-at-end? pos table)
   (xursor-past-end? (aget table 4) pos))
-(define (%meta-xvec-stream-initial-position table)
-  (xursor-for-index (aget table 4) 0))
+(define (%meta-xvec-stream-initial-position table character-index)
+  (xursor-for-index (aget table 4) character-index))
 
 (define (make-meta-xvec-input vec)
   (vector %meta-xvec-stream-read

@@ -15,3 +15,13 @@
 
 (print-object '(lambda (x) x) *x)
 (print (parse-input 'meta *read-stream))
+
+(xvec/xvec-reset! *x)
+(print-object 'x *x)
+(print-object '(lambda (y) y) *x)
+(print (parse-input 'meta *read-stream))
+
+(xvec/xvec-reset! *x)
+(print-object 'x *x)
+(print-object '(lambda (y) y) *x)
+(print (parse-input-from-position 'meta *read-stream 1))

@@ -27,3 +27,7 @@
      (aget %font-origins raw-code)
      (aget %font-extents raw-code) scale rotation)))
 
+
+(define (letter-width-for-size height)
+  (let ((scale (/ height (i->f font-char-height))))
+    (* scale font-letter-width)))

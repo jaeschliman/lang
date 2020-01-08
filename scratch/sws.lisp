@@ -1,6 +1,7 @@
 ;; simple widget system
 (use-package :text "./scratch/text.lisp")
 (use-package :xvec "./scratch/xvec-pkg.lisp")
+(use-package :font "./scratch/lib/font.lisp")
 
 (defparameter *translation* 0@0)
 (defparameter *widget* '())
@@ -215,14 +216,21 @@
         (cursor (if (wget w :focused) (wget w :cursor) -1)))
     (text/draw-xvec *buffer* s *translation* 0xff000000 (point-y (wget w :size)) 0.0 cursor)))
 
+(define (%text-input-click w p)
+  (%focus-control w)
+  (let* ((max (xvec/xvec-count (wget w :val)))
+         (width (font/letter-width-for-size (point-y (wget w :size))))
+         (pos (f->i (/ (point-x p) width))))
+    (wset w :cursor (if (>i pos max) max pos))))
+
 (define (make-text-input x y w h val)
-   (make-widget
+  (make-widget
    'text-input
    :pos (make-point x y)
    :size (make-point w h)
    :color 0xffccffcc
    :focused #f
-   :click %focus-control
+   :click %text-input-click
    :onkey %text-input-onkey
    :draw %text-input-draw
    :val (xvec/make-xvec)

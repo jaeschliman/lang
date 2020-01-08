@@ -31,3 +31,7 @@
 (define (letter-width-for-size height)
   (let ((scale (/ height (i->f font-char-height))))
     (* scale font-letter-width)))
+
+(define (line-height-for-size height)
+  (let ((scale (/ height (i->f font-char-height))))
+    (* scale font-letter-height)))

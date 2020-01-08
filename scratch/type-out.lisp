@@ -115,6 +115,26 @@
     (set '*cursor (-i *cursor 1))
     (xvec/xvec-delete-range *text *cursor 1)))
 
+(define (cursor-position-for-line-and-col line col)
+  (let ((start 0))
+    (let loop ((count 0))
+         (unless (eq count line)
+           (let ((found (xvec/xvec-find-from-index *text #\Newline start)))
+             (unless (eq found -1)
+               (set! start (+i 1 found))
+               (loop (+i 1 count))))))
+    (let ((eol (xvec/xvec-find-from-index *text #\Newline start)))
+      (mini eol (+i start col)))))
+
+(define *fontsize 14.5)
+
+(define (onmousedown p)
+  (let* ((h (font/line-height-for-size *fontsize))
+         (w (font/letter-width-for-size *fontsize))
+         (line (f->i (/ (point-y p) h)))
+         (col (f->i (/ (point-x p) w))))
+    (set '*cursor (cursor-position-for-line-and-col line col))))
+
 (define (onkey k)
   (queue-input
    (cond
@@ -133,7 +153,7 @@
 (define (draw!)
   (clear-screen!)
   (handle-input)
-  (draw-xvec buffer *text 0@0 0xff00cc00 14.5 0.0)
+  (draw-xvec buffer *text 0@0 0xff00cc00 *fontsize 0.0)
   (flip-buffer!))
 
 (define onshow draw!)

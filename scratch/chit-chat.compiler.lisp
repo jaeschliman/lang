@@ -4,13 +4,11 @@
 (define cc-compile-expression #f)
 
 (define (cc-remove-dead-code es)
-    (let ((loop #f))
-      (set! loop (lambda (e result)
-                   (if-nil? e (reverse-list result)
-                            (if (and (pair? (car e)) (eq 'return (caar e)))
-                                (reverse-list (cons (car e) result))
-                                (loop (cdr e) (cons (car e) result))))))
-      (loop es '())))
+  (let loop ((e es) (result '()))
+       (if-nil? e (reverse-list result)
+                (if (and (pair? (car e)) (eq 'return (caar e)))
+                    (reverse-list (cons (car e) result))
+                    (loop (cdr e) (cons (car e) result))))))
 
 (define (cc-compile-block e)
     (let* ((info (cdr e))

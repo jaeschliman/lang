@@ -20,7 +20,7 @@ meta chitchat {
   escaped-char = "\\" any:x -> x
   comment      = "\"" (~[\"\\] any | escaped-char)* "\"" 
   string       = "'" (~['\\] any | escaped-char)*:chs "'" -> (charlist-to-string chs)
-  ws           = ([ \r\n] | comment)*
+  ws           = (space | comment)*
   binop-ident  = "+" -> '+ | "-" -> '- | "/" -> '/ | "*" -> '*
   unary-ident  = [a-zA-Z]:fst [a-zA-Z0-9]*:rst -> (implode (cons fst rst))
   nary-part    = [a-zA-Z]:fst [a-zA-Z0-9]*:rst ":" -> (append (cons fst rst) '(#\:))
@@ -51,37 +51,33 @@ meta chitchat {
   method-defn  = unary-ident:cls ">>" method-hdr:h ws "[" body:b "]" -> `(method :class ,cls ,@h ,@b)
   file-in      = (ws method-defn)+:ms ws -> `(chitchat-methods ,ms)
 }
+;;"
 
 (print 'done-meta)
+
+(define (rulename rule) (intern (symbol-name rule) %meta-package))
 
 (define (dbg rule str)
   (stream-write-string *standard-output* str)
   (newline)
-  (binding ((*meta-context* '(chitchat))
-            ;(*meta-memo* #t)
-            ;(*meta-trace* #t)
-            )
-    (match-map print rule str))
+  (try-catch (lambda () 
+               (binding ((*meta-context* '(chitchat)))
+                        (match-map print (rulename rule) str)))
+             (lambda (ex) (print `(whoops! ,ex))))
   (stream-write-string *standard-output* "================================\n"))
 
 (define (dbgx rule str)
   (stream-write-string *standard-output* str)
   (newline)
-  (binding ((*meta-context* '(chitchat))
-            ;(*meta-memo* #t)
-            ;(*meta-trace* #t)
-            )
-    (match-map (lambda (e) (print (compiler e))) rule str))
+  (binding ((*meta-context* '(chitchat)))
+    (match-map (lambda (e) (print (compiler e))) (rulename rule) str))
   (stream-write-string *standard-output* "================================\n"))
 
 (define (dbge rule str)
   (stream-write-string *standard-output* str)
   (newline)
-  (binding ((*meta-context* '(chitchat))
-            ;(*meta-memo* #t)
-            ;(*meta-trace* #t)
-            )
-    (match-map eval rule str))
+  (binding ((*meta-context* '(chitchat)))
+    (match-map eval (rulename rule) str))
   (stream-write-string *standard-output* "================================\n"))
 
 (dbg 'expr "1")

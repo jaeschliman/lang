@@ -36,3 +36,7 @@ meta chitchat {
   method-defn  = capture:cls ">>" method-hdr:h ws "[" body:b "]" -> `(method :class ,cls ,@h ,@b)
   file-in      = (ws method-defn)+:ms ws -> `(chitchat-methods ,ms)
 }
+
+meta chitchat-methods {
+  main = chitchat.file-in
+}

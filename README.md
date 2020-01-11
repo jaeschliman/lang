@@ -9,7 +9,7 @@
 - simple reader and compiler written in C++ for bootstrapping
 - reader and compiler written in the languge itself, loaded as part of boot
 - would like to eventually shrink the C++ portion of the project as much as possible
-- would like to eventaually have exception handling/signalling as in CL / SmallTalk
+- would like to eventually have exception handling/signaling as in CL / SmallTalk
 - lexical and dynamic binding
 - basic built-in graphics and interaction support, using SDL
 - save and restore heap snapshots

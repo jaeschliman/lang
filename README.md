@@ -7,7 +7,7 @@
 - VM and primitive functions written in C++
 - simple cheney-style GC written in C++
 - simple reader and compiler written in C++ for bootstrapping
-- reader and compiler written in the languge itself, loaded as part of boot
+- reader and compiler written in the language itself, loaded as part of boot
 - would like to eventually shrink the C++ portion of the project as much as possible
 - would like to eventually have exception handling/signaling as in CL / SmallTalk
 - lexical and dynamic binding

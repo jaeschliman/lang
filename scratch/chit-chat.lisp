@@ -3,10 +3,7 @@
 (define %message-package (%make-package "messages"))
 (package-add-subpackage %root-package %message-package "st")
 
-(define (as-message-send charlist)
-  (let ((r (intern (charlist-to-string charlist) %message-package)))
-    (print r)
-    r))
+(define (as-message-send charlist) (intern (charlist-to-string charlist) %message-package))
 
 (define (rulename rule) (intern (symbol-name rule) %meta-package))
 

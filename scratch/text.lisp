@@ -31,7 +31,7 @@
          (w (* font/font-letter-width scale))
          (h (* font/font-letter-height scale))
          (cnt (xvec/xvec-count vec))
-         (here  (point+ at (make-point (f->i left) (f->i top)))))
+         (here (point+ at (make-point (f->i left) (f->i top)))))
     (xvec/each-with-index
      (ch idx vec)
      (when (eq cursor idx) (draw-cursor output here w h))

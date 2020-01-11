@@ -93,16 +93,16 @@ LazyTable>>at:x put:y [
   storage ifNil: [ storage := HashTable new ].
   ^ storage at: x put:y
 ]
-Cons>>collect: block [ ^ `(mapcar (lambda (it) (@send '#/st/value: #/st/block it)) self) ]
+Cons>>collect: block [ ^ `(mapcar (lambda (it) (@send '#/st/value: block it)) self) ]
 Fixnum>>pi [ ^ `*pi* ]
 ")
 
 
 (dbge 'file-in "
-Fixnum>>+ other [ ^ `(+ self #/st/other) ]
+Fixnum>>+ other [ ^ `(+ self other) ]
 Closure>>value [ ^ `(self) ]
 Boolean>>ifTrue: then ifFalse: else [
- ^ `(if self (@send '#/st/value #/st/then) (@send '#/st/value #/st/else))
+ ^ `(if self (@send '#/st/value then) (@send '#/st/value else))
 ]
 Fixnum>>isEven [ ^ `(= 0 (% self 2)) ]
 Fixnum>>aCheck [

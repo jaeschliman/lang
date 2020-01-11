@@ -545,6 +545,8 @@ https://www.sandeepnambiar.com/setting-up-emacs-for-c++/
   some care will probably be required around TCO
 
    
+* TODO define classes with chitchat methods as plugin from cpp side
+* TODO maybe try an integration with open frameworks
 
 * notes
 maybe have a stack of compilers? can push/pop...

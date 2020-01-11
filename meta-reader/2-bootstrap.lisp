@@ -82,6 +82,8 @@
       ;; TODO: we don't need to keep the results
       (match-map *load-evaluator* meta-entry-point input))))
 
+(defmacro lang (name) `(set '*meta-context* '(,name)))
+
 (when *recompiling*
   (%print `(reloading meta lisp reader))
   (%load "./meta-reader/meta-lisp-reader.lisp")

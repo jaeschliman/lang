@@ -18,7 +18,8 @@ meta mylisp < lisp {
   iref = symbol:o "." symbol:s -> `(iget ,o ',s)
   lhs = iref | aref | symbol
   assign = lhs:l ws ":=" ws expr:r -> (banger l r)
-  expr = assign | iref | aref | ^expr
+  prefix-call = symbol:hd "(" expr*:args ")" -> (cons hd args)
+  expr = prefix-call | assign | iref | aref | ^expr
 }
 
 (print *meta-context*)
@@ -35,3 +36,5 @@ meta mylisp < lisp {
 (print "hello again")
 (print *x)
 (print 'x.y := 5)
+
+print("it worked!")

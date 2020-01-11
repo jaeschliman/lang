@@ -5616,6 +5616,11 @@ Ptr class_set_method(VM *vm, StandardObject *klass, Ptr sym, Ptr callable) {
   return Nil;
 }
 
+Ptr class_get_method(VM *vm, StandardObject *klass, Ptr sym) {
+  auto dict = standard_object_get_ivar(klass, BaseClassMethodDict);
+  return ht_at(dict, sym);
+}
+
 inline Ptr giant_switch(VM *vm, u32 argc, u32 idx);
 bool vm_handle_error(VM *vm);
 

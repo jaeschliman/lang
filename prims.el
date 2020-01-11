@@ -204,6 +204,8 @@ void initialize_primitive_functions(VM *vm) {
         ((name any) (ivars any)) any "make_user_class(vm, name, ivars)")
   (prim class-set-method SETMETHOD
         ((a Standard) (sym any) (fn any)) any "class_set_method(vm, a, sym, fn)")
+  (prim class-get-method GETMETHOD
+        ((a Standard) (sym any)) any "class_get_method(vm, a, sym)")
   (prim class-get-metadata CLSGETMETA
         ((a Standard) (key any)) any "class_get_metadata(a, key)")
   (prim class-set-metadata CLSSETMETA

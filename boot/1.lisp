@@ -43,4 +43,5 @@
       (%l "./boot/char.lisp")
       (%l "./boot/string-output-stream.lisp")
       (%l "./boot/printing.lisp")
-      (%l "./boot/interaction-support.lisp"))))
+      (%l "./boot/interaction-support.lisp")
+      (%l "./scratch/chit-chat.lisp"))))

@@ -1,0 +1,119 @@
+1
+1
+================================
+(1)
+1
+================================
+1 + 2
+(send (quote #/st/+) 1 2)
+================================
+(1 + 2)
+(send (quote #/st/+) 1 2)
+================================
+1 + 2 + 3
+(send (quote #/st/+) 1 (send (quote #/st/+) 2 3))
+================================
+1 + (2 + 3)
+(send (quote #/st/+) 1 (send (quote #/st/+) 2 3))
+================================
+(1 + 2) + 3
+(send (quote #/st/+) (send (quote #/st/+) 1 2) 3)
+================================
+foo print
+(send (quote #/st/print) (load foo))
+================================
+foo printWith: 10
+(send (quote #/st/printWith:) (load foo) 10)
+================================
+baz do: (x + 5) with: Color blue
+(send (quote #/st/do:with:) (load baz) (send (quote #/st/+) (load x) 5) (send (quote #/st/blue) (load Color)))
+================================
+^ x
+(return (load x))
+================================
+^ x + 2
+(return (send (quote #/st/+) (load x) 2))
+================================
+[ x + 2 ]
+(block :args () :vars () :body ((send (quote #/st/+) (load x) 2)))
+================================
+[ ^ x ]
+(block :args () :vars () :body ((return (load x))))
+================================
+ 
+     x := AThing becomeRelevant.
+     y := self fooWith: x.
+     self frobnicate: [ ^ y ]
+
+(:vars () :body ((set! #/st/x (send (quote #/st/becomeRelevant) (load AThing))) (set! #/st/y (send (quote #/st/fooWith:) self (load x))) (send (quote #/st/frobnicate:) self (block :args () :vars () :body ((return (load y)))))))
+================================
+ |x y|
+     x := AThing becomeRelevant.
+     y := self fooWith: x.
+     self frobnicate: [ :arg | self fooWith:arg. ^ y ]
+
+(:vars (#/st/x #/st/y) :body ((set! #/st/x (send (quote #/st/becomeRelevant) (load AThing))) (set! #/st/y (send (quote #/st/fooWith:) self (load x))) (send (quote #/st/frobnicate:) self (block :args (arg) :vars () :body ((send (quote #/st/fooWith:) self (load arg)) (return (load y)))))))
+================================
+
+     | y |
+     y := 5.
+     ^ [ :x | x + y ]
+
+(:vars (#/st/y) :body ((set! #/st/y 5) (return (block :args (x) :vars () :body ((send (quote #/st/+) (load x) (load y)))))))
+================================
+
+Array>>first [ ^ self at: 0 ]
+String>>first [ ^ self at: 0 ]
+LazyTable>>at:x put:y [
+  storage ifNil: [ storage := HashTable new ].
+  ^ storage at: x put:y
+]
+Cons>>collect: block [ ^ `(mapcar (lambda (it) (@send '#/st/value: block it)) self) ]
+Fixnum>>pi [ ^ `*pi* ]
+
+((list (quote class-set-method) cls (list (quote quote) name) (cc-compile-method-body args vars body)) = (class-set-method Array (quote #/st/first) (lambda (self) (let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (@send (quote #/st/at:) self 0)) %result))))
+((list (quote class-set-method) cls (list (quote quote) name) (cc-compile-method-body args vars body)) = (class-set-method String (quote #/st/first) (lambda (self) (let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (@send (quote #/st/at:) self 0)) %result))))
+((list (quote class-set-method) cls (list (quote quote) name) (cc-compile-method-body args vars body)) = (class-set-method LazyTable (quote #/st/at:put:) (lambda (self x y) (let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (@send (quote #/st/ifNil:) storage (lambda () (let () (set! #/st/storage (@send (quote #/st/new) HashTable))))) (set! %result (@send (quote #/st/at:put:) storage x y)) %result))))
+((list (quote class-set-method) cls (list (quote quote) name) (cc-compile-method-body args vars body)) = (class-set-method Cons (quote #/st/collect:) (lambda (self block) (let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (mapcar (lambda (it) (@send (quote #/st/value:) block it)) self)) %result))))
+((list (quote class-set-method) cls (list (quote quote) name) (cc-compile-method-body args vars body)) = (class-set-method Fixnum (quote #/st/pi) (lambda (self) (let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result *pi*) %result))))
+(%let () (class-set-method Array (quote #/st/first) (%nlambda () (self) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (@send (quote #/st/at:) self 0)) %result))) (class-set-method String (quote #/st/first) (%nlambda () (self) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (@send (quote #/st/at:) self 0)) %result))) (class-set-method LazyTable (quote #/st/at:put:) (%nlambda () (self x y) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (@send (quote #/st/ifNil:) storage (%nlambda () () (%let () (set! #/st/storage (@send (quote #/st/new) HashTable))))) (set! %result (@send (quote #/st/at:put:) storage x y)) %result))) (class-set-method Cons (quote #/st/collect:) (%nlambda () (self block) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (mapcar (%nlambda () (it) (@send (quote #/st/value:) block it)) self)) %result))) (class-set-method Fixnum (quote #/st/pi) (%nlambda () (self) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result *pi*) %result))))
+================================
+
+Fixnum>>+ other [ ^ `(+ self other) ]
+Closure>>value [ ^ `(self) ]
+Boolean>>ifTrue: then ifFalse: else [
+ ^ `(if self (@send '#/st/value then) (@send '#/st/value else))
+]
+Fixnum>>isEven [ ^ `(= 0 (% self 2)) ]
+Fixnum>>aCheck [
+  (self isEven) ifTrue: [ ^ 'yes, even' ] ifFalse: [ ^ 'no, not even' ]
+]
+Fixnum>>callIfEven: block [
+  (self isEven) ifTrue: [ block value ] ifFalse: [ false ]
+]
+Fixnum>>anotherCheck [
+  self callIfEven: [ ^ 'early exit' ].
+  ^ 'was not even'
+]
+
+((list (quote class-set-method) cls (list (quote quote) name) (cc-compile-method-body args vars body)) = (class-set-method Fixnum (quote #/st/+) (lambda (self other) (let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (+ self other)) %result))))
+((list (quote class-set-method) cls (list (quote quote) name) (cc-compile-method-body args vars body)) = (class-set-method Closure (quote #/st/value) (lambda (self) (let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (self)) %result))))
+((list (quote class-set-method) cls (list (quote quote) name) (cc-compile-method-body args vars body)) = (class-set-method Boolean (quote #/st/ifTrue:ifFalse:) (lambda (self then else) (let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (if self (@send (quote #/st/value) then) (@send (quote #/st/value) else))) %result))))
+((list (quote class-set-method) cls (list (quote quote) name) (cc-compile-method-body args vars body)) = (class-set-method Fixnum (quote #/st/isEven) (lambda (self) (let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (= 0 (% self 2))) %result))))
+((list (quote class-set-method) cls (list (quote quote) name) (cc-compile-method-body args vars body)) = (class-set-method Fixnum (quote #/st/aCheck) (lambda (self) (let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (@send (quote #/st/ifTrue:ifFalse:) (@send (quote #/st/isEven) self) (lambda () (let () (return-from-mark %invocation-tag "yes, even"))) (lambda () (let () (return-from-mark %invocation-tag "no, not even")))) %result))))
+((list (quote class-set-method) cls (list (quote quote) name) (cc-compile-method-body args vars body)) = (class-set-method Fixnum (quote #/st/callIfEven:) (lambda (self block) (let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (@send (quote #/st/ifTrue:ifFalse:) (@send (quote #/st/isEven) self) (lambda () (let () (@send (quote #/st/value) block))) (lambda () (let () #f))) %result))))
+((list (quote class-set-method) cls (list (quote quote) name) (cc-compile-method-body args vars body)) = (class-set-method Fixnum (quote #/st/anotherCheck) (lambda (self) (let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (@send (quote #/st/callIfEven:) self (lambda () (let () (return-from-mark %invocation-tag "early exit")))) (set! %result "was not even") %result))))
+================================
+5
+10
+#t
+#/st/ifTrue:ifFalse:
+(even? #t)
+"ok"
+"ok"
+"yes, even"
+(expecting early exit)
+"early exit"
+(expecting was not even)
+"was not even"
+done

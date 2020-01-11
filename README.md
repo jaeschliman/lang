@@ -24,7 +24,7 @@
 - med-term goal is a small and simple kernel running a family of flexible dynamic languages.
 - long-term goal is some statically-typed languages as well, and a GUI system, and debugger.
 - will eventually add support for hardware-accelerated graphics.
-- [start of a SmallTalk-like, 'chit-chat'](scratch/chit-chat.lisp)
+- [start of a SmallTalk-like, 'chit-chat'](scratch/chit-chat.grammar.lisp)
 - [start of the chitchat compiler](scratch/chit-chat.compiler.lisp)
 - `scratch` dir contains many little experiments. it is the main WIP folder
 - [TODO.org](TODO.org) is where work is planned and tracked. GH does not render org files well (sorry!).

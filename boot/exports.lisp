@@ -114,6 +114,10 @@
 
 (export start-additional-event-loop update-display)
 
+(export Continuation Fixnum Float String Symbol Closure
+ PrimOp Image Point Array HashTable Null Cons Boolean Character
+ Semaphore Thread FileOutputStream Package Class Bignum)
+
 (export exit)
 
 'done

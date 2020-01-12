@@ -45,14 +45,13 @@
          %result)))
 
 (define (cc-compile-method m)
-    (let* ((info (cdr m))
-           (cls  (plist-get :class info))
-           (name (plist-get :name  info))
-           (args (plist-get :args  info))
-           (vars (plist-get :vars  info))
-           (body (plist-get :body  info)))
-      (trace 
-       `(class-set-method ,cls ',name ,(cc-compile-method-body args vars body)))))
+  (let* ((info (cdr m))
+         (cls  (plist-get :class info))
+         (name (plist-get :name  info))
+         (args (plist-get :args  info))
+         (vars (plist-get :vars  info))
+         (body (plist-get :body  info)))
+    `(class-set-method ,cls ',name ,(cc-compile-method-body args vars body))))
 
 
 (defmacro chitchat-methods (methodlist)

@@ -40,3 +40,7 @@ meta chitchat {
 meta chitchat-methods {
   main = chitchat.file-in
 }
+
+meta chitchat-script {
+  main = chitchat.body:b -> `(,(cc-compile-script b) '())
+}

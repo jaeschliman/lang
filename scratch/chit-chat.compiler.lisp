@@ -36,13 +36,13 @@
 
 
 (define (cc-compile-method-body args vars body)
-    `(lambda (self ,@args)
-       (let ((%invocation-tag (cons '() '()))
-             (%result self)
-             ,@(mapcar (lambda (s) (list s '())) vars))
-         (set-stack-mark %invocation-tag)
-         ,@(mapcar cc-compile-expression (cc-remove-dead-code body))
-         %result)))
+  `(lambda (self ,@args)
+     (let ((%invocation-tag (cons '() '()))
+           (%result self)
+           ,@(mapcar (lambda (s) (list s '())) vars))
+       (set-stack-mark %invocation-tag)
+       ,@(mapcar cc-compile-expression (cc-remove-dead-code body))
+       %result)))
 
 (define (cc-compile-method m)
   (let* ((info (cdr m))
@@ -53,6 +53,10 @@
          (body (plist-get :body  info)))
     `(class-set-method ,cls ',name ,(cc-compile-method-body args vars body))))
 
+(define (cc-compile-script info)
+  (let* ((vars (plist-get :vars  info))
+         (body (plist-get :body  info)))
+    (cc-compile-method-body '() vars body)))
 
 (defmacro chitchat-methods (methodlist)
   `(let ()

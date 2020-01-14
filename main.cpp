@@ -3845,10 +3845,14 @@ Ptr mark_object_as_class(StandardObject *obj) {
 }
 
 // @unsafe
-auto make_base_class(VM *vm, const char* name) {
-  Ptr slots[] = {make_string(vm,name), make_number(0), ht(vm), ht(vm), Nil};
+auto make_base_class(VM *vm, const char* name, const char* metaclass_name) {
+  Ptr metaclass_slots[] = {make_string(vm,metaclass_name), make_number(BaseClassEnd),
+                           ht(vm), ht(vm), Nil, Nil}; // TODO: initialize ivar names in boot
   auto base = vm->globals->classes.builtins[BuiltinClassIndex_Base];
-  auto result = make_standard_object(vm, base, slots);
+  auto metaclass = make_standard_object(vm, base, metaclass_slots);
+  mark_object_as_class(metaclass);
+  Ptr slots[] = {make_string(vm,name), make_number(0), ht(vm), ht(vm), Nil, Nil};
+  auto result = make_standard_object(vm, metaclass, slots);
   mark_object_as_class(result);
   return result;
 }
@@ -3867,7 +3871,7 @@ void initialize_classes(VM *vm)
   mark_object_as_class(Base);
   vm->globals->classes.builtins[BuiltinClassIndex_Base] = Base;
 
-#define make_class(name) if (!builtin(name)) builtin(name) = make_base_class(vm, #name);
+#define make_class(name) if (!builtin(name)) builtin(name) = make_base_class(vm, #name, #name " metaclass");
 #define builtin(name) vm->globals->classes.builtins[BuiltinClassIndex_##name]
 #define X(...) MAP(make_class, __VA_ARGS__)
 #include "./builtin-classes.include0"
@@ -3924,16 +3928,30 @@ bool is_class(Ptr obj) {
   return false;
 }
 
+StandardObject * _make_metaclass(VM *vm, Ptr name) {
+ // TODO format metaclass name
+  auto metaclass_name = name; prot_ptr(metaclass_name);
+  auto method_dict = ht(vm);  prot_ptr(method_dict);
+  auto metadata = ht(vm);     prot_ptr(metadata);
+  Ptr metaclass_slots[] = {metaclass_name, make_number(BaseClassEnd),
+                           method_dict, metadata, Nil, Nil};
+  auto base = vm->globals->classes.builtins[BuiltinClassIndex_Base];
+  auto metaclass = make_standard_object(vm, base, metaclass_slots);
+  mark_object_as_class(metaclass);
+  unprot_ptrs(metaclass_name, method_dict, metadata);
+  return metaclass;
+}
 
-Ptr make_user_class(VM *vm, Ptr name, Ptr ivar_names) { prot_ptrs(name, ivar_names);
+Ptr make_user_class(VM *vm, Ptr name, Ptr ivar_names) {           prot_ptrs(name, ivar_names);
   auto ivar_names_vector = make_vector_from_list(vm, ivar_names); prot_ptr(ivar_names_vector);
   auto ivar_ct = to(Fixnum, list_length(vm, ivar_names));
-  auto method_dict = ht(vm);                      prot_ptr(method_dict);
-  auto metadata = ht(vm);
-  auto superclass = vm->globals->classes.builtins[BuiltinClassIndex_Base];
+  auto method_dict = ht(vm);                                      prot_ptr(method_dict);
+  auto metadata = ht(vm);                                         prot_ptr(metadata);
+
+  auto metaclass = _make_metaclass(vm, name);
   Ptr slots[] = {name, ivar_ct, method_dict, metadata, Nil, ivar_names_vector};
-  auto result = make_standard_object(vm, superclass, slots);
-  unprot_ptrs(name, method_dict, ivar_names, ivar_names_vector);
+  auto result = make_standard_object(vm, metaclass, slots);
+  unprot_ptrs(name, method_dict, ivar_names, ivar_names_vector, metadata);
   mark_object_as_class(result);
   return to(Ptr, result);
 }
@@ -5794,6 +5812,7 @@ void vm_interp(VM* vm, interp_params params) {
     const char *errors[2] = { "symbol is unbound", 0 };
     vm->error = errors[(int)bound];
     vm_push(vm, sym_data[3]);
+    if (vm->error) dbg("arrrg, ", it);
   }
   NEXT;
 

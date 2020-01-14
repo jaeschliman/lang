@@ -38,8 +38,8 @@
 (init-builtin-class 'Thread           (class-of (current-thread)))
 (init-builtin-class 'FileOutputStream (class-of *standard-output*))
 (init-builtin-class 'Package          (class-of *package*))
-(init-builtin-class 'Class            (class-of (class-of 0)))
 (init-builtin-class 'Bignum           (class-of (*i 2 500000000000000000)))
+(init-builtin-class 'Class            (class-of (class-of (class-of 0))))
 
 
 ;; since we don't support class inheritance yet, this will do

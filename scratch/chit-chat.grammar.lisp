@@ -33,8 +33,11 @@ meta chitchat {
   unary-hdr    = unary-ident:m -> (list :name m :args '())
   binary-hdr   = binop-ident:m ws capture:arg -> (list :name m :args (list arg))
   method-hdr   = nary-hdr | unary-hdr  | binary-hdr
-  method-defn  = capture:cls ">>" method-hdr:h ws "[" body:b "]" -> `(method :class ,cls ,@h ,@b)
-  file-in      = (ws method-defn)+:ms ws -> `(chitchat-methods ,ms)
+  method-defn  = method-hdr:h ws "[" body:b "]" -> `(,@h ,@b)
+  inst-method  = capture:cls ">>" method-defn:d -> `(instance :class ,cls ,@d)
+  class-method = capture:cls " class>>" method-defn:d -> `(class :class ,cls ,@d)
+  file-method  = inst-method | class-method
+  file-in      = (ws file-method)+:ms ws -> `(chitchat-methods ,ms)
 }
 
 meta chitchat-methods {

@@ -45,13 +45,15 @@
        %result)))
 
 (define (cc-compile-method m)
-  (let* ((info (cdr m))
+  (let* ((class? (eq (car m) 'class))
+         (info (cdr m))
          (cls  (plist-get :class info))
          (name (plist-get :name  info))
          (args (plist-get :args  info))
          (vars (plist-get :vars  info))
-         (body (plist-get :body  info)))
-    `(class-set-method ,cls ',name ,(cc-compile-method-body args vars body))))
+         (body (plist-get :body  info))
+         (class (if class? `(class-of ,cls) cls)))
+    `(class-set-method ,class ',name ,(cc-compile-method-body args vars body))))
 
 (define (cc-compile-script info)
   (let* ((vars (plist-get :vars  info))

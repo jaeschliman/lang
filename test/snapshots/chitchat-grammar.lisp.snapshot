@@ -45,21 +45,21 @@ baz do: (x + 5) with: Color blue
      y := self fooWith: x.
      self frobnicate: [ ^ y ]
 
-(:vars () :body ((set! #/st/x (send (quote #/st/becomeRelevant) (load AThing))) (set! #/st/y (send (quote #/st/fooWith:) self (load x))) (send (quote #/st/frobnicate:) self (block :args () :vars () :body ((return (load y)))))))
+(:vars () :body ((set! x (send (quote #/st/becomeRelevant) (load AThing))) (set! y (send (quote #/st/fooWith:) self (load x))) (send (quote #/st/frobnicate:) self (block :args () :vars () :body ((return (load y)))))))
 ================================
  |x y|
      x := AThing becomeRelevant.
      y := self fooWith: x.
      self frobnicate: [ :arg | self fooWith:arg. ^ y ]
 
-(:vars (#/st/x #/st/y) :body ((set! #/st/x (send (quote #/st/becomeRelevant) (load AThing))) (set! #/st/y (send (quote #/st/fooWith:) self (load x))) (send (quote #/st/frobnicate:) self (block :args (arg) :vars () :body ((send (quote #/st/fooWith:) self (load arg)) (return (load y)))))))
+(:vars (x y) :body ((set! x (send (quote #/st/becomeRelevant) (load AThing))) (set! y (send (quote #/st/fooWith:) self (load x))) (send (quote #/st/frobnicate:) self (block :args (arg) :vars () :body ((send (quote #/st/fooWith:) self (load arg)) (return (load y)))))))
 ================================
 
      | y |
      y := 5.
      ^ [ :x | x + y ]
 
-(:vars (#/st/y) :body ((set! #/st/y 5) (return (block :args (x) :vars () :body ((send (quote #/st/+) (load x) (load y)))))))
+(:vars (y) :body ((set! y 5) (return (block :args (x) :vars () :body ((send (quote #/st/+) (load x) (load y)))))))
 ================================
 
 Array>>first [ ^ self at: 0 ]
@@ -71,7 +71,7 @@ LazyTable>>at:x put:y [
 Cons>>collect: block [ ^ `(mapcar (lambda (it) (@send '#/st/value: block it)) self) ]
 Fixnum>>pi [ ^ `*pi* ]
 
-(%let () (class-set-method Array (quote #/st/first) (%nlambda () (self) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (@send (quote #/st/at:) self 0)) %result))) (class-set-method String (quote #/st/first) (%nlambda () (self) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (@send (quote #/st/at:) self 0)) %result))) (class-set-method LazyTable (quote #/st/at:put:) (%nlambda () (self x y) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (@send (quote #/st/ifNil:) storage (%nlambda () () (%let () (set! #/st/storage (@send (quote #/st/new) HashTable))))) (set! %result (@send (quote #/st/at:put:) storage x y)) %result))) (class-set-method Cons (quote #/st/collect:) (%nlambda () (self block) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (mapcar (%nlambda () (it) (@send (quote #/st/value:) block it)) self)) %result))) (class-set-method Fixnum (quote #/st/pi) (%nlambda () (self) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result *pi*) %result))))
+(%let () (class-set-method Array (quote #/st/first) (%nlambda () (self) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (@send (quote #/st/at:) self 0)) %result))) (class-set-method String (quote #/st/first) (%nlambda () (self) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (@send (quote #/st/at:) self 0)) %result))) (class-set-method LazyTable (quote #/st/at:put:) (%nlambda () (self x y) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (@send (quote #/st/ifNil:) storage (%nlambda () () (%let () (set! storage (@send (quote #/st/new) HashTable))))) (set! %result (@send (quote #/st/at:put:) storage x y)) %result))) (class-set-method Cons (quote #/st/collect:) (%nlambda () (self block) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (mapcar (%nlambda () (it) (@send (quote #/st/value:) block it)) self)) %result))) (class-set-method Fixnum (quote #/st/pi) (%nlambda () (self) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result *pi*) %result))))
 ================================
 
 Fixnum>>+ other [ ^ `(+ self other) ]

@@ -22,11 +22,11 @@ meta chitchat {
   block        = "[" arglist?:args body:b "]" -> `(block :args ,args ,@b)
   subexpr      = unary-send | binary-send | atom | group 
   expr         = ws (nary-send | subexpr):x ws -> x
-  assign       = unary-ident:var ws ":=" expr:val -> `(set! ,var ,val)
+  assign       = capture:var ws ":=" expr:val -> `(set! ,var ,val)
   return       = "^" ws expr:x -> `(return ,x)
   stmt         = return | assign | expr
   stmts        = ws stmt:s (ws "." ws stmt)*:ss -> (cons s ss)
-  vars         = "|" (ws unary-ident)*:vars ws "|" -> vars
+  vars         = "|" (ws capture)*:vars ws "|" -> vars
   body         = ws vars?:vars stmts:stmts -> `(:vars ,vars :body ,stmts) 
 
   nary-hdr     = (nary-part:m ws capture:a ws -> (cons m a))+:hdr -> (compose-hdr hdr)

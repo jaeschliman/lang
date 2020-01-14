@@ -1,3 +1,7 @@
 (lang #/lang/chitchat-script)
 
-`*standard-output* printObject: 'hello, world!'.
+| stdout |
+
+stdout := `*standard-output* .
+
+stdout printObject: 'hello, world!'.

@@ -31,7 +31,7 @@
             (return (let ((result (cc-compile-expression (cadr e))))
                       (if *cc-in-block* `(return-from-mark %invocation-tag ,result)
                           `(set! %result ,result))))
-            (send `(@send ,(cadr e) ,@(mapcar cc-compile-expression (cddr e))))))
+            (send `(@send ,@(mapcar cc-compile-expression (cddr e)) ,(cadr e)))))
         e))
 
 

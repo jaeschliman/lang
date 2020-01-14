@@ -68,16 +68,16 @@ LazyTable>>at:x put:y [
   storage ifNil: [ storage := HashTable new ].
   ^ storage at: x put:y
 ]
-Cons>>collect: block [ ^ `(mapcar (lambda (it) (@send '#/st/value: block it)) self) ]
+Cons>>collect: block [ ^ `(mapcar (lambda (it) (@send block it '#/st/value:)) self) ]
 Fixnum>>pi [ ^ `*pi* ]
 
-(%let () (class-set-method Array (quote #/st/first) (%nlambda () (self) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (@send (quote #/st/at:) self 0)) %result))) (class-set-method String (quote #/st/first) (%nlambda () (self) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (@send (quote #/st/at:) self 0)) %result))) (class-set-method LazyTable (quote #/st/at:put:) (%nlambda () (self x y) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (@send (quote #/st/ifNil:) storage (%nlambda () () (%let () (set! storage (@send (quote #/st/new) HashTable))))) (set! %result (@send (quote #/st/at:put:) storage x y)) %result))) (class-set-method Cons (quote #/st/collect:) (%nlambda () (self block) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (mapcar (%nlambda () (it) (@send (quote #/st/value:) block it)) self)) %result))) (class-set-method Fixnum (quote #/st/pi) (%nlambda () (self) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result *pi*) %result))))
+(%let () (class-set-method Array (quote #/st/first) (%nlambda () (self) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (@send self 0 (quote #/st/at:))) %result))) (class-set-method String (quote #/st/first) (%nlambda () (self) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (@send self 0 (quote #/st/at:))) %result))) (class-set-method LazyTable (quote #/st/at:put:) (%nlambda () (self x y) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (@send storage (%nlambda () () (%let () (set! storage (@send HashTable (quote #/st/new))))) (quote #/st/ifNil:)) (set! %result (@send storage x y (quote #/st/at:put:))) %result))) (class-set-method Cons (quote #/st/collect:) (%nlambda () (self block) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result (mapcar (%nlambda () (it) (@send block it (quote #/st/value:))) self)) %result))) (class-set-method Fixnum (quote #/st/pi) (%nlambda () (self) (%let ((%invocation-tag (cons (quote ()) (quote ()))) (%result self)) (set-stack-mark %invocation-tag) (set! %result *pi*) %result))))
 ================================
 
 Fixnum>>+ other [ ^ `(+ self other) ]
 Closure>>value [ ^ `(self) ]
 Boolean>>ifTrue: then ifFalse: else [
- ^ `(if self (@send '#/st/value then) (@send '#/st/value else))
+ ^ `(if self (@send then '#/st/value) (@send else '#/st/value))
 ]
 Fixnum>>isEven [ ^ `(= 0 (% self 2)) ]
 Fixnum>>aCheck [

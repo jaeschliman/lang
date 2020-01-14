@@ -63,7 +63,7 @@ LazyTable>>at:x put:y [
   storage ifNil: [ storage := HashTable new ].
   ^ storage at: x put:y
 ]
-Cons>>collect: block [ ^ `(mapcar (lambda (it) (@send '#/st/value: block it)) self) ]
+Cons>>collect: block [ ^ `(mapcar (lambda (it) (@send block it '#/st/value:)) self) ]
 Fixnum>>pi [ ^ `*pi* ]
 ")
 
@@ -72,7 +72,7 @@ Fixnum>>pi [ ^ `*pi* ]
 Fixnum>>+ other [ ^ `(+ self other) ]
 Closure>>value [ ^ `(self) ]
 Boolean>>ifTrue: then ifFalse: else [
- ^ `(if self (@send '#/st/value then) (@send '#/st/value else))
+ ^ `(if self (@send then '#/st/value) (@send else '#/st/value))
 ]
 Fixnum>>isEven [ ^ `(= 0 (% self 2)) ]
 Fixnum>>aCheck [
@@ -87,18 +87,21 @@ Fixnum>>anotherCheck [
 ]
 ")
 
-(print (@send '#/st/+ 2 3))
-(print (@send '#/st/value (lambda () 10)))
-(print (@send '#/st/isEven 4))
+(defmacro ! (msg & args)
+  `(@send ,@args ',msg))
+
+(print (! #/st/+ 2 3))
+(print (! #/st/value (lambda () 10)))
+(print (! #/st/isEven 4))
 (print '#/st/ifTrue:ifFalse:)
-(let ((even? (@send '#/st/isEven 4)))
+(let ((even? (! #/st/isEven 4)))
   (print `(even? ,even?))
-  (print (@send '#/st/ifTrue:ifFalse: even? (lambda () "ok") (lambda () "not ok"))))
-(print (@send '#/st/ifTrue:ifFalse: (@send '#/st/isEven 4) (lambda () "ok") (lambda () "not ok")))
-(print (@send '#/st/aCheck 4))
+  (print (! #/st/ifTrue:ifFalse: even? (lambda () "ok") (lambda () "not ok"))))
+(print (! #/st/ifTrue:ifFalse: (! #/st/isEven 4) (lambda () "ok") (lambda () "not ok")))
+(print (! #/st/aCheck 4))
 (print `(expecting early exit))
-(print (@send '#/st/anotherCheck 4))
+(print (! #/st/anotherCheck 4))
 (print `(expecting was not even))
-(print (@send '#/st/anotherCheck 3))
+(print (! #/st/anotherCheck 3))
 
 (print 'done)

@@ -2,6 +2,7 @@
 
 | stdout |
 
-stdout := `*standard-output* .
+stdout := FileOutputStream stdout.
 
 stdout printObject: 'hello, world!'.
+stdout newline;

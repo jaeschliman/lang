@@ -1,5 +1,6 @@
 
 (defparameter *cc-in-block* #f)
+(defparameter *cc-current-class* #f)
 
 (define cc-compile-expression #f)
 
@@ -20,19 +21,26 @@
                          ,@(mapcar cc-compile-expression (cc-remove-dead-code body)))))))
 
 (define (cc-compile-expression e)
-    (if (pair? e)
-        (let ()
-          (case (car e)
-            (quote e)
-            (lisp (cadr e))
-            (load (cadr e)) ;; TODO: ivar support
-            (set! `(set! ,(cadr e) ,(cc-compile-expression (caddr e))))
-            (block (cc-compile-block e))
-            (return (let ((result (cc-compile-expression (cadr e))))
-                      (if *cc-in-block* `(return-from-mark %invocation-tag ,result)
-                          `(set! %result ,result))))
-            (send `(@send ,@(mapcar cc-compile-expression (cddr e)) ,(cadr e)))))
-        e))
+  (if (pair? e)
+      (let ()
+        (case (car e)
+          (quote e)
+          (lisp (cadr e))
+          (load
+           (let ((sym (cadr e)))
+             (if (class-has-slot? *cc-current-class* sym) `(iget self ',sym)
+                 sym)))
+          (set!
+           (let ((sym (cadr e)))
+             (if (class-has-slot? *cc-current-class* sym)
+                 `(iset self ',sym ,(cc-compile-expression (caddr e)))
+                 `(set! ,sym ,(cc-compile-expression (caddr e))))))
+          (block (cc-compile-block e))
+          (return (let ((result (cc-compile-expression (cadr e))))
+                    (if *cc-in-block* `(return-from-mark %invocation-tag ,result)
+                        `(set! %result ,result))))
+          (send `(@send ,@(mapcar cc-compile-expression (cddr e)) ,(cadr e)))))
+      e))
 
 
 (define (cc-compile-method-body args vars body)
@@ -52,13 +60,16 @@
          (args (plist-get :args  info))
          (vars (plist-get :vars  info))
          (body (plist-get :body  info))
-         (class (if class? `(class-of ,cls) cls)))
-    `(class-set-method ,class ',name ,(cc-compile-method-body args vars body))))
+         (class (if class? `(class-of ,cls) cls))
+         (class-object (symbol-value cls)))
+    (binding ((*cc-current-class* (if class? (class-of class-object) class-object)))
+      `(class-set-method ,class ',name ,(cc-compile-method-body args vars body)))))
 
 (define (cc-compile-script info)
   (let* ((vars (plist-get :vars  info))
          (body (plist-get :body  info)))
-    (cc-compile-method-body '() vars body)))
+    (binding ((*cc-current-class* Null))
+      (cc-compile-method-body '() vars body))))
 
 (defmacro chitchat-methods (methodlist)
   `(let ()

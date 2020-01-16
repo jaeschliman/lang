@@ -56,6 +56,8 @@
      ^ [ :x | x + y ]
 ")
 
+(define LazyTable (create-class 'LazyTable '(storage)))
+
 (dbgx 'file-in "
 Array>>first [ ^ self at: 0 ]
 String>>first [ ^ self at: 0 ]

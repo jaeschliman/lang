@@ -1,8 +1,17 @@
 (lang #/lang/chitchat-script)
 
-| stdout |
+| stdout a |
 
 stdout := FileOutputStream stdout.
 
 stdout printObject: 'hello, world!'.
-stdout newline;
+stdout newline.
+
+a := Array withCapacity: 3.
+
+a at: 0 put: 'hello'.
+a at: 1 put: 'again'.
+a at: 2 put: 'world'.
+
+stdout printObject: a.
+stdout newline.

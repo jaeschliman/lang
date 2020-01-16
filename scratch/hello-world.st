@@ -1,6 +1,7 @@
+(import-file! "./scratch/my-pair.st")
 (lang #/lang/chitchat-script)
 
-| stdout a |
+| stdout a p |
 
 stdout := FileOutputStream stdout.
 
@@ -14,4 +15,10 @@ a at: 1 put: 'again'.
 a at: 2 put: 'world'.
 
 stdout printObject: a.
+stdout newline.
+
+p := MyPair withFirst: 'hello' andRest: 'world'.
+
+stdout printObject: p first.
+stdout printObject: p rest.
 stdout newline.

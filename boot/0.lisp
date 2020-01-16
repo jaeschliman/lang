@@ -599,7 +599,8 @@
     r))
 
 (define (class-has-slot? class slotname)
-  (not (eq -1 (%slot-index class slotname))))
+  (and (not (nil? (instance-get-ivar class 5)))
+       (not (eq -1 (%slot-index class slotname)))))
 
 (define (iget object slotname)
   (instance-get-ivar object (%object-slot-index-or-error object slotname)))

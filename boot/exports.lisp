@@ -21,7 +21,8 @@
 (export dotimes)
 
 (export
- create-class instantiate-class class-set-applicator instance-get-ivar instance-set-ivar)
+ create-class instantiate-class class-set-applicator instance-get-ivar instance-set-ivar
+ class-has-slot?)
 
 (export defgeneric generic-function-add-method)
 

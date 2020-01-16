@@ -583,22 +583,29 @@
            (loop (+i 1 idx))))
     r))
 
-(define (%slot-index object slot)
-  (let ((slotnames (instance-get-ivar (class-of object) 5)))
+
+(define (%slot-index class slot)
+  (let ((slotnames (instance-get-ivar class 5)))
     (let loop ((idx 0))
-         (if (eq idx (array-length slotnames)) (let ()
-                                                 (%print `(object ,object missing slot ,slot ,slotnames))
-                                                 (%print (symbol-package slot))
-                                                 (%print (maparr symbol-package slotnames))
-                                                 (throw "whoops"))
+         (if (eq idx (array-length slotnames)) -1
              (if (eq slot (aget slotnames idx)) idx
                  (loop (+i idx 1)))))))
 
+(define (%object-slot-index-or-error object slot)
+  (let ((r (%slot-index (class-of object) slot)))
+    (when (eq r -1)
+      (%print `(object ,object missing slot ,slot))
+      (throw "whoops"))
+    r))
+
+(define (class-has-slot? class slotname)
+  (not (eq -1 (%slot-index class slotname))))
+
 (define (iget object slotname)
-  (instance-get-ivar object (%slot-index object slotname)))
+  (instance-get-ivar object (%object-slot-index-or-error object slotname)))
 
 (define (iset object slotname value)
-  (instance-set-ivar object (%slot-index object slotname) value))
+  (instance-set-ivar object (%object-slot-index-or-error object slotname) value))
 
 ;;  the end -----------------------------------------------------------------------
 

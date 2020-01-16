@@ -6,7 +6,7 @@ MyPair class>>withFirst: a andRest: b [
    result := `(instantiate-class MyPair).
    result first: a.
    result rest: b.
-   ^ result
+   ^ result.
 ]
 
 MyPair>>first: v [ a := v ]

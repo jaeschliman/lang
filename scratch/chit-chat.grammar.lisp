@@ -27,7 +27,7 @@ meta chitchat {
   stmt         = return | assign | expr
   stmts        = ws stmt:s (ws "." ws stmt)*:ss -> (cons s ss)
   vars         = "|" (ws capture)*:vars ws "|" -> vars
-  body         = ws vars?:vars stmts:stmts -> `(:vars ,vars :body ,stmts) 
+  body         = ws vars?:vars stmts:stmts ws "."? ws -> `(:vars ,vars :body ,stmts) 
 
   nary-hdr     = (nary-part:m ws capture:a ws -> (cons m a))+:hdr -> (compose-hdr hdr)
   unary-hdr    = unary-ident:m -> (list :name m :args '())

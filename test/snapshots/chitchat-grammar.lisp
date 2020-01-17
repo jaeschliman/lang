@@ -13,7 +13,7 @@
   (stream-write-string *standard-output* str)
   (newline)
   (try-catch (lambda ()
-                (binding ((*meta-context* '(chitchat)))
+                (binding ((*meta-context* '(chitchat-methods)))
                          (match-map (lambda (e) (print (compiler e))) (rulename rule) str)))
              (lambda (ex) (print `(whoops! ,x))))
 
@@ -22,7 +22,7 @@
 (define (dbge rule str)
   (stream-write-string *standard-output* str)
   (newline)
-  (binding ((*meta-context* '(chitchat)))
+  (binding ((*meta-context* '(chitchat-methods)))
     (match-map eval (rulename rule) str))
   (stream-write-string *standard-output* "================================\n"))
 

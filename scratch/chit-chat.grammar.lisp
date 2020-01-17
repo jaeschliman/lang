@@ -28,7 +28,9 @@ meta chitchat {
   stmts        = ws stmt:s (ws "." ws stmt)*:ss -> (cons s ss)
   vars         = "|" (ws capture)*:vars ws "|" -> vars
   body         = ws vars?:vars stmts:stmts ws "."? ws -> `(:vars ,vars :body ,stmts) 
+}
 
+meta chitchat-methods < chitchat {
   nary-hdr     = (nary-part:m ws capture:a ws -> (cons m a))+:hdr -> (compose-hdr hdr)
   unary-hdr    = unary-ident:m -> (list :name m :args '())
   binary-hdr   = binop-ident:m ws capture:arg -> (list :name m :args (list arg))
@@ -38,10 +40,8 @@ meta chitchat {
   class-method = capture:cls " class>>" method-defn:d -> `(class :class ,cls ,@d)
   file-method  = inst-method | class-method
   file-in      = (ws file-method)+:ms ws -> `(chitchat-methods ,ms)
-}
 
-meta chitchat-methods {
-  main = chitchat.file-in
+  main = file-in 
 }
 
 meta chitchat-script {
